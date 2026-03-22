@@ -1,0 +1,4 @@
+lichess_db_puzzle.csv filter=lfs diff=lfs merge=lfs -text
+engine/stockfish[[:space:]]18/stockfish-18.wasm filter=lfs diff=lfs merge=lfs -text
+*.csv filter=lfs diff=lfs merge=lfs -text
+engine/stockfish[[:space:]]18/*.wasm filter=lfs diff=lfs merge=lfs -text
