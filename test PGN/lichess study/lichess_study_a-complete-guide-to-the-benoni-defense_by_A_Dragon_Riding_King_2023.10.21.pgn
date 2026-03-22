@@ -1,0 +1,911 @@
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense"]
+[Date "2023.10.21"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Benoni Gambit Accepted"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/Al4AeKgG"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.21"]
+[UTCTime "00:29:07"]
+
+{ Hello and welcome to my study on the Benoni. The following 40ish chapters are all variations, lines, gambits, etc. Following the variation chapters will follow games from GMs, so stick around. You will, or ought to, notice that many of the chapters are similar, this is because I copied pgn from lichess opening tree to get ALL the variations, and consequently, all includes some look-likes.
+
+Most of the variations look like their main line, knowing all the names and moves is not necessary unless you are titled. Knowing the main structures will probably be more beneficial for you than trying to remember all the side nooks and crannies.
+
+Furthermore, this study will not be addressing the famous Benko Gambit. There are many studies on it out there, so you will not find it here.
+
+1.d4 }
+1. d4 { The Benoni is a Defense used by Black against the move 1.d4
+There are two ways to reach the Benoni, the first is playing 1...c5 right away. } 1... c5 { According to the Lichess Opening Explorer this is the Old Benoni https://lichess.org/study/Uq7jI7Nk, and is rarely played these days. Although white can take the pawn in this "gambit". Just like in the Queen's Gambit, there is no way to hang onto the pawn. More on this later. } (1... Nf6 { The second way to reach the Benoni starts with 1...Nf6 } 2. c4 { Likely anticipating one of the Indian Defenses, you can surprise your opponent with a direct c5! } 2... c5 { Seeing as you need to play c5 at some point in MOST 1.d4 openings, why not now? ;) }) 2. dxc5 e6 (2... Qa5+ 3. Nc3 Qxc5 { Also an option. }) 3. Be3 (3. b4 a5 4. a3 (4. c3 axb4 5. cxb4 Qf6 { And white must give up a minor piece to save the rook. }) 4... axb4 { [%cal Ga8a1] }) 3... Qa5+ 4. Nc3 Bxc5 { These lines are just to show how to retake if White is crazy enough to try to keep the pawn. } 5. Bxc5 Qxc5 $10 { https://lichess.org/opening/Benoni_Defense I will try to cross-reference this study to other chapters in this study, other studies, or other sources. } *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Benoni Gambit: Schlenker Defense"]
+[Date "2023.10.21"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Benoni Gambit, Schlenker Defense"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Benoni Gambit: Schlenker Defense"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/FvC0rX5P"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[FEN "rnbqkbnr/pp1ppppp/8/2p5/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1"]
+[SetUp "1"]
+[UTCDate "2023.10.21"]
+[UTCTime "00:48:45"]
+
+{ Starting from the Old Benoni, white takes the pawn. }
+1. dxc5 { And here comes the Gambit part... } 1... Na6 { Seen roughly 1% of the time, this is certainly a novelty. And while certainly not the top engine move(who cares about what the engine thinks anyway??), it is one way to regain the pawn. } 2. Be3 (2. b4? Nxb4) 2... Qa5+ (2... e6) *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Benoni Gambit Accepted"]
+[Date "2023.10.21"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Benoni Gambit Accepted"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Benoni Gambit Accepted"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/FfTrEe0p"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.21"]
+[UTCTime "00:59:43"]
+
+1. d4 c5 { Old Benoni } 2. dxc5 { Benoni Gambit Accepted.
+This is a simple opening, and will go into several branches, however, it is the Old Benoni(1...c5), and is no longer seen commonly. } *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni-Indian Defense"]
+[Date "2023.10.21"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Benoni-Indian Defense, Kingside Move Order"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni-Indian Defense"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/3RGygmtQ"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[FEN "rnbqkbnr/pp1ppppp/8/2p5/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 1"]
+[SetUp "1"]
+[UTCDate "2023.10.21"]
+[UTCTime "01:07:49"]
+
+1. d5 { White pushes, gains center space, and refuses to trade a center pawn for a wing one. :( } 1... Nf6 { Key move of the Benoni-Indian. } 2. Nf3 { The next chapter is similar, but something I think should be noted is that from this move order, white is encouraged to take the pawn.
+Source: me } *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni-Indian Defense: Kingside Move Order"]
+[Date "2023.10.21"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Benoni-Indian Defense, Kingside Move Order"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni-Indian Defense: Kingside Move Order"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/rK6urvh1"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.21"]
+[UTCTime "01:09:20"]
+
+1. d4 Nf6 2. Nf3 c5 { IMO, white is less likely to take the pawn, seeing that black is prepared to go to an Indian defense. } 3. d5 { As you can see, same position as the previous chapter, just a different move order.
+Source: me } *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni-Stauton Gambit"]
+[Date "2023.10.21"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Benoni-Staunton Gambit"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni-Stauton Gambit"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/BpiIFNqm"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.21"]
+[UTCTime "01:16:41"]
+
+{ This one is wild. }
+1. d4 c5 2. d5 f5 3. e4 { As I understand it, this is a gambit by white, not black. I plan on coming back through later with ideas and moves. } *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni: Classical Variation"]
+[Date "2023.10.21"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A70"]
+[Opening "Benoni Defense: Classical Variation"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni: Classical Variation"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/fFYiJIgI"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.21"]
+[UTCTime "01:23:35"]
+
+1. d4 Nf6 2. c4 e6 3. Nf3 c5 4. d5 exd5 5. cxd5 d6 6. Nc3 g6 7. e4 { This is a must-know if you are going to play Benoni.
+Also, prepare for a kingside attack } *
+
+
+[Event "A Complete Guide to the Benoni Defense: Classical Variation: Argentine Counterattack"]
+[Date "2023.10.21"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A75"]
+[Opening "Benoni Defense: Classical Variation, Argentine Counterattack"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Classical Variation: Argentine Counterattack"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/JtHKZmUp"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[FEN "rnbqkb1r/pp3p1p/3p1np1/2pP4/4P3/2N2N2/PP3PPP/R1BQKB1R b KQkq - 0 7"]
+[SetUp "1"]
+[UTCDate "2023.10.21"]
+[UTCTime "01:25:18"]
+
+{ This is where the last chapter left off. }
+7... Bg7 8. Be2 O-O 9. O-O a6 10. a4 Bg4 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Classical Variation: Averbakh-Grivas Attack"]
+[Date "2023.10.21"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A71"]
+[Opening "Benoni Defense: Classical Variation, Averbakh-Grivas Attack"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Classical Variation: Averbakh-Grivas Attack"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/RTeKIVk6"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.21"]
+[UTCTime "01:28:07"]
+
+1. d4 Nf6 2. c4 e6 3. Nf3 c5 4. d5 exd5 5. cxd5 d6 6. Nc3 g6 7. e4 Bg7 8. Bg5 { Oh no, a pin. } *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Classical Variation, Czerniak Defense"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A76"]
+[Opening "Benoni Defense: Classical Variation, Czerniak Defense"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Classical Variation, Czerniak Defense"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/rzRTQyWO"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:10:37"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. Nf3 Bg7 8. Be2 O-O 9. O-O Re8 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Classical Variation, Czerniak Defense, Tal Line"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A77"]
+[Opening "Benoni Defense: Classical Variation, Czerniak Defense, Tal Line"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Classical Variation, Czerniak Defense, Tal Line"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/qbYI2I5q"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:11:20"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. Nf3 Bg7 8. Be2 O-O 9. O-O Re8 10. Nd2 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Classical Variation, Main Line"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A73"]
+[Opening "Benoni Defense: Classical Variation, Main Line"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Classical Variation, Main Line"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/8MiSYMW6"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:12:33"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. Nf3 Bg7 8. Be2 O-O 9. O-O *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Classical Variation, Full Line"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A74"]
+[Opening "Benoni Defense: Classical Variation, Full Line"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Classical Variation, Full Line"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/KfnrGEW1"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:11:56"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. Nf3 Bg7 8. Be2 O-O 9. O-O a6 10. a4 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Classical Variation, New York Variation"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A70"]
+[Opening "Benoni Defense: Classical Variation, New York Variation"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Classical Variation, New York Variation"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/X2TP1oKV"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:13:02"]
+
+1. d4 Nf6 2. c4 e6 3. Nf3 c5 4. d5 exd5 5. cxd5 d6 6. Nc3 g6 7. e4 Bg7 8. h3 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Classical Variation, Traditional Variation"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A70"]
+[Opening "Benoni Defense: Classical Variation, Traditional Variation"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Classical Variation, Traditional Variation"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/rsbo14of"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:13:32"]
+
+1. d4 Nf6 2. c4 e6 3. Nf3 c5 4. d5 exd5 5. cxd5 d6 6. Nc3 g6 7. e4 Bg7 8. Be2 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Cormorant Gambit"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Cormorant Gambit"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Cormorant Gambit"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/9t1IqrIE"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:14:19"]
+
+1. d4 c5 2. dxc5 b6 { Kinda feels like a Benko Gambit } *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Czech Benoni Defense"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A56"]
+[Opening "Benoni Defense: Czech Benoni Defense"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Czech Benoni Defense"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/XM5lvGKW"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:14:40"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e5 { Watch out for the en-passant... } *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Fianchetto Variation"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A61"]
+[Opening "Benoni Defense: Fianchetto Variation"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Fianchetto Variation"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/xqtler6o"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:15:09"]
+
+1. d4 Nf6 2. c4 e6 3. Nf3 c5 4. d5 exd5 5. cxd5 d6 6. Nc3 g6 7. g3 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Fianchetto Variation, Hastings Defense"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A63"]
+[Opening "Benoni Defense: Fianchetto Variation, Hastings Defense"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Fianchetto Variation, Hastings Defense"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/tTty6Sd4"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:15:28"]
+
+1. d4 Nf6 2. c4 e6 3. g3 c5 4. d5 exd5 5. cxd5 d6 6. Nc3 g6 7. Bg2 Bg7 8. Nf3 O-O 9. O-O Nbd7 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Four Pawns Attack"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A68"]
+[Opening "Benoni Defense: Four Pawns Attack"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Four Pawns Attack"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/yciFPv1p"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:16:05"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. f4 Bg7 8. Nf3 O-O *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Four Pawns Attack, Main Line"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A69"]
+[Opening "Benoni Defense: Four Pawns Attack, Main Line"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Four Pawns Attack, Main Line"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/v15sZ8ku"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:16:23"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. f4 O-O 6. Nf3 c5 7. d5 e6 8. Be2 exd5 9. cxd5 Re8 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Franco-Sicilian Hybrid"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A40"]
+[Opening "Benoni Defense: Franco-Sicilian Hybrid"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Franco-Sicilian Hybrid"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/06msewQC"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:16:54"]
+
+1. d4 e6 2. c4 c5 3. d5 exd5 4. cxd5 d6 5. Nc3 g6 6. e4 Bg7 7. Nf3 Ne7 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: French Benoni"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: French Benoni"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: French Benoni"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/sUABXcCt"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:17:17"]
+
+1. e4 e6 2. d4 c5 3. d5 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Hawk Variation"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Hawk Variation"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Hawk Variation"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/WZdVdKh5"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:17:39"]
+
+1. d4 Nf6 2. Nf3 c5 3. d5 c4 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Hromádka System"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A56"]
+[Opening "Benoni Defense: Hromádka System"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Hromádka System"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/LJ1jY2u2"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:18:08"]
+
+1. d4 Nf6 2. c4 c5 3. d5 d6 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: King's Indian System"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A56"]
+[Opening "Benoni Defense: King's Indian System"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: King's Indian System"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/Fz1XEB2p"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:18:39"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e5 4. Nc3 d6 5. e4 g6 { This might be a complete transposition to the King's Indian Defense } *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: King's Pawn Line"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A65"]
+[Opening "Benoni Defense: King's Pawn Line"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: King's Pawn Line"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/AesdduwC"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:19:08"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Knight's Tour Variation"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A61"]
+[Opening "Benoni Defense: Knight's Tour Variation"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Knight's Tour Variation"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/zvWLdQHL"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:19:27"]
+
+1. d4 Nf6 2. c4 e6 3. Nf3 c5 4. d5 exd5 5. cxd5 d6 6. Nc3 g6 7. Nd2 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Mikenas Variation"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A66"]
+[Opening "Benoni Defense: Mikenas Variation"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Mikenas Variation"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/duqVkJQ5"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:20:00"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. f4 Bg7 8. e5 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Modern Variation"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A60"]
+[Opening "Benoni Defense: Modern Variation"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Modern Variation"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/YCy27Y2V"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:21:14"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Modern Variation, Snake Variation"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A60"]
+[Opening "Benoni Defense: Modern Variation, Snake Variation"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Modern Variation, Snake Variation"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/a4lF5xcj"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:21:38"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 Bd6 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Old Benoni"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Old Benoni"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Old Benoni"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/2QV6dMsr"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:22:20"]
+
+1. d4 c5 { https://lichess.org/study/Uq7jI7Nk } *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Old Benoni, Mujannah Formation"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Old Benoni, Mujannah Formation"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Old Benoni, Mujannah Formation"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/3uZs1dEe"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:22:45"]
+
+1. d4 c5 2. d5 f5 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Old Benoni, Schmid Variation"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Old Benoni, Schmid Variation"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Old Benoni, Schmid Variation"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/sSDLPHq8"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:23:00"]
+
+1. d4 c5 2. d5 d6 3. Nc3 g6 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Pawn Storm Variation"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A66"]
+[Opening "Benoni Defense: Pawn Storm Variation"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Pawn Storm Variation"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/SK76QDoi"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:23:43"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. f4 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Semi-Benoni"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A44"]
+[Opening "Benoni Defense: Semi-Benoni"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Semi-Benoni"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/0ZTHi8KH"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:24:02"]
+
+1. d4 c5 2. d5 e5 3. e4 d6 { Will probably transpose to the King's Indian } *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Snail Variation"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Snail Variation"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Snail Variation"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/8j2wTT5l"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:24:20"]
+
+1. d4 c5 2. d5 Na6 { Also see Schlenker Defense, chapter 2 } *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Taimanov Variation"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A67"]
+[Opening "Benoni Defense: Taimanov Variation"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Taimanov Variation"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/PPt2kzXd"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:24:56"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. f4 Bg7 8. Bb5+ *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Uhlmann Variation"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A61"]
+[Opening "Benoni Defense: Uhlmann Variation"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Uhlmann Variation"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/ufnXbGxb"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:25:13"]
+
+1. d4 Nf6 2. c4 e6 3. Nf3 c5 4. d5 exd5 5. cxd5 d6 6. Nc3 g6 7. Bg5 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Weenink Variation"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A56"]
+[Opening "Benoni Defense: Weenink Variation"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Weenink Variation"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/8tRd21KY"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:25:29"]
+
+1. d4 Nf6 2. c4 c5 3. dxc5 e6 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Woozle"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Woozle"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Woozle"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/YsamCAJU"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:25:45"]
+
+1. d4 c5 2. d5 Nf6 3. Nc3 Qa5 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Zilbermints-Benoni Gambit"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Zilbermints-Benoni Gambit"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Zilbermints-Benoni Gambit"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/gYfGRvQ3"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:26:02"]
+
+1. d4 c5 2. b4 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense: Zilbermints-Benoni Gambit, Tamarkin Countergambit"]
+[Date "2023.10.23"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Zilbermints-Benoni Gambit, Tamarkin Countergambit"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense: Zilbermints-Benoni Gambit, Tamarkin Countergambit"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/m9EEbRWO"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.10.23"]
+[UTCTime "01:26:18"]
+
+1. d4 c5 2. Nf3 cxd4 3. b4 e5 *
+
+
+[Event "A Complete Guide to the Benoni Defense: Old Benoni"]
+[Date "2023.11.02"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Old Benoni"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Old Benoni"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/t1lx8WqY"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.11.02"]
+[UTCTime "17:21:26"]
+
+{ The next 4 games were played by GMs with the Old Benoni Opening }
+1. d4 c5 *
+
+
+[Event "Import"]
+[Site "https://lichess.org/a0oUekJm"]
+[Date "2022.10.16"]
+[White "Robson, R."]
+[Black "Saric, Iv"]
+[Result "0-1"]
+[WhiteElo "2681"]
+[BlackElo "2695"]
+[TimeControl "-"]
+[Termination "Unknown"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Benoni-Indian Defense"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Robson, R. - Saric, Iv"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/WpafVSUW"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+
+1. d4 c5 2. d5 Nf6 3. c4 g6 4. Nc3 Bg7 5. e4 d6 6. Nf3 O-O 7. Be2 e6 8. O-O Re8 9. Bf4 exd5 10. exd5 Ne4 11. Nxe4 Rxe4 12. Bg5 Bf6 13. Bd3 Re8 14. Qd2 Bxg5 15. Nxg5 f6 16. Ne6 Bxe6 17. dxe6 d5 18. cxd5 Qxd5 19. Qc2 Re7 20. Rad1 Nc6 21. Bxg6 Qxe6 22. Bd3 Kh8 23. Qxc5 Qxa2 24. Rfe1 Rae8 25. Rxe7 Rxe7 26. h3 Qxb2 27. Bb5 Qe5 28. Rd5 Qf4 29. g3 Qb4 30. Bxc6 Qxc5 31. Rxc5 Rc7 32. Rf5 Rxc6 33. Ra5 a6 { 0-1 Black wins. } 0-1
+
+
+[Event "Import"]
+[Site "https://lichess.org/YJppAU3e"]
+[Date "2016.03.28"]
+[White "Wang, Yue"]
+[Black "Malakhov, Vladimir"]
+[Result "1/2-1/2"]
+[WhiteElo "2716"]
+[BlackElo "2732"]
+[TimeControl "-"]
+[Termination "Normal"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Old Benoni"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Wang, Yue (2716) - Malakhov, Vladimir (2732)"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/FCf6boTl"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+
+1. d4 c5 2. d5 d6 3. e4 Nf6 4. Nc3 g6 5. Bb5+ Bd7 6. a4 Bg7 7. Nf3 O-O 8. h3 Na6 9. O-O Nc7 10. Bc4 a6 11. e5 dxe5 12. Nxe5 Be8 13. Bf4 b5 14. axb5 axb5 15. Rxa8 Qxa8 16. Nf3 bxc4 17. Bxc7 Bd7 18. Re1 Qb7 19. Be5 Rd8 20. Qe2 Qb4 21. Nd2 Bf5 22. d6 Be6 23. dxe7 Re8 24. Nde4 Nxe4 25. Bxg7 Kxg7 26. Qxe4 Qxb2 27. Qe5+ f6 28. Qxe6 Qxc3 29. Re2 Qd4 30. g3 c3 31. Kg2 Qd1 32. h4 h5 33. Kh2 Qf1 34. Qe4 Kf7 35. Qe3 Kg7 36. Qe6 Qd1 37. Kg2 Qd4 38. Re3 Qd2 39. Rd3 Qxc2 40. Rd8 Qa4 41. Rd6 Kh6 42. Qxf6 Qe4+ 43. f3 Qe2+ 44. Kh3 { 1/2-1/2 The game is a draw. } 1/2-1/2
+
+
+[Event "Import"]
+[Site "https://lichess.org/9bRfH00R"]
+[Date "2016.03.28"]
+[White "Gelfand, Boris"]
+[Black "Mamedyarov, Shakhriyar"]
+[Result "1/2-1/2"]
+[WhiteElo "2733"]
+[BlackElo "2772"]
+[TimeControl "-"]
+[Termination "Normal"]
+[Variant "Standard"]
+[ECO "A43"]
+[Opening "Benoni Defense: Benoni-Indian Defense"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Gelfand, Boris (2733) - Mamedyarov, Shakhriyar (2772)"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/pA1ZIusU"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+
+1. d4 c5 2. d5 Nf6 3. Nc3 g6 4. e4 d6 5. Bb5+ Nbd7 6. a4 Bg7 7. Nf3 a6 8. Bc4 h6 9. O-O g5 10. Be2 Qc7 11. a5 Nf8 12. Nd2 Ng6 13. Nc4 Bd7 14. Nb6 Rd8 15. Be3 e5 16. Nxd7 Qxd7 17. f3 Ke7 18. Na4 h5 19. Nb6 Qc7 20. Bxg5 Bh6 21. Bxf6+ Kxf6 22. g3 Rdg8 23. Kh1 Ke7 24. Ra3 Rg7 { 1/2-1/2 The game is a draw. } 1/2-1/2
+
+
+[Event "Import"]
+[Site "https://lichess.org/iw3tDNiz"]
+[Date "2020.01.30"]
+[White "Aronian, L."]
+[Black "Caruana, F."]
+[Result "1-0"]
+[WhiteElo "2767"]
+[BlackElo "2822"]
+[TimeControl "-"]
+[Termination "Normal"]
+[Variant "Standard"]
+[ECO "A44"]
+[Opening "Benoni Defense: Semi-Benoni"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Aronian, L. (2767) - Caruana, F. (2822)"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/rGT8N1t7"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+
+1. d4 c5 2. d5 e5 3. e4 d6 4. Bb5+ Nd7 5. a4 Nf6 6. Nc3 Be7 7. Nf3 O-O 8. O-O Kh8 9. Nd2 g6 10. Nc4 Ng8 11. f4 exf4 12. Bxf4 Nb6 13. e5 Nxc4 14. Bxc4 dxe5 15. Bxe5+ f6 16. Bg3 f5 17. d6 Bf6 18. Nd5 Bd4+ 19. Kh1 Be6 20. Qe2 Bxd5 21. Bxd5 Nf6 22. c3 Re8 23. Be6 Ne4 24. cxd4 Rxe6 25. Be5+ Kg8 26. Qc4 Qd7 27. dxc5 Nd2 28. Qd5 Nxf1 29. Rxf1 Re8 30. Bc3 h5 31. h3 Kh7 32. Kh2 Re2 33. b4 R2e3 34. Ba1 R8e6 35. b5 R3e4 36. Rd1 Qd8 37. Qxb7+ Kh6 38. Qg7+ Kg5 39. Bb2 Re2 40. Bc1+ f4 41. Rf1 Rf6 42. Qb7 Qe8 43. Qd5+ Re5 44. d7 { 1-0 Black resigns. } 1-0
+
+
+[Event "A Complete Guide to the Benoni Defense: Benoni Defense"]
+[Date "2023.11.02"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A56"]
+[Opening "Benoni Defense"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Benoni Defense"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/TN7ZA99A"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+[UTCDate "2023.11.02"]
+[UTCTime "17:28:14"]
+
+{ The following 4 games were played by GMs and are in the Benoni Defense line. }
+1. d4 Nf6 2. c4 c5 *
+
+
+[Event "Import"]
+[Site "https://lichess.org/yDEt8ZmG"]
+[Date "2020.01.30"]
+[White "Ding Liren"]
+[Black "Aronian, L."]
+[Result "1-0"]
+[WhiteElo "2801"]
+[BlackElo "2772"]
+[TimeControl "-"]
+[Termination "Normal"]
+[Variant "Standard"]
+[ECO "A56"]
+[Opening "Benoni Defense: Czech Benoni Defense"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Ding Liren (2801) - Aronian, L. (2772)"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/hwgE8YAx"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e5 4. Nc3 d6 5. e4 Nbd7 6. Bd3 Be7 7. Nge2 g6 8. h4 a6 9. a4 b6 10. g3 Rb8 11. f3 Nh5 12. Bh6 Bf8 13. Be3 Be7 14. Kd2 Ng7 15. Bh6 O-O 16. Kc2 f5 17. h5 Nf6 18. hxg6 hxg6 19. Qd2 Rf7 20. Rh2 b5 21. Rah1 b4 22. Bxg7 Nh5 23. Nd1 Bg5 24. f4 exf4 25. gxf4 Qe8 26. exf5 Bxf5 27. fxg5 Bxd3+ 28. Qxd3 Rxg7 29. Ne3 Qxa4+ 30. Kb1 Re8 31. Ng4 Rxe2 32. Rxe2 b3 33. Nf6+ Kf7 34. Nxh5 Qa2+ 35. Kc1 Qa1+ 36. Qb1 { 1-0 Black resigns. } 1-0
+
+
+[Event "Import"]
+[Site "https://lichess.org/r9fUj0WO"]
+[Date "2020.02.02"]
+[White "Ding Liren"]
+[Black "Aronian, L."]
+[Result "1/2-1/2"]
+[WhiteElo "2801"]
+[BlackElo "2775"]
+[TimeControl "-"]
+[Termination "Normal"]
+[Variant "Standard"]
+[ECO "A56"]
+[Opening "Benoni Defense: Czech Benoni Defense"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Ding Liren (2801) - Aronian, L. (2775)"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/q2g18oRT"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e5 4. Nc3 d6 5. e4 Nbd7 6. Bd3 Be7 7. Nge2 g6 8. h4 a6 9. a4 b6 10. g3 Rb8 11. f3 Rb7 12. Bh6 Bf8 13. Be3 h5 14. Qd2 Bg7 15. Kd1 Kf8 16. Kc2 Ne8 17. Nd1 Nc7 18. Nec3 Nf6 19. Nf2 Bd7 20. b3 Kg8 21. Rhb1 Kh7 22. b4 Qb8 23. b5 a5 24. Rh1 Qf8 25. Nh3 Kg8 26. Ng5 Nfe8 27. f4 Nf6 28. f5 gxf5 29. exf5 Nce8 30. Raf1 Ng4 31. Nce4 Nef6 32. Be2 Nxe4 33. Nxe4 Nxe3+ 34. Qxe3 f6 35. Qd3 Be8 36. Qd1 Rd7 37. Rh2 Qf7 38. Rg1 Kf8 39. g4 hxg4 40. Rxg4 Ke7 41. h5 Kd8 42. Rg6 Qe7 43. Bg4 Qf8 44. Qf3 Rh6 45. Rf2 Kc7 46. Kd3 Re7 47. Rf1 Rd7 48. Rf2 Re7 49. Rf1 { 1/2-1/2 The game is a draw. } 1/2-1/2
+
+
+[Event "Import"]
+[Site "https://lichess.org/XUhnAEMo"]
+[Date "2020.01.30"]
+[White "So, W."]
+[Black "Carlsen, M."]
+[Result "1/2-1/2"]
+[WhiteElo "2760"]
+[BlackElo "2870"]
+[TimeControl "-"]
+[Termination "Normal"]
+[Variant "Standard"]
+[ECO "A56"]
+[Opening "Benoni Defense"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "So, W. (2760) - Carlsen, M. (2870)"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/W991iumh"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+
+1. d4 Nf6 2. c4 c5 3. d5 g6 4. Nc3 Bg7 5. e4 d6 6. Nf3 O-O 7. h3 e6 8. Bd3 Nbd7 9. O-O e5 10. a3 h6 11. b4 Nh7 12. Qc2 b6 13. Rb1 Ndf6 14. bxc5 bxc5 15. Re1 Nh5 16. Bf1 Ng5 17. Nxg5 hxg5 18. g3 g4 19. hxg4 Bxg4 20. Be2 Bd7 21. Qd1 Nf4 22. gxf4 exf4 23. Qd3 Qh4 24. Nb5 Be5 25. Qf3 Kg7 26. Rb3 Rh8 27. Bd1 Rh6 28. Kf1 Rah8 29. Nxd6 Bxd6 30. Bb2+ { 1/2-1/2 The game is a draw. } 1/2-1/2
+
+
+[Event "Import"]
+[Site "https://lichess.org/ZiXqZje1"]
+[Date "2016.03.17"]
+[White "Gelfand, B."]
+[Black "Carlsen, M."]
+[Result "0-1"]
+[WhiteElo "2761"]
+[BlackElo "2872"]
+[TimeControl "-"]
+[Termination "Unknown"]
+[Variant "Standard"]
+[ECO "A58"]
+[Opening "Benko Gambit Accepted: Fully Accepted Variation"]
+[StudyName "A Complete Guide to the Benoni Defense"]
+[ChapterName "Gelfand, B. (2761) - Carlsen, M. (2872)"]
+[ChapterURL "https://lichess.org/study/bTtx3vLh/r3T9N9Uo"]
+[Annotator "https://lichess.org/@/A_Dragon_Riding_King"]
+
+1. d4 Nf6 2. c4 c5 3. d5 b5 4. cxb5 a6 5. bxa6 g6 6. Nc3 Bg7 7. e4 O-O 8. Nf3 Qa5 9. Bd3 Nxd5 10. exd5 Bxc3+ 11. bxc3 Qxc3+ 12. Qd2 Qxa1 13. O-O Bxa6 14. Bb2 Qxa2 15. Ra1 Qb3 16. Be4 d6 17. Rb1 f6 18. Bxf6 Qc4 19. Bb2 Qxe4 20. Re1 Qd3 21. Qxd3 Bxd3 22. Rxe7 Rxf3 23. gxf3 Na6 { 0-1 Black wins. } 0-1
+
+

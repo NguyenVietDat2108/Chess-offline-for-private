@@ -1,0 +1,111 @@
+[Event "My own puzzle collection #4: Chapter 1"]
+[Date "2025.09.21"]
+[Result "*"]
+[Variant "From Position"]
+[FEN "2r5/2P5/3k1pp1/7p/4K2P/6P1/5P2/2R5 w - - 0 1"]
+[ECO "?"]
+[Opening "?"]
+[StudyName "My own puzzle collection #4"]
+[ChapterName "Chapter 1"]
+[ChapterURL "https://lichess.org/study/rSYRRA5r/T8CxRHdE"]
+[Annotator "https://lichess.org/@/BKC_Dangvi2108"]
+[FEN "2r5/2P5/3k1pp1/7p/4K2P/6P1/5P2/2R5 w - - 0 1"]
+[SetUp "1"]
+[UTCDate "2025.09.21"]
+[UTCTime "06:27:48"]
+
+1. f4! Rxc7 2. Rxc7 Kxc7 3. f5! g5 4. g4! gxh4 (4... hxg4 5. h5 g3 6. Kf3!) 5. gxh5 h3 6. Kf3! *
+
+
+[Event "My own puzzle collection #4: Chapter 2"]
+[Date "2025.09.21"]
+[Result "*"]
+[Variant "From Position"]
+[FEN "4r3/5p2/2Pk2p1/7p/4K2P/5PP1/8/2R5 w - - 1 40"]
+[ECO "?"]
+[Opening "?"]
+[StudyName "My own puzzle collection #4"]
+[ChapterName "Chapter 2"]
+[ChapterURL "https://lichess.org/study/rSYRRA5r/5PxFGkqW"]
+[Annotator "https://lichess.org/@/BKC_Dangvi2108"]
+[FEN "4r3/5p2/2Pk2p1/7p/4K2P/5PP1/8/2R5 w - - 1 40"]
+[SetUp "1"]
+[UTCDate "2025.09.21"]
+[UTCTime "06:32:10"]
+
+40. Kf4! Kc7 41. g4! (41. Ra1?! Kxc6 42. Ra7 Kd5! { The best try. Now White has only 1 winning move. } 43. Kg5!! Re5+ 44. Kh6! { The idea. } 44... Rf5 45. Ra3! Ke6 46. Kg7 $22 { No option is good for Black. White wins. }) 41... Ra8 (41... Re6!? 42. gxh5 Rf6+ 43. Kg4 gxh5+ 44. Kxh5 Rxf3 45. Kg5 f6+ 46. Kg6 { Winning. }) 42. Ke5!! (42. gxh5 Ra4+ 43. Kg3! gxh5 44. Rc5 Rd4 45. Rxh5 Kxc6 46. Re5! $18) 42... Ra3 43. Rf1 Kxc6 44. Kf6 { [%cal Gf6f7] } (44. g5?! Ra5+ 45. Kf6 Rf5+ 46. Ke7 { [%csl Gf4][%cal Gf5f4] } 46... Rf4 47. Rc1+ Kd5 48. Ra1!) 44... Ra7 45. g5! Kd6 46. Re1 { [%csl Gd5] } 46... Kd5 { [%csl Ge7] } 47. Re7 $18 { [%csl Ge7] } *
+
+
+[Event "My own puzzle collection #4: Super hard one"]
+[Date "2025.09.26"]
+[Result "*"]
+[Variant "From Position"]
+[FEN "r4r2/3b1pkp/p2ppqp1/1pp5/3nP2N/1B1P1PP1/PPPQ3P/R4RK1 b - - 1 17"]
+[ECO "?"]
+[Opening "?"]
+[StudyName "My own puzzle collection #4"]
+[ChapterName "Super hard one"]
+[ChapterURL "https://lichess.org/study/rSYRRA5r/QF0UY1o1"]
+[Annotator "https://lichess.org/@/BKC_Dangvi2108"]
+[FEN "r4r2/3b1pkp/p2ppqp1/1pp5/3nP2N/1B1P1PP1/PPPQ3P/R4RK1 b - - 1 17"]
+[SetUp "1"]
+[UTCDate "2025.09.26"]
+[UTCTime "09:04:05"]
+
+17... c4!! (17... g5? 18. Ng2 Nxf3+ 19. Rxf3 Qxf3 20. Qxg5+ Kh8 21. Rf1 f6 22. Qh4 Qe2 23. Nf4 { [%csl Gg6,Ge2][%cal Gf4g6,Gf4e2] } 23... Qe3+ 24. Kg2 { [%csl Ge4] } 24... c4 25. Ng6+ Kg7 26. Nxf8 Rxf8 27. dxc4 Bc6 $15) 18. dxc4 g5 19. Ng2 Nxf3+ 20. Rxf3 Qxf3 21. Qxg5+ Kh8 22. Rf1 f6 23. Qh4 Qe2 24. cxb5 (24. Nf4 Qe3+ { [%csl Ge4][%cal Gg1g2,Ge3e4] }) 24... axb5 25. Qf4 Rad8!! 26. Ne3 (26. Qxd6 Bc6! 27. Qxc6 { [%cal Gd8d2] } 27... Rd2) 26... Qh5 27. Qxd6 Bc8 28. Qe7 Qe5 29. Rf4 Rde8 30. Qa7 $17 *
+
+
+[Event "My own puzzle collection #4: Very difficult for main line."]
+[Date "2025.10.12"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "?"]
+[Opening "?"]
+[StudyName "My own puzzle collection #4"]
+[ChapterName "Very difficult for main line."]
+[ChapterURL "https://lichess.org/study/rSYRRA5r/IQmE3cHZ"]
+[Annotator "https://lichess.org/@/BKC_Dangvi2108"]
+[FEN "rq2k2r/pp1n1pQp/2p1pn2/2bp4/4P3/2NP3P/PPP1BPP1/R1B2RK1 b kq - 0 10"]
+[SetUp "1"]
+[UTCDate "2025.10.12"]
+[UTCTime "15:21:37"]
+
+10... Rg8 11. Qh6 Qg3! 12. Bg4 Nxg4 13. hxg4 Qxg4! (13... Rxg4? 14. Qh2! Qf3! 15. exd5 cxd5! (15... exd5?? 16. Re1+ Kd8 17. Nd1!) 16. Kh1 Qf6! 17. g3 O-O-O { Black is still winning, but this is totally unecessary to find all the only moves. }) 14. Qh2 (14. Qh1 Ne5!) 14... Bd6!! { You have to see this move from afar } 15. f4 Rg5!! { Another only move. } 16. Rf3 (16. fxg5 Bxh2+ 17. Kxh2 d4 $19) 16... Qxf3 (16... Rh5?? 17. Rh3) *
+
+
+[Event "My own puzzle collection #4: Chapter 5"]
+[Date "2025.10.20"]
+[Result "*"]
+[Variant "From Position"]
+[ECO "?"]
+[Opening "?"]
+[StudyName "My own puzzle collection #4"]
+[ChapterName "Chapter 5"]
+[ChapterURL "https://lichess.org/study/rSYRRA5r/ZhtUaR1f"]
+[Annotator "https://lichess.org/@/BKC_Dangvi2108"]
+[FEN "r3r3/N1pbqkpp/p3ppn1/1p5Q/4PP2/1B6/PPP3PP/4RR1K b - - 1 21"]
+[SetUp "1"]
+[UTCDate "2025.10.20"]
+[UTCTime "16:22:10"]
+
+21... Rxa7?? 22. f5! *
+
+
+[Event "My own puzzle collection #4: miss in 15+10 due to overlook (shallow calculation)"]
+[Date "2025.10.22"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "?"]
+[Opening "?"]
+[StudyName "My own puzzle collection #4"]
+[ChapterName "miss in 15+10 due to overlook (shallow calculation)"]
+[ChapterURL "https://lichess.org/study/rSYRRA5r/IA3IVeTS"]
+[Annotator "https://lichess.org/@/BKC_Dangvi2108"]
+[FEN "r2q1rk1/pp3pb1/2n1b2p/2pn2p1/N7/3BPNB1/PP3PPP/R2Q1RK1 b - - 1 14"]
+[SetUp "1"]
+[UTCDate "2025.10.22"]
+[UTCTime "14:06:40"]
+
+14... c4 15. Bxc4 Nxe3 16. Qxd8 Rfxd8 17. fxe3 Bxc4 18. Rfd1 *
+
+

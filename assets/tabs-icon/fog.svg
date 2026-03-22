@@ -1,0 +1,39 @@
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 90 90">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #8a8886;
+      }
+
+      .cls-2, .cls-3 {
+        fill: #fbefc4;
+      }
+
+      .cls-2, .cls-5 {
+        opacity: 0.5;
+      }
+
+      .cls-4, .cls-5 {
+        fill: #7dacc9;
+      }
+    </style>
+  </defs>
+  <g>
+    <rect class="cls-1" x="5" y="5" width="80" height="80" rx="7.56"/>
+    <g>
+      <rect class="cls-1" x="45" y="9.44" width="17.78" height="17.78"/>
+      <rect class="cls-1" x="62.78" y="27.22" width="17.78" height="17.78"/>
+      <rect class="cls-1" x="9.44" y="9.44" width="17.78" height="17.78"/>
+      <rect class="cls-2" x="27.23" y="27.22" width="17.78" height="17.78"/>
+      <rect class="cls-2" x="9.44" y="45" width="17.78" height="17.78"/>
+      <rect class="cls-3" x="27.23" y="62.77" width="17.78" height="17.78"/>
+      <path class="cls-4" d="M13.49,80.56H27.23V62.77H9.45V76.51A4,4,0,0,0,13.49,80.56Z"/>
+      <rect class="cls-4" x="45" y="62.77" width="17.78" height="17.78"/>
+      <rect class="cls-4" x="27.23" y="45" width="17.78" height="17.78"/>
+      <rect class="cls-5" x="45" y="27.22" width="17.78" height="17.78"/>
+      <rect class="cls-5" x="62.78" y="44.99" width="17.78" height="17.78"/>
+      <rect class="cls-3" x="45" y="45" width="17.78" height="17.78"/>
+      <path class="cls-3" d="M62.78,80.56H76.51a4,4,0,0,0,4-4V62.77H62.78Z"/>
+    </g>
+  </g>
+</svg>

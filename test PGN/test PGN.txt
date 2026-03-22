@@ -1,0 +1,35 @@
+[Event "Live Chess"]
+[Site "Chess.com"]
+[Date "2026.02.02"]
+[Round "-"]
+[White "IamTyrunny"]
+[Black "Raw85"]
+[Result "1-0"]
+[CurrentPosition "R7/8/k3p3/2p1r3/6p1/8/4nPPP/1R3K2 b - - 1 43"]
+[Timezone "UTC"]
+[ECO "B00"]
+[ECOUrl "https://www.chess.com/openings/Owens-Defense...3.Nc3-e6-4.Bd3-Bb4"]
+[UTCDate "2026.02.02"]
+[UTCTime "13:27:43"]
+[WhiteElo "1711"]
+[BlackElo "1655"]
+[TimeControl "600"]
+[Termination "IamTyrunny won by checkmate"]
+[StartTime "13:27:43"]
+[EndDate "2026.02.02"]
+[EndTime "13:41:37"]
+[Link "https://www.chess.com/analysis/game/live/164136729054/analysis?move=0"]
+[WhiteUrl "https://www.chess.com/bundles/web/images/noavatar_l.84a92436.gif"]
+[WhiteCountry "149"]
+[WhiteTitle ""]
+[BlackUrl "https://www.chess.com/bundles/web/images/noavatar_l.84a92436.gif"]
+[BlackCountry "2"]
+[BlackTitle ""]
+
+1. e4 b6 2. d4 Bb7 3. Nc3 e6 4. Bd3 Bb4 5. Ne2 Bxc3+ $6 6. Nxc3 Qf6 $6 7. e5 $6 Qh4
+8. O-O Qxd4 $6 9. Qh5 $2 h6 $9 10. Be3 Qb4 11. a3 $2 Qxb2 $4 12. Na4 $9 g6 $2 13. Bxg6 $3
+Qb5 14. Bxf7+ Kd8 15. Qh4+ $2 Kc8 16. Bh5 $2 Qxe5 $4 17. Bd4 $1 Qd5 18. Bf3 $1 Qc4 19.
+Bxb7+ Kxb7 20. Nb2 $1 Qxc2 21. Bxh8 Nc6 22. Rac1 Qe2 23. Rfe1 Qd2 24. Nc4 Qg5 25.
+Qxg5 hxg5 26. Bc3 Nge7 27. Bf6 Rg8 28. Bxe7 Nxe7 29. Ne5 Nd5 30. Nxd7 c5 31. Ne5
+Nf4 32. Rcd1 Rf8 33. a4 Ka6 34. Rd7 Rf5 35. Nc6 b5 36. Rxa7+ Kb6 37. axb5 Kxb5
+38. Ne5 Kb6 39. Re7 g4 $6 40. Rb1+ Ka6 41. Re8 Ne2+ $6 42. Kf1 Rxe5 $6 43. Ra8# 1-0

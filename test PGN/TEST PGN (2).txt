@@ -1,0 +1,25 @@
+[Event "Positional pattern recognition 5: Chapter 1"]
+[Date "2025.05.04"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "?"]
+[Opening "?"]
+[StudyName "Positional pattern recognition 5"]
+[ChapterName "Chapter 1"]
+[ChapterURL "https://lichess.org/study/L5jpHNUT/3Q8gxmNP"]
+[Annotator "https://lichess.org/@/BKC_Dangvi2108"]
+[FEN "r1bk2nr/pp2pp1p/2p3p1/8/2P1P3/2P5/P4PPP/R1B1KB1R b KQ - 0 9"]
+[SetUp "1"]
+[UTCDate "2025.05.04"]
+[UTCTime "10:57:46"]
+
+9... Nf6! { heading to d7 instead of e7 } 
+(9... e5? 10. Bg5+! f6 
+11. Be3 { When the knight is misplaced at e7 }) 
+10. f3 { [%csl Gf6][%cal Gf6d7] } 
+10... Nd7 { The knight should control e5 and c5 in this pawn structure. } 
+11. Be3 e5 { [%cal Ga4a6] } (11... b6) (11... Kc7) 12. Be2 (12. a4 { [%csl Gb6] } 
+12... b6 13. a5 Bb7) 12... b6 13. O-O-O Kc7 14. f4 exf4! 
+(14... f6 15. Rhf1! { With practical problem. }) 
+15. Bxf4+ Kb7 16. Rhf1 Re8 17. Rd4 (17. Bf3 Ne5 $10) 17... Nc5 $10 *
+

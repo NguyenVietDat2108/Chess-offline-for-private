@@ -1,0 +1,959 @@
+*****/
+*****/
+*****/
+-Bernouli Ne1-c2 or Nea6-c7:
+[Event "ECO A43: Old Benoni Defense"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 c5 2. d5 *
+
+[Event "ECO A44: Old Benoni (Czech Benoni)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 c5 2. d5 e5 3. e4 d6 *
+
+[Event "ECO A56: Benoni Defense (Early Deviations)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 *
+
+[Event "ECO A57: Benko Gambit (Volga Gambit)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 b5 *
+
+[Event "ECO A58: Benko Gambit Accepted (Half-Accepted)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 b5 4. cxb5 a6 5. bxa6 *
+
+[Event "ECO A59: Benko Gambit Accepted (Main Line)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 b5 4. cxb5 a6 5. bxa6 Bxa6 6. Nc3 d6 7. e4 Bxf1 8. Kxf1 *
+
+[Event "ECO A60: Modern Benoni (Early Deviations)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 *
+
+[Event "ECO A61: Modern Benoni (Standard Setup)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. Nf3 g6 *
+
+[Event "ECO A62: Modern Benoni (Fianchetto Variation)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. Nf3 g6 7. g3 Bg7 8. Bg2 O-O 9. O-O *
+
+[Event "ECO A63: Modern Benoni (Fianchetto, ...Nbd7)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. Nf3 g6 7. g3 Bg7 8. Bg2 O-O 9. O-O Nbd7 *
+
+[Event "ECO A64: Modern Benoni (Fianchetto Main Line)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. Nf3 g6 7. g3 Bg7 8. Bg2 O-O 9. O-O Nbd7 10. Nd2 a6 11. a4 Re8 *
+
+[Event "ECO A65: Modern Benoni (e4 Systems)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 *
+
+[Event "ECO A66: Modern Benoni (Pawn Storm / Mikenas Attack)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. f4 Bg7 *
+
+[Event "ECO A67: Modern Benoni (Taimanov Variation)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. f4 Bg7 8. Bb5+ *
+
+[Event "ECO A68: Modern Benoni (Four Pawns Attack)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. f4 Bg7 8. Nf3 O-O *
+
+[Event "ECO A69: Modern Benoni (Four Pawns Attack Main Line)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. f4 Bg7 8. Nf3 O-O 9. Be2 Re8 10. Nd2 *
+
+[Event "ECO A70: Modern Benoni (Classical Variation)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. Nf3 Bg7 *
+
+[Event "ECO A71: Modern Benoni (Averbakh Variation)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. Nf3 Bg7 8. Bg5 *
+
+[Event "ECO A72: Modern Benoni (Classical, 8. Be2)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. Nf3 Bg7 8. Be2 O-O *
+
+[Event "ECO A73: Modern Benoni (Classical, 9. O-O)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. Nf3 Bg7 8. Be2 O-O 9. O-O *
+
+[Event "ECO A74: Modern Benoni (Classical, ...a6)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. Nf3 Bg7 8. Be2 O-O 9. O-O a6 *
+
+[Event "ECO A75: Modern Benoni (Classical, a4)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. Nf3 Bg7 8. Be2 O-O 9. O-O a6 10. a4 *
+
+[Event "ECO A76: Modern Benoni (Classical, ...Re8)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. Nf3 Bg7 8. Be2 O-O 9. O-O Re8 *
+
+[Event "ECO A77: Modern Benoni (Classical, 10. Nd2)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. Nf3 Bg7 8. Be2 O-O 9. O-O Re8 10. Nd2 *
+
+[Event "ECO A78: Modern Benoni (Classical, ...Na6)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. Nf3 Bg7 8. Be2 O-O 9. O-O Re8 10. Nd2 Na6 *
+
+[Event "ECO A79: Modern Benoni (Classical Main Line)"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+
+1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6 6. e4 g6 7. Nf3 Bg7 8. Be2 O-O 9. O-O Re8 10. Nd2 Na6 11. f3 *
+
+
+*****/
+*****/
+*****/
+-King's Indian Defense:[Event "A48-49, E60-E99 King's Indian Defense Theory: Overview"]
+[Date "2021.03.16"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E94"]
+[Opening "King's Indian Defense: Orthodox Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "Overview"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/ZddjICXZ"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.16"]
+[UTCTime "20:24:38"]
+
+{ This covers the King's Indian Defense Theory (A48-A49, E60-E99)
+Source A48-A49: https://www.365chess.com/eco/A48-A49_King's_Indian_East_Indian_defence
+Source E60-E99: https://www.365chess.com/eco/E60-E99_King%27s_Indian_defence }
+1. d4 Nf6 2. c4 (2. Nf3 { A48 East Indian Defense } 2... g6 3. g3 { A49 Przepiorka Variation }) 2... g6 { E60 King's Indian Defense } 3. Nc3 { E61 3.Nc3 } 3... Bg7 4. e4 { E70 4.e4 } (4. Nf3 d6 5. g3 { E62-E69 Fianchetto Variation }) 4... d6 5. Nf3 { E90 5.Nf3 } (5. h3 { E71 Makagonov System }) (5. g3 { E72 with e4 and g3 }) (5. Be2 { E73 5.Be2 } 5... O-O 6. Bg5 c5 { E74-E75 Averbakh }) (5. f4 { E76-E79 Four Pawns Attack }) (5. f3 { E80-E89 Saemisch variation }) 5... O-O 6. Be2 { E91 6.Be2 } 6... e5 { E92 Classical Variation } 7. O-O { E94-99 Orthodox Variation } (7. d5 Nbd7 { E93 Main Line, Petrosian System }) *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: A48 East Indian Defense"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A48"]
+[Opening "London System"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "A48 East Indian Defense"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/oHvC1Pmt"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "09:19:16"]
+
+1. d4 Nf6 2. Nf3 g6 { East Indian Defense } 3. Bf4 { London System } (3. Bg5 { Torre System }) *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: A49 Przepiorka Variation"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "A49"]
+[Opening "Indian Defense: Przepiorka Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "A49 Przepiorka Variation"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/6qHz7KiY"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "09:23:20"]
+
+1. d4 Nf6 2. Nf3 g6 3. g3 { Przepiorka Variation } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E60 King's Indian Defense"]
+[Date "2021.03.16"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E60"]
+[Opening "King's Indian Defense: Normal Variation, King's Knight Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E60 King's Indian Defense"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/pmqQxteX"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.16"]
+[UTCTime "20:07:56"]
+
+1. d4 Nf6 2. c4 g6 3. Nf3 { Normal Variation, King's Knight Variation } (3. Qc2 { Mengarini Attack }) (3. d5 { Anti-Grünfeld, Advance Variation } 3... b5 { Adorjan/Danube Gambit }) (3. g3 { Fianchetto Variation, Immediate Fianchetto } 3... Bg7 4. Bg2 d5 { Grünfeld Defense: Counterthrust Variation }) *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E61 3.Nc3"]
+[Date "2021.03.16"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E61"]
+[Opening "King's Indian Defense: Smyslov Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E61 3.Nc3"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/w2lwpzgQ"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.16"]
+[UTCTime "20:19:07"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 { King's Indian Defense 3. Nc3 } 3... Bg7 4. Nf3 d6 5. Bg5 { Smyslov Variation/System } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E62 Fianchetto"]
+[Date "2021.03.16"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E62"]
+[Opening "King's Indian Defense: Fianchetto Variation, Uhlmann-Szabo System"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E62 Fianchetto"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/szoEl80j"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.16"]
+[UTCTime "20:20:48"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. Nf3 d6 5. g3 { Fianchetto Variation, Delayed Fianchetto } 5... O-O 6. Bg2 Nc6 { Karlsbad Variation } (6... c6 7. O-O Bf5 { Larsen Defense/System } (7... Qa5 { Kavalek/Bronstein Defense/Variation })) 7. O-O e5 { Uhlmann-Szabo System/Variation } (7... Bf5 { Lesser Simagin (Spassky) Variation }) (7... Bg4 { Simagin Variation }) *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E63 Fianchetto Panno"]
+[Date "2021.03.17"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E63"]
+[Opening "King's Indian Defense: Fianchetto Variation, Panno Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E63 Fianchetto Panno"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/oSeN2ds2"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.17"]
+[UTCTime "01:06:10"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. Nf3 d6 5. g3 O-O 6. Bg2 Nc6 7. O-O a6 { Fianchetto Variation, Panno Variation } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E64 Fianchetto Yugoslav"]
+[Date "2021.03.17"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E64"]
+[Opening "King's Indian Defense: Fianchetto Variation, Yugoslav Variation, Rare Line"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E64 Fianchetto Yugoslav"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/ICcpZAQz"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.17"]
+[UTCTime "01:08:02"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. Nf3 d6 5. g3 O-O 6. Bg2 c5 { Fianchetto Variation, Yugoslav Variation/System (Rare) } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E65 Fianchetto Yugoslav 7.O-O"]
+[Date "2021.03.17"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E65"]
+[Opening "King's Indian Defense: Fianchetto Variation, Yugoslav Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E65 Fianchetto Yugoslav 7.O-O"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/lpwJCWXZ"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.17"]
+[UTCTime "01:09:02"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. Nf3 d6 5. g3 O-O 6. Bg2 c5 7. O-O { Fianchetto Variation, Yugoslav Variation 7.O-O } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E66 Fianchetto Yugoslav Panno"]
+[Date "2021.03.17"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E66"]
+[Opening "King's Indian Defense: Fianchetto Variation, Yugoslav Variation, Advance Line"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E66 Fianchetto Yugoslav Panno"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/abjMRRFt"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.17"]
+[UTCTime "01:10:40"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. Nf3 d6 5. g3 O-O 6. Bg2 c5 7. O-O Nc6 8. d5 { Fianchetto Variation, Yugoslav Variation/Yugoslav Panno, Advance Line } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E67 Fianchetto 6...Nbd7"]
+[Date "2021.03.17"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E67"]
+[Opening "King's Indian Defense: Fianchetto Variation, Classical Fianchetto"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E67 Fianchetto 6...Nbd7"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/ja0n9vhN"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.17"]
+[UTCTime "01:12:01"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. Nf3 d6 5. g3 O-O 6. Bg2 Nbd7 { Fianchetto Variation 6...Nd7, Debrecen Defense } 7. O-O e5 { Fianchetto Variation, Classical Fianchetto/Line } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E68 Fianchetto Classical 8.e4"]
+[Date "2021.03.17"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E68"]
+[Opening "King's Indian Defense: Fianchetto Variation, Classical Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E68 Fianchetto Classical 8.e4"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/2XN22laE"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.17"]
+[UTCTime "01:13:59"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. Nf3 d6 5. g3 O-O 6. Bg2 Nbd7 7. O-O e5 8. e4 { Fianchetto Variation 8.e4, Classical Variation/Line } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E69 Fianchetto Classical Main Line"]
+[Date "2021.03.17"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E69"]
+[Opening "King's Indian Defense: Fianchetto Variation, Classical Main Line"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E69 Fianchetto Classical Main Line"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/L6CJt1sh"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.17"]
+[UTCTime "01:14:52"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. Nf3 d6 5. g3 O-O 6. Bg2 Nbd7 7. O-O e5 8. e4 c6 9. h3 { Fianchetto Variation, Classical Main Line } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E70 4.e4"]
+[Date "2021.03.17"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E70"]
+[Opening "King's Indian Defense: Kramer Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E70 4.e4"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/pwLlFcS8"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.17"]
+[UTCTime "01:21:10"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 { Normal Variation } 4... d6 5. Nge2 { Kramer Variation/System } (5. Bg5 { Accelerated Averbakh Variation/System }) *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E71 Makagonov System"]
+[Date "2021.03.17"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E71"]
+[Opening "King's Indian Defense: Makogonov Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E71 Makagonov System"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/b2D2vru7"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.17"]
+[UTCTime "01:23:27"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. h3 { Makogonov Variation/System } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E72 4.e4 and 5.g3"]
+[Date "2021.03.17"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E72"]
+[Opening "King's Indian Defense: Pomar System"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E72 4.e4 and 5.g3"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/7oS2bOGJ"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.17"]
+[UTCTime "01:24:35"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. g3 { Normal Variation, Deferred Fianchetto (4.e4 and 5.g3) } 5... O-O 6. Bg2 e5 7. Nge2 { Pomar System } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E73 5.Be2"]
+[Date "2021.03.17"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E73"]
+[Opening "King's Indian Defense: Semi-Averbakh System"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E73 5.Be2"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/WNmvqQve"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.17"]
+[UTCTime "01:26:00"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. Be2 { Normal Variation, Standard Development (5.Be2) } 5... O-O 6. Be3 { Semi-Averbakh System } (6. Bg5 { Averbakh Variation/System }) *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E74 Averbakh with 6...c5"]
+[Date "2021.03.17"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E74"]
+[Opening "King's Indian Defense: Averbakh Variation, Benoni Defense"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E74 Averbakh with 6...c5"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/neO1M7K4"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.17"]
+[UTCTime "01:28:23"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. Be2 O-O 6. Bg5 c5 { Averbakh Variation, Benoni Defense } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E75 Averbakh Main Line"]
+[Date "2021.03.17"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E75"]
+[Opening "King's Indian Defense: Averbakh Variation, Main Line"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E75 Averbakh Main Line"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/uIhThBb9"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.17"]
+[UTCTime "01:29:46"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. Be2 O-O 6. Bg5 c5 7. d5 e6 { Averbakh Main Line } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E76 Four Pawns Attack"]
+[Date "2021.03.17"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E76"]
+[Opening "King's Indian Defense: Four Pawns Attack"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E76 Four Pawns Attack"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/IM77ilZs"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.17"]
+[UTCTime "01:32:37"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. f4 { Four Pawns Attack } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E77 Four Pawns Attack 6.Be2"]
+[Date "2021.03.17"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E77"]
+[Opening "King's Indian Defense: Four Pawns Attack"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E77 Four Pawns Attack 6.Be2"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/Q2UUt6lk"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.17"]
+[UTCTime "01:33:17"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. f4 O-O 6. Be2 { Four Pawns Attack 6.Be2 } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E78 Four Pawns Attack 6.Be2 and 7.Nf3"]
+[Date "2021.03.17"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E78"]
+[Opening "King's Indian Defense: Four Pawns Attack, Fluid Attack"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E78 Four Pawns Attack 6.Be2 and 7.Nf3"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/G2DQ8WCn"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.17"]
+[UTCTime "01:34:10"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. f4 O-O 6. Be2 c5 7. Nf3 { Four Pawns Attack, Fluid Attack (6.Be2 and 7.Nf3) } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E79 Four Pawns Attack Main Line"]
+[Date "2021.03.17"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E79"]
+[Opening "King's Indian Defense: Four Pawns Attack, Exchange Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E79 Four Pawns Attack Main Line"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/eCvb93JP"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.17"]
+[UTCTime "01:35:08"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. f4 O-O 6. Be2 c5 7. Nf3 cxd4 8. Nxd4 Nc6 9. Be3 { Four Pawns Attack Main Line, Exchange Variation } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E80 Sämisch Variation"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E80"]
+[Opening "King's Indian Defense: Sämisch Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E80 Sämisch Variation"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/w7243Vaq"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "08:17:00"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. f3 *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E81 Sämisch, Normal Defense (O-O)"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E81"]
+[Opening "King's Indian Defense: Sämisch Variation, Byrne Defense"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E81 Sämisch, Normal Defense (O-O)"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/qw4khzdv"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "08:22:06"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. f3 O-O { Sämisch Variation Normal Defense } 6. Be3 c6 7. Bd3 a6 { Sämisch Variation Byrne Defense } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E82 Sämisch, Double Fianchetto"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E82"]
+[Opening "King's Indian Defense: Sämisch Variation, Double Fianchetto"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E82 Sämisch, Double Fianchetto"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/RviPk0UC"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "08:26:48"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. f3 O-O 6. Be3 b6 { Sämisch, Double Fianchetto } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E83 Sämisch, Yates Defense"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E83"]
+[Opening "King's Indian Defense: Sämisch Variation, Panno Formation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E83 Sämisch, Yates Defense"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/FFTsdXGU"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "08:29:27"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. f3 O-O 6. Be3 Nc6 { Sämisch, Yates Defense } 7. Nge2 a6 { Panno Formation } (7... Rb8 { Ruban Variation }) *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E84 Sämisch, Panno Main Line"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E84"]
+[Opening "King's Indian Defense: Sämisch Variation, Panno Main Line"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E84 Sämisch, Panno Main Line"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/K72mSXGT"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "08:32:09"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. f3 O-O 6. Be3 Nc6 7. Nge2 a6 8. Qd2 Rb8 { Panno Main Line } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E85 Sämisch, Orthodox Variation"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E85"]
+[Opening "King's Indian Defense: Sämisch Variation, Orthodox Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E85 Sämisch, Orthodox Variation"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/pzH3ZESN"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "08:35:05"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. f3 O-O 6. Be3 e5 { Orthodox Variation } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E86 Sämisch, Orthodox 7. Nge2 c6"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E86"]
+[Opening "King's Indian Defense: Sämisch Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E86 Sämisch, Orthodox 7. Nge2 c6"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/fimdy0oN"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "08:36:59"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. f3 O-O 6. Be3 e5 7. Nge2 c6 { Orthodox 7. Nge2 c6 } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E87 Sämisch, Orthodox Closed Variation"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E87"]
+[Opening "King's Indian Defense: Sämisch Variation, Orthodox Variation, Bronstein Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E87 Sämisch, Orthodox Closed Variation"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/TE8V0pee"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "08:39:35"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. f3 O-O 6. Be3 e5 7. d5 { Closed Variation } 7... Nh5 8. Qd2 Qh4+ 9. g3 Nxg3 10. Qf2 Nxf1 11. Qxh4 Nxe3 12. Ke2 Nxc4 { Bronstein Variation } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E88 Sämisch, Orthodox 7. d5 c6"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E87"]
+[Opening "King's Indian Defense: Sämisch Variation, Closed Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E88 Sämisch, Orthodox 7. d5 c6"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/BLMVTIvz"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "08:44:49"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. f3 O-O 6. Be3 e5 7. d5 c6 { Orthodox 7.d5 c6 } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E89 Sämisch, Orthodox Main Line"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E89"]
+[Opening "King's Indian Defense: Sämisch Variation, Closed Variation, Main Line"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E89 Sämisch, Orthodox Main Line"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/cjcNIytf"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "08:49:00"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. f3 O-O 6. Be3 e5 7. d5 c6 8. Nge2 cxd5 { Orthodox Closed Main Line } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E90 5.Nf3"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E90"]
+[Opening "King's Indian Defense: Larsen Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E90 5.Nf3"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/oY5jjfad"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "08:51:23"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. Nf3 { 5. Nf3, Rare Defenses } 5... O-O 6. Be3 { Larsen Variation } (6. Bg5 { Zinnowitz Variation }) *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E91 Orthodox Variation"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E91"]
+[Opening "King's Indian Defense: Kazakh Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E91 Orthodox Variation"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/2uUJ9oHg"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "08:53:09"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. Nf3 O-O 6. Be2 { Orthodox Variation } 6... Na6 { Kazakh Variation } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E92 Classical Variation"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E92"]
+[Opening "King's Indian Defense: Petrosian Variation, Stein Defense"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E92 Classical Variation"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/iwtyQzy7"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "08:55:11"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. Nf3 O-O 6. Be2 e5 { Classical Variation } 7. d5 { Petrosian System } (7. dxe5 { Andersson/Exchange Variation }) (7. Be3 { Gligoric-Taimanov System }) 7... a5 { Petrosian System, Stein Defense } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E93 Petrosian System Main Line"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E93"]
+[Opening "King's Indian Defense: Petrosian Variation, Keres Defense"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E93 Petrosian System Main Line"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/a3szpZVI"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "08:57:46"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. Nf3 O-O 6. Be2 e5 7. d5 Nbd7 { Petrosian System, Normal Defense, Main Line } 8. Bg5 h6 9. Bh4 g5 10. Bg3 Nh5 11. h4 { Keres Defense } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E94 Orthodox Variation"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E94"]
+[Opening "King's Indian Defense: Orthodox Variation, Donner Defense"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E94 Orthodox Variation"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/gDfpJdAt"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "09:01:09"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. Nf3 O-O 6. Be2 e5 7. O-O { Orthodox Variation } 7... c6 { Donner Defense } (7... Nbd7 { Positional Defense (7...Nbd7) }) *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E95 Orthdox 7...Nbd7 8. Re1"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E95"]
+[Opening "King's Indian Defense: Orthodox Variation"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E95 Orthdox 7...Nbd7 8. Re1"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/XlEdlggp"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "09:04:48"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. Nf3 O-O 6. Be2 e5 7. O-O Nbd7 8. Re1 { 7...Nbd7 8.Re1 } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E96 Orthodox 7...Nbd7 Main Line"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E96"]
+[Opening "King's Indian Defense: Orthodox Variation, Positional Defense, Main Line"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E96 Orthodox 7...Nbd7 Main Line"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/xzdnUItn"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "09:08:58"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. Nf3 O-O 6. Be2 e5 7. O-O Nbd7 8. Re1 c6 9. Bf1 a5 { Positional Defense (7...Nbd7), Main Line } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E97 Orthodox, Aronin-Taimanov Defense"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E97"]
+[Opening "King's Indian Defense: Orthodox Variation, Bayonet Attack"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E97 Orthodox, Aronin-Taimanov Defense"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/8NWUMdr0"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "09:10:31"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. Nf3 O-O 6. Be2 e5 7. O-O Nc6 { Aronin-Taimanov Defense/Yugoslav Attack/Mar del Plata Variation } 8. d5 Ne7 9. b4 { Bayonet Attack } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E98 Orthodox, Aronin-Taimanov, Classical System"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E98"]
+[Opening "King's Indian Defense: Orthodox Variation, Classical System"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E98 Orthodox, Aronin-Taimanov, Classical System"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/FQ4Gm6YI"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "09:14:37"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. Nf3 O-O 6. Be2 e5 7. O-O Nc6 8. d5 Ne7 9. Ne1 { Aronin-Taimanov, Classical System } *
+
+
+[Event "A48-49, E60-E99 King's Indian Defense Theory: E99 Orthodox, Aronin-Taimanov, Main Line"]
+[Date "2021.03.19"]
+[Result "*"]
+[Variant "Standard"]
+[ECO "E99"]
+[Opening "King's Indian Defense: Orthodox Variation, Classical System, Benko Attack"]
+[StudyName "A48-49, E60-E99 King's Indian Defense Theory"]
+[ChapterName "E99 Orthodox, Aronin-Taimanov, Main Line"]
+[ChapterURL "https://lichess.org/study/Y1S6d9e0/jjvpyauT"]
+[Annotator "https://lichess.org/@/Pomerschen"]
+[UTCDate "2021.03.19"]
+[UTCTime "09:16:25"]
+
+1. d4 Nf6 2. c4 g6 3. Nc3 Bg7 4. e4 d6 5. Nf3 O-O 6. Be2 e5 7. O-O Nc6 8. d5 Ne7 9. Ne1 Nd7 10. f3 f5 { Aronin-Taimanov, Classical System, Main Line } 11. g4 { Benko Attack } *
+
+

@@ -1,0 +1,25 @@
+[Event "CCC 25 Rapid: Torch vs Leela"]
+[Site "https://www.chess.com/computer-chess-championship"]
+[Date "2026.01.30"]
+[Round "89"]
+[White "Torch"]
+[Black "Lc0"]
+[Result "*"]
+[PlyCount "16"]
+[Link "https://www.chess.com/computer-chess-championship#event=447&game=171"]
+
+1. d4 e6 2. c4 Nf6 3. Nc3 Bb4 4. e3 Bxc3+ 5. bxc3 O-O 6. Bd3 d6 7. e4 e5 8. Ne2
+Nh5 9. h3 Nc6 10. Be3 Ne7 11. g4 Nf6 12. Ng3 Ng6 13. f3 c5 14. Qd2 cxd4 15. cxd4
+exd4 16. Bxd4 Ne5 17. Be2 Be6 18. Rc1 Rc8 19. c5 Nc6 20. Bxf6 Qxf6 21. cxd6 Nd4
+22. Kf2 Qe5 23. Rxc8 Rxc8 24. Rd1 Nxe2 25. Qxe2 h5 26. gxh5 Bxh3 27. Rd5 Qf6 28.
+e5 Qf4 29. Qd2 Qa4 30. Rd4 Rc4 31. Re4 Qc6 32. Qe3 Qa6 33. Rxc4 Qxc4 34. a3 a6
+35. h6 Qh4 36. Qe4 Qxh6 37. Qxb7 Be6 38. Qa8+ Kh7 39. Qe4+ g6 40. Ne2 Kg8 41.
+Qf4 Qh1 42. Qd4 Bd7 43. Ke3 Qb1 44. Qc5 Qb3+ 45. Nc3 Be6 46. Qb4 Qc2 47. Ne2 Bf5
+48. Qc3 Qb1 49. Qa5 Qb3+ 50. Kf2 Qd1 51. Qd8+ Kg7 52. Qb6 Kg8 53. Qa5 Kh7 54.
+Qc3 Kg8 55. Nd4 Bd7 56. Ke3 Qb1 57. Qb4 Qa2 58. Ke4 Bh3 59. e6 Bxe6 60. Nxe6
+Qxe6+ 61. Kd4 Kg7 62. Kc5 Qc8+ 63. Kb6 Qd8+ 64. Kxa6 Qa8+ 65. Kb6 Qb8+ 66. Kc5
+Qc8+ 67. Kd4 Qd7 68. a4 g5 69. a5 g4 70. fxg4 Qxg4+ 71. Kc3 Qh3+ 72. Kb2 Qg2+
+73. Kb3 Qd5+ 74. Kc3 Qf3+ 75. Kc4 Qg4+ 76. Kb5 Qd7+ 77. Ka6 Qc6+ 78. Qb6 Qa8+
+79. Kb5 Qd5+ 80. Qc5 Qb7+ 81. Kc4 Qa6+ 82. Kc3 Qb7 83. a6 Qb1 84. a7 Qe1+ 85.
+Kc4 Qf1+ 86. Kb4 Qb1+ 87. Ka5 Qb7 88. d7 Qb2 89. d8=Q Qa2+ 90. Kb6 Qb3+ 91. Kc7
+Qg3+ 92. Qdd6 Qg4 93. a8=Q Qd7+ 94. Kxd7 f6 95. Qg3+ Kh7 96. Qh5# 1-0

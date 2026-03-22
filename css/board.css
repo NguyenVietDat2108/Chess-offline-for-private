@@ -1,0 +1,614 @@
+
+.board-container-row {
+    display: flex; flex-direction: row; align-items: stretch; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box;
+}
+
+#board-wrapper {
+    flex-shrink: 0 !important;
+    position: relative; 
+    height: auto; 
+    min-width: 300px; 
+    display: flex; 
+    flex-direction: column; 
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+    background: #222; 
+}
+
+#enginePanel {
+    flex-shrink: 0 !important; /* CRITICAL: Never let the eval bar squish */
+    margin-left: 0 !important; /* We use the 'gap' property above instead */
+}
+#chessBoard {
+    display: block;
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border: 5px solid #222;
+    background-color: solid #222;
+    overflow: hidden;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+/* Stacking Context & Optimization */
+#board, .board-container {
+    position: relative;
+    z-index: 1;
+}
+
+.piece, .square, #board {
+    will-change: transform,opacity;
+    transform: translate3d(0, 0, 0);
+    -webkit-transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+}
+
+svg, .drawing-layer, #annotationsLayer, .arrow-line, .arrow-head {
+    will-change: transform, opacity;
+    transform: translate3d(0, 0, 0);
+    pointer-events: none;
+}
+
+/* --- Layers --- */
+.squares-layer {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: auto;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    z-index: 10;
+    transform: translateZ(0);
+}
+
+.pieces-layer {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 30;
+    transform: translateZ(0);
+}
+
+.arrow-layer, #arrowLayer {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 50 !important; /* Above pieces */
+    transform: translateZ(0);
+}
+
+.annotations-layer, #annotationsLayer {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 40;
+    transform: translateZ(0);
+}
+
+/* --- Squares --- */
+.square {
+    position: relative; width: 100%; height: 100%;
+    display: flex; justify-content: center; align-items: center;
+    transform: translateZ(0);
+}
+
+.square.light {background-color: var(--board-light);color: var(--board-dark);box-shadow: 0 0 0 0.5px var(--board-light);}
+.square.dark {background-color: var(--board-dark);color: var(--board-light);box-shadow: 0 0 0 0.5px var(--board-dark);}
+.square.selected { z-index: 15; box-shadow: inset 0 0 0 4px rgba(100, 255, 100, 0.6); }
+.square.last-move { background-color: var(--highlight-last) !important; }
+.square.selected-w { box-shadow: inset 0 0 0 4px #38bdf8 !important; background-color: rgba(56, 189, 248, 0.3) !important; }
+.square.selected-b { box-shadow: inset 0 0 0 4px #fa412d !important; background-color: rgba(250, 65, 45, 0.3) !important; }
+.square.drag-over { background-color: rgba(255, 255, 255, 0.4); }
+
+/* Move Destinations */
+.square.valid-move.dest-w { box-shadow: inset 0 0 0 4px #38bdf8 !important; background-color: rgba(56, 189, 248, 0.15) !important; cursor: pointer; }
+.square.valid-move.dest-b { box-shadow: inset 0 0 0 4px #fa412d !important; background-color: rgba(250, 65, 45, 0.15) !important; cursor: pointer; }
+.square.valid-move:hover { background-color: rgba(255, 255, 255, 0.2) !important; }
+
+/* Highlights & Check */
+.square.in-check { background: radial-gradient(ellipse at center, #ff0000 0%, #cc0000 60%, transparent 100%) !important; position: relative; overflow: visible; }
+.square.in-check::before {
+    content: ''; position: absolute; top: 50%; left: 50%; width: 100%; height: 100%;
+    border: 4px solid rgb(221 13 20 / 80%); border-radius: 50%;
+    transform: translate(-50%,-50%) scale(0.5); background: transparent; opacity: 0; z-index: 5;
+    animation: checkShockwave 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+/* --- PREMOVE HIGHLIGHTS (Overlay Method) --- */
+/* We use ::after to layer the color ON TOP of existing highlights (like last-move yellow) */
+
+.square.premove-source,
+.square.premove-dest {
+    /* Ensure the square allows positioning of the pseudo-element */
+    position: relative;
+    /* Do NOT set background-color here, or it will replace the underlying move highlight */
+}
+
+.square.premove-source::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Allow clicks to pass through to the square */
+    
+    /* User Settings */
+    background-color: rgba(244, 67, 54, 0.5) !important;
+    z-index: 50;
+}
+
+.square.premove-dest::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    
+    /* User Settings */
+    background-color: rgb(222 31 17 / 50%) !important;
+    box-shadow: inset 0 0 5px rgba(255, 0, 0, 0.8);
+    z-index: 50;
+}
+.square.highlight-w { box-shadow: inset 0 0 0 4px #38bdf8 !important; background-color: rgba(56, 189, 248, 0.2) !important; z-index: 10; }
+.square.highlight-b { box-shadow: inset 0 0 0 4px #fa412d !important; background-color: rgba(250, 65, 45, 0.2) !important; z-index: 10; }
+
+/* --- Coordinates --- */
+#board-wrapper {
+    overflow: visible !important;
+    margin: 20px;
+}
+#board-wrapper.coords-outside {
+    margin: 25px;
+    overflow: visible !important;
+}
+#external-coords-layer {
+    pointer-events: none;
+    z-index: 10;
+}
+.ext-coord-rank {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: #8c8c8c;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    user-select: none;
+}
+.ext-coord-file {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: #8c8c8c;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    user-select: none;
+}
+#board-wrapper:hover .ext-coord-rank,
+#board-wrapper:hover .ext-coord-file {
+    color: #b0b0b0;
+}
+#chessBoard.theme-disguised {
+    background-color: #D1D1D1 !important; /* Fills any microscopic rounding gaps with grey */
+}
+
+#chessBoard.theme-disguised .squares-layer div,
+#chessBoard.theme-disguised .square {
+    border: none !important; /* Remove borders to fix the black seams */
+    box-sizing: border-box !important;
+}
+
+/* Light squares: White top/left, Dark Grey bottom/right */
+#chessBoard.theme-disguised .squares-layer .light {
+    background-color: #E3E3E3 !important;
+    box-shadow: inset 4px 4px 0px 0px #FFFFFF, inset -4px -4px 0px 0px #C1C1C1 !important;
+}
+
+/* Dark squares: Dark Grey top/left, White bottom/right */
+#chessBoard.theme-disguised .squares-layer .dark {
+    background-color: #D1D1D1 !important;
+    box-shadow: inset 4px 4px 0px 0px #C1C1C1, inset -4px -4px 0px 0px #FFFFFF !important;
+}
+/* --- Pieces --- */
+.piece {
+    position: absolute; width: 12.5%; height: 12.5%; z-index: 10;
+    display: flex; justify-content: center; align-items: center; pointer-events: auto;will-change: transform;transform: translateZ(0);
+}
+.piece img, .piece svg {
+    position: relative; z-index: 10; width: 100%; height: 100%;
+    filter: drop-shadow(1px 2px 4px rgba(0,0,0,0.5)); pointer-events: none;
+}
+.piece.animating { z-index: 100 !important; pointer-events: none; transition: transform 0.25s cubic-bezier(0, 0.03, 0.66, 0.99); will-change: transform; }
+.piece.dragging-source { opacity: 0.5; }
+.piece.captured-pending { z-index: 10 !important; pointer-events: none; }
+.piece-heartbeat {
+    animation: heartbeat 1.2s infinite ease-in-out;
+    transform-origin: center center;
+}
+/* Castle & Manga Animations */
+.piece.castling-jump img, .piece.castling-jump svg { animation: castleJump 0.25s ease-in-out forwards; will-change: transform; }
+/* LAYER 1: The Big Colored Bursting Wedge (::before) */
+.piece.manga-tail::before {
+    content: ''; 
+    position: absolute; 
+    top: 50%; 
+    left: 50%; 
+    width: 100%; 
+    height: 100%;
+    transform-origin: left center;
+    clip-path: polygon(0% 20%, 100% 0%, 100% 100%, 0% 80%);
+    opacity: 0; 
+    pointer-events: none; 
+    z-index: -2; /* Underneath the white core */
+    
+    animation: tailBurst var(--anim-duration, 0.25s) cubic-bezier(0, 1.01, 1, 0.99) forwards;
+    will-change: transform, opacity;
+}
+
+.piece.piece-w.manga-tail::before { background: linear-gradient(90deg, rgb(0 255 234 / 80%) 0%, rgba(56, 189, 248, 0) 100%); }
+.piece.piece-b.manga-tail::before { background: linear-gradient(90deg, rgb(255 25 0 / 90%) 0%, rgba(250, 65, 45, 0) 100%); }
+
+/* LAYER 2: The Thin White Laser Core (::after) */
+.piece.manga-tail::after {
+    content: ''; 
+    position: absolute; 
+    top: 50%; 
+    left: 50%; 
+    width: 100%; 
+    height: 2px;
+    background: rgba(255, 255, 255, 0.9); 
+    transform-origin: left center;
+    opacity: 0; 
+    pointer-events: none; 
+    z-index: -1; /* Right under the piece, above the colored wedge */
+    
+    animation: tailBurst var(--anim-duration, 0.25s) cubic-bezier(0, 1.01, 1, 0.99) forwards;
+    will-change: transform, opacity;
+}
+/* --- Coords & Annotations --- */
+.coord { position: absolute; font-size: 10px; z-index: 5; pointer-events: none; }
+.coord.rank { left: 2px; top: 2px; }
+.coord.file { right: 2px; bottom: 0px; }
+.square.light .coord { color: #b58863; }
+.square.dark .coord { color: #f0d9b5; }
+.square .coord { position: absolute; font-size: 10px; font-weight: bold; }
+
+.board-container.coords-outside { padding: 25px; background-color: var(--bg-panel); }
+.board-container.coords-outside .square .coord { display: none; }
+.external-coords { display: none; position: absolute; }
+.board-container.coords-outside .external-coords { display: block; }
+
+.board-annotation {
+    position: absolute; top: -6px; right: -6px; width: 22px; height: 22px;
+    display: flex; justify-content: center; align-items: center;
+    font-weight: 900; font-size: 12px; color: #fff; border-radius: 50%;
+    border: 2px solid #333; box-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+    z-index: 20; pointer-events: none; transform: translate(-50%,-50%);
+}
+.bg-3 { background: var(--nag-brilliant); }
+.bg-1 { background: var(--nag-great); }
+.bg-5 { background: var(--nag-interesting); }
+.bg-2 { background: var(--nag-mistake); }
+.bg-4 { background: var(--nag-blunder); }
+.bg-6 { background: var(--nag-inaccuracy); }
+
+/* --- Extras --- */
+.board-book-icon {
+    position: absolute; top: 2px; right: 2px; width: 20%; height: 20%;
+    z-index: 10; pointer-events: none; opacity: 0.9;
+}
+.board-book-icon svg { width: 100%; height: 100%; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5)); }
+
+.hint-dot { position: absolute; width: 32%; height: 32%; background: rgba(0, 0, 0, 0.15); border-radius: 50%; pointer-events: none; z-index: 5; }
+.hint-capture { position: absolute; width: 100%; height: 100%; box-shadow: inset 0 0 0 5px rgba(0,0,0,0.15); border-radius: 50%; pointer-events: none; z-index: 5; }
+
+/* Ghost */
+#draggedPieceGhost {
+    position: fixed; z-index: 9999; pointer-events: none; display: none;
+    transform-origin: center center;
+    animation: ghostFloat 1s cubic-bezier(0, 0.01, 0.55, 1.05) infinite, heartbeat 1.2s ease-in-out infinite;
+    will-change: transform;
+}
+#draggedPieceGhost .piece, #draggedPieceGhost svg { width: 100% !important; height: 100% !important; display: block; filter: drop-shadow(0 5px 15px rgba(0,0,0,0.6)); }
+#draggedPieceGhost::before, #draggedPieceGhost::after {
+    content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    border-radius: 50%; z-index: -1; background: transparent; opacity: 0; pointer-events: none;
+}
+#draggedPieceGhost::before { animation: thickRipple 2s linear infinite; }
+#draggedPieceGhost::after { animation: thickRipple 2s linear 1s infinite; }
+#draggedPieceGhost.ghost-w::before, #draggedPieceGhost.ghost-w::after { border: 15px solid rgb(0 243 201 / 50%); background: radial-gradient(circle, rgb(0 221 244 / 25%) 0%, transparent 60%); box-shadow: 0 0 25px rgb(0 176 255 / 40%); }
+#draggedPieceGhost.ghost-b::before, #draggedPieceGhost.ghost-b::after { border: 15px solid rgba(250, 65, 45, 0.5); background: radial-gradient(circle, rgba(250, 65, 45, 0.25) 0%, transparent 60%); box-shadow: 0 0 25px rgba(250, 65, 45, 0.4); }
+
+/* Flipped & No Anim */
+.flipped-board .squares-layer { transform: rotate(180deg); }
+.flipped-board .coord { transform: rotate(-180deg); }
+
+body.no-animations .piece.animating, body.no-animations .piece.manga-tail::before, body.no-animations #draggedPieceGhost, body.no-animations #draggedPieceGhost::before, body.no-animations #draggedPieceGhost::after {
+    animation: none !important; transition: none !important; transform: none !important;
+}
+body.no-animations #draggedPieceGhost { animation: none !important; transform: translate(0,0) !important; }
+/* --- DISABLE HEARTBEAT IN EDITOR MODE --- */
+/* This kills the 'thickRipple' animation you pasted */
+
+body.show-editor .square.in-check,
+body.show-editor .square.selected-w,
+body.show-editor .square.selected-b,
+body.show-editor .square.selected {
+    animation: none !important;       /* Stops @keyframes thickRipple */
+    box-shadow: none !important;      /* Removes the glowing ring */
+}
+
+/* Optional: Also remove the static red/blue background if you want it clean */
+body.show-editor .square.in-check {
+    background-color: transparent !important;
+}
+/* Lichess Setup Modal Theme */
+.modal-content.lichess-setup {
+    background: #262421;
+    width: 480px;
+    border-radius: 3px;
+    box-shadow: 0 10px 50px rgba(0,0,0,0.6);
+    color: #bababa;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+/* Header */
+.lichess-setup .modal-header {
+    background: transparent;
+    border: none;
+    padding: 20px 0 10px;
+    text-align: center;
+    position: relative;
+}
+.lichess-setup .modal-header h3 {
+    font-size: 22px;
+    font-weight: normal;
+    color: #fff;
+    margin: 0;
+}
+.lichess-setup .close-btn {
+    position: absolute; top: 10px; right: 15px;
+    font-size: 24px; color: #666; background: none; border: none; cursor: pointer;
+}
+.lichess-setup .close-btn:hover { color: #ccc; }
+
+.modal-body { padding: 0 30px 30px 30px; }
+
+/* Labels */
+.setup-group { margin-bottom: 25px; }
+.setup-label {
+    display: block;
+    text-align: center;
+    text-transform: uppercase;
+    font-size: 11px;
+    font-weight: 700;
+    color: #a0a0a0;
+    margin-bottom: 10px;
+    letter-spacing: 0.5px;
+}
+
+/* Strength Buttons (1-8) */
+.strength-selector {
+    display: flex;
+    background: #161512;
+    border-radius: 3px;
+    overflow: hidden;
+}
+.str-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-right: 1px solid #282828;
+    color: #999;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 12px 0;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+.str-btn:last-child { border-right: none; }
+.str-btn:hover { background: #302e2c; color: #fff; }
+.str-btn.active {
+    background: #629924 !important; /* Lichess Green */
+    color: #fff !important;
+    text-shadow: 0 1px 0 rgba(0,0,0,0.2);
+}
+
+/* Side Buttons (Black, Random, White) */
+.side-selector {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+}
+.side-btn {
+    flex: 1;
+    background: #161512;
+    border: 2px solid transparent; /* Reserve border space */
+    border-radius: 4px;
+    height: 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.side-btn:hover { background: #2a2926; }
+
+/* Active State for Side */
+.side-btn.active {
+    background: #161512;
+    border-color: #629924; /* Green Border */
+    box-shadow: inset 0 0 0 1px #629924; /* Inner glow style */
+}
+
+/* Icons & Text */
+.side-icon { width: 45px; height: 45px; margin-bottom: 8px; }
+.side-text {
+    font-size: 13px;
+    color: #999;
+    font-weight: 500;
+}
+.side-btn.active .side-text { color: #fff; }
+
+/* Footer Play Button */
+.play-computer-btn {
+    width: 100%;
+    padding: 16px;
+    background: #363431; /* Inactive greyish state initially or just bottom styling */
+    background: #629924; /* Active Green */
+    border: none;
+    border-bottom: 3px solid #3c5f14;
+    border-radius: 5px;
+    color: #fff;
+    font-size: 18px;
+    font-weight: bold;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-shadow: 0 1px 1px rgba(0,0,0,0.3);
+    transition: background 0.2s;
+}
+.play-computer-btn:hover {
+    background: #6b9e2b;
+    border-bottom-color: #446a18;
+}
+.play-computer-btn:active {
+    border-bottom-width: 0;
+    margin-top: 3px;
+}
+.random-king-container {
+    position: relative;
+    width: 45px;
+    height: 45px;
+    margin-bottom: 8px;
+    pointer-events: none; /* Let clicks pass through to button */
+}
+
+.random-half {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Ensure images/SVGs inside fit perfectly */
+.random-half img, 
+.random-half svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* Cut the Left Half (White) */
+.random-half.left {
+    clip-path: polygon(0 0, 50% 0, 50% 100%, 0 100%);
+    z-index: 2;
+}
+
+/* Cut the Right Half (Black) */
+.random-half.right {
+    clip-path: polygon(50% 0, 100% 0, 100% 100%, 50% 100%);
+    z-index: 1;
+}
+/* --- LICHESS STYLE PROMOTION OVERLAY --- */
+#promotion-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 100; /* Above pieces (z-index 10-50 typically) */
+    background: rgba(0, 0, 0, 0.5); /* Dim background */
+    display: none; /* Hidden by default */
+}
+
+.promo-option {
+    position: absolute;
+    width: 12.5%; 
+    height: 12.5%;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    
+    /* [FIX] Hardware Acceleration for smoother hover */
+    transition: transform 0.1s cubic-bezier(0.4, 0.0, 0.2, 1), background 0.1s;
+    transform-origin: center center;
+    backface-visibility: hidden; 
+    will-change: transform;
+    /* ---------------------------------------------- */
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 101;
+}
+
+/* Hover Scale */
+.promo-option:hover {
+    transform: scale(1.15) translateZ(0); /* translateZ forces GPU rendering */
+    z-index: 102; /* Ensure it stays on top when scaled */
+}
+
+/* White Piece Bubble */
+.promo-option.promo-w {
+    background: #f0f0f0;
+    background: radial-gradient(circle at 30% 30%, #ffffff, #d0d0d0);
+}
+.promo-option.promo-w:hover {
+    transform: scale(1.15);
+    background: #ffffff;
+}
+
+/* Black Piece Bubble */
+.promo-option.promo-b {
+    background: #333;
+    background: radial-gradient(circle at 30% 30%, #555, #222);
+}
+.promo-option.promo-b:hover {
+    transform: scale(1.15);
+    background: #444;
+}
+
+/* Ensure the piece image inside fits nicely */
+.promo-option img, 
+.promo-option svg {
+    width: 85% !important;
+    height: 85% !important;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,0.4));
+    
+    /* [FIX] Prevents the image from "stealing" the mouse hover */
+    pointer-events: none; 
+    user-select: none;
+}
+/* Keyframes */
+@keyframes checkShockwave { 0% { transform: translate(-50%,-50%) scale(0.2); opacity: 0; border-width: 20px; } 10% { opacity: 1; } 100% { transform: translate(-50%,-50%) scale(1.5); opacity: 0; border-width: 0px; } }
+@keyframes tailBurst {
+    0% { 
+        opacity: 0; 
+        transform: translate(0, -50%) rotate(calc(var(--move-angle) + 180deg)) scaleX(calc(var(--tail-length-scale) * 0.5)) scaleY(0.5); 
+    } 
+    20% { 
+        opacity: 1; 
+        transform: translate(0, -50%) rotate(calc(var(--move-angle) + 180deg)) scaleX(var(--tail-length-scale)) scaleY(1); 
+    } 
+    100% { 
+        opacity: 0; 
+        transform: translate(0, -50%) rotate(calc(var(--move-angle) + 180deg)) scaleX(calc(var(--tail-length-scale) * 1.2)) scaleY(0.2); 
+    } 
+}
+@keyframes tailCoreFade {
+    0% {
+        opacity: 0.9;
+        transform: translate(0, -50%) rotate(calc(var(--move-angle, 0deg) + 180deg)) scaleX(var(--tail-length-scale, 1));
+    }
+    100% {
+        opacity: 0;
+        /* We shrink it to 0 so it looks like it gets sucked back in as it fades */
+        transform: translate(0, -50%) rotate(calc(var(--move-angle, 0deg) + 180deg)) scaleX(0);
+    }
+}
+@keyframes castleJump { 0% { transform: translateY(0) scale(1); } 50% { transform: translateY(-35%) scale(1); } 100% { transform: translateY(0) scale(1); } }
+@keyframes ghostFloat { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-8px) rotate(3deg); } }
+@keyframes heartbeat { 0% { transform: scale(1); } 15% { transform: scale(1.15); } 30% { transform: scale(1.05); } 45% { transform: scale(1.15); } 100% { transform: scale(1); } }
+@keyframes thickRipple { 0% { width: 60%; height: 60%; opacity: 1; border-width: 35px; } 5% { width: 73%; height: 73%; opacity: 1; border-width: 34px; } 10% { width: 86%; height: 86%; opacity: 1; border-width: 33px; } 25% { width: 125%; height: 125%; opacity: 0.98; border-width: 30px; } 50% { width: 190%; height: 190%; opacity: 0.85; border-width: 22px; } 100% { width: 320%; height: 320%; opacity: 0; border-width: 0px; } }

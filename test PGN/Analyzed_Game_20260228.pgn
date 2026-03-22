@@ -1,0 +1,12 @@
+[FEN "rn3rk1/p3pnbp/2ppb1p1/qp1PPp2/5P2/2N1BN1P/PPPQ2P1/1K1R1B1R b - - 0 1"]
+[SetUp "1"]
+[Event "Casual Game"]
+[Site "Localhost"]
+[Date "2026.02.28"]
+[Round "-"]
+[White "White"]
+[Black "Black"]
+[Result "*"]
+[TimeControl "600+0"]
+
+*

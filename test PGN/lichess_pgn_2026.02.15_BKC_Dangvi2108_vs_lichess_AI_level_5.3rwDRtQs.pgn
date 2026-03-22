@@ -1,0 +1,24 @@
+[Event "casual correspondence game"]
+[Site "https://lichess.org/3rwDRtQs"]
+[Date "2026.02.15"]
+[Round "-"]
+[White "BKC_Dangvi2108"]
+[Black "lichess AI level 5"]
+[Result "1-0"]
+[GameId "3rwDRtQs"]
+[UTCDate "2026.02.15"]
+[UTCTime "12:00:04"]
+[WhiteElo "1500"]
+[BlackElo "?"]
+[Variant "From Position"]
+[TimeControl "-"]
+[ECO "?"]
+[Opening "?"]
+[Termination "Normal"]
+[FEN "rnbqkbnr/pppppppp/8/8/2PPPP2/2NBBN2/PP2Q1PP/3R1RK1 w kq - 0 1"]
+[SetUp "1"]
+[Annotator "lichess.org"]
+
+1. e5 { [%eval 5.62] } 1... h6 { [%eval 6.67] } 2. d5 { [%eval 6.21] } 2... e6 { [%eval 6.31] } 3. f5 { [%eval 6.2] } 3... exd5 { [%eval 6.5] } 4. cxd5 { [%eval 6.55] } 4... Ne7 { [%eval 7.59] } 5. f6 { [%eval 6.93] } 5... Ng8 { [%eval 8.19] } 6. Bd4 { [%eval 8.04] } 6... c6 { [%eval 8.74] } 7. e6 { [%eval 7.42] } 7... gxf6? { (7.42 → Mate in 5) Checkmate is now unavoidable. Nxf6 was best. } { [%eval #5] } (7... Nxf6 8. exd7+ Kxd7 9. Bf5+ Kc7 10. Be5+ Bd6 11. dxc6 bxc6 12. Rxd6 Bxf5 13. Rxc6+) 8. Bf5? { (Mate in 5 → 7.12) Lost forced checkmate sequence. exf7+ was best. } { [%eval 7.12] } (8. exf7+ Kxf7 9. Ne5+ Ke7 10. Nxc6+ Kf7 11. Nxd8+ Kg7 12. Qg4#) 8... Qe7 { [%eval 7.48] } 9. d6 { [%eval 8.15] } 9... Qxe6 { [%eval 7.51] } 10. Bxe6 { [%eval 7.37] } 10... dxe6 { [%eval 6.98] } 11. Ne4 { [%eval 6.5] } 11... e5?! { (6.50 → 10.20) Inaccuracy. Nd7 was best. } { [%eval 10.2] } (11... Nd7 12. Nh4 h5 13. h3 Bh6 14. Qc2 e5 15. Nf5 exd4 16. Kh1 Kf8 17. Nxd4) 12. Nxe5 { [%eval 9.73] } 12... Bf5? { (9.73 → Mate in 12) Checkmate is now unavoidable. fxe5 was best. } { [%eval #12] } (12... fxe5 13. Bxe5 Be6 14. Nc5 Nd7 15. Nxe6 Rh7 16. Bg3 Be7 17. Nc7+ Kf8 18. dxe7+) 13. Rxf5 { [%eval 63.87] } 13... fxe5 { [%eval 12.77] } 14. Bxe5 { [%eval 10.97] } 14... f6?! { (10.97 → Mate in 6) Checkmate is now unavoidable. Na6 was best. } { [%eval #6] } (14... Na6 15. Bf6 Kd7 16. Bxh8 Rd8 17. Rxf7+ Kc8 18. d7+ Kb8 19. Be5+ Bd6 20. Bxd6+) 15. Nxf6+ { [%eval #7] } 15... Nxf6 { [%eval #6] } 16. Bxf6+ { [%eval #5] } 16... Kd7 { [%eval #5] } 17. Bxh8 { [%eval #4] } 17... c5 { [%eval #4] } 18. Qb5+ { [%eval #3] } 18... Ke6 { [%eval #2] } 19. Re5+ { [%eval #3] } 19... Kf7 { [%eval #3] } 20. Qe8+ { [%eval #3] } 20... Kg8 { [%eval #3] } 21. Qg6+ { [%eval #5] } 21... Kxh8 { [%eval #5] } 22. Re8 { [%eval #4] } 22... Nd7 { [%eval #4] } 23. Rxa8 { [%eval #3] } 23... a6 { [%eval #3] } 24. Rf1 { [%eval #2] } 24... b6 { [%eval #2] } 25. Rfxf8+ { [%eval #1] } 25... Nxf8 { [%eval #1] } 26. Rxf8# { White wins by checkmate. } 1-0
+
+

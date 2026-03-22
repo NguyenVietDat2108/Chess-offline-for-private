@@ -1,0 +1,267 @@
+html, body {
+    margin: 0; 
+    padding: 0;
+    width: 100%; 
+    height: 100%;
+    overflow: auto; /* Lets you scroll when it hits the 80% limit */
+    background-color: #111; 
+    display: block; 
+}
+
+#app-scaler {
+    position: relative; 
+    width: 1431.6px; 
+    height: 986px;
+    margin: 0; /* Anchors strictly to the top-left edge */
+    transform-origin: top left;
+    display: flex;
+    flex-wrap: nowrap;
+}
+
+/* 3. The main wrapper */
+.main-layout {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    flex-wrap: nowrap !important; 
+}
+
+/* 4. Align to the top-left to eliminate inner void spaces */
+.main-container {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-start; /* Keep everything flush left */
+    gap: 40px; 
+    width: 100%;
+    height: 100%;    
+    padding: 30px 20px 20px 80px; 
+    box-sizing: border-box;
+}
+
+/* 5. Lock the board size */
+.board-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    width: 600px; /* Lock exactly to your board size */
+    flex-shrink: 0;
+}
+/* 6. Sidebar Safety Rules */
+.sidebar {
+    position: relative;
+    width: 500px;
+    height: 100%; 
+    background-color: var(--bg-panel);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    
+    /* 🔥 CHANGE THIS FROM hidden TO visible 🔥 */
+    overflow: visible; 
+    
+    flex-shrink: 0; 
+}
+
+#sidebar { background: var(--bg-panel); position: relative; }
+#sidebar, .main-container { will-change: transform; transform: translate3d(0, 0, 0); }
+
+/* Resize Handles */
+.resize-handle {
+    position: absolute; bottom: -15px; right: -15px; width: 25px; height: 25px;
+    cursor: nwse-resize; z-index: 1000; background-size: 4px 4px;
+}
+.resize-handle-side {
+    position: absolute; z-index: 9999; background: transparent; transition: background 0.2s;
+}
+.resize-handle-side:hover, .resize-handle-side.active { background: rgba(56, 189, 248, 0.6); }
+.resize-handle-side.right { top: 0; bottom: 0; right: -6px;width: 12px; cursor: col-resize; }
+.resize-handle-side.bottom { left: 0; right: 0; bottom: 0; height: 12px; cursor: row-resize; }
+#resizeSidebarW { 
+    position: absolute; 
+    right: -6px; /* Pushes it exactly 14px outside the right edge */
+    left: auto;
+    top: 0; 
+    bottom: 0; 
+    width: 6px; /* Matches the right offset */
+    cursor: col-resize; 
+    z-index: 100; 
+}
+/* 1. Stop the Engine Text from breaking the PGN panel */
+#engine-stats-container > div {
+    min-width: 0; /* Forces flex items to allow shrinking */
+}
+
+#engine-stats-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 65%; /* Allows it to shrink gracefully */
+    display: inline-block;
+}
+
+/* 2. Stop Chart.js from breaking the Left Panel */
+.left-panel {
+    min-width: 0 !important; /* Forces Chart.js to obey JS widths */
+    overflow: hidden; 
+}
+/* Tabs */
+.tabs {
+    display: flex; background: transparent; border-bottom: 2px solid var(--border); flex-shrink: 0;
+}
+.tab-btn {
+    flex: 1; padding: 12px 0; background: transparent !important; color: var(--text-muted) !important;
+    border: none !important; font-weight: 600; cursor: pointer; font-size: 12px; text-align: center;
+    border-radius: 0; margin-bottom: -2px;
+}
+.tab-btn.active {
+    color: var(--accent) !important; border-bottom: 2px solid var(--accent) !important; border-radius: 0 !important;
+}
+
+.tab-content { display: none; }
+.tab-content.active { display: flex; flex-direction: column; flex: 1; padding: 0; overflow-y: auto;height: 100%; }
+
+.bottom-bar { display: flex; gap: 10px; margin-top: 10px; width: 600px; align-items: center; }
+.board-header-container { width: 600px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; height: 32px; }
+/* --- 1. The Wrapper (Now heavily flex-optimized) --- */
+/* Safe Fade-In Animation that won't break Chart.js dimensions */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.chart-toggle-btn {
+    background: #262421;
+    color: #bababa;
+    border: 1px solid #404040;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+    transition: 0.2s;
+}
+
+.chart-toggle-btn:hover { 
+    background: #333; 
+    color: #fff; 
+}
+/* 🔥 LICHESS STUDY SIDEBAR 🔥 */
+.study-sidebar {
+    width: 260px;
+    background-color: #262421; /* Lichess Dark */
+    border-right: 1px solid #3c3934;
+    display: flex;
+    flex-direction: column;
+    color: #bababa;
+    height: 100%;
+}
+
+.study-header {
+    padding: 12px 15px;
+    background-color: #302e2b;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #3c3934;
+}
+
+.study-header h2 {
+    font-size: 15px;
+    color: #fff;
+    margin: 0;
+    font-weight: 600;
+}
+
+.add-chapter-btn {
+    background: none;
+    border: none;
+    color: #bababa;
+    font-size: 22px;
+    cursor: pointer;
+    line-height: 1;
+    transition: color 0.2s;
+}
+
+.add-chapter-btn:hover {
+    color: #fff;
+}
+
+.chapters-list {
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+.chapter-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #302e2b;
+    transition: background 0.1s;
+}
+
+.chapter-item:hover {
+    background-color: #363431;
+}
+
+.chapter-item.active {
+    background-color: #3d3b38;
+    border-left: 3px solid #629924; /* Lichess Active Green */
+    color: #fff;
+}
+
+.chapter-icon {
+    margin-right: 12px;
+    font-size: 14px;
+    opacity: 0.7;
+}
+
+.chapter-item.active .chapter-icon {
+    opacity: 1;
+}
+
+.chapter-name {
+    flex-grow: 1;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.delete-chapter-btn {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    display: none;
+    font-size: 12px;
+}
+
+.chapter-item:hover .delete-chapter-btn {
+    display: block;
+}
+
+.delete-chapter-btn:hover {
+    color: #ff5555;
+}
+/* Board Theme Preset Buttons */
+.theme-preset {
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.theme-preset:hover {
+    transform: translateY(-3px);
+    border-color: #38bdf8 !important; /* Glows blue on hover */
+    box-shadow: 0 5px 10px rgba(0,0,0,0.7);
+}
+
+.theme-preset:active {
+    transform: translateY(0px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}

@@ -1,0 +1,20 @@
+/temp
+/old
+*_missing.json
+
+# Node.js / npm
+node_modules/
+dist/
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

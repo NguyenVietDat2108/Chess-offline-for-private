@@ -1,0 +1,2 @@
+
+1. b3 Nf6 2. Bb2 d5 3. Nf3 g6 4. c4 c6 5. cxd5 cxd5 6. g3 Bg7 7. d4 O-O 8. Nc3 Nc6 9. h3 Bf5 { [%cal Gd8c8] } 10. e3 Ne4 11. Nxe4 dxe4 12. g4 Be6 13. Nh4 Qa5+ 14. Qd2 Qxd2+ 15. Kxd2 Rfd8 16. Ng2 f6 17. Nf4 Bf7 18. Bc3 e5 19. Ne2 f5 20. gxf5 gxf5 21. Ke1 exd4 22. Nxd4 Nxd4 23. exd4 Bxd4 24. Rg1+ Kh8 25. Bxd4+ Rxd4 26. Rc1 Rd7 27. Rb1 Rc8

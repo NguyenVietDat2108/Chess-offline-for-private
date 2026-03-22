@@ -1,0 +1,42 @@
+ from:
+[Event "Live Chess"]
+[Site "Chess.com"]
+[Date "2026.03.04"]
+[Round "-"]
+[White "IamTyrunny"]
+[Black "RoPlayer"]
+[Result "0-1"]
+[CurrentPosition "8/4k3/1p1p2p1/p2B1p1p/P1PP1P2/4p3/1P2Kb2/8 w - - 3 39"]
+[Timezone "UTC"]
+[ECO "B30"]
+[ECOUrl "https://www.chess.com/openings/Sicilian-Defense-Old-Sicilian-Variation-3.c4-e5-4.Nc3"]
+[UTCDate "2026.03.04"]
+[UTCTime "14:10:33"]
+[WhiteElo "2015"]
+[BlackElo "2048"]
+[TimeControl "600"]
+[Termination "RoPlayer won by resignation"]
+[StartTime "14:10:33"]
+[EndDate "2026.03.04"]
+[EndTime "14:26:07"]
+[Link "https://www.chess.com/analysis/game/live/165499952786/analysis?move=75"]
+[WhiteUrl "https://www.chess.com/bundles/web/images/noavatar_l.84a92436.gif"]
+[WhiteCountry "149"]
+[WhiteTitle ""]
+[BlackUrl "https://www.chess.com/bundles/web/images/noavatar_l.84a92436.gif"]
+[BlackCountry "115"]
+[BlackTitle ""]
+
+1. e4 c5 2. Nf3 Nc6 3. c4 e5 4. Nc3 g6 5. d3 Bg7 6. g3 (6. Be2) 6... h6 7. Bg2
+Nge7 8. O-O O-O 9. a3 Kh7 (9... d6 10. b4 (10. Rb1 a5 11. Ne1 Nd4 12. Nc2)) 10.
+Nd5 (10. b4 cxb4 (10... d6 11. Rb1) 11. axb4 Nxb4 $6 12. Ba3 Nbc6 (12... a5 13.
+Bxb4) 13. Bd6 $1) 10... d6 11. Rb1 a5 12. Nh4 $2 Nd4 13. Be3 f5 $2 14. Bxd4 cxd4 15.
+f4 $2 (15. exf5 Nxf5 16. Nxf5 Bxf5 17. a4) 15... Nxd5 $1 16. exd5 $2 exf4 17. gxf4 $6
+Qxh4 18. Qa4 Rd8 19. Qb5 Qe7 20. Rbe1 Qd7 21. Qb3 Rb8 22. a4 b6 23. Qd1 Qf7 24.
+Qe2 Rb7 25. Qf2 Bf6 26. h4 h5 27. Qf3 Re8 28. Re6 Bxe6 29. dxe6 Rxe6 30. Qxb7
+Qxb7 31. Bxb7 Re3 32. Rf3 Bxh4 33. Rxe3 dxe3 34. Bf3 Kg7 35. Kf1 Kf6 36. Ke2
+Bf2 $1 37. d4 Ke6 $2 38. Bd5+ Ke7 39. Bf3 $2 (39. b4 axb4 $6 (39... Bg3 40. Kxe3 $2 (40.
+bxa5 bxa5 41. Kxe3 $1 Kf6) 40... axb4 $1) 40. c5 $1 dxc5 41. dxc5 bxc5 $2 42. a5 $1 b3 $2
+43. Bxb3 $2 (43. a6 b2 $6 44. Ba2 $1 Bg3 45. a7)) 39... h4 40. Bg2 Ke6 $6 41. d5+ $2 Kf6
+42. Kf3 g5 43. Bf1 g4+ 44. Kg2 Kg6 45. Be2 Kh5 46. b3 h3+ 47. Kh2 Kh4 48. Bf1
+g3+ 49. Kh1 g2+ 50. Bxg2 hxg2+ 51. Kxg2 0-1

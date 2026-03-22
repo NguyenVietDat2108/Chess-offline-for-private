@@ -1,0 +1,17 @@
+Target for checking failed: 
+easy: <30 seconds, 
+medium: < 1 minute, 
+hard: 3-5 minutes, 
+extra: 10-15 minutes
+
+*)Failed:
+45 (Nxh7 after 5 minutes just looking into position),
+56 (Failed to realize Qxf8 is possible)
+61 (45 secs to realize Bxf2)
+
+*)Slow: 
+12(12s to finish),13(10s to for first move), 
+25( 17s to for first move),26( 13 seconds for first move),
+32 ( 16 seconds for first move),43( 30s to find correct move),
+54(12 secs for first move),
+
