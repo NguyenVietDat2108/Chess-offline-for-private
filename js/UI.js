@@ -76,10 +76,12 @@ init() {
             this.boardWrapper.addEventListener('mousedown', (e) => this.processTrashAction(e), true);
             this.boardWrapper.addEventListener('mousemove', (e) => this.processTrashAction(e), true);
         }
-        // ==========================================================
-        // ==========================================================
-this.updateBotMenuPreviews();
-    const pgnStyleSelect = document.getElementById('pgnStyle');
+        window.addEventListener('resize', () => {
+            this.resizeApp();
+            if (typeof this.safeResizeCharts === 'function') this.safeResizeCharts();
+        });
+        this.updateBotMenuPreviews();
+        const pgnStyleSelect = document.getElementById('pgnStyle');
         if (pgnStyleSelect) {
             pgnStyleSelect.addEventListener('change', (e) => {
                 this.pgnStyle = e.target.value;
@@ -87,7 +89,7 @@ this.updateBotMenuPreviews();
                 this.updateHistory(true);
             });
         }
-   const sheet = document.getElementById('moveHistory');
+       const sheet = document.getElementById('moveHistory');
         if (sheet) {
             sheet.addEventListener('focusout', (e) => {
                 if (e.target.classList.contains('comment') || e.target.classList.contains('pgn-comment') || e.target.classList.contains('move-comment') || e.target.classList.contains('inline-comment') || e.target.classList.contains('tree-comment')) {
@@ -215,20 +217,19 @@ this.updateBotMenuPreviews();
             });
         }
         // ==========================================================
-this.renderCharts();
-window.addEventListener('resize', () => this.resizeApp());
-// 🔥 THE FIX: Observe the chart containers directly so it works in BOTH Analysis and Study modes!
-    const evalContainer = document.getElementById('evalChartContainer');
-    const timeContainer = document.getElementById('timeChartContainer');
+        this.renderCharts();
+        // 🔥 THE FIX: Observe the chart containers directly so it works in BOTH Analysis and Study modes!
+            const evalContainer = document.getElementById('evalChartContainer');
+            const timeContainer = document.getElementById('timeChartContainer');
     
-    if (!this._chartObserver && (evalContainer || timeContainer)) {
-        this._chartObserver = new ResizeObserver(() => {
+            if (!this._chartObserver && (evalContainer || timeContainer)) {
+                this._chartObserver = new ResizeObserver(() => {
             if (typeof this.safeResizeCharts === 'function') this.safeResizeCharts();
         });
         if (evalContainer) this._chartObserver.observe(evalContainer);
         if (timeContainer) this._chartObserver.observe(timeContainer);
     }
-try {
+        try {
             const savedTheme = JSON.parse(localStorage.getItem('chessThemeCache'));
             if (savedTheme && savedTheme.lightHex) {
                 this.setPresetTheme(
@@ -246,11 +247,11 @@ try {
         } catch (e) {
             this.setPresetTheme('#2bb7ca', '#19579a', this,'#2bb7ca','transparent', 'merida', 'radial-gradient(circle at 50% 0%, #1e3a4c 0%, #0f172a 60%, #020617 100%)')
         }
-    const resignBtn = document.getElementById('resignBtn');
+        const resignBtn = document.getElementById('resignBtn');
         const drawBtn = document.getElementById('drawBtn');
         if (resignBtn) resignBtn.style.display = 'none';
         if (drawBtn) drawBtn.style.display = 'none';
-    }
+ }
 async loadCustomPieces() {
         if (!window.showDirectoryPicker) {
             this.showNotification("Your browser does not support folder access. Please use Chrome, Edge, or Opera.", "Not Supported", "⚠️");
@@ -540,14 +541,6 @@ resizeApp() {
         const scaler = document.getElementById('app-scaler');
         if (!scaler) return;
 
-        ['settingsPanel', 'annotationPopup', 'scannerModal', 'previewPopup'].forEach(id => {
-            const popup = document.getElementById(id);
-            if (popup) {
-                popup.style.position = 'absolute';
-                popup.style.zIndex = '999999';
-            }
-        });
-
         const mainLayout = document.querySelector('.main-layout');
         const mainContainer = document.querySelector('.main-container');
         const boardSection = document.querySelector('.board-section');
@@ -583,23 +576,20 @@ resizeApp() {
         if (analysisPanel) analysisPanel.style.height = safeSidebarHeight + 'px';
 
         // ==========================================================
-        // 🔥 THE FIX: FORCE THE PGN TABS TO COLLAPSE AND SCROLL
+        // FORCE THE PGN TABS TO COLLAPSE AND SCROLL
         // ==========================================================
-        // 1. Give the sidebars a hard ceiling so they cannot stretch
         if (mainSidebar) mainSidebar.style.maxHeight = safeSidebarHeight + 'px';
         if (studySidebar) studySidebar.style.maxHeight = safeSidebarHeight + 'px';
         if (analysisPanel) analysisPanel.style.maxHeight = safeSidebarHeight + 'px';
 
-        // 2. Override the Tab Switcher's 'display: block'. If tab-pane isn't flex, the PGN stretches infinitely.
         document.querySelectorAll('.tabs-content, .tab-pane').forEach(el => {
             if (el) {
                 el.style.display = 'flex';
                 el.style.flexDirection = 'column';
-                el.style.minHeight = '0'; // Kills the invisible CSS stretch rule
+                el.style.minHeight = '0'; 
             }
         });
 
-        // 3. Guarantee the scrollbar activates
         ['moveHistory', 'studyPgnContainer'].forEach(id => {
             const el = document.getElementById(id);
             if (el) {
@@ -610,7 +600,7 @@ resizeApp() {
         });
 
         // ==========================================================
-        // DYNAMIC TARGET WIDTH (Your original untouched math)
+        // DYNAMIC TARGET WIDTH 
         // ==========================================================
         let targetWidth = 0;
 
@@ -672,7 +662,7 @@ resizeApp() {
         scale = Math.min(1.2, scale);
 
         window.appScale = scale; 
-
+        document.documentElement.style.setProperty('--app-scale', scale);
         const actualScaledWidth = targetWidth * scale;
         const actualScaledHeight = targetHeight * scale;
         
@@ -689,6 +679,103 @@ resizeApp() {
         document.body.style.minHeight = (totalContentHeight + offsetY + 50) + 'px'; 
         document.body.style.overflowY = 'auto';
         document.body.style.overflowX = 'hidden'; 
+    
+        const logicalWidth = availableWidth / scale;
+        const logicalHeight = availableHeight / scale;
+        const logicalLeft = -offsetX / scale;
+        const logicalTop = -offsetY / scale;
+        let totalLogicalHeight = isStudy ? (targetHeight + 500 + 50) : targetHeight;
+        totalLogicalHeight = Math.max(totalLogicalHeight, logicalHeight);
+        let totalLogicalWidth = isStudy ? (targetWidth + 300 + 50) : targetWidth;
+        totalLogicalWidth = Math.max(totalLogicalWidth, logicalWidth);
+        // 1. Force all background overlays to exactly cover the physical monitor
+        const fullScreenModals = [
+            'botMenuModal', 'continueSetupModal', 'gameOverModal', 
+            'notificationModal', 'chapterModal', 'quickImportModal', 
+            'chapterManagerModal', 'studyManagerModal', 'customConfirmModal', 
+            'crop-modal', 'scannerModal','exportEmbededModal', 'embedImporterModal'
+        ];
+
+        fullScreenModals.forEach(id => {
+            const popup = document.getElementById(id);
+            if (popup) {
+                if (popup.parentNode !== document.body) {
+                    document.body.appendChild(popup);
+                }
+                
+                // 🔥 2. FORCE WRAPPER STYLES
+                popup.style.position = 'fixed';
+                popup.style.width = '100vw';
+                popup.style.height = '100vh';
+                popup.style.left = '0';
+                popup.style.top = '0';
+                popup.style.margin = '0';
+                popup.style.transform = 'none';
+                popup.style.zIndex = '999999'; 
+                
+                const modalBox = popup.querySelector('.scale-wrapper') || popup.querySelector('.modal-content') || popup.firstElementChild;
+                
+                if (modalBox) {
+                    if (id === 'notificationModal') {
+                        // Match this to the 280px you set in your CSS!
+                        modalBox.style.setProperty('width', '280px', 'important');
+                    } else {
+                        modalBox.style.setProperty('width', '480px', 'important');
+                    }
+                    
+                    // The JS now applies scale to the wrapper, leaving the inner animation alone
+                    modalBox.style.setProperty('transform', `scale(${scale})`, 'important');
+                    modalBox.style.transformOrigin = 'center center';
+                }
+            }
+        });
+        const sideMenu = document.getElementById('sideMenuPanel');
+        if (sideMenu) {
+            sideMenu.style.position = 'absolute';
+            // Use the full content height, not just the screen height
+            sideMenu.style.height = (totalLogicalHeight + Math.abs(logicalTop)) + 'px'; 
+            sideMenu.style.top = logicalTop + 'px';
+            sideMenu.style.marginLeft = logicalLeft + 'px'; 
+            sideMenu.style.transform = 'none';
+        }
+        
+        const sideMenuOverlay = document.getElementById('sideMenuOverlay');
+        if (sideMenuOverlay) {
+            sideMenuOverlay.style.position = 'absolute';
+            sideMenuOverlay.style.width = (totalLogicalWidth + Math.abs(logicalLeft)) + 'px';
+            // Sync the overlay height as well
+            sideMenuOverlay.style.height = (totalLogicalHeight + Math.abs(logicalTop)) + 'px';
+            sideMenuOverlay.style.left = logicalLeft + 'px';
+            sideMenuOverlay.style.top = logicalTop + 'px';
+            sideMenuOverlay.style.transform = 'none';
+            sideMenuOverlay.style.zIndex = '999';
+        }
+        // 3. Keep the Hamburger button correctly positioned relative to the scaled edge
+        const menuBtn = document.querySelector('button[onclick*="toggleSideMenu"]');
+        if (menuBtn) {
+            // Keep it absolute inside the scaler
+            menuBtn.style.position = 'absolute';
+            menuBtn.style.left = (logicalLeft + 15) + 'px';
+            menuBtn.style.top = (logicalTop + 15) + 'px';
+            menuBtn.style.transform = 'none';
+        }
+
+       // 4. Ensure smaller floating panels sit on top natively
+        ['settingsPanel', 'annotationPopup', 'previewPopup'].forEach(id => {
+            const popup = document.getElementById(id);
+            if (popup) {
+                if (popup.parentNode === scaler) {
+                    document.body.appendChild(popup);
+                }
+                
+                // Keep them fixed relative to the screen
+                popup.style.position = 'fixed'; 
+                popup.style.zIndex = '999';
+                
+                // 🔥 THE FIX: Removed the popup.style.transform = `scale(${scale})` completely. 
+                // We now let the browser natively scale these menus!
+            }
+        });
     }
 setMoveMethod(val) {
 this.moveInputMode = val;
@@ -1341,122 +1428,81 @@ showPuzzleHint() {
         }
     }
 initSidebarResizers() {
-    const sidebar = document.getElementById('mainSidebar'); 
-    const handleW = document.getElementById('resizeSidebarW');
-    const handleH = document.getElementById('resizeSidebarH');
-    
-    if (!sidebar) return;
+        const sidebar = document.getElementById('mainSidebar'); 
+        const handleW = document.getElementById('resizeSidebarW');
+        
+        if (!sidebar) return;
 
-    // Restore saved sizes
-    const savedWidth = localStorage.getItem('sidebarWidth') || '520px';
-    const savedHeight = localStorage.getItem('sidebarHeight') || '800px';
-    sidebar.style.width = savedWidth;
-    sidebar.style.minWidth = savedWidth;
-    sidebar.style.maxWidth = savedWidth;
-    sidebar.style.height = savedHeight;
-    sidebar.style.marginLeft = '-16px'; // Ensure gap matches
+        // Restore saved width ONLY (resizeApp handles the height!)
+        const savedWidth = localStorage.getItem('sidebarWidth') || '520px';
+        sidebar.style.width = savedWidth;
+        sidebar.style.minWidth = savedWidth;
+        sidebar.style.maxWidth = savedWidth;
+        sidebar.style.marginLeft = '-16px'; 
 
-    // --- HORIZONTAL RESIZER (ONLY AFFECTS PGN BOX) ---
-    if (handleW) {
-        let startX, startPgnW;
+        // --- HORIZONTAL RESIZER (ONLY AFFECTS PGN BOX) ---
+        if (handleW) {
+            let startX, startPgnW;
 
-        const doDragW = (moveEvent) => {
-            const scaler = document.getElementById('app-scaler');
-            let scale = 1;
-            if (scaler) {
-                const transform = window.getComputedStyle(scaler).transform;
-                if (transform !== 'none') {
-                    const matrix = transform.match(/^matrix\((.+)\)$/);
-                    if (matrix) scale = parseFloat(matrix[1].split(',')[0]);
+            const doDragW = (moveEvent) => {
+                const scaler = document.getElementById('app-scaler');
+                let scale = 1;
+                if (scaler) {
+                    const transform = window.getComputedStyle(scaler).transform;
+                    if (transform !== 'none') {
+                        const matrix = transform.match(/^matrix\((.+)\)$/);
+                        if (matrix) scale = parseFloat(matrix[1].split(',')[0]);
+                    }
                 }
-            }
 
-            // 🔥 THE FIX: Flipped the math! Dragging right now increases the width.
-            const dx = (moveEvent.clientX - startX) / scale;
-            let newPgnW = startPgnW + dx;
+                const dx = (moveEvent.clientX - startX) / scale;
+                let newPgnW = startPgnW + dx;
 
-            // Calculate max safe width so the PGN panel doesn't overlap the board
-            const screenW = 2600;
-            const leftPanel = document.querySelector('.left-panel');
-            const leftW = (leftPanel && leftPanel.style.display !== 'none') ? leftPanel.offsetWidth : 0;
-            const boardWrapper = document.getElementById('board-wrapper');
-            const boardW = boardWrapper ? boardWrapper.offsetWidth : 600;
-            
-            const TOTAL_FIXED_SPACE = 80 + 20 + 40 + 32 + 24 + leftW;
-            const maxPgnW = screenW - boardW - TOTAL_FIXED_SPACE;
+                // Calculate max safe width so the PGN panel doesn't overlap the board
+                const screenW = 2600;
+                const leftPanel = document.querySelector('.left-panel');
+                const leftW = (leftPanel && leftPanel.style.display !== 'none') ? leftPanel.offsetWidth : 0;
+                const boardWrapper = document.getElementById('board-wrapper');
+                const boardW = boardWrapper ? boardWrapper.offsetWidth : 600;
+                
+                const TOTAL_FIXED_SPACE = 80 + 20 + 40 + 32 + 24 + leftW;
+                const maxPgnW = screenW - boardW - TOTAL_FIXED_SPACE;
 
-            // Apply limits
-            if (newPgnW > maxPgnW) newPgnW = maxPgnW;
-            if (newPgnW < 300) newPgnW = 300;
-            
-            // 🔥 ONLY APPLIES TO PGN PANEL 🔥
-            sidebar.style.width = `${newPgnW}px`;
-            sidebar.style.minWidth = `${newPgnW}px`;
-            sidebar.style.maxWidth = `${newPgnW}px`;
-
-            window.dispatchEvent(new Event('resize')); 
-        };
-
-        const stopDragW = () => {
-            handleW.classList.remove('active');
-            document.body.style.userSelect = '';
-            document.removeEventListener('mousemove', doDragW);
-            document.removeEventListener('mouseup', stopDragW);
-            
-            localStorage.setItem('sidebarWidth', sidebar.style.width);
-        };
-
-        handleW.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            handleW.classList.add('active');
-            document.body.style.userSelect = 'none';
-            startX = e.clientX;
-            startPgnW = sidebar.offsetWidth;
-
-            document.addEventListener('mousemove', doDragW);
-            document.addEventListener('mouseup', stopDragW);
-        });
-    }
-
-    // --- VERTICAL RESIZER ---
-    if (handleH) {
-        handleH.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            handleH.classList.add('active');
-            document.body.style.userSelect = 'none';
-
-            const scaler = document.getElementById('app-scaler');
-            let scale = 1;
-            if (scaler) {
-                const transform = window.getComputedStyle(scaler).transform;
-                if (transform !== 'none') {
-                    const matrix = transform.match(/^matrix\((.+)\)$/);
-                    if (matrix) scale = parseFloat(matrix[1].split(',')[0]);
-                }
-            }
-
-            const startY = e.clientY;
-            const startHeight = sidebar.offsetHeight;
-
-            const doDragH = (moveEvent) => {
-                const dy = (moveEvent.clientY - startY) / scale;
-                const newHeight = Math.max(400, startHeight + dy);
-                sidebar.style.height = `${newHeight}px`;
+                // Apply limits
+                if (newPgnW > maxPgnW) newPgnW = maxPgnW;
+                if (newPgnW < 300) newPgnW = 300;
+                
+                sidebar.style.width = `${newPgnW}px`;
+                sidebar.style.minWidth = `${newPgnW}px`;
+                sidebar.style.maxWidth = `${newPgnW}px`;
+                
+                // ❌ REMOVED: No more resize spam here!
             };
 
-            const stopDragH = () => {
-                handleH.classList.remove('active');
+            const stopDragW = () => {
+                handleW.classList.remove('active');
                 document.body.style.userSelect = '';
-                document.removeEventListener('mousemove', doDragH);
-                document.removeEventListener('mouseup', stopDragH);
-                localStorage.setItem('sidebarHeight', sidebar.style.height);
+                document.removeEventListener('mousemove', doDragW);
+                document.removeEventListener('mouseup', stopDragW);
+                
+                localStorage.setItem('sidebarWidth', sidebar.style.width);
+                
+                // 🔥 THE FIX: Only trigger resizeApp ONCE when the user drops the handle
+                window.dispatchEvent(new Event('resize')); 
             };
 
-            document.addEventListener('mousemove', doDragH);
-            document.addEventListener('mouseup', stopDragH);
-        });
+            handleW.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                handleW.classList.add('active');
+                document.body.style.userSelect = 'none';
+                startX = e.clientX;
+                startPgnW = sidebar.offsetWidth;
+
+                document.addEventListener('mousemove', doDragW);
+                document.addEventListener('mouseup', stopDragW);
+            });
+        }
     }
-}
 initResizer() {
     const handle = document.getElementById('resizeHandle'); 
     let startX, startBoardW;
@@ -1820,75 +1866,55 @@ initDraggableSettings() {
         const header = panel.querySelector('.settings-header');
         if (!header) return;
 
-        // --- FIX: Force Panel to Top-Left (Overrides CSS Centering) ---
+        // Force Panel to Top-Left natively
         panel.style.top = '60px'; 
         panel.style.left = '20px';
-        panel.style.transform = 'none'; // CRITICAL: Disables "translate(-50%, -50%)"
-        panel.style.right = 'auto';     // Clear standard CSS constraints
+        panel.style.right = 'auto';     
         panel.style.bottom = 'auto';
-        // -------------------------------------------------------------
+        
+        panel.style.transform = 'translate3d(0px, 0px, 0px)';
 
         let isDragging = false;
-        let currentX;
-        let currentY;
-        let initialX;
-        let initialY;
-        let xOffset = 0;
-        let yOffset = 0;
-
-        // 🔥 Helper to get the exact zoom level of the app
-        const getScale = () => {
-            const scaler = document.getElementById('app-scaler');
-            let scale = 1;
-            if (scaler) {
-                const transform = window.getComputedStyle(scaler).transform;
-                if (transform !== 'none') {
-                    const matrix = transform.match(/^matrix\((.+)\)$/);
-                    if (matrix) scale = parseFloat(matrix[1].split(',')[0]);
-                }
-            }
-            return scale;
-        };
+        let startX = 0;
+        let startY = 0;
+        let currentX = 0;
+        let currentY = 0;
 
         header.addEventListener("mousedown", dragStart);
         document.addEventListener("mouseup", dragEnd);
         document.addEventListener("mousemove", drag);
         
         function dragStart(e) {
-            const scale = getScale();
-            // Divide raw mouse coordinates by scale so they match the local container
-            initialX = (e.clientX / scale) - xOffset;
-            initialY = (e.clientY / scale) - yOffset;
-            
             if (e.target === header || header.contains(e.target)) {
                 if (e.target.classList.contains('close-settings')) return;
                 isDragging = true;
+                
+                // Just grab the pure starting coordinates
+                startX = e.clientX;
+                startY = e.clientY;
             }
-        }
-
-        function dragEnd(e) {
-            initialX = currentX;
-            initialY = currentY;
-            isDragging = false;
         }
 
         function drag(e) {
-            if (isDragging) {
-                e.preventDefault();
-                const scale = getScale();
-                
-                // Calculate movement strictly within the scaled coordinate space
-                currentX = (e.clientX / scale) - initialX;
-                currentY = (e.clientY / scale) - initialY;
-                xOffset = currentX;
-                yOffset = currentY;
-                
-                setTranslate(currentX, currentY, panel);
-            }
+            if (!isDragging) return;
+            e.preventDefault();
+            
+            const scale = window.appScale || 1;
+            
+            // Add exactly how far the mouse moved this frame, adjusted for scale
+            currentX += (e.clientX - startX) / scale;
+            currentY += (e.clientY - startY) / scale;
+            
+            // Update start variables for the next frame
+            startX = e.clientX;
+            startY = e.clientY;
+            
+            // ONLY apply translate. No scale() here, which prevents the double-shrinking!
+            panel.style.transform = `translate3d(${currentX}px, ${currentY}px, 0px)`;
         }
-
-        function setTranslate(xPos, yPos, el) {
-            el.style.transform = "translate3d(" + xPos + "px, " + yPos + "px, 0)";
+    
+        function dragEnd() {
+            isDragging = false;
         }
     }
 drawArrow(container, fromIdx, toIdx, colorName, opacity=0.5) { // Lichess opacity is lower (~0.5)
@@ -2458,27 +2484,36 @@ this.finishDrag(e);
 );
 }
 startSpareDrag(e, color, type) {
-        e.preventDefault(); e.stopPropagation();
-        if (window.game.isEditing) {
-            this.selectedSq = null;
-            this.legalMoves = [];
-            this.renderBoard(false); 
+    e.preventDefault(); 
+    e.stopPropagation();
+    if (window.game.isEditing) {
+        if (this.editorTool === 'trash') {
+            this.setEditorTool('cursor', null);
         }
-        this.dragData = { isSpare: true, piece: { color, type } };
-        
-        // 🔥 SMART IMAGE RENDERING FOR GHOST 🔥
-        let rawSVG = this.getPieceHTML({ color, type });
-        let ghostHTML = rawSVG;
-        if (rawSVG) {
-            let trimmed = rawSVG.trim();
-            if (trimmed.startsWith('<svg')) {
-                 ghostHTML = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
-            } else if (trimmed.startsWith('data:image/') || trimmed.startsWith('http') || trimmed.endsWith('.svg') || trimmed.endsWith('.png')) {
-                 ghostHTML = `<img src="${trimmed}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
-            }
-        }
-        this.initDragGhost(e, ghostHTML);
+
+        this.selectedSq = null;
+        this.legalMoves = [];
+        this.renderBoard(false); 
     }
+
+    // 3. Set up the drag data for the new piece
+    this.dragData = { isSpare: true, piece: { color, type } };
+    
+    // 4. 🔥 SMART IMAGE RENDERING FOR GHOST 🔥
+    let rawSVG = this.getPieceHTML({ color, type });
+    let ghostHTML = rawSVG;
+    if (rawSVG) {
+        let trimmed = rawSVG.trim();
+        if (trimmed.startsWith('<svg')) {
+             ghostHTML = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
+        } else if (trimmed.startsWith('data:image/') || trimmed.startsWith('http') || trimmed.endsWith('.svg') || trimmed.endsWith('.png')) {
+             ghostHTML = `<img src="${trimmed}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
+        }
+    }
+
+    // 5. Initialize the ghost and start the visual drag
+    this.initDragGhost(e, ghostHTML);
+}
 startDrag(e, idx, piece) {
         if (window.game.isEditing && this.editorTool === 'trash') {
             e.preventDefault(); e.stopPropagation();
@@ -4631,6 +4666,21 @@ showAnnotationPopup(e, node) {
         popup.style.minWidth = '200px';
         popup.style.fontFamily = 'sans-serif';
 
+        // 🔥 THE FIX: Grab the scale instantly and apply it to the new popup
+        let currentScale = 1;
+        const scaler = document.getElementById('app-scaler');
+        if (scaler) {
+            const transform = window.getComputedStyle(scaler).transform;
+            if (transform !== 'none') {
+                const matrix = transform.match(/^matrix\((.+)\)$/);
+                if (matrix) currentScale = parseFloat(matrix[1].split(',')[0]);
+            }
+        }
+        
+        popup.style.transform = `scale(${currentScale})`;
+        // Use top left so the menu spawns exactly at your mouse cursor!
+        popup.style.transformOrigin = 'top left';
+
         // 🔥 THE FIX: Supercharged forceRedraw that completely wipes the HTML cache!
         const forceRedraw = () => {
             this._lastTreeSize = -1;
@@ -5317,16 +5367,18 @@ processTrashAction(e) {
         // Only run if we are in editor mode and using the trash tool
         if (!window.game || window.game.mode !== 'editor' || this.editorTool !== 'trash') return;
         
-        // 🔥 CRITICAL FIX: Only activate on mousedown OR holding left-click (buttons === 1).
         if (e.type === 'mousedown' || (e.type === 'mousemove' && e.buttons === 1)) {
             
-            // By unconditionally preventing default here, we completely disable 
-            // the browser's native drag-and-drop and text selection that interrupts sweeps!
+            // 🔥 THE FIX: Check if the mouse is actually on the board FIRST.
+            const idx = this.getSquareFromCoords(e.clientX, e.clientY);
+            
+            // If the mouse is outside the board (e.g., clicking a spare piece in the UI),
+            // DO NOT stop the event. Let it pass through so startSpareDrag can run!
+            if (idx === -1) return; 
+
+            // Now that we know we are on the board, we can safely block other drag events
             e.preventDefault(); 
             e.stopPropagation();
-
-            const idx = this.getSquareFromCoords(e.clientX, e.clientY);
-            if (idx === -1) return; // Mouse is outside the board
 
             // If there is a piece on this square, obliterate it!
             if (window.game.board[idx] !== null) {
@@ -5338,8 +5390,8 @@ processTrashAction(e) {
                 // 2. Generate the new FEN and update the game tree
                 const newFen = window.game.generateFEN();
                 window.game.pgnHeaders = { "FEN": newFen, "SetUp": "1" };
-                window.game.rootNode.fen = newFen;
-                window.game.currentNode.fen = newFen;
+                if (window.game.rootNode) window.game.rootNode.fen = newFen;
+                if (window.game.currentNode) window.game.currentNode.fen = newFen;
                 
                 // 3. Update the UI and FEN Input Box instantly
                 this.renderBoard(false);       
@@ -7279,57 +7331,239 @@ generateGIF() {
     }
 exportEmbed() {
         if (!window.game) return;
-        const pgn = window.game.generatePGN();
-        const baseUrl = window.location.origin + window.location.pathname;
         
-        // Generate a random unique ID for the iframe script
-        const embedId = 'embed-' + Math.floor(Math.random() * 10000000);
+        const modal = document.getElementById('exportEmbededModal');
         
-        // Encode the PGN into the URL
-        const embedUrl = `${baseUrl}?embed=true&embedId=${embedId}&pgn=${encodeURIComponent(pgn)}`;
-        
-        // Construct the chess.com-style iframe with the auto-resize listener
-        const embedHtml = `<iframe id="${embedId}" allowtransparency="true" frameborder="0" style="width:100%; border:none; min-height: 480px;" src="${embedUrl}"></iframe><script nonce="chess-diagram">window.addEventListener("message",e=>{e['data']&&"${embedId}"===e['data']['id']&&document.getElementById(e['data']['id'])&&(document.getElementById(e['data']['id']).style.height=\`\${e['data']['frameHeight']+37}px\`)});<\/script>`;
-        
-        // Copy to clipboard and alert using custom notification
-        navigator.clipboard.writeText(embedHtml).then(() => {
-            this.showNotification("Embed Copied", "✅ Embed code copied to clipboard!\n\nYou can paste this HTML into any website or blog.");
-        });
-    }
-importEmbed(htmlString) {
-        if (!htmlString || !window.game) return;
-        
-        // 1. Try to extract a URL from the src attribute of an iframe
-        const srcMatch = htmlString.match(/src=["'](.*?)["']/);
-        
-        if (srcMatch && srcMatch[1]) {
-            try {
-                // Determine if it's a URL
-                let urlStr = srcMatch[1];
-                // If it's a relative URL, prepend a dummy origin to make the URL parser happy
-                if (urlStr.startsWith('/')) urlStr = window.location.origin + urlStr;
-                
-                const url = new URL(urlStr);
-                const pgn = url.searchParams.get('pgn');
-                const fen = url.searchParams.get('fen');
-                
-                if (pgn) {
-                    window.game.loadPGN(decodeURIComponent(pgn));
-                    this.switchTab('analysis');
-                    this.showNotification("Success", "✅ Game imported successfully from the embed code!");
-                } else if (fen) {
-                    window.game.loadFEN(decodeURIComponent(fen));
-                    this.switchTab('analysis');
-                    this.showNotification("Success", "✅ Position imported successfully from the embed code!");
-                } else {
-                    this.showNotification("Import Error", "❌ Could not find PGN or FEN data inside this embed URL.");
+        if (modal) {
+            // 1. SYNC PIECES
+            const mainPieceSelect = document.getElementById('assetType');   
+            const embedPieceSelect = document.getElementById('embedPieceTheme');
+            if (!this._embedSelectsPopulated && mainPieceSelect && embedPieceSelect) {
+                embedPieceSelect.innerHTML = mainPieceSelect.innerHTML;
+                this._embedSelectsPopulated = true;
+            }
+            if (mainPieceSelect && embedPieceSelect) embedPieceSelect.value = mainPieceSelect.value;
+
+            // 2. SYNC THEME 
+            const activeThemeDiv = document.querySelector('.theme-preset.active span');
+            const embedThemeSelect = document.getElementById('embedBoardTheme');
+            if (activeThemeDiv && embedThemeSelect) {
+                const themeName = activeThemeDiv.innerText.trim().toLowerCase();
+                embedThemeSelect.value = themeName;
+            }
+
+            // 3. Setup live-updating listeners 
+            if (!this._embedListenersSetup) {
+                const controls = ['embedBoardTheme', 'embedPieceTheme', 'embedShowCoords', 'embedPuzzleMode', 'embedWidth', 'embedHeight'];
+                controls.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.addEventListener('change', () => this.generateEmbedCodes());
+                    if (el && (id === 'embedWidth' || id === 'embedHeight')) el.addEventListener('input', () => this.generateEmbedCodes());
+                });
+
+                // 🔥 NEW: Slider Resizer Logic
+                const sliderEl = document.getElementById('embedSizeSlider');
+                if (sliderEl) {
+                    sliderEl.addEventListener('input', (e) => {
+                        const val = e.target.value;
+                        
+                        // Update the text input box
+                        const heightEl = document.getElementById('embedHeight');
+                        if (heightEl) heightEl.value = val + 'px';
+                        
+                        // Visually scale the preview board
+                        const previewBoard = document.getElementById('embedPreviewBoard');
+                        if (previewBoard) {
+                            const scale = val / 480; // 480 is the default baseline
+                            previewBoard.style.transform = `scale(${scale})`;
+                        }
+                        
+                        // Instantly update the iframe text
+                        this.generateEmbedCodes();
+                    });
                 }
-            } catch (e) {
-                console.error("Failed to parse Embed URL", e);
-                this.showNotification("Import Error", "❌ Invalid embed URL format.");
+                
+                this._embedListenersSetup = true;
+            }
+
+            // 4. Generate the initial codes
+            this.generateEmbedCodes();
+
+            // 5. Open the modal
+            modal.style.display = 'flex';
+            if (typeof this.resizeApp === 'function') this.resizeApp();
+            
+        } else {
+            this.generateEmbedCodes(true); 
+        }
+    }
+generateEmbedCodes(copyToClipboard = false) {
+        if (!window.game) return;
+        
+        const pgn = typeof window.game.generatePGN === 'function' ? window.game.generatePGN() : '';
+        const baseUrl = window.location.origin + window.location.pathname;
+        const gameId = window.game.id || Math.floor(Math.random() * 10000000);
+        const embedId = 'embed-' + gameId;
+
+        // Grab current UI settings from the modal
+        const boardEl = document.getElementById('embedBoardTheme');
+        const pieceEl = document.getElementById('embedPieceTheme');
+        const coordsEl = document.getElementById('embedShowCoords');
+        const puzzleEl = document.getElementById('embedPuzzleMode');
+        const widthEl = document.getElementById('embedWidth');
+        const heightEl = document.getElementById('embedHeight');
+
+        const theme = boardEl ? boardEl.value : 'default';
+        const pieces = pieceEl ? pieceEl.value : 'cburnett';
+        const coords = coordsEl ? coordsEl.checked : true;
+        const puzzle = puzzleEl ? puzzleEl.checked : false;
+        const width = widthEl && widthEl.value.trim() !== '' ? widthEl.value : '100%';
+        const height = heightEl && heightEl.value.trim() !== '' ? heightEl.value : '480px';
+
+        // 🔥 THE FIX: Map colors so the visual preview actually updates when you select a theme!
+        const themeColors = {
+            'default': '#2bb7ca', 'marble': '#7d8796', 'green': '#769656', 
+            'blue': '#60b1d9', 'purple': '#7a5c8d', 'pink': '#d960cb', 
+            'fire': '#e83a3a', 'neon': '#0b3c5d', 'cyberpunk': '#0f3460', 
+            'galaxy': '#2d1b4e', 'pumpkin': '#ff6b35', 'ice': '#e0f7fa'
+        };
+        const previewBoard = document.getElementById('embedPreviewBoard');
+        if (previewBoard && themeColors[theme]) {
+            previewBoard.style.background = themeColors[theme];
+        }
+
+        // Build URL Query
+        let params = new URLSearchParams();
+        if (pgn) params.append('pgn', pgn);
+        params.append('theme', theme);
+        params.append('pieces', pieces);
+        params.append('coords', coords);
+        if (puzzle) params.append('puzzle', 'true');
+
+        const directUrl = `${baseUrl}?${params.toString()}`;
+        
+        params.append('embed', 'true');
+        params.append('embedId', embedId);
+        const embedUrl = `${baseUrl}?${params.toString()}`;
+
+        // 🔥 THE FIX: Put your auto-resizing script back into the iframe!
+        const embedHtml = `<iframe id="${embedId}" allowtransparency="true" frameborder="0" style="width:${width}; border:none; min-height:${height};" src="${embedUrl}"></iframe><script nonce="chess-diagram">window.addEventListener("message",e=>{e['data']&&"${embedId}"===e['data']['id']&&document.getElementById(e['data']['id'])&&(document.getElementById(e['data']['id']).style.height=\`\${e['data']['frameHeight']+37}px\`)});<\/script>`;
+        
+        const gidFormat = `[gid=${gameId}]`;
+
+        if (copyToClipboard) {
+            navigator.clipboard.writeText(embedHtml).then(() => {
+                if(typeof this.showNotification === 'function') this.showNotification("Embed Copied", "✅ Embed HTML copied!");
+            });
+            return;
+        }
+
+        const iframeBox = document.getElementById('embedIframeCode');
+        const linkBox = document.getElementById('shareGameLink');
+        const gidBox = document.getElementById('embedGidCode'); 
+
+        if (iframeBox) iframeBox.value = embedHtml;
+        if (linkBox) linkBox.value = directUrl;
+        if (gidBox) gidBox.value = gidFormat;
+    }
+copyText(elementId) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    
+    el.select();
+    el.setSelectionRange(0, 99999); // For mobile devices
+    
+    navigator.clipboard.writeText(el.value).then(() => {
+        // Optional: Show a quick toast notification or change icon to a checkmark
+        console.log("Copied to clipboard!");
+    }).catch(err => {
+        console.error('Failed to copy: ', err);
+    });
+}
+openShareModal(currentGameId) {
+    document.getElementById('shareModal').style.display = 'flex';
+    
+    // Inject the ID provided (e.g., 14779873)
+    generateEmbedCodes(currentGameId);
+}
+closeShareModal() {
+    document.getElementById('shareModal').style.display = 'none';
+}
+openEmbedImporter() {
+        const modal = document.getElementById('embedImporterModal');
+        const input = document.getElementById('embedTextInput');
+        if (modal && input) {
+            input.value = ''; // Clear out old text
+            modal.style.display = 'flex'; // Or 'block', depending on your modal wrapper style
+            
+            // Force the scaler math to run so it fits the screen perfectly
+            if (typeof this.resizeApp === 'function') this.resizeApp();
+        }
+    }
+readEmbedFile(file) {
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const content = e.target.result;
+            // Plop the file's contents right into the text area
+            document.getElementById('embedTextInput').value = content;
+            
+            if (typeof this.showNotification === 'function') {
+                this.showNotification(`File "${file.name}" read successfully!`, 'success');
+            }
+        };
+        reader.readAsText(file);
+    }
+handleEmbedFileUpload(event) {
+        const file = event.target.files[0];
+        this.readEmbedFile(file);
+        
+        // Reset the file input so they can upload the exact same file again if needed
+        event.target.value = ''; 
+    }
+handleEmbedDragOver(event) {
+        event.preventDefault(); // Required to allow a drop
+        event.stopPropagation();
+        // Highlight the box so the user knows they can drop it
+        event.currentTarget.style.background = 'rgba(56, 189, 248, 0.3)'; 
+    }
+handleEmbedDragLeave(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        // Return to normal color
+        event.currentTarget.style.background = 'rgba(56, 189, 248, 0.1)'; 
+    }
+handleEmbedDrop(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.handleEmbedDragLeave(event); // Reset the background color
+        
+        // Extract the file from the DataTransfer object instead of the input target
+        if (event.dataTransfer && event.dataTransfer.files.length > 0) {
+            const file = event.dataTransfer.files[0];
+            this.readEmbedFile(file);
+        }
+    }
+submitEmbedText() {
+        const text = document.getElementById('embedTextInput').value.trim();
+        if (text) {
+            // Call your original import logic
+            if (typeof this.importEmbed === 'function') {
+                this.importEmbed(text);
+            }
+            
+            // Close the modal
+            document.getElementById('embedImporterModal').style.display = 'none';
+            
+            // Replace the ugly prompt with your elegant notification!
+            if (typeof this.showNotification === 'function') {
+                this.showNotification("Embed imported successfully!", "success");
             }
         } else {
-            this.showNotification("Import Error", "❌ Could not find a valid <iframe> in the text you pasted.");
+            if (typeof this.showNotification === 'function') {
+                this.showNotification("Please paste code or upload a file first.", "error");
+            }
         }
     }
 toggleCheckboxes(className, state) {

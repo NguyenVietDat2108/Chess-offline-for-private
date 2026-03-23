@@ -879,10 +879,15 @@ async startPuzzleSession(mode = 'rush') {
         this.sessionMinRating = min;
         this.sessionMaxRating = max;
 
+        // 🔥 THE FIX: Establish a decoupled rating ladder
+        this.targetRushRating = isRush ? 400 : this.sessionMinRating;
+
         if (window.ui) window.ui.updatePuzzleUI("loading");
 
-        // 🔥 THE FIX: Puzzles 1-5 are locked to the 400-600 range
-        await this.fetchPuzzles(this.sessionMinRating, this.sessionMaxRating, 5);
+        // Fetch the first batch (e.g., 400 to 900)
+        let initialLimit = isRush ? 10 : 5;
+        let initialMax = isRush ? this.targetRushRating + 500 : this.sessionMaxRating;
+        await this.fetchPuzzles(this.targetRushRating, initialMax, initialLimit);
 
         if (this.currentSessionId !== sessionId) return;
 
@@ -890,9 +895,10 @@ async startPuzzleSession(mode = 'rush') {
             this.puzzleIndex = 0;
             this.loadCurrentPuzzle();
             
-            // 🔥 THE FIX: Immediately queue Puzzles 6-10 at the 600-800 range
             if (isRush) {
-                this.fetchPuzzles(600, 800, 5); 
+                // Step the ladder up and fetch the next background batch (800 to 1300)
+                this.targetRushRating += 500; 
+                this.fetchPuzzles(this.targetRushRating, this.targetRushRating + 500, 10);
             } else {
                 this.fetchPuzzles(this.sessionMinRating, this.sessionMaxRating, 5); 
             }
@@ -906,23 +912,20 @@ async startPuzzleSession(mode = 'rush') {
 async nextPuzzle() {
         this.puzzleIndex++;
 
-        // Buffer Check: If running low, safely hit local server again
-        if (this.puzzleIndex >= this.puzzleQueue.length - 2) {
+        if (this.puzzleIndex >= this.puzzleQueue.length - 5) {
             if (!this.isFetchingPuzzles) {
                 if (['3min', '5min', 'survival'].includes(this.puzzleMode)) {
-                    // 🔥 THE FIX: True Lichess/Chess.com Ramp Up Algorithm!
-                    // Every puzzle you solve adds roughly +40 to the target.
-                    // We only grab 5 puzzles at a time in a tight 200-point window.
-                    const currentExpectedRating = 400 + (this.puzzleQueue.length * 40);
-                    this.fetchPuzzles(currentExpectedRating, currentExpectedRating + 200, 5);
+                    // 🔥 THE FIX: Step the ladder up unconditionally and fetch
+                    // Example sequence: 1200-1700 -> 1600-2100 -> 2000-2500
+                    this.targetRushRating += 400; 
+                    this.fetchPuzzles(this.targetRushRating, this.targetRushRating + 500, 10);
                 } else {
                     const currentR = this.currentPuzzle?.rating || 1000;
-                    this.fetchPuzzles(currentR - 100, currentR + 100, 5);
+                    this.fetchPuzzles(currentR - 200, currentR + 200, 10);
                 }
             }
         }
 
-        // Wait dynamically if the buffer is empty
         if (this.puzzleIndex >= this.puzzleQueue.length) {
              if (window.ui) window.ui.showNotification("Reading Database...", "Buffering", "⏳");
              

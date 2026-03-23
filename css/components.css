@@ -488,3 +488,178 @@ input[type=range] { flex-grow: 1; accent-color: #629924; }
     display: flex;
     align-items: center;
 }
+/* Share Modal Specifics */
+.share-modal {
+    width: 420px;
+    background: #262421;
+    color: #c3c2c1;
+    border-radius: 8px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+}
+
+.copy-input-group {
+    display: flex;
+    background: #312e2b;
+    border: 1px solid #403d39;
+    border-radius: 5px;
+    overflow: hidden;
+    margin-bottom: 15px;
+}
+
+.copy-input-group input, 
+.copy-input-group textarea {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #fff;
+    padding: 10px 12px;
+    font-family: monospace;
+    font-size: 13px;
+    outline: none;
+    resize: none;
+}
+
+.embed-textarea-group textarea {
+    height: 50px;
+    line-height: 1.4;
+}
+
+.copy-btn {
+    background: #312e2b;
+    border: none;
+    border-left: 1px solid #403d39;
+    color: #9a9896;
+    padding: 0 15px;
+    cursor: pointer;
+    transition: color 0.2s, background 0.2s;
+}
+
+.copy-btn:hover {
+    color: #fff;
+    background: #3c3a38;
+}
+
+/* Tabs */
+.share-tabs {
+    display: flex;
+    border-bottom: 1px solid #403d39;
+    margin-bottom: 20px;
+}
+
+.share-tabs .tab {
+    flex: 1;
+    text-align: center;
+    padding: 12px 0;
+    cursor: pointer;
+    font-weight: 600;
+    color: #9a9896;
+    font-size: 14px;
+    border-bottom: 3px solid transparent;
+}
+
+.share-tabs .tab:hover { color: #fff; }
+
+.share-tabs .tab.active {
+    color: #fff;
+    border-bottom: 3px solid #fff;
+}
+
+/* Layout */
+.help-text {
+    font-size: 13px;
+    margin-bottom: 15px;
+    line-height: 1.4;
+}
+
+.embed-layout {
+    display: flex;
+    gap: 20px;
+}
+
+.embed-preview-col {
+    flex: 1.2;
+}
+
+.embed-controls-col {
+    flex: 1;
+}
+
+/* Preview Box (Checkerboard mockup) */
+.preview-box {
+    background: #312e2b;
+    border-radius: 5px;
+    padding: 10px;
+}
+
+.checker-bg {
+    width: 100%;
+    aspect-ratio: 1/1;
+    background-image: 
+      linear-gradient(45deg, #bbb 25%, transparent 25%, transparent 75%, #bbb 75%, #bbb),
+      linear-gradient(45deg, #bbb 25%, transparent 25%, transparent 75%, #bbb 75%, #bbb);
+    background-size: 20px 20px;
+    background-position: 0 0, 10px 10px;
+    background-color: #eee;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.edit-icon {
+    font-size: 32px;
+    opacity: 0.8;
+}
+
+/* Timeline Slider */
+.slider-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    background: #262421;
+    padding: 5px;
+    border-radius: 4px;
+}
+
+.slider-btn {
+    color: #9a9896;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.timeline-slider {
+    flex: 1;
+    accent-color: #8b8987;
+}
+
+/* Controls Dropdowns */
+.control-group {
+    margin-bottom: 15px;
+}
+
+.control-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: #fff;
+}
+
+.custom-select {
+    width: 100%;
+    background: #312e2b;
+    color: #fff;
+    border: 1px solid #403d39;
+    padding: 8px;
+    border-radius: 4px;
+    outline: none;
+}
+
+.checkbox-group {
+    margin-bottom: 8px;
+    font-size: 13px;
+}
+
+.mt-10 { margin-top: 10px; }

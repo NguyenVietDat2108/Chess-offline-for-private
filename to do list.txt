@@ -69,12 +69,16 @@ chess.js bitboard implementation
 -generatePGN will be able to generate the result of the game played as well.
 -scan image should also able to change the FEN of the board as well.
 -add settings.txt button to replace
-*) CONTINUE TO FIX:
-
 -fix the bot elo being wrongly played and being delayed long long after 3 secs mark(it does not match to the uci-elo after testing)
 -fix the travel in pgn change state of the fen/clock/.... when the game is in played mode.
 -loading the pgn played after the game ended in play mode (for both bot and human).
 -add staticstic check with lichess/chesscom accounts (basic stats done, deeper analysis not yet.)
+*) CONTINUE TO FIX:
+
+-implement import and export embedded and use model to use
+-implement import gif reading.
+-implement bot play variants(target: crazy house, king of the hill, three check, anti-chess, automic chess, horde, race king)
+-building engine analysis for progressive chess:
 
 
 
