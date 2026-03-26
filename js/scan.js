@@ -2,7 +2,7 @@ export class BoardScanner {
     constructor() {
         this.model = null;
         this.isReady = false;
-        this.YOLO_CLASSES = ['P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k', 'board'];
+        this.YOLO_CLASSES = ['P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k', 'empty'];
         this.currentPredictions = null; 
     }
     async init() {
@@ -12,7 +12,8 @@ export class BoardScanner {
             this.model = await tf.loadGraphModel('/yolo_model/model.json');
             
             const dummy = tf.tidy(() => tf.zeros([1, 640, 640, 3]));
-            await this.model.executeAsync(dummy);
+            // 🔥 FIX: Run synchronously
+            this.model.execute(dummy);
             dummy.dispose();
             
             this.isReady = true;
@@ -209,83 +210,30 @@ export class BoardScanner {
         if (window.ui) window.ui.showNotification("AI analyzing image...", "Scanner", "🧠");
         
         const predictions = await this.detect(canvas);
-        const boards = predictions.filter(p => p.classId === 12);
+        
+        // 🔥 DEBUG LOG: See exactly how many pieces survived NMS
+        console.log(`🧠 [AI Diagnostics] Final Detections Mapped: ${predictions.length}`);
 
-        if (boards.length === 0) {
-            if (window.ui) window.ui.showNotification("No chessboards found.", "Scan Failed", "❌");
+        if (predictions.length < 10) {
+            console.warn("🧠 [AI Diagnostics] Too few pieces/squares to map a board. Needed 10, got: " + predictions.length);
+            if (window.ui) window.ui.showNotification("No chess position detected.", "Scan Failed", "❌");
             return;
         }
 
-        if (boards.length === 1) {
-            const b = boards[0];
-            const clickX_640 = b.x + (b.width / 2);
-            const clickY_640 = b.y + (b.height / 2);
-            
-            const fen = this.processYoloPredictions(predictions, clickX_640, clickY_640, canvas.width, canvas.height);
+        const fen = this.processYoloPredictions(predictions, 0, 0, canvas.width, canvas.height);
+
+        if (fen) {
             if (window.game) window.game.loadFEN(fen);
             if (window.ui) {
                 window.ui.switchTab('editor');
-                window.ui.showNotification("Board detected instantly!", "Success", "✅");
+                const fenBox = document.getElementById('fenInput');
+                if (fenBox) fenBox.value = fen;
+                window.ui.showNotification("Board detected!", "Success", "✅");
             }
+            this.closeScanner();
         } else {
-            // ==========================================================
-            // 🔥 THE FIX: VISUALLY INJECT THE CANVAS INTO THE MODAL
-            // ==========================================================
-            this.currentPredictions = predictions;
-            const modal = document.getElementById('scannerModal');
-            if(modal) modal.style.display = 'flex';
-            if (window.ui) window.ui.showNotification(`Found ${boards.length} boards. Click the one you want!`, "Multiple Boards", "🖱️");
-
-            const ctx = canvas.getContext('2d');
-            ctx.lineWidth = 4;
-            ctx.strokeStyle = '#629924'; 
-            boards.forEach(b => {
-                ctx.strokeRect(b.x, b.y, b.width, b.height);
-                ctx.fillStyle = 'rgba(98, 153, 36, 0.2)';
-                ctx.fillRect(b.x, b.y, b.width, b.height);
-            });
-
-            const newCanvas = canvas.cloneNode(true);
-            const newCtx = newCanvas.getContext('2d', {willReadFrequently:true});
-            newCtx.drawImage(canvas, 0, 0);
-
-            // Style the canvas so it fits beautifully inside your popup
-            newCanvas.style.maxWidth = '100%';
-            newCanvas.style.maxHeight = '75vh';
-            newCanvas.style.objectFit = 'contain';
-            newCanvas.style.cursor = 'crosshair';
-            newCanvas.style.borderRadius = '5px';
-            newCanvas.style.marginTop = '15px';
-
-            // Clean up any old canvases from previous scans
-            const existingCanvas = modal.querySelector('canvas');
-            if (existingCanvas) existingCanvas.remove();
-
-            // Append the image directly into the modal!
-            modal.appendChild(newCanvas);
-
-            newCanvas.onclick = (e) => {
-                const rect = newCanvas.getBoundingClientRect();
-                const scaleX = newCanvas.width / rect.width;
-                const scaleY = newCanvas.height / rect.height;
-                const clickX = (e.clientX - rect.left) * scaleX;
-                const clickY = (e.clientY - rect.top) * scaleY;
-
-                const fen = this.processYoloPredictions(this.currentPredictions, clickX, clickY, newCanvas.width, newCanvas.height);
-                if (fen && window.game) {
-                    window.ui.switchTab('editor');
-                    const fenBox = document.getElementById('fenInput');
-                    if(fenBox) fenBox.value = fen;
-                    window.game.loadFEN(fen);
-                    window.ui.showNotification("Board scanned!", "Success", "✅");
-                    if(modal) modal.style.display = 'none';
-                }
-            };
+            if (window.ui) window.ui.showNotification("Failed to map pieces.", "Scan Failed", "❌");
         }
-    }
-    closeScanner() {
-        const modal = document.getElementById('scannerModal');
-        if(modal) modal.style.display = 'none';
     }
     async detect(imgElement) {
         if (!this.isReady) await this.init();
@@ -299,7 +247,7 @@ export class BoardScanner {
         sqCanvas.width = maxDim; 
         sqCanvas.height = maxDim;
         const sqCtx = sqCanvas.getContext('2d');
-        sqCtx.fillStyle = '#000';
+        sqCtx.fillStyle = '#888'; // Grey padding protects transparent PNGs
         sqCtx.fillRect(0, 0, maxDim, maxDim);
         
         const padX = (maxDim - imgW) / 2;
@@ -309,89 +257,105 @@ export class BoardScanner {
         const batched = tf.tidy(() => {
             const tfImg = tf.browser.fromPixels(sqCanvas);
             const resized = tf.image.resizeBilinear(tfImg, [640, 640]);
-            return resized.div(255.0).expandDims(0);
+            
+            // 🔥 RAW PIXELS: The Ultralytics TFJS exporter bakes the division 
+            // directly into the weights! Sending 0-255 is correct.
+            return resized.toFloat().expandDims(0); 
         });
 
-        const res = await this.model.executeAsync(batched);
-        const data = await res.data();
+        const res = this.model.execute(batched);
+        let outputTensor = Array.isArray(res) ? res[res.length - 1] : res;
+        const shape = outputTensor.shape;
+        const data = await outputTensor.data();
         
         batched.dispose();
-        res.dispose();
+        if (Array.isArray(res)) res.forEach(t => t.dispose());
+        else res.dispose();
 
+        let isTransposed = false;
+        let numBoxes = 8400;
         const numClasses = 13;
-        const numBoxes = 8400;
-        
-        // Split arrays to prevent the Board from suppressing the Pieces!
-        let boardBoxes = [], boardScores = [];
-        let pieceBoxes = [], pieceScores = [], pieceClasses = [];
+        const rowLen = 4 + numClasses; // 17
+
+        if (shape.length === 3) {
+            if (shape[1] === rowLen) { isTransposed = true; numBoxes = shape[2]; }
+            else { isTransposed = false; numBoxes = shape[1]; }
+        }
+
+        // 🔥 LOGIT DETECTOR: Automatically checks if the AI output needs Sigmoid conversion
+        let isLogits = false;
+        for (let i = 0; i < 500; i++) {
+            if (data[i] < 0 || data[i] > 1.2) { isLogits = true; break; }
+        }
+
+        const pieceBoxes = [], pieceScores = [], pieceClasses = [];
 
         for (let i = 0; i < numBoxes; i++) {
-            let maxScore = 0;
+            let maxScore = -Infinity;
             let classId = -1;
+            let xc, yc, w, h;
 
-            for (let c = 0; c < numClasses; c++) {
-                const score = data[(4 + c) * numBoxes + i];
-                if (score > maxScore) {
-                    maxScore = score;
-                    classId = c;
+            if (isTransposed) {
+                for (let c = 0; c < numClasses; c++) {
+                    const score = data[(4 + c) * numBoxes + i];
+                    if (score > maxScore) { maxScore = score; classId = c; }
                 }
+                xc = data[0 * numBoxes + i];
+                yc = data[1 * numBoxes + i];
+                w  = data[2 * numBoxes + i];
+                h  = data[3 * numBoxes + i];
+            } else {
+                const offset = i * rowLen;
+                for (let c = 0; c < numClasses; c++) {
+                    const score = data[offset + 4 + c];
+                    if (score > maxScore) { maxScore = score; classId = c; }
+                }
+                xc = data[offset + 0];
+                yc = data[offset + 1];
+                w  = data[offset + 2];
+                h  = data[offset + 3];
             }
 
-            const isBoard = (classId === 12); 
-            const threshold = isBoard ? 0.35 : 0.50; 
+            // Convert raw AI math into a standard 0.0 to 1.0 probability
+            let prob = isLogits ? (1 / (1 + Math.exp(-maxScore))) : maxScore;
 
-            if (maxScore > threshold) {
-                const xc = data[0 * numBoxes + i];
-                const yc = data[1 * numBoxes + i];
-                const w  = data[2 * numBoxes + i];
-                const h  = data[3 * numBoxes + i];
-                const x1 = xc - w / 2;
-                const y1 = yc - h / 2;
+            if (prob > 0.40) { 
+                let x1 = xc - w / 2;
+                let y1 = yc - h / 2;
+                let x2 = x1 + w;
+                let y2 = y1 + h;
 
-                if (isBoard) {
-                    boardBoxes.push([y1, x1, y1 + h, x1 + w]);
-                    boardScores.push(maxScore);
-                } else {
-                    pieceBoxes.push([y1, x1, y1 + h, x1 + w]);
-                    pieceScores.push(maxScore);
-                    pieceClasses.push(classId);
+                // Scale normalized coordinates up to 640 if necessary
+                if (w <= 1.5 && h <= 1.5) {
+                    x1 *= 640; y1 *= 640; x2 *= 640; y2 *= 640;
                 }
+
+                pieceBoxes.push([y1, x1, y2, x2]);
+                pieceScores.push(prob);
+                pieceClasses.push(classId);
             }
         }
 
         const predictions = [];
         const scale = 640 / maxDim;
 
-        // Process Board NMS
-        if (boardBoxes.length > 0) {
-            const bT = tf.tensor2d(boardBoxes);
-            const sT = tf.tensor1d(boardScores);
-            const indices = await tf.image.nonMaxSuppressionAsync(bT, sT, 5, 0.45, 0.35);
-            const idxArr = await indices.data();
-            bT.dispose(); sT.dispose(); indices.dispose();
-            
-            for (let idx of idxArr) {
-                const [y1, x1, y2, x2] = boardBoxes[idx];
-                predictions.push({
-                    classId: 12, className: 'board', score: boardScores[idx],
-                    x: (x1 / scale) - padX, y: (y1 / scale) - padY, width: (x2 - x1) / scale, height: (y2 - y1) / scale
-                });
-            }
-        }
-
-        // Process Piece NMS
         if (pieceBoxes.length > 0) {
             const pT = tf.tensor2d(pieceBoxes);
             const sT = tf.tensor1d(pieceScores);
-            const indices = await tf.image.nonMaxSuppressionAsync(pT, sT, 100, 0.45, 0.50);
+            const indices = await tf.image.nonMaxSuppressionAsync(pT, sT, 150, 0.45, 0.40);
             const idxArr = await indices.data();
             pT.dispose(); sT.dispose(); indices.dispose();
             
             for (let idx of idxArr) {
                 const [y1, x1, y2, x2] = pieceBoxes[idx];
                 predictions.push({
-                    classId: pieceClasses[idx], className: this.YOLO_CLASSES[pieceClasses[idx]], score: pieceScores[idx],
-                    x: (x1 / scale) - padX, y: (y1 / scale) - padY, width: (x2 - x1) / scale, height: (y2 - y1) / scale
+                    classId: pieceClasses[idx], 
+                    className: this.YOLO_CLASSES[pieceClasses[idx]], 
+                    score: pieceScores[idx],
+                    x: (x1 / scale) - padX, 
+                    y: (y1 / scale) - padY, 
+                    width: (x2 - x1) / scale, 
+                    height: (y2 - y1) / scale
                 });
             }
         }
@@ -399,64 +363,44 @@ export class BoardScanner {
         return predictions;
     }
     processYoloPredictions(predictions, clickX, clickY, canvasWidth, canvasHeight) {
-        let boards = predictions.filter(p => p.classId === 12);
-        const pieces = predictions.filter(p => p.classId !== 12);
+        if (predictions.length < 5) return null; 
 
-        // FALLBACK: If AI missed the board but saw pieces, build the board from piece boundaries!
-        if (boards.length === 0 && pieces.length >= 4) {
-            let minX = Math.min(...pieces.map(p => p.x));
-            let minY = Math.min(...pieces.map(p => p.y));
-            let maxX = Math.max(...pieces.map(p => p.x + p.width));
-            let maxY = Math.max(...pieces.map(p => p.y + p.height));
-            
-            let w = maxX - minX;
-            let h = maxY - minY;
-            
-            boards = [{
-                x: minX - (w * 0.05),
-                y: minY - (h * 0.05),
-                width: w * 1.10,
-                height: h * 1.10,
-                classId: 12
-            }];
+        // 🔥 THE BUG FIX: Class 12 is an "Empty Square", not the "Whole Board"!
+        // We use the absolute outer edges of ALL pieces and squares to draw the board boundary dynamically.
+        let minX = Math.min(...predictions.map(p => p.x));
+        let maxX = Math.max(...predictions.map(p => p.x + p.width));
+        
+        let maxY = Math.max(...predictions.map(p => p.y + p.height)); // Bottom edge of the board
+        let minY = Math.min(...predictions.map(p => p.y)); // Absolute highest point
+        
+        // 3D pieces (like the King) bleed upwards. We use empty squares to find the TRUE top edge of the grid.
+        const emptySquares = predictions.filter(p => p.classId === 12);
+        if (emptySquares.length > 0) {
+            let emptyMinY = Math.min(...emptySquares.map(p => p.y));
+            if (emptyMinY > minY) minY = emptyMinY;
         }
 
-        if (boards.length === 0) return null;
+        const targetBoard = {
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY
+        };
 
-        let targetBoard = null;
-        for (let b of boards) {
-            if (clickX >= b.x && clickX <= (b.x + b.width) && clickY >= b.y && clickY <= (b.y + b.height)) {
-                targetBoard = b;
-                break;
-            }
-        }
-
-        if (!targetBoard) {
-            let minDist = Infinity;
-            for (let b of boards) {
-                let dist = Math.hypot((b.x + b.width / 2) - clickX, (b.y + b.height / 2) - clickY);
-                if (dist < minDist) { minDist = dist; targetBoard = b; }
-            }
-        }
-
-        const activePieces = pieces.filter(p => {
-            let cx = p.x + (p.width / 2);
-            let cy = p.y + (p.height / 2);
-            return (cx >= targetBoard.x - 10 && cx <= (targetBoard.x + targetBoard.width) + 10 &&
-                    cy >= targetBoard.y - 10 && cy <= (targetBoard.y + targetBoard.height) + 10);
-        });
-
+        const activePieces = predictions.filter(p => p.classId !== 12);
         const fenArray = Array(64).fill(null);
+        
         const sqWidth = targetBoard.width / 8;
         const sqHeight = targetBoard.height / 8;
 
         activePieces.forEach(p => {
             let relX = (p.x + (p.width / 2)) - targetBoard.x;
-            let relY = (p.y + (p.height * 0.85)) - targetBoard.y; // Measure from base
+            let relY = (p.y + (p.height * 0.85)) - targetBoard.y; // Measure from the base of the piece
 
             let col = Math.floor(relX / sqWidth);
             let row = Math.floor(relY / sqHeight);
 
+            // Clamp securely to keep pieces inside the 8x8 array
             if (col < 0) col = 0; if (col > 7) col = 7;
             if (row < 0) row = 0; if (row > 7) row = 7;
 
@@ -465,6 +409,7 @@ export class BoardScanner {
             }
         });
 
+        // Generate FEN
         let fen = "";
         for (let row = 0; row < 8; row++) {
             let emptyCount = 0;
@@ -483,6 +428,10 @@ export class BoardScanner {
 
         fen += " w KQkq - 0 1";
         return fen;
+    }
+    closeScanner() {
+        const modal = document.getElementById('scannerModal');
+        if(modal) modal.style.display = 'none';
     }
 }
 window.generateDataset = async function(numImages = 1500, batchIndex = 1) {

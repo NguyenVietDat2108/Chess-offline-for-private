@@ -20,8 +20,6 @@ constructor() {
         this.arrowDragStart = null;
         this.isRightClick = false;
         this.moveInputMode ='both';
-        
-        // ❌ REMOVED THE SWEEP EVENT LISTENERS FROM HERE! ❌
 
         this.initDraggableSettings();
         this.avatars = { w:``, b:`` };
@@ -35,6 +33,23 @@ constructor() {
         this.isPeeking = false;
         this.DEFAULT_SETTINGS_OPEN = true;
         this.errorNavState = {};
+        setTimeout(() => {
+            // 1. Calculate and lock the layout while the PGN box is completely EMPTY
+            if (typeof this.resizeApp === 'function') this.resizeApp();
+
+            // 2. NOW it is safe to inject the massive PGN text into the DOM
+            if (window.game && typeof window.game.restoreAnalysisState === 'function') {
+                const hasSavedGame = window.game.restoreAnalysisState();
+                
+                // If a game was found in memory, tell the UI to render it
+                if (hasSavedGame) {
+                    this.renderBoard(false);
+                    this.updateHistory();
+                    this.renderArrows();
+                    if (typeof this.updateClocks === 'function') this.updateClocks();
+                }
+            }
+        }, 50);
     }
 init() {
         this.populatePieceSets();
@@ -85,7 +100,7 @@ init() {
         if (pgnStyleSelect) {
             pgnStyleSelect.addEventListener('change', (e) => {
                 this.pgnStyle = e.target.value;
-                this._lastTreeSize = -1; // Lie to the cache so it rebuilds!
+                this._lastTreeSize = -1;
                 this.updateHistory(true);
             });
         }
@@ -95,10 +110,7 @@ init() {
                 if (e.target.classList.contains('comment') || e.target.classList.contains('pgn-comment') || e.target.classList.contains('move-comment') || e.target.classList.contains('inline-comment') || e.target.classList.contains('tree-comment')) {
                     
                     let newText = e.target.innerText.trim();
-                    // 🔥 THE FIX 1: Strip the decorative '{ }' or '//' that we draw visually so they don't get saved into the file!
                     newText = newText.replace(/^\/\/\s*/, '').replace(/^\{\s*/, '').replace(/\s*\}$/, '').trim();
-                    
-                    // 🔥 THE FIX 2: Get the ID directly from the comment span itself!
                     const nodeId = e.target.dataset.nodeId; 
                     
                     if (nodeId && window.game) {
@@ -126,7 +138,6 @@ init() {
                 }
             });
         }
-        // 🔥 The completely bulletproof Comment Box Logic
         const commentaryBox = document.getElementById('commentaryBox');
         if (commentaryBox) {
             
@@ -144,8 +155,6 @@ init() {
             commentaryBox.addEventListener('input', (e) => {
                 const activeId = e.target.dataset.activeNodeId;
                 if (!activeId || !window.game || !window.game.rootNode) return;
-                
-                // 🔥 DIRECT INLINE SEARCH: Finds the exact move node by its ID!
                 const findNode = (node, id) => {
                     if (node.id === id) return node;
                     for (let child of node.children) {
@@ -164,9 +173,6 @@ init() {
             });
 
             commentaryBox.addEventListener('focusout', (e) => {
-                // 🔥 THE FIX: Delay the redraw by 100ms. 
-                // This allows your mouse 'click' on the new move to successfully register 
-                // BEFORE the PGN list redraws and destroys the HTML element!
                 setTimeout(() => {
                     if (e.target.innerText.trim() === "" && document.activeElement !== e.target) {
                         e.target.innerText = "Click to add comment...";
@@ -176,49 +182,59 @@ init() {
                 }, 100);
             });
         }
-        // ==========================================================
-        // ==========================================================
-        // 🔥 THE FIX: LIVE EDITOR FEN UPDATING
-        // ==========================================================
         const fenInputBox = document.getElementById('fenInput');
         if (fenInputBox) {
             fenInputBox.addEventListener('input', (e) => {
-                // Only run this magic if we are actively using the Editor
                 if (!window.game || window.game.mode !== 'editor') return;
+                
                 const newFen = e.target.value.trim();
+                // Read the currently selected variant from the dropdown
+                const currentMode = document.getElementById('editorVariantSelect')?.value || window.game.gameMode;
+                
+                // 1. Update engine mode first so validation respects variant rules (e.g. missing Kings in Atomic)
+                window.game.engine.setGameMode(currentMode);
                 const validation = window.game.engine.validate_fen(newFen);
                 
-                // Only update the board if the text is a 100% legal FEN string
                 if (validation.valid) {
-                    // 1. Instantly load it visually and logically
-                    window.game.loadFEN(newFen);
-                    window.game.pgnHeaders = { "FEN": newFen, "SetUp": "1" };
-                    window.game.rootNode.fen = newFen;
-                    window.game.currentNode.fen = newFen;
+                    // 2. Lock the new position logically (resets rootNode/currentNode and PGN headers)
+                    window.game.loadNewPosition(newFen, currentMode);
                     
-                    // 2. Sync Editor HTML Checkboxes to match the pasted FEN
-                    if (document.getElementById('editorTurn')) document.getElementById('editorTurn').value = window.game.turn;
-                    if (document.getElementById('castling-wK')) document.getElementById('castling-wK').checked = window.game.castling.wK;
-                    if (document.getElementById('castling-wQ')) document.getElementById('castling-wQ').checked = window.game.castling.wQ;
-                    if (document.getElementById('castling-bK')) document.getElementById('castling-bK').checked = window.game.castling.bK;
-                    if (document.getElementById('castling-bQ')) document.getElementById('castling-bQ').checked = window.game.castling.bQ;
+                    // 3. Sync visual Editor elements to match the pasted FEN metadata
+                    const parts = newFen.split(' ');
+                    if (parts.length >= 3) {
+                        const turn = parts[1];
+                        const castling = parts[2];
+                        
+                        if (document.getElementById('editorTurn')) {
+                            document.getElementById('editorTurn').value = turn;
+                        }
+                        
+                        // Sync castling checkboxes
+                        if (document.getElementById('castling-wK')) document.getElementById('castling-wK').checked = castling.includes('K');
+                        if (document.getElementById('castling-wQ')) document.getElementById('castling-wQ').checked = castling.includes('Q');
+                        if (document.getElementById('castling-bK')) document.getElementById('castling-bK').checked = castling.includes('k');
+                        if (document.getElementById('castling-bQ')) document.getElementById('castling-bQ').checked = castling.includes('q');
+                    }
+                    
+                    // 4. Force board redraw to show the pieces from the new FEN
+                    this.renderBoard(false);
                 }
             });
         }
-        // 🔥 960 EDITOR TOGGLE
-        const toggle960 = document.getElementById('editor960Toggle');
-        if (toggle960) {
-            toggle960.addEventListener('change', (e) => {
+        const editorVariantSelect = document.getElementById('editorVariantSelect');
+        if (editorVariantSelect) {
+            editorVariantSelect.addEventListener('change', (e) => {
                 if (window.game) {
-                    window.game.isChess960 = e.target.checked;
-                    if (window.sfWorker) window.sfWorker.postMessage(`setoption name UCI_Chess960 value ${e.target.checked ? 'true' : 'false'}`);
-                    console.log(`[EDITOR] Chess960 Mode: ${e.target.checked ? 'ON' : 'OFF'}`);
+                    window.game.setGameMode(e.target.value);
+                    if (window.sfWorker) {
+                        window.sfWorker.postMessage('setoption name UCI_Variant value ' + (e.target.value === 'classical' ? 'chess' : e.target.value));
+                    }
+                    console.log(`[EDITOR] Variant Mode: ${e.target.value}`);
                 }
             });
         }
         // ==========================================================
         this.renderCharts();
-        // 🔥 THE FIX: Observe the chart containers directly so it works in BOTH Analysis and Study modes!
             const evalContainer = document.getElementById('evalChartContainer');
             const timeContainer = document.getElementById('timeChartContainer');
     
@@ -235,7 +251,7 @@ init() {
                 this.setPresetTheme(
                     savedTheme.lightHex, 
                     savedTheme.darkHex, 
-                    null, // Pass null instead of 'this' to prevent the crash!
+                    null,
                     savedTheme.accentColor, 
                     savedTheme.gridColor, 
                     savedTheme.pieceSet,
@@ -279,9 +295,6 @@ async loadCustomPieces() {
                     let color = null;
                     let type = null;
 
-                    // --- STRATEGY A: STRICT 2-CHAR CHECK (Prioritize this!) ---
-                    // Looks for: Starts with w/b, then p/n/b/r/q/k, then a dot.
-                    // Matches: "bN.webp", "wp.png", "bK.svg"
                     const shortMatch = lower.match(/^([wb])([pnbrqk])\./);
                     
                     if (shortMatch) {
@@ -703,7 +716,7 @@ resizeApp() {
                     document.body.appendChild(popup);
                 }
                 
-                // 🔥 2. FORCE WRAPPER STYLES
+                // 2. FORCE WRAPPER STYLES
                 popup.style.position = 'fixed';
                 popup.style.width = '100vw';
                 popup.style.height = '100vh';
@@ -716,7 +729,7 @@ resizeApp() {
                 const modalBox = popup.querySelector('.scale-wrapper') || popup.querySelector('.modal-content') || popup.firstElementChild;
                 
                 if (modalBox) {
-                    if (id === 'notificationModal') {
+                    if (id === 'notificationModal'||id==='gameOverModal') {
                         // Match this to the 280px you set in your CSS!
                         modalBox.style.setProperty('width', '280px', 'important');
                     } else {
@@ -771,9 +784,6 @@ resizeApp() {
                 // Keep them fixed relative to the screen
                 popup.style.position = 'fixed'; 
                 popup.style.zIndex = '999';
-                
-                // 🔥 THE FIX: Removed the popup.style.transform = `scale(${scale})` completely. 
-                // We now let the browser natively scale these menus!
             }
         });
     }
@@ -846,9 +856,6 @@ toggleEngine(forceOff = false) {
             if (stats) { stats.classList.remove('visible'); stats.style.display = 'none'; }
         }
 
-        // 🔥 3. ALWAYS tell the game logic about the change!
-        // Because we removed the "return", restricted modes will now successfully 
-        // reach this line to clear the timeouts, wipe the arrows, and lock the engine.
         if (window.game && typeof window.game.updateStockfish === 'function') {
             window.game.updateStockfish();
         }
@@ -858,8 +865,8 @@ updateEngineName(fullName, shortName = null) {
 
         if (fullName === "Engine Loading...") {
             shortName = fullName;
-        } else if (!shortName) {
-            const match = fullName.match(/^([a-zA-Z]+(?:\s+\d+(?:\.\d+)?)?)/);
+        }  else if (!shortName) {
+            const match = fullName.match(/^([a-zA-Z-]+(?:\s+\d+(?:\.\d+)?)?)/);
             shortName = match ? match[1] : fullName;
         }
 
@@ -885,8 +892,6 @@ updateEngineName(fullName, shortName = null) {
             children.forEach(c => pvHeader.appendChild(c));
         }
         
-        // 🔥 THE FIX: Inject the specific engine version (e.g. "Stockfish 18") 
-        // underneath the main bot title in the player headers automatically!
         ['w', 'b'].forEach(color => {
             if (this.playerInfo && this.playerInfo[color] && this.playerInfo[color].name) {
                 if (this.playerInfo[color].name.toLowerCase().includes("stockfish") || this.playerInfo[color].name.toLowerCase().includes("engine")) {
@@ -938,34 +943,22 @@ getCountryFlagHtml(countryData) {
         if (code.includes('/')) code = code.split('/').pop(); 
         
         const lowerCode = code.toLowerCase();
-
-        // Point straight to the folder you just downloaded!
         const localUrl = `./assets/flags/${lowerCode}.svg`;
-
-        // 🔥 THE FIX 2: Removed the hardcoded 'title' attribute so the browser reads the span's dictionary title instead!
         return `<img src="${localUrl}" class="player-flag" alt="${code}" onerror="this.style.display='none'">`;
     }
 displayMetadata(headers) {
         const container = document.getElementById('gameInfo'); 
         if (!container) return;
-
-        // 🔥 CRITICAL FIX: Extract Titles BEFORE the caching block!
-        // This ensures the red badges are always prepared for renderHeaders() even if the grid HTML is cached.
         if (this.playerInfo) {
             if (this.playerInfo['w']) this.playerInfo['w'].title = headers['WhiteTitle'] || null;
             if (this.playerInfo['b']) this.playerInfo['b'].title = headers['BlackTitle'] || null;
         }
-
-        // 🔥 THE FIX: JSON CACHING
-        // If the metadata hasn't changed, stop immediately so we don't rebuild the HTML!
         const cacheKey = JSON.stringify(headers || {});
         if (this._lastMetadataCache === cacheKey) return;
         this._lastMetadataCache = cacheKey;
 
-        // [FIX] 2 Columns (1fr 1fr) + Scrollbar (max-height)
         let html = '<div style="display:grid; grid-template-columns: 1fr 1fr; gap: 5px 20px; max-height: 200px; overflow-y: auto; font-size:0.85rem; color:#94a3b8; padding:12px; background:rgba(0,0,0,0.2); border-radius:6px; margin-bottom:10px; border:1px solid #333;">';
         
-        // 🔥 Added 'Variant' and 'FEN' to the priority list so they show up consistently
         const priority = ['Event','Site','Date','Round','Variant','ECO','Opening','Result','Link','FEN'];
         
         const keys = Object.keys(headers).sort((a, b) => {
@@ -978,7 +971,6 @@ displayMetadata(headers) {
         });
 
         keys.forEach(key => {
-            // 🔥 Hid 'WhiteTitle' and 'BlackTitle' from the text box since they are now badges!
             if (['White','Black','WhiteElo','BlackElo','SetUp', 'WhiteTitle', 'BlackTitle'].includes(key)) return;
             
             let value = headers[key] ? headers[key].toString().trim() : "";
@@ -993,7 +985,6 @@ displayMetadata(headers) {
                 value = `<a href="${url}" target="_blank" style="color:#38bdf8; text-decoration:underline; cursor:pointer;">${value}</a>`;
             }
 
-            // 🔥 Special handling for FEN: Span across both columns and break the text!
             if (key === 'FEN') {
                 html += `<div style="grid-column: 1 / -1; word-break: break-all; line-height: 1.4;" title="${rawValue}">
                             <span style="font-weight:600; color:#2872b5; margin-right:4px;">${key}:</span>${value}
@@ -1037,7 +1028,6 @@ renderHeaders() {
         if (this._lastHeadersCache === cacheKey) return;
         this._lastHeadersCache = cacheKey;
 
-        // 🔥 THE NEW DICTIONARY: Translates ISO codes to Full Names for the hover tooltip!
         const isoToCountryName = {
             "us": "United States", "ca": "Canada", "ar": "Argentina", "be": "Belgium", "af": "Afghanistan",
             "al": "Albania", "ad": "Andorra", "ai": "Anguilla", "ag": "Antigua & Barbuda", "am": "Armenia", 
@@ -1099,7 +1089,6 @@ renderHeaders() {
                 ? this.getCountryFlagHtml(data.country) 
                 : '';
             
-            // 🔥 THE FIX 1: Convert country code to lowercase so the dictionary can find it!
             if (flagHtml && data.country) {
                 const countryKey = data.country.toLowerCase();
                 const fullName = isoToCountryName[countryKey] || data.country.toUpperCase();
@@ -1193,7 +1182,7 @@ resetUIState() {
             window.game.pgnHeaders = {};
         }
 
-        // 🔥 THE FIX: Break the caches so the UI is forced to visually reset!
+        // Break the caches so the UI is forced to visually reset!
         this._lastMetadataCache = null;
         this._lastHeadersCache = null;
 
@@ -1259,10 +1248,7 @@ showGameOver(winner, reason) {
     sub.innerText = reason.replace('won', ''); 
     modal.style.display = 'flex';
 
-    // Show the sidebar review button when game ends!
     this.toggleReviewButton(true);
-
-    // ✅ AUTO-REDIRECT: Instantly snap back to Analysis mode behind the modal
     this.switchTab('analysis');
 }
 hideGameOver() {
@@ -1343,7 +1329,6 @@ updatePuzzleUI(state, puzzleData) {
                 status.style.color = "#fff";
             }
 
-            // --- FIX: Better Spacing for ID/Rating ---
             if(info && puzzleData) {
                 info.innerHTML = `
                     <span style="color:#e68f00; font-weight:bold; font-size:14px;">Rating: ${puzzleData.rating || '?'}</span>
@@ -1377,23 +1362,22 @@ showPuzzleSuccess() {
             status.style.color = "#26c2a3"; // Green
         }
         
-        // Only show Next button in Training Mode (Rush auto-advances)
         const isRush = ['3min', '5min', 'survival'].includes(window.game.puzzleMode);
         if (!isRush && next) {
             next.style.display = "block";
         }
     }
 showPuzzleHint() {
-        if (!window.game || window.game.mode !== 'puzzle' || window.game.gameOver) return;
+        const state = window.game ? window.game.getReader() : null;
+        if (!state || state.mode !== 'puzzle' || state.isGameOver) return;
 
-        // Strictly block execution in Rush Modes!
-        const isRush = ['3min', '5min', 'survival'].includes(window.game.puzzleMode);
+        const isRush = ['3min', '5min', 'survival'].includes(state.puzzle.mode);
         if (isRush) {
             this.showNotification("Hints are disabled in Rush Mode!", "Not Allowed", "🚫");
             return;
         }
 
-        const solutionMove = window.game.puzzleSolution[window.game.puzzleCursor];
+        const solutionMove = state.puzzle.solution[state.puzzle.cursor];
         if (!solutionMove) return;
 
         const fromIdx = window.game.squareToIndex(solutionMove.substring(0, 2));
@@ -1401,7 +1385,6 @@ showPuzzleHint() {
         
         if (sqEl) {
             document.querySelectorAll('.puzzle-hint-pulse').forEach(el => el.remove());
-
             const hintEl = document.createElement('div');
             hintEl.className = 'puzzle-hint-pulse';
             hintEl.style.position = 'absolute';
@@ -1410,21 +1393,10 @@ showPuzzleHint() {
             hintEl.style.borderRadius = '4px';
             hintEl.style.pointerEvents = 'none'; 
             hintEl.style.zIndex = '15';
-            
             sqEl.appendChild(hintEl);
             
-            hintEl.animate([
-                { opacity: 1 },
-                { opacity: 0.2 },
-                { opacity: 1 }
-            ], {
-                duration: 800,
-                iterations: 3
-            });
-
-            setTimeout(() => {
-                if (hintEl && hintEl.parentNode) hintEl.remove();
-            }, 2400);
+            hintEl.animate([{ opacity: 1 }, { opacity: 0.2 }, { opacity: 1 }], { duration: 800, iterations: 3 });
+            setTimeout(() => { if (hintEl && hintEl.parentNode) hintEl.remove(); }, 2400);
         }
     }
 initSidebarResizers() {
@@ -1476,7 +1448,6 @@ initSidebarResizers() {
                 sidebar.style.minWidth = `${newPgnW}px`;
                 sidebar.style.maxWidth = `${newPgnW}px`;
                 
-                // ❌ REMOVED: No more resize spam here!
             };
 
             const stopDragW = () => {
@@ -1487,7 +1458,7 @@ initSidebarResizers() {
                 
                 localStorage.setItem('sidebarWidth', sidebar.style.width);
                 
-                // 🔥 THE FIX: Only trigger resizeApp ONCE when the user drops the handle
+                //  Only trigger resizeApp ONCE when the user drops the handle
                 window.dispatchEvent(new Event('resize')); 
             };
 
@@ -1514,8 +1485,6 @@ initResizer() {
         const rightSidebar = document.getElementById('mainSidebar');
         const pgnW = rightSidebar ? rightSidebar.offsetWidth : 300;
 
-        // 🔥 OVERRIDE CSS DEFAULTS 🔥
-        // Force center alignment so flexbox pushes both sides outwards evenly
         const container = document.querySelector('.main-container');
         if (container) {
             container.style.padding = '30px 20px 20px 20px'; 
@@ -1563,7 +1532,6 @@ initResizer() {
             boardRow.style.justifyContent = 'flex-start'; 
         }
 
-        // 🔥 5. THE TRUE SABOTEUR DEFEATED: .board-section 🔥
         // This is the actual direct child of .main-container. 
         // When this grows, Flexbox physically pushes the side panels away!
         const boardSection = document.querySelector('.board-section');
@@ -1642,64 +1610,57 @@ r = 7 - r;
 return r * 8 + c;
 }
 promoteVar() {
-        if (this.contextNode) {
-            window.game.promoteVariation(this.contextNode);
-            this.renderBoard(true);
-            window.game.syncMoveHistory();
-            if (window.game.updateStockfish) window.game.updateStockfish();
+        const state = window.game ? window.game.getReader() : null;
+        if (state && state.activeNodeId) {
+            window.game.promoteVariation(state.activeNodeId);
+            this.renderBoard(false, false);
+            if (state.mode !== 'play' && window.game.updateStockfish) window.game.updateStockfish();
         }
         if (this.annotationPopup) this.annotationPopup.style.display = 'none';
     }
 makeMainline() {
-        if (this.contextNode) {
-            window.game.makeMainline(this.contextNode);
-            window.game.syncMoveHistory();
-            this.renderBoard(true);
-            if (window.game.updateStockfish) window.game.updateStockfish();
+        const state = window.game ? window.game.getReader() : null;
+        if (state && state.activeNodeId) {
+            window.game.makeMainline(state.activeNodeId);
+            this.renderBoard(false, false);
+            if (state.mode !== 'play' && window.game.updateStockfish) window.game.updateStockfish();
         }
         if (this.annotationPopup) this.annotationPopup.style.display ='none';
     }
 handleMouseDown(e) {
-    if (window.game.isPaused) {
+        const state = window.game ? window.game.getReader() : null;
+        if (!state) return;
+
+        if (state.isPaused) {
             this.showNotification("Game is Paused", "Info");
             return;
         }
-        if (e.button === 2) { // Right Click (Draw Arrows)
-            e.preventDefault();
-            e.stopPropagation();
-            // Prevent drawing if mid-premove
-            if (window.game.premoveQueue.length > 0) {
+
+        if (e.button === 2) { 
+            e.preventDefault(); e.stopPropagation();
+            if (state.premoves.length > 0) {
                 window.game.clearPremoves();
                 this.renderBoard(false); 
                 return;
             }
-    
             const sq = this.getSquareFromCoords(e.clientX, e.clientY);
             if (sq !== -1) {
                 this.isRightClick = true;
                 this.arrowDragStart = sq;
             }
-        } 
-        else if (e.button === 0) { // Left Click (Selection)
-            // Clear arrows if needed
-            if (window.game.currentNode) {
-                window.game.currentNode.arrows = []; 
-                window.game.currentNode.circles = [];
+        } else if (e.button === 0) { 
+            if (state.arrows.length > 0 || state.circles.length > 0) {
+                window.game.clearAnnotations();
                 this.renderArrows();
             }
-            
-            // Clear Premoves
-            if (window.game.premoveQueue.length > 0) {
+            if (state.premoves.length > 0) {
                 window.game.clearPremoves();
                 this.renderBoard(false); 
             }
-
-            // --- FIX: DESELECT ON EMPTY CLICK ---
-            // If we click the board background (not a piece), clear the selection/hints.
             if (this.selectedSq !== null) {
                 this.selectedSq = null;
                 this.legalMoves = [];
-                this.renderBoard(false); // Re-render to remove dots/highlights
+                this.renderBoard(false); 
             }
         }
     }
@@ -1714,82 +1675,92 @@ handleMouseMove(e) {
             else if (e.altKey) color = 'blue';
             else if (e.ctrlKey) color = 'orange';
             
-            // Draw a faint "preview" arrow
             this.drawArrow(this.tempArrowLayer, this.arrowDragStart, sq, color, 0.5);
         }
     }
 }
 handleMouseUp(e) {
-    if (this.isRightClick && this.arrowDragStart !== null) {
-        const sq = this.getSquareFromCoords(e.clientX, e.clientY);
-        this.tempArrowLayer.innerHTML = ''; // Clear preview
-        
-        // Determine Color
-        let color = 'green';
-        if (e.shiftKey) color = 'red';
-        else if (e.altKey) color = 'blue';
-        else if (e.ctrlKey) color = 'orange';
-
-        // Ensure array exists on the Node
-        if (!window.game.currentNode.arrows) window.game.currentNode.arrows = [];
-        if (!window.game.currentNode.circles) window.game.currentNode.circles = [];
-
-        if (sq === this.arrowDragStart) {
-            // --- CIRCLE TOGGLE ---
-            const circles = window.game.currentNode.circles;
-            const idx = circles.findIndex(c => c.index === sq);
+        if (this.isRightClick && this.arrowDragStart !== null) {
+            const sq = this.getSquareFromCoords(e.clientX, e.clientY);
+            this.tempArrowLayer.innerHTML = ''; 
             
-            if (idx >= 0) {
-                // If exists: Remove if same color, or update color
-                if (circles[idx].color === color) circles.splice(idx, 1);
-                else circles[idx].color = color;
-            } else {
-                circles.push({ index: sq, color });
+            let color = 'green';
+            if (e.shiftKey) color = 'red';
+            else if (e.altKey) color = 'blue';
+            else if (e.ctrlKey) color = 'orange';
+
+            if (sq === this.arrowDragStart) {
+                window.game.toggleCircle(sq, color);
+            } else if (sq !== -1) {
+                window.game.toggleArrow(this.arrowDragStart, sq, color);
             }
-        } 
-        else if (sq !== -1) {
-            // --- ARROW TOGGLE ---
-            const arrows = window.game.currentNode.arrows;
-            // Check for existing arrow (Direction sensitive: from->to)
-            const idx = arrows.findIndex(a => a.from === this.arrowDragStart && a.to === sq);
-            
-            if (idx >= 0) {
-                // If exists: Remove if same color, or update color
-                if (arrows[idx].color === color) arrows.splice(idx, 1);
-                else arrows[idx].color = color;
-            } else {
-                arrows.push({ from: this.arrowDragStart, to: sq, color });
-            }
+
+            this.renderArrows();
+            this.isRightClick = false;
+            this.arrowDragStart = null;
         }
-
-        // Finalize
-        this.renderArrows();
-        this.isRightClick = false;
-        this.arrowDragStart = null;
     }
-}
+getSquareCenter(idx) {
+        let r = Math.floor(idx / 8);
+        let c = idx % 8;
+        
+        if (this.flipped) {
+            r = 7 - r;
+            c = 7 - c;
+        }
+        
+        // Converts 0-63 index into exact SVG coordinates (squares are 12.5% wide/tall)
+        return {
+            x: (c * 12.5) + 6.25,
+            y: (r * 12.5) + 6.25
+        };
+    }
 renderArrows() {
-    // 1. Clear Permanent Layer
-    this.arrowLayer.innerHTML = '';
-    
-    // 2. Get Data from Current Node
-    const node = window.game.currentNode;
-    if (!node) return;
+        if (!this.arrowLayer) return;
+        this.arrowLayer.innerHTML = '';
+        
+        const state = window.game ? window.game.getReader() : null;
+        if (!state) return;
 
-    // 3. Draw Circles
-    if (node.circles && Array.isArray(node.circles)) {
-        node.circles.forEach(c => {
-            this.drawCircle(this.arrowLayer, c.index, c.color);
+        let arrowsToDraw = [...(state.arrows || [])];
+        let circlesToDraw = [...(state.circles || [])];
+
+        if (this.dragData && this.dragData.type === 'arrow') {
+            arrowsToDraw.push({
+                from: this.dragData.from,
+                to: this.dragData.to,
+                color: this.dragData.color
+            });
+        }
+        
+        // Safe string-to-index converter that never returns NaN
+        const getSqIdx = (val) => {
+            if (typeof val === 'number') return val;
+            if (typeof val === 'string' && val.length === 2) {
+                let f = val.charCodeAt(0) - 97;
+                let r = 8 - parseInt(val[1], 10);
+                return r * 8 + f;
+            }
+            return -1;
+        };
+
+        // Draw circles using your original Lichess method
+        circlesToDraw.forEach(circle => {
+            let sqIdx = getSqIdx(circle.index !== undefined ? circle.index : (circle.sq !== undefined ? circle.sq : circle.square));
+            if (sqIdx < 0 || sqIdx > 63) return;
+            this.drawCircle(this.arrowLayer, sqIdx, circle.color);
+        });
+
+        // Draw arrows using your original Lichess method
+        arrowsToDraw.forEach(arrow => {
+            let fromIdx = getSqIdx(arrow.from);
+            let toIdx = getSqIdx(arrow.to);
+            if (fromIdx < 0 || fromIdx > 63 || toIdx < 0 || toIdx > 63) return;
+            
+            // 0.6 opacity is the perfect sweet spot for the Lichess feel
+            this.drawArrow(this.arrowLayer, fromIdx, toIdx, arrow.color, 0.6);
         });
     }
-
-    // 4. Draw Arrows
-    if (node.arrows && Array.isArray(node.arrows)) {
-        node.arrows.forEach(a => {
-            this.drawArrow(this.arrowLayer, a.from, a.to, a.color);
-        });
-    }
-}
 getNodeVisuals(node) {
 if ((node.arrows &&node.arrows.length > 0) || (node.circles &&node.circles.length > 0)) {
 // BLUE DOT with corrected alignment
@@ -2040,6 +2011,26 @@ circle.setAttribute('fill','none');
 circle.setAttribute('opacity','0.8');
 container.appendChild(circle);
 }
+getAnnotationDotColor(node) {
+        if (!node) return null;
+        let cName = null;
+        if (node.arrows && node.arrows.length > 0) cName = node.arrows[0].color;
+        else if (node.circles && node.circles.length > 0) cName = node.circles[0].color;
+        if (!cName) return null;
+
+        const themeAccent = getComputedStyle(document.documentElement).getPropertyValue('--theme-accent').trim() || '#38bdf8';
+        
+        // Exact Lichess colors from your old drawArrow function
+        const colorMap = {
+            'green': '#15781B', 
+            'red': '#882020', 
+            'blue': '#003088',
+            'orange': '#e68f00',
+            'theme': themeAccent
+        };
+        
+        return colorMap[cName] || cName;
+    }
 initKeyboardEvents() {
         document.addEventListener('keydown', (e) => {
             // 1. Ignore PGN controls if typing in a text box
@@ -2076,246 +2067,69 @@ document.getElementById('settingsPanel').classList.toggle('visible');
 }
 switchTab(tabName) {
         if (!tabName) return;
-        // 🔥 THE FIX: Show Resign/Draw ONLY in the Play tab during an active game!
-        const resignBtn = document.getElementById('resignBtn');
-        const drawBtn = document.getElementById('drawBtn');
-        if (resignBtn && drawBtn) {
-            const isLive = window.game && window.game.isPlayingLiveGame;
-            
-            // ❌ THIS WAS THE BUG: Changed 'tabId' to 'tabName'
-            const isPlayTab = tabName.toLowerCase() === 'play'; 
-            
-            resignBtn.style.display = (isLive && isPlayTab) ? 'block' : 'none';
-            drawBtn.style.display = (isLive && isPlayTab) ? 'block' : 'none';
-        }
         const lowerTab = tabName.toLowerCase();
-        document.querySelectorAll('.puzzle-hint-pulse, .hint-dot, .hint-circle').forEach(el => el.remove());
         
-        // =========================================================
-        // LEAVING EDITOR
-        // =========================================================
-        if (window.game && window.game.mode === 'editor' && lowerTab !== 'editor') {
-            const fenInput = document.getElementById('fenInput');
-            const currentFen = fenInput ? fenInput.value : (typeof window.game.generateFEN === 'function' ? window.game.generateFEN() : window.game.engine.fen());
-            
-            let isValid = false;
-            let errorMsg = "Invalid board position.";
-            
-            if (typeof window.game.engine.validate_fen === 'function') {
-                const validation = window.game.engine.validate_fen(currentFen);
-                isValid = validation.valid;
-                if (!isValid) errorMsg = validation.error;
-            } else {
-                try {
-                    const tempEngine = new Chess();
-                    isValid = tempEngine.load(currentFen);
-                } catch (e) { isValid = false; }
-            }
-            
-            if (!isValid) {
-                if (typeof this.showNotification === 'function') this.showNotification("Invalid Board", `Cannot leave Editor: ${errorMsg}`, "⚠️");
-                return;
-            }
-            
-            // Extract ONLY the board pieces, active color, and castling
-            const coreEnter = this.originalEditorFen ? this.originalEditorFen.split(' ').slice(0,3).join(' ') : "";
-            const coreExit = currentFen.split(' ').slice(0,3).join(' ');
-            console.log(coreEnter);console.log(coreExit);
-            if (coreEnter && coreExit !== coreEnter) {
-                window.game.loadFEN(currentFen);
-                this._lastTreeSize = -1; // Force full UI redraw
-            } else {
-                // 🔥 THE FIX: Board didn't change! 
-                // Pass the silently saved PGN directly into your massive custom loadPGN function.
-                if (this.originalEditorPgn && typeof window.game.loadPGN === 'function') {
-                    window.ui.loadPgnAndAnalyze();
+        if (window.game) {
+            if (window.game.mode === 'editor' && lowerTab !== 'editor') {
+                const fenInput = document.getElementById('fenInput');
+                const currentFen = fenInput ? fenInput.value : (typeof window.game.generateFEN === 'function' ? window.game.generateFEN() : "");
+                
+                if (currentFen && window.game.engine && !window.game.engine.validate_fen(currentFen).valid) {
+                    this.showNotification("Invalid Board", `Cannot leave Editor`, "⚠️");
+                    return;
+                }
+                const coreEnter = this.originalEditorFen ? this.originalEditorFen.split(' ').slice(0,3).join(' ') : "";
+                const coreExit = currentFen.split(' ').slice(0,3).join(' ');
+                if (coreEnter && coreExit !== coreEnter) {
+                    window.game.loadNewPosition(currentFen);
+                    this._lastTreeSize = -1; 
+                } else if (this.originalEditorPgn) {
+                    this.loadPgnAndAnalyze();
                 }
             }
+
+            window.game.switchMode(lowerTab);
         }
+        const state = window.game ? window.game.getReader() : { mode: lowerTab, isLive: false };
+
+        const resignBtn = document.getElementById('resignBtn');
+        const drawBtn = document.getElementById('drawBtn');
+        if (resignBtn) resignBtn.style.display = (state.isLive && state.mode === 'play') ? 'block' : 'none';
+        if (drawBtn) drawBtn.style.display = (state.isLive && state.mode === 'play') ? 'block' : 'none';
+        
+        document.querySelectorAll('.puzzle-hint-pulse, .hint-dot, .hint-circle').forEach(el => el.remove());
+        document.querySelectorAll('.square, .piece-img').forEach(el => {
+            el.classList.remove('selected', 'highlight', 'active', 'valid-move', 'selected-w', 'selected-b', 'border-w', 'border-b', 'last-move', 'highlight-w', 'highlight-b');
+            el.style.cssText = ''; 
+        });
 
         this.selectedSq = null;
         this.legalMoves = [];
-        
-        const tempArrows = document.getElementById('tempArrowRoot');
-        if (tempArrows) tempArrows.innerHTML = '';
-        const arrowsRoots = document.getElementById('arrowsRoot');
-        if (arrowsRoots) arrowsRoots.innerHTML = ''; 
-
-        document.querySelectorAll('.square, .piece-img').forEach(el => {
-            el.classList.remove('selected', 'highlight', 'active', 'valid-move', 'selected-w', 'selected-b', 'border-w', 'border-b', 'last-move', 'highlight-w', 'highlight-b');
-            el.style.backgroundColor = ''; el.style.boxShadow = ''; el.style.opacity = ''; el.style.filter = ''; el.style.border = ''; 
-        });
-        if (typeof this.updateTheme === 'function') this.updateTheme();
-        
-        if (lowerTab === 'editor') {
-            const toggle = document.getElementById('editor960Toggle');
-            if (toggle && window.game) toggle.checked = window.game.isChess960;
-        }
-
-        if (window.game) {
-            const currentTab = window.game.mode;
-
-            if (['analysis', 'local', 'bot', 'study'].includes(currentTab)) {
-                if (typeof window.game.saveState === 'function') window.game.saveState(currentTab);
-            } else if (currentTab === 'puzzle') {
-                if (typeof window.game.saveState === 'function') window.game.saveState('puzzle');
-            }
-
-            const refreshAllHeaders = () => {
-                if (window.game.pgnHeaders) {
-                    this.displayMetadata(window.game.pgnHeaders);
-                    const wLabel = (window.game.pgnHeaders['White'] || 'White') + (window.game.pgnHeaders['WhiteElo'] ? ` (${window.game.pgnHeaders['WhiteElo']})` : '');
-                    const bLabel = (window.game.pgnHeaders['Black'] || 'Black') + (window.game.pgnHeaders['BlackElo'] ? ` (${window.game.pgnHeaders['BlackElo']})` : '');
-                    if (typeof this.updatePgnAvatars === 'function') this.updatePgnAvatars(window.game.pgnHeaders['White'], window.game.pgnHeaders['Black'], window.game.isEngineMatch, true);
-                    if (typeof this.updatePlayerNames === 'function') {
-                        if (this.flipped) this.updatePlayerNames(wLabel, bLabel);
-                        else this.updatePlayerNames(bLabel, wLabel);
-                    }
-                    if (typeof this.renderHeaders === 'function') this.renderHeaders();
-                    if (typeof this.updateClocks === 'function') this.updateClocks();
-                }
-            };
-
-            if (lowerTab === 'study') {
-                window.game.mode = 'study';
-                window.game.gameOver = true;
-                if (typeof window.game.restoreState === 'function' && window.game.restoreState('study')) {
-                    if (typeof window.game.syncMoveHistory === 'function') window.game.syncMoveHistory();
-                    this.updateHistory(true); refreshAllHeaders(); this.renderBoard(false);
-                    const engineLinesBox = document.getElementById('engine-lines-box');
-                    if (engineLinesBox) engineLinesBox.innerHTML = '';
-                    if (typeof this.renderCharts === 'function') { this._lastChartedFen = null; requestAnimationFrame(() => this.renderCharts(true)); }
-                    if (window.engineAnalysing && window.game.updateStockfish) window.game.updateStockfish();
-                }
-            }
-           // =========================================================
-            // ENTERING EDITOR
-            // =========================================================
-            else if (lowerTab === 'editor') {
-                window.game.mode = 'editor';
-                window.game.gameOver = true; 
-                
-                if (this.annotationPopup) this.annotationPopup.style.display = 'none';
-                if (window.engineAnalysing && typeof this.toggleEngine === 'function') this.toggleEngine(true);
-                if (window.game.stopEngine) window.game.stopEngine();
-                if (window.sfWorker) window.sfWorker.postMessage('stop');
-                if (this.clearArrows) this.clearArrows(); 
-
-                let currentFen = window.game.engine.fen();
-                this.originalEditorFen = currentFen; 
-                
-                // 🔥 THE FIX: Use the CORRECT IDs from your HTML!
-                const fenParts = currentFen.split(' ');
-                if (fenParts.length >= 3) {
-                    const c = fenParts[2];
-                    window.game.castling = { wK: c.includes('K'), wQ: c.includes('Q'), bK: c.includes('k'), bQ: c.includes('q') };
-                    window.game.turn = fenParts[1];
-                    
-                    const chkWK = document.getElementById('castling-wK');
-                    const chkWQ = document.getElementById('castling-wQ');
-                    const chkBK = document.getElementById('castling-bK');
-                    const chkBQ = document.getElementById('castling-bQ');
-                    const turnEl = document.getElementById('editorTurn');
-
-                    if (chkWK) chkWK.checked = c.includes('K');
-                    if (chkWQ) chkWQ.checked = c.includes('Q');
-                    if (chkBK) chkBK.checked = c.includes('k');
-                    if (chkBQ) chkBQ.checked = c.includes('q');
-                    if (turnEl) turnEl.value = fenParts[1];
-                }
-
-                this._lastMetadataCache = null; this._lastHeadersCache = null;
-                this._lastNagCache = null; this._lastFen = null; this._lastBoardFen = null;
-
-                if (typeof this.renderBoard === 'function') this.renderBoard(true);
-                
-                if (document.getElementById('editorHalfMove')) document.getElementById('editorHalfMove').value = fenParts[4] || "0";
-                if (document.getElementById('editorFullMove')) document.getElementById('editorFullMove').value = fenParts[5] || "1";
-                if (document.getElementById('fenInput')) document.getElementById('fenInput').value = currentFen;
-                this.resizeApp();
-            }
-            // =========================================================
-            // ENTERING ANALYSIS
-            // =========================================================
-            else if (lowerTab === 'analysis') {
-                if (window.game && window.game.isPlayingLiveGame) {
-                    // 🔥 THE FIX: Coming directly from an active live game? Keep the PGN intact!
-                    window.game.gameOver = false; 
-                    if (window.game.timerInterval) clearInterval(window.game.timerInterval); 
-                    if (!window.game.pgnHeaders['Result']) window.game.pgnHeaders['Result'] = '*';
-                    if (typeof this.toggleReviewButton === 'function') this.toggleReviewButton(true);
-                    
-                    window.game.mode = 'analysis';
-                } else {
-                    // 🔥 THE FIX: Normal tab switch? Safely restore the saved Analysis state!
-                    window.game.mode = 'analysis';
-                    window.game.gameOver = true; 
-                    
-                    if (typeof window.game.restoreState === 'function') {
-                        window.game.restoreState('analysis');
-                    }
-                }
-                
-                if (typeof window.game.syncMoveHistory === 'function') window.game.syncMoveHistory();
-                this.updateHistory(true);
-                refreshAllHeaders();
-                this.renderBoard(false);
-                
-                const engineLinesBox = document.getElementById('engine-lines-box');
-                if (engineLinesBox) engineLinesBox.innerHTML = '';
-                if (typeof this.renderCharts === 'function') {
-                    this._lastChartedFen = null; 
-                    requestAnimationFrame(() => this.renderCharts(true));
-                }
-                if (window.engineAnalysing && window.game.updateStockfish) window.game.updateStockfish();
-                
-                this.resizeApp();
-            }
-            else if (lowerTab === 'puzzles') {
-                window.game.mode = 'puzzle'; 
-                window.game.gameOver = true; 
-                if (window.engineAnalysing && typeof this.toggleEngine === 'function') this.toggleEngine(true);
-                if (window.game.stopEngine) window.game.stopEngine();
-                if (window.sfWorker) window.sfWorker.postMessage('stop');
-                if (this.clearArrows) this.clearArrows();
-                
-                if (typeof window.game.restoreState === 'function' && window.game.restoreState('puzzle')) {
-                    if (typeof window.game.syncMoveHistory === 'function') window.game.syncMoveHistory();
-                    this.updateHistory(true); refreshAllHeaders(); this.renderBoard(false);
-                }
-            } 
-            else if (lowerTab === 'play') {
-                if (window.engineAnalysing && typeof this.toggleEngine === 'function') this.toggleEngine(true);
-                refreshAllHeaders(); 
-            }
-        }
+        if (this.clearArrows) this.clearArrows();
+        if (this.updateTheme) this.updateTheme();
 
         const analysisPanel = document.getElementById('analysisPanel');
         const studySidebar = document.getElementById('study-sidebar'); 
         const mainContainer = document.querySelector('.main-container'); 
 
-        if (lowerTab === 'analysis') {
+        if (state.mode === 'analysis') {
             if (analysisPanel) analysisPanel.style.display = 'flex'; 
             if (studySidebar) studySidebar.style.display = 'none'; 
             if (mainContainer) mainContainer.style.justifyContent = 'flex-start';
-        } 
-        else if (lowerTab === 'study') {
+        } else if (state.mode === 'study') {
             if (analysisPanel) analysisPanel.style.display = 'none'; 
             if (studySidebar) studySidebar.style.display = 'flex';   
             if (mainContainer) mainContainer.style.justifyContent = 'flex-start';
-            if (typeof this.renderChapters === 'function') this.renderChapters();
-        } 
-        else {
+            if (this.renderChapters) this.renderChapters();
+        } else {
             if (analysisPanel) analysisPanel.style.display = 'none'; 
             if (studySidebar) studySidebar.style.display = 'none'; 
             if (mainContainer) mainContainer.style.justifyContent = 'center';
-            if (window.game && typeof window.game.saveActiveChapter === 'function') window.game.saveActiveChapter(); 
         }
 
-        let targetId = '';
-        if (lowerTab === 'analysis' || lowerTab === 'play' || lowerTab === 'study') targetId = 'tabContent-Play'; 
-        else if (lowerTab === 'puzzles') targetId = 'tabContent-Puzzles';
-        else if (lowerTab === 'editor') targetId = 'tabContent-Editor';
+        let targetId = 'tabContent-Play'; 
+        if (state.mode === 'puzzle' || state.mode === 'puzzles') targetId = 'tabContent-Puzzles';
+        else if (state.mode === 'editor') targetId = 'tabContent-Editor';
 
         document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
         const targetTab = document.getElementById(targetId);
@@ -2329,41 +2143,72 @@ switchTab(tabName) {
             activeBtn.classList.add('active'); activeBtn.style.background = '#2872b5'; activeBtn.style.color = '#fff';
         }
 
-        if (lowerTab === 'editor') {
+        if (state.mode === 'editor') {
             document.body.classList.add('show-editor');
-            if (typeof this.updateEditorState === 'function') this.updateEditorState();
+            if (this.updateEditorState) this.updateEditorState();
+            const variantSelect = document.getElementById('editorVariantSelect');
+            if (variantSelect && window.game) variantSelect.value = window.game.gameMode || 'classical';
         } else {
             document.body.classList.remove('show-editor');
         }
-        
-        if (typeof this.toggleSideMenu === 'function') this.toggleSideMenu(false);
 
-        const isEditor = (lowerTab === 'editor');
-        const isPuzzle = (lowerTab === 'puzzles');
+        if (this.toggleSideMenu) this.toggleSideMenu(false);
+
+        const isEditor = (state.mode === 'editor');
+        const isPuzzle = (state.mode === 'puzzle' || state.mode === 'puzzles');
         
         document.querySelectorAll('.player-header').forEach(el => el.style.display = (isEditor || isPuzzle) ? 'none' : ''); 
-        
         const commentaryBox = document.getElementById('commentaryBox');
         if (commentaryBox) commentaryBox.style.display = (isEditor || isPuzzle) ? 'none' : '';
         
         const engineBtn = document.querySelector('.engine-toggle-btn');
         if (engineBtn) {
             engineBtn.style.display = isEditor ? 'none' : '';
-            if (isPuzzle && window.game && !window.game.gameOver && window.game.puzzleActive) {
+            if (isPuzzle && window.game && !state.isGameOver && state.puzzle.active) {
                 engineBtn.style.opacity = '0.5'; engineBtn.style.cursor = 'not-allowed';
             } else {
                 engineBtn.style.opacity = '1'; engineBtn.style.cursor = 'pointer';
             }
         }
-
         const enginePanel = document.getElementById('enginePanel');
         if (enginePanel) enginePanel.style.display = isEditor ? 'none' : '';
 
+        if (state.headers) {
+            this.displayMetadata(state.headers);
+            const wLabel = (state.headers['White'] || 'White') + (state.headers['WhiteElo'] ? ` (${state.headers['WhiteElo']})` : '');
+            const bLabel = (state.headers['Black'] || 'Black') + (state.headers['BlackElo'] ? ` (${state.headers['BlackElo']})` : '');
+            if (this.updatePgnAvatars) this.updatePgnAvatars(state.headers['White'], state.headers['Black'], window.game ? window.game.isEngineMatch : false, true);
+            if (this.updatePlayerNames) {
+                if (this.flipped) this.updatePlayerNames(wLabel, bLabel);
+                else this.updatePlayerNames(bLabel, wLabel);
+            }
+            this.renderHeaders();
+            if (this.updateClocks) this.updateClocks();
+            if (state.mode === 'analysis' && this.toggleReviewButton) this.toggleReviewButton(true);
+        }
+
+        if (window.game) {
+            this.updateHistory(true); 
+            this.renderBoard(false);
+            
+            if (state.mode !== 'play' && window.engineAnalysing) {
+                if (window.game.updateStockfish) window.game.updateStockfish();
+            }
+            
+            if (state.mode === 'analysis' || state.mode === 'study') {
+                const engineLinesBox = document.getElementById('engine-lines-box');
+                if (engineLinesBox) engineLinesBox.innerHTML = '';
+                if (this.renderCharts) { 
+                    this._lastChartedFen = null; 
+                    requestAnimationFrame(() => this.renderCharts(true)); 
+                }
+            }
+        }
+
         setTimeout(() => {
-            if (typeof this.resizeApp === 'function') this.resizeApp();
-            if (typeof this.safeResizeCharts === 'function') this.safeResizeCharts();
+            if (this.resizeApp) this.resizeApp();
+            if (this.safeResizeCharts) this.safeResizeCharts();
         }, 10);
-    
     }
 toggleEditorMode(active) {
         try {
@@ -2455,18 +2300,16 @@ if (btn) btn.classList.add('active');
 }
 }
 resolveCastlingIntent(fromIdx, toIdx) {
-        const p = window.game.board[fromIdx];
-        const t = window.game.board[toIdx];
+        const state = window.game.getReader();
+        const p = state.board[fromIdx];
+        const t = state.board[toIdx];
         
-        // Is it a King dropping onto a friendly Rook?
         if (p && p.type.toLowerCase() === 'k' && t && t.type.toLowerCase() === 'r' && p.color === t.color) {
             const fromFile = fromIdx % 8;
             const toFile = toIdx % 8;
-            
-            // Find the correct castling SAN in the legal moves list
             return this.legalMoves.find(m => {
-                if (toFile > fromFile) return m.san.startsWith('O-O') && !m.san.startsWith('O-O-O'); // Kingside
-                return m.san.startsWith('O-O-O'); // Queenside
+                if (toFile > fromFile) return m.san.startsWith('O-O') && !m.san.startsWith('O-O-O'); 
+                return m.san.startsWith('O-O-O'); 
             });
         }
         return null;
@@ -2499,7 +2342,6 @@ startSpareDrag(e, color, type) {
     // 3. Set up the drag data for the new piece
     this.dragData = { isSpare: true, piece: { color, type } };
     
-    // 4. 🔥 SMART IMAGE RENDERING FOR GHOST 🔥
     let rawSVG = this.getPieceHTML({ color, type });
     let ghostHTML = rawSVG;
     if (rawSVG) {
@@ -2514,108 +2356,6 @@ startSpareDrag(e, color, type) {
     // 5. Initialize the ghost and start the visual drag
     this.initDragGhost(e, ghostHTML);
 }
-startDrag(e, idx, piece) {
-        if (window.game.isEditing && this.editorTool === 'trash') {
-            e.preventDefault(); e.stopPropagation();
-            window.game.board[idx] = null;
-            if (typeof window.game.syncEngineToBoard === 'function') window.game.syncEngineToBoard();
-            if (typeof window.game.generateFEN === 'function') {
-                const newFen = window.game.generateFEN();
-                const fenInput = document.getElementById('fenInput');
-                if (fenInput) fenInput.value = newFen;
-                if (window.game.currentNode) window.game.currentNode.fen = newFen;
-                if (window.game.updateStockfish) window.game.updateStockfish();
-            }
-            this.renderBoard(false);
-            return; 
-        }
-
-        if (!window.game.isEditing) {
-            // Bot Guard
-            if (window.game.isPlayingLiveGame && window.game.mode === 'bot' && piece.color === window.game.botColor) {
-                if ((this.moveInputMode === 'click' || this.moveInputMode === 'both') && this.selectedSq !== null) { } 
-                else return;
-            }
-            // 🔥 THE FIX: Turn Guard
-            if (window.game.turn !== piece.color) {
-                if ((this.moveInputMode === 'click' || this.moveInputMode === 'both') && this.selectedSq !== null) { 
-                    // Allowed to pass through because it might be a click-capture
-                } 
-                else if (window.game.isAnalysisMode || window.game.premoveMode === 'none') {
-                    // BLOCKS dragging opponent pieces entirely in analysis mode!
-                    return; 
-                }
-            }
-        }
-
-        if (this.moveInputMode === 'click' || this.moveInputMode === 'both') {
-            if (this.selectedSq !== null) {
-                let move = this.legalMoves.find(m => m.to === idx);
-                
-                // 🔥 CLICK-TO-CASTLE REDIRECT 🔥
-                if (!move) {
-                    const castleMove = this.resolveCastlingIntent(this.selectedSq, idx);
-                    if (castleMove) move = castleMove;
-                }
-
-                if (move) {
-                    e.preventDefault(); e.stopPropagation();
-                    this.executeMove(move, true); 
-                    return; 
-                }
-            }
-        }
-
-        if (this.moveInputMode === 'click') {
-            e.stopPropagation();
-            if (window.game.isEditing) {
-                this.selectedSq = null;
-                this.legalMoves = [];
-            } else {
-                this.selectedSq = idx;
-                if (piece.color === window.game.turn) this.legalMoves = window.game.getLegalMoves().filter(m => m.from === idx);
-                else this.legalMoves = [];
-            }
-            this.renderBoard(false);
-            return; 
-        }
-
-        e.preventDefault(); e.stopPropagation();
-
-        if (window.game.isEditing) {
-            this.selectedSq = null;
-            this.legalMoves = [];
-        } else {
-            this.selectedSq = idx;
-            if (piece.color === window.game.turn) this.legalMoves = window.game.getLegalMoves().filter(m => m.from === idx);
-            else this.legalMoves = [];
-        }
-
-        this.renderBoard(false);
-        this.dragData = { fromIdx: idx, piece: piece, isSpare: false };
-
-        // 🔥 SMART IMAGE RENDERING FOR GHOST 🔥
-        let rawSVG = this.getPieceHTML(piece); 
-        let ghostHTML = rawSVG;
-        
-        // 1. Check if the user has animations enabled
-        let pulseClass = (this.animationsEnabled !== false) ? " piece-heartbeat" : "";
-        
-        // 2. Wrap in image tag and inject the heartbeat class!
-        if (rawSVG) {
-            let trimmed = rawSVG.trim();
-            if (trimmed.startsWith('<svg')) {
-                 ghostHTML = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}" class="piece-img${pulseClass}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
-            } else if (trimmed.startsWith('data:image/') || trimmed.startsWith('http') || trimmed.endsWith('.svg') || trimmed.endsWith('.png')) {
-                 ghostHTML = `<img src="${trimmed}" class="piece-img${pulseClass}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
-            }
-        }
-        
-        this.initDragGhost(e, ghostHTML);
-        
-        const sq = document.querySelector(`.piece[data-id='${piece.id}']`);
-        if (sq) sq.style.opacity = '0.5';
-    }
 initDragGhost(e, html) {
         // Safety Check
         if (!this.dragData || !this.dragData.piece) return;
@@ -2626,13 +2366,11 @@ initDragGhost(e, html) {
             safeContent = `<img src="data:image/svg+xml;charset=utf-8,${encodedSVG}" style="width:100%; height:100%; display:block;">`;
         }
 
-        // --- FIX: CLEAN CLASSES ---
         // Manually construct classes to ensure NO 'in-check' or 'selected' classes are present
         const p = this.dragData.piece;
         const colorClass = p.color === 'w' ? 'piece-w' : 'piece-b';
         const cleanClasses = `piece ${colorClass} ${p.type}`;
 
-        // --- FIX: FORCE NO ANIMATION ---
         // Inline styles with !important to override any CSS animations
         this.draggedPieceGhost.innerHTML = `<div class="${cleanClasses}" style="width:100%; height:100%; transition: none !important; animation: none !important; transform: none !important;">${safeContent}</div>`;
         
@@ -2665,7 +2403,6 @@ updateGhostPosition(e) {
         
         if (scaler) {
             rect = scaler.getBoundingClientRect();
-            // 🔥 THE FIX: Extract the exact rendered zoom scale directly from the browser!
             const transform = window.getComputedStyle(scaler).transform;
             if (transform !== 'none') {
                 const matrix = transform.match(/^matrix\((.+)\)$/);
@@ -2683,7 +2420,90 @@ updateGhostPosition(e) {
         this.draggedPieceGhost.style.left = (localX - w / 2) + 'px';
         this.draggedPieceGhost.style.top = (localY - h / 2) + 'px';
     }
+startDrag(e, idx, piece) {
+        const state = window.game ? window.game.getReader() : null;
+        if (!state) return;
+
+        if (state.mode === 'editor' && this.editorTool === 'trash') {
+            e.preventDefault(); e.stopPropagation();
+            window.game.editBoard(idx, null);
+            this.renderBoard(false);
+            return; 
+        }
+
+        if (state.mode !== 'editor') {
+            if (state.isLive && state.mode === 'bot' && piece.color === state.botColor) {
+                if ((this.moveInputMode === 'click' || this.moveInputMode === 'both') && this.selectedSq !== null) { } 
+                else return;
+            }
+            if (state.turn !== piece.color) {
+                if ((this.moveInputMode === 'click' || this.moveInputMode === 'both') && this.selectedSq !== null) { } 
+                else if (state.mode === 'analysis' || window.game.premoveMode === 'none') { return; }
+            }
+        }
+
+        if (this.moveInputMode === 'click' || this.moveInputMode === 'both') {
+            if (this.selectedSq !== null) {
+                let move = this.legalMoves.find(m => m.to === idx);
+                if (!move) {
+                    const castleMove = this.resolveCastlingIntent(this.selectedSq, idx);
+                    if (castleMove) move = castleMove;
+                }
+                if (move) {
+                    e.preventDefault(); e.stopPropagation();
+                    this.executeMove(move, true); 
+                    return; 
+                }
+            }
+        }
+
+        if (this.moveInputMode === 'click') {
+            e.stopPropagation();
+            if (state.mode === 'editor') {
+                this.selectedSq = null;
+                this.legalMoves = [];
+            } else {
+                this.selectedSq = idx;
+                if (piece.color === state.turn) this.legalMoves = window.game.getLegalMoves(idx);
+                else this.legalMoves = [];
+            }
+            this.renderBoard(false);
+            return; 
+        }
+
+        e.preventDefault(); e.stopPropagation();
+
+        if (state.mode === 'editor') {
+            this.selectedSq = null;
+            this.legalMoves = [];
+        } else {
+            this.selectedSq = idx;
+            if (piece.color === state.turn) this.legalMoves = window.game.getLegalMoves(idx);
+            else this.legalMoves = [];
+        }
+
+        this.renderBoard(false);
+        this.dragData = { fromIdx: idx, piece: piece, isSpare: false };
+
+        let rawSVG = this.getPieceHTML(piece); 
+        let ghostHTML = rawSVG;
+        let pulseClass = (this.animationsEnabled !== false) ? " piece-heartbeat" : "";
+        if (rawSVG) {
+            let trimmed = rawSVG.trim();
+            if (trimmed.startsWith('<svg')) {
+                 ghostHTML = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}" class="piece-img${pulseClass}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
+            } else if (trimmed.startsWith('data:image/') || trimmed.startsWith('http') || trimmed.endsWith('.svg') || trimmed.endsWith('.png')) {
+                 ghostHTML = `<img src="${trimmed}" class="piece-img${pulseClass}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
+            }
+        }
+        this.initDragGhost(e, ghostHTML);
+        const sq = document.querySelector(`.piece[data-id='${piece.id}']`);
+        if (sq) sq.style.opacity = '0.5';
+    }
 finishDrag(e) {
+        const state = window.game ? window.game.getReader() : null;
+        if (!state) return;
+
         const rect = this.boardEl.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
@@ -2700,16 +2520,15 @@ finishDrag(e) {
         let moveMade = false;
 
         if (dropIdx !== -1) {
-            if (window.game.isEditing) {
+            if (state.mode === 'editor') {
                 let newPiece = { ...this.dragData.piece };
                 let r = Math.floor(dropIdx / 8);
                 if (newPiece.type === 'P' && (r === 0 || r === 7)) newPiece.type = 'Q';
                 
-                window.game.board[dropIdx] = newPiece;
+                window.game.editBoard(dropIdx, newPiece);
                 if (!this.dragData.isSpare && this.dragData.fromIdx !== dropIdx) {
-                    window.game.board[this.dragData.fromIdx] = null;
+                    window.game.editBoard(this.dragData.fromIdx, null);
                 }
-                window.game.syncEngineToBoard();
                 moveMade = true;
             } else {
                 if (!this.dragData.isSpare) {
@@ -2717,45 +2536,29 @@ finishDrag(e) {
                         this.cleanupDrag(true);
                         return;
                     }
-                    if (window.game.turn !== this.dragData.piece.color) {
-                        // 🔥 PREMOVES: 
-                        // Premoves are automatically handled because the engine makeMove override
-                        // you added earlier will catch the Rook coordinate when the premove fires!
-                        if (window.game.isAnalysisMode) {
+                    if (state.turn !== this.dragData.piece.color) {
+                        if (state.mode === 'analysis') {
                             this.cleanupDrag(true);
                             return;
                         }
-
                         const piece = this.dragData.piece;
                         const toRow = Math.floor(dropIdx / 8);
                         let promo = undefined;
-                        
                         if (piece.type.toLowerCase() === 'p') {
                             if ((piece.color === 'w' && toRow === 0) || (piece.color === 'b' && toRow === 7)) {
                                 promo = document.getElementById('autoQueen')?.checked ? 'q' : 'q';
                             }
                         }
-
-                        const moveObj = { 
-                            from: this.dragData.fromIdx, 
-                            to: dropIdx,
-                            color: piece.color, 
-                            piece: piece.type,
-                            promotion: promo
-                        };
-
+                        const moveObj = { from: this.dragData.fromIdx, to: dropIdx, color: piece.color, piece: piece.type, promotion: promo };
                         window.game.addPremove(moveObj);
                         moveMade = true;
                         this.renderBoard(false);
                     } else {
-                        // 🔥 DRAG-TO-CASTLE REDIRECT 🔥
                         let move = this.legalMoves.find(m => m.to === dropIdx);
-                        
                         if (!move) {
                             const castleMove = this.resolveCastlingIntent(this.dragData.fromIdx, dropIdx);
                             if (castleMove) move = castleMove;
                         }
-
                         if (move) {
                             this.executeMove(move, false);
                             moveMade = true;
@@ -2764,17 +2567,16 @@ finishDrag(e) {
                 }
             }
         } else {
-            if (window.game.isEditing && !this.dragData.isSpare) {
-                window.game.board[this.dragData.fromIdx] = null;
-                window.game.syncEngineToBoard();
+            if (state.mode === 'editor' && !this.dragData.isSpare) {
+                window.game.editBoard(this.dragData.fromIdx, null);
                 if (window.sfWorker) window.sfWorker.postMessage('stop');
                 moveMade = true;
             }
         }
 
-        if (window.game.isEditing && moveMade) this.renderBoard(false);
+        if (state.mode === 'editor' && moveMade) this.renderBoard(false);
         this.cleanupDrag(!moveMade);
-        if (window.game.isEditing) this.updateEditorInputs();
+        if (state.mode === 'editor' && typeof this.updateEditorInputs === 'function') this.updateEditorInputs();
     }
 cleanupDrag(keepSelection = false) {
 this.dragData = null;
@@ -2788,22 +2590,22 @@ this.legalMoves = [];
 this.renderBoard(false);
 }
 executeMove(move, animate = true, promoOverride = null) {
-        const piece = window.game.board[move.from];
-        if (!piece) return;
+        const state = window.game ? window.game.getReader() : null;
+        if (!state) return;
 
+        const piece = state.board[move.from];
+        if (!piece) return;
+        
         const isPawn = (piece.type.toLowerCase() === 'p');
         const destRank = Math.floor(move.to / 8);
         const isRank8 = (destRank === 0 || destRank === 7);
-        
         let promoChar = promoOverride;
-
+        
         if (isPawn && isRank8 && !promoChar) {
             const autoQueen = document.getElementById('autoQueen')?.checked;
-            
             if (autoQueen) {
                 promoChar = 'q';
             } else {
-                // PASS move.to SO WE KNOW WHERE TO SHOW THE MENU
                 this.showPromotionModal(piece.color, move.to, (selectedType) => {
                     this.executeMove(move, animate, selectedType);
                 });
@@ -2811,49 +2613,48 @@ executeMove(move, animate = true, promoOverride = null) {
             }
         }
 
-        // Handle Premoves
-        if (window.game.premoveQueue.length > 0) {
-            const next = window.game.premoveQueue[0];
-            if (move.from === next.from && move.to === next.to) window.game.premoveQueue.shift();
-            else window.game.clearPremoves();
+        if (state.premoves.length > 0) {
+            const next = state.premoves[0];
+            if (move.from === next.from && move.to === next.to) {
+                window.game.consumePremove();
+            } else {
+                window.game.clearPremoves();
+            }
         }
 
-        let res = window.game.makeMove(move, promoChar || 'q'); 
-        if (res) window.game.triggerMoveSound(res); 
+        let res = window.game.makeMove(move, promoChar || 'q');
+        if (res && typeof window.game.triggerMoveSound === 'function') window.game.triggerMoveSound(res);
         
         this.selectedSq = null;
         this.legalMoves = [];
-        this.renderBoard(animate, animate); 
+        this.renderBoard(animate, animate);
         this.updateHistory();
         this.updateClocks();
         this.renderArrows();
-        
-        // Hide overlay if it was open
+
         const overlay = document.getElementById('promotion-overlay');
         if(overlay) overlay.style.display = 'none';
     }
 renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
+        const state = window.game ? window.game.getReader() : null;
+        if (!state) return;
+
         const theme = document.getElementById('assetType').value;
         const boardContainer = document.getElementById('chessBoard');
-        
         if (boardContainer) {
             if (theme === 'disguised') boardContainer.classList.add('theme-disguised');
             else boardContainer.classList.remove('theme-disguised');
         }
-
         this.coordsPosition = document.getElementById('coordPosition')?.value || 'inside';
-
-        let moveDuration = 250; 
+        let moveDuration = 250;
         let castleDuration = 400;
 
-        // 🔥 FLUID DYNAMIC SCALING 🔥
         if (animate) {
             const now = performance.now();
             const delta = now - (this.lastAnimTime || 0);
             this.lastAnimTime = now;
-
             if (delta > 0 && delta < 300) {
-                moveDuration = Math.max(20, delta * 0.95); 
+                moveDuration = Math.max(20, delta * 0.95);
                 castleDuration = Math.max(20, delta * 0.95);
             }
         }
@@ -2862,19 +2663,11 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         allPieces.forEach(p => {
             p.classList.remove('animating', 'castling-jump', 'manga-tail');
             p.style.transition = 'none';
-            
-            if (p.dataset.animTimeout) {
-                clearTimeout(Number(p.dataset.animTimeout));
-                delete p.dataset.animTimeout;
-            }
-            if (p.dataset.tailTimeout) {
-                clearTimeout(Number(p.dataset.tailTimeout));
-                delete p.dataset.tailTimeout;
-            }
+            if (p.dataset.animTimeout) { clearTimeout(Number(p.dataset.animTimeout)); delete p.dataset.animTimeout; }
+            if (p.dataset.tailTimeout) { clearTimeout(Number(p.dataset.tailTimeout)); delete p.dataset.tailTimeout; }
             p.style.removeProperty('--tail-length-scale');
             p.style.removeProperty('--move-angle');
-            p.style.removeProperty('--anim-duration'); 
-            
+            p.style.removeProperty('--anim-duration');
             if (p.classList.contains('captured-pending')) p.remove();
         });
 
@@ -2887,18 +2680,16 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         if (extLayer && this.coordsPosition === 'inside') extLayer.innerHTML = '';
 
         let kIdx = -1;
-        let isCheck = false;
-        if (window.game && window.game.engine && !window.game.isEditing) {
-            isCheck = window.game.engine.in_check();
-            if (isCheck) {
-                const turn = window.game.engine.turn(); 
-                for (let i = 0; i < 64; i++) {
-                    const p = window.game.board[i];
-                    if (p && p.type === 'k' && p.color === turn) { kIdx = i; break; }
+        if (state.isCheck && state.mode !== 'editor') {
+            for (let i = 0; i < 64; i++) {
+                const p = state.board[i];
+                if (p && p.type === 'k' && p.color === state.turn) {
+                    kIdx = i; break;
                 }
             }
         }
-        const activeMove = overrideMove || (window.game.currentNode ? window.game.currentNode.lastMove : null);
+
+        const activeMove = overrideMove || state.lastMove;
 
         if (this.squaresLayer.children.length !== 64) {
             this.squaresLayer.innerHTML = '';
@@ -2911,16 +2702,13 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         }
 
         const squares = this.squaresLayer.children;
+        for (let i = 0; i < 64; i++) {
+            let r = Math.floor(i / 8); let c = i % 8;
+            let sq = squares[i];
+            sq.className = `square ${(r + c) % 2 === 0 ? 'light' : 'dark'}`;
+            sq.dataset.index = i;
+            sq.innerHTML = '';
 
-        for (let i = 0; i < 64; i++) { 
-            let r = Math.floor(i / 8); 
-            let c = i % 8; 
-            let sq = squares[i]; 
-            
-            sq.className = `square ${(r + c) % 2 === 0 ? 'light' : 'dark'}`; 
-            sq.dataset.index = i; 
-            sq.innerHTML = ''; 
-            
             if (this.coordsPosition === 'inside') {
                 const rankVal = this.flipped ? (r + 1) : (8 - r);
                 const fileVal = this.flipped ? ['a','b','c','d','e','f','g','h'][7 - c] : ['a','b','c','d','e','f','g','h'][c];
@@ -2928,75 +2716,67 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 if (r === 7) sq.innerHTML += `<span class="coord file">${fileVal}</span>`;
             }
 
-            if (isCheck && i === kIdx) sq.classList.add('in-check');
+            if (state.isCheck && i === kIdx) sq.classList.add('in-check');
             
-            if (!window.game.isEditing && this.selectedSq != null && this.selectedSq == i) {
+            if (state.mode !== 'editor' && this.selectedSq != null && this.selectedSq == i) {
                 sq.classList.add('selected');
-                const p = window.game.board[i];
+                const p = state.board[i];
                 if (p) sq.classList.add(p.color === 'w' ? 'selected-w' : 'selected-b');
             }
 
             if (activeMove && (activeMove.from === i || activeMove.to === i)) {
                 sq.classList.add('last-move');
                 let moveColor = activeMove.color;
-                if (!moveColor && window.game.board[activeMove.to]) moveColor = window.game.board[activeMove.to].color;
-                else if (!moveColor && window.game.engine) moveColor = window.game.engine.turn() === 'w' ? 'b' : 'w';
+                if (!moveColor && state.board[activeMove.to]) moveColor = state.board[activeMove.to].color;
+                else if (!moveColor) moveColor = state.turn === 'w' ? 'b' : 'w';
                 
                 if (moveColor === 'w') sq.classList.add('highlight-w');
                 else if (moveColor === 'b') sq.classList.add('highlight-b');
             }
 
-            if (window.game.premoveQueue && window.game.premoveQueue.length > 0) {
-                window.game.premoveQueue.forEach(pm => {
+            if (state.premoves.length > 0) {
+                state.premoves.forEach(pm => {
                     if (i === pm.from) sq.classList.add('premove-source');
                     if (i === pm.to) sq.classList.add('premove-dest');
                 });
             }
 
-            sq.onmousedown = null; 
+            sq.onmousedown = null;
 
             if (this.selectedSq != null) {
                 let move = this.legalMoves.find(m => m.to === i);
-                
                 if (!move && typeof this.resolveCastlingIntent === 'function') {
                     const castleMove = this.resolveCastlingIntent(this.selectedSq, i);
                     if (castleMove) move = castleMove;
                 }
-
                 if (move) {
                     sq.classList.add('valid-move');
                     let hint = document.createElement('div');
-                    hint.className = window.game.board[i] ? 'hint-capture' : 'hint-dot';
+                    hint.className = state.board[i] ? 'hint-capture' : 'hint-dot';
                     sq.appendChild(hint);
-                    
                     sq.onmousedown = (e) => {
                         if (e.button !== 0) return;
                         if (this.moveInputMode === 'drag') return;
                         e.stopPropagation();
-                        this.executeMove(move, true); 
+                        this.executeMove(move, true);
                     }
                 }
             }
-            
-            if (window.game.isEditing) {
-                animate = false;
-                showMangaTail = false;
+
+            if (state.mode === 'editor') {
+                animate = false; showMangaTail = false;
                 sq.onmousedown = (e) => {
                     e.preventDefault(); e.stopPropagation();
                     if (this.editorTool === 'trash') {
-                        if (window.game.board[i]) {
-                            window.game.board[i] = null;
+                        if (state.board[i]) {
+                            window.game.editBoard(i, null);
                             this.renderBoard(false);
                         }
                     } else if (this.editorTool && this.editorTool !== 'cursor') {
                         const color = this.editorTool.charAt(0);
                         const type = this.editorTool.charAt(1).toLowerCase();
-                        window.game.board[i] = { color: color, type: type };
+                        window.game.editBoard(i, { color: color, type: type });
                         this.renderBoard(false);
-                    }
-                    if (window.game.generateFEN) { 
-                        const f = window.game.generateFEN(); 
-                        if (window.game.currentNode) window.game.currentNode.fen = f; 
                     }
                 };
             }
@@ -3005,19 +2785,21 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         if (this.coordsPosition === 'outside') this.renderExternalCoords();
 
         const piecesMap = new Map();
-        for (let i = 0; i < 64; i++) { 
-            if (window.game.board[i]) { 
-                if (!window.game.board[i].id) window.game.board[i].id = window.game.getUID(); 
-                piecesMap.set(window.game.board[i].id, { ...window.game.board[i], idx: i }); 
-            } 
-        } 
+        for (let i = 0; i < 64; i++) {
+            if (state.board[i]) {
+                piecesMap.set(state.board[i].id, { ...state.board[i], idx: i });
+            }
+        }
 
         Array.from(this.piecesLayer.children).forEach(el => {
             const oldId = el.dataset.id;
             if (piecesMap.has(oldId)) return;
+
             const match = Array.from(piecesMap.values()).find(p => p.color === (el.classList.contains('piece-w') ? 'w' : 'b') && !this.piecesLayer.querySelector(`[data-id="${p.id}"]`));
-            if (match) { el.dataset.id = match.id; return; }
-            
+            if (match) {
+                el.dataset.id = match.id; return;
+            }
+
             if (animate) {
                 el.classList.add('captured-pending');
                 setTimeout(() => el.remove(), moveDuration < 100 ? 0 : 200);
@@ -3032,23 +2814,21 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             const colorClass = p.color === 'w' ? 'piece-w' : 'piece-b';
             const rawSVG = this.getPieceHTML(p);
             let htmlBuffer = rawSVG;
-            
+
             if (rawSVG) {
                 const trimmed = rawSVG.trim();
                 if (trimmed.startsWith('<svg')) {
-                     const encodedSVG = encodeURIComponent(trimmed);
-                     htmlBuffer = `<img src="data:image/svg+xml;charset=utf-8,${encodedSVG}" class="piece-img" style="width:100%; height:100%; display:block; pointer-events:none;">`;
+                    const encodedSVG = encodeURIComponent(trimmed);
+                    htmlBuffer = `<img src="data:image/svg+xml;charset=utf-8,${encodedSVG}" class="piece-img" style="width:100%; height:100%; display:block; pointer-events:none;">`;
                 } else if (trimmed.startsWith('data:image/') || trimmed.startsWith('http') || trimmed.endsWith('.svg') || trimmed.endsWith('.png')) {
-                     htmlBuffer = `<img src="${trimmed}" class="piece-img" style="width:100%; height:100%; display:block; pointer-events:none;">`;
+                    htmlBuffer = `<img src="${trimmed}" class="piece-img" style="width:100%; height:100%; display:block; pointer-events:none;">`;
                 }
             }
 
-            let nagValue = p.nag || null;
-            if (!nagValue && window.game.currentNode && window.game.currentNode.lastMove && window.game.currentNode.lastMove.to === p.idx) { nagValue = window.game.currentNode.nag; }
-            if (nagValue) {
-                const info = this.getNagInfo(nagValue);
-                if (info && !window.game.currentNode.isBook) {
-                    htmlBuffer += `<div class="nag-indicator ${info.cls}" style="background-color:${info.color}; border-color:${info.borderColor};">${info.symbol}</div>`; 
+            if (activeMove && p.idx === activeMove.to && window.game && window.game.currentNode && window.game.currentNode.nag) {
+                const info = this.getNagInfo(window.game.currentNode.nag);
+                if (info && ['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy', 'excellent', 'great', 'miss'].includes(info.type)) {
+                    htmlBuffer += `<div class="nag-indicator" style="position:absolute; top:-5px; right:-5px; width:22px; height:22px; background-color:${info.color}; border:2px solid ${info.borderColor}; border-radius:50%; color:#fff; font-weight:bold; font-size:13px; display:flex; justify-content:center; align-items:center; z-index:10; box-shadow:0 2px 4px rgba(0,0,0,0.4); font-family:sans-serif; pointer-events:none;">${info.symbol}</div>`;
                 }
             }
 
@@ -3061,51 +2841,39 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 this.piecesLayer.appendChild(el);
                 isNew = true;
             } else {
-                if (!el.classList.contains(colorClass)) { el.classList.remove('piece-w', 'piece-b'); el.classList.add(colorClass); }
+                if (!el.classList.contains(colorClass)) {
+                    el.classList.remove('piece-w', 'piece-b');
+                    el.classList.add(colorClass);
+                }
                 if (el.innerHTML !== htmlBuffer) el.innerHTML = htmlBuffer;
                 el.onmousedown = (e) => { if (e.button === 0) this.startDrag(e, p.idx, p); };
             }
-            
+
             el.style.opacity = '1';
-            let r = Math.floor(p.idx / 8);
-            let c = p.idx % 8;
+            let r = Math.floor(p.idx / 8); let c = p.idx % 8;
             if (this.flipped) { r = 7 - r; c = 7 - c; }
             const targetTransform = `translate(${c * 100}%, ${r * 100}%)`;
-            el.style.width = '12.5%';
-            el.style.height = '12.5%';
+            el.style.width = '12.5%'; el.style.height = '12.5%';
+
             const currentTransform = el.style.transform;
             const positionChanged = (currentTransform && currentTransform !== targetTransform);
-            const targetMove = overrideMove || window.game.currentNode.lastMove;
-            
-            // =========================================================
-            // 🔥 ULTIMATE 960 CASTLING & DIRECTIONAL SYNC 🔥
-            // =========================================================
+            const targetMove = activeMove;
+
             let isCastleRook = false;
             let isCastlingMove = false;
 
             if (targetMove && targetMove.flags && (targetMove.flags.includes('k') || targetMove.flags.includes('q'))) {
                 const isKingside = targetMove.flags.includes('k');
                 const turn = targetMove.color || p.color;
-
                 if (p.color === turn) {
                     const kTarget = turn === 'w' ? (isKingside ? 62 : 58) : (isKingside ? 6 : 2);
                     const rTarget = turn === 'w' ? (isKingside ? 61 : 59) : (isKingside ? 5 : 3);
-
-                    // 1. Detect if we are moving FORWARD or BACKWARD by looking at where the King landed
-                    const boardKing = window.game.board[kTarget];
+                    
+                    const boardKing = state.board[kTarget];
                     const isForward = (boardKing && boardKing.type.toLowerCase() === 'k' && boardKing.color === turn);
-
-                    // 2. Fetch the true starting configuration
-                    let setupFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-                    if (window.game && window.game.currentNode) {
-                        setupFen = isForward ? (window.game.currentNode.parent ? window.game.currentNode.parent.fen : window.game.currentNode.fen) : window.game.currentNode.fen;
-                    }
-
-                    // 3. Scan the FEN to find the exact starting files
-                    let rankStr = turn === 'w' ? setupFen.split(' ')[0].split('/')[7] : setupFen.split(' ')[0].split('/')[0];
-                    let rFiles = [];
-                    let kFile = 4; 
-                    let currC = 0;
+                    
+                    let rFiles = []; let kFile = 4; let currC = 0;
+                    let rankStr = turn === 'w' ? INITIAL_FEN.split(' ')[0].split('/')[7] : INITIAL_FEN.split(' ')[0].split('/')[0];
                     for (let char of rankStr) {
                         if (/\d/.test(char)) currC += parseInt(char);
                         else {
@@ -3114,138 +2882,79 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                             currC++;
                         }
                     }
-                    
                     let rFile = isKingside ? Math.max(...rFiles) : Math.min(...rFiles);
                     if (rFile === -Infinity || rFile === Infinity) rFile = isKingside ? 7 : 0;
-
                     const kStart = turn === 'w' ? 56 + kFile : kFile;
                     const rStart = turn === 'w' ? 56 + rFile : rFile;
 
-                    // 4. Assign the appropriate coordinate to animate FROM
                     if (p.type.toLowerCase() === 'k') {
-                        if (isForward && p.idx === kTarget) {
-                            isCastlingMove = true;
-                            p._castleStartIdx = kStart;
-                        } else if (!isForward && p.idx === kStart) {
-                            isCastlingMove = true;
-                            p._castleStartIdx = kTarget;
-                        }
+                        if (isForward && p.idx === kTarget) { isCastlingMove = true; p._castleStartIdx = kStart; }
+                        else if (!isForward && p.idx === kStart) { isCastlingMove = true; p._castleStartIdx = kTarget; }
                     } else if (p.type.toLowerCase() === 'r') {
-                        if (isForward && p.idx === rTarget) {
-                            isCastlingMove = true;
-                            isCastleRook = true;
-                            p._castleStartIdx = rStart;
-                        } else if (!isForward && p.idx === rStart) {
-                            isCastlingMove = true;
-                            isCastleRook = true;
-                            p._castleStartIdx = rTarget;
-                        }
+                        if (isForward && p.idx === rTarget) { isCastlingMove = true; isCastleRook = true; p._castleStartIdx = rStart; }
+                        else if (!isForward && p.idx === rStart) { isCastlingMove = true; isCastleRook = true; p._castleStartIdx = rTarget; }
                     }
                 }
             }
 
-            // 🔥 THE FIX: We bypass 'positionChanged' and '!isNew' if the piece is the active mover!
             let isMovedPiece = !!(targetMove && p.idx === targetMove.to);
             let forceAnimate = isMovedPiece || isCastlingMove;
 
             if (animate && (positionChanged || forceAnimate) && (!isNew || forceAnimate)) {
                 
-                // 🛠️ HELPER: Converts strings like "b6" into numbers so the % 8 math doesn't result in NaN!
-                const getSafeIndex = (val) => typeof val === 'string' ? window.game.squareToIndex(val) : val;
-
-                if (forceAnimate) {
-                    let finalDuration = isCastlingMove ? castleDuration : moveDuration;
-
-                    if (isCastlingMove) { 
-                        let startC = p._castleStartIdx % 8; 
-                        let startR = Math.floor(p._castleStartIdx / 8);
-                        if (this.flipped) { startC = 7 - startC; startR = 7 - startR; }
-                        el.style.transition = 'none';
-                        el.style.transform = `translate(${startC * 100}%, ${startR * 100}%)`;
-                    } else if (isMovedPiece) {
-                        const originIdx = getSafeIndex(targetMove.from); // 🛠️ Patched
-                        let startC = originIdx % 8;
-                        let startR = Math.floor(originIdx / 8);
-                        if (this.flipped) { startC = 7 - startC; startR = 7 - startR; }
-                        el.style.transition = 'none';
-                        el.style.transform = `translate(${startC * 100}%, ${startR * 100}%)`;
+                const getSafeIndex = (val) => {
+                    if (typeof val === 'number') return val;
+                    if (typeof val === 'string' && val.length === 2) {
+                        let f = val.charCodeAt(0) - 97;
+                        let r = 8 - parseInt(val[1], 10);
+                        return r * 8 + f;
                     }
+                    return val;
+                };
+                
+                const fromGridSq = isCastlingMove ? p._castleStartIdx : (isMovedPiece ? getSafeIndex(targetMove.from) : p.idx);
+                
+                let startR = Math.floor(fromGridSq / 8); let startC = fromGridSq % 8;
+                if (this.flipped) { startR = 7 - startR; startC = 7 - startC; }
+                const startTransform = `translate(${startC * 100}%, ${startR * 100}%)`;
 
-                    el.classList.remove('animating', 'castling-jump', 'manga-tail');
-                    if (el.dataset.animTimeout) clearTimeout(Number(el.dataset.animTimeout));
-                    
-                    // Force the browser to register the starting square before transitioning
-                    void el.offsetWidth;
-                    
-                    el.classList.add('animating');
+                el.style.transition = 'none';
+                el.style.transform = startTransform;
+                el.getBoundingClientRect(); 
 
-                    if (isCastlingMove) {
-                        el.classList.add('castling-jump');
-                        el.style.transition = `transform ${finalDuration}ms cubic-bezier(0.2, 0.8, 0.2, 1)`; 
-                        setTimeout(() => { if(el) el.classList.remove('castling-jump'); }, finalDuration);
-                    } else {
-                        el.style.transition = `transform ${finalDuration}ms`;
-                    }
+                el.style.transition = `transform ${isCastlingMove ? castleDuration : moveDuration}ms ${isCastleRook ? 'ease-in-out' : 'ease-out'}`;
+                el.style.transform = targetTransform;
+                el.classList.add('animating');
+                if (isCastlingMove) el.classList.add('castling-jump');
 
-                    if (showMangaTail && ((isMovedPiece && !isCastlingMove) || (isCastlingMove && !isCastleRook))) {
-                        if (el.dataset.tailTimeout) clearTimeout(Number(el.dataset.tailTimeout));
-                        
-                        let fromC, fromR, toC, toR;
-                        if (isCastlingMove) {
-                            fromC = p._castleStartIdx % 8;
-                            fromR = Math.floor(p._castleStartIdx / 8);
-                            toC = p.idx % 8;
-                            toR = Math.floor(p.idx / 8);
-                        } else {
-                            // 🛠️ Patched to prevent manga tails from shooting off into NaN space
-                            const safeFrom = getSafeIndex(targetMove.from);
-                            const safeTo = getSafeIndex(targetMove.to);
-                            fromC = safeFrom % 8;
-                            fromR = Math.floor(safeFrom / 8);
-                            toC = safeTo % 8;
-                            toR = Math.floor(safeTo / 8);
-                        }
-
-                        let dx = toC - fromC; let dy = toR - fromR;
-                        if (this.flipped) { dx = -dx; dy = -dy; }
-                        const distance = Math.sqrt(dx*dx + dy*dy);
-                        const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-                        
-                        el.style.setProperty('--move-angle', `${angle}deg`);
-                        const tailScale = 1 + (distance * 2);
-                        el.style.setProperty('--tail-length-scale', tailScale);
-                        el.style.setProperty('--anim-duration', `${finalDuration}ms`);
+                if (showMangaTail && isMovedPiece && !isCastlingMove && targetMove) {
+                    const dx = (c - startC); const dy = (r - startR);
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist > 0.5) {
+                        el.style.setProperty('--tail-length-scale', dist);
+                        el.style.setProperty('--move-angle', `${Math.atan2(dy, dx)}rad`);
+                        el.style.setProperty('--anim-duration', `${moveDuration}ms`);
                         el.classList.add('manga-tail');
-                        const tailId = setTimeout(() => {
-                            if(el) {
-                                el.classList.remove('manga-tail');
-                                el.style.removeProperty('--tail-length-scale');
-                                el.style.removeProperty('--move-angle');
-                                delete el.dataset.tailTimeout;
-                            }
-                        }, finalDuration);
-                        el.dataset.tailTimeout = tailId;
+                        el.dataset.tailTimeout = setTimeout(() => {
+                            el.classList.remove('manga-tail');
+                            el.style.removeProperty('--tail-length-scale');
+                            el.style.removeProperty('--move-angle');
+                            el.style.removeProperty('--anim-duration');
+                        }, moveDuration + 50);
                     }
-                    
-                    el.style.transform = targetTransform;
-                    const tId = setTimeout(() => {
-                        if(el) {
-                            el.classList.remove('animating', 'castling-jump');
-                            el.style.transition = ''; 
-                            delete el.dataset.animTimeout;
-                        }
-                    }, finalDuration);
-                    el.dataset.animTimeout = tId;
-                } else {
-                    el.style.transform = targetTransform;
                 }
+                
+                el.dataset.animTimeout = setTimeout(() => {
+                    el.classList.remove('animating', 'castling-jump');
+                    el.style.transition = 'none';
+                }, isCastlingMove ? castleDuration + 50 : moveDuration + 50);
+
             } else {
-                el.classList.remove('animating', 'manga-tail', 'castling-jump');
                 el.style.transition = 'none';
                 el.style.transform = targetTransform;
             }
         });
-
+    
         this.renderArrows();
         if(document.getElementById('fenDisplay')) document.getElementById('fenDisplay').innerText = window.game.currentNode.fen;
         const resignBtn = document.getElementById('resignBtn');
@@ -3488,7 +3197,7 @@ updateHistory(force = false) {
             } catch (err) {
                 console.error("History Render Error:", err);
             } finally {
-                // 🔥 THE FIX: ALWAYS unlock the cache, even if an error crashes the render!
+                //  ALWAYS unlock the cache, even if an error crashes the render!
                 this.isHistoryUpdatePending = false;
             }
         });
@@ -3510,7 +3219,7 @@ renderHistoryImmediate() {
         }
 
         // =========================================================
-        // 🔥 THE CPU BYPASS: SMART DOM CACHING 🔥
+        //  THE CPU BYPASS: SMART DOM CACHING 
         // =========================================================
         let currentTreeSize = 0;
         if (window.game && window.game.rootNode) {
@@ -3651,7 +3360,7 @@ getNagInfo(nag) {
         if (!nag) return null;
         let nags = nag.toString().split(',').map(n => n.trim().replace('$', ''));
         
-        // 🔥 THE FIX: Increase limit from 6 to 9 to catch new Chess.com annotations
+        //  Increase limit from 6 to 9 to catch new Chess.com annotations
         let v = nags.find(n => parseInt(n) >= 1 && parseInt(n) <= 9) || nags[0]; 
         
         let info = { symbol:'', cls:'nag-pos', color:'#888888', borderColor:'#aaaaaa', type:'' };
@@ -3737,7 +3446,7 @@ getEvalData(node) {
                 let isMateForWhite = activeScore > 0;
                 let moves = 100000 - Math.abs(activeScore); 
                 
-                // 🔥 THE FIX: Change Math.max(1, moves) to Math.max(0, moves) so M0 renders properly!
+                //  Change Math.max(1, moves) to Math.max(0, moves) so M0 renders properly!
                 text = (isMateForWhite ? "M" : "-M") + Math.max(0, moves);
                 className += (isMateForWhite ? " positive" : " negative");
             } else {
@@ -3778,17 +3487,47 @@ getTreeSize(node) {
         }
         return count;
     }
+refreshLiveDot(node) {
+        if (!node || !node.id) return;
+        
+        // Find every visual instance of this move in the PGN box
+        const elements = document.querySelectorAll(`[data-id="${node.id}"]`);
+        
+        elements.forEach(el => {
+            // Erase the old dot if it exists
+            const oldDot = el.querySelector('.annotation-dot');
+            if (oldDot) oldDot.remove();
+            
+            // Calculate and generate the new dot
+            const dotColor = this.getAnnotationDotColor(node);
+            if (dotColor) {
+                let dot = document.createElement('span');
+                dot.className = 'annotation-dot';
+                dot.style.cssText = `display:inline-block; width:6px; height:6px; background-color:${dotColor}; border-radius:50%; margin-left:4px; box-shadow:0 0 5px ${dotColor};`;
+                
+                // Find the correct inner container (handles createPlyDiv's structure)
+                const targetContainer = el.querySelector('.main-wrap') || el;
+                
+                // Insert the dot seamlessly before the eval score
+                const evalSpan = targetContainer.querySelector('span[class*="eval-"]');
+                if (evalSpan) targetContainer.insertBefore(dot, evalSpan);
+                else targetContainer.appendChild(dot);
+            }
+        });
+    }
 createMoveSpanSafe(node) {
-        let span = document.createElement('span');
-        span.className = `move-ply ${node === window.game.currentNode ? 'active' : ''}`;
         if (!node.id) node.id = 'n_' + Math.random().toString(36).substr(2, 9);
+        const state = window.game ? window.game.getReader() : null;
+        const isActive = (window.game && window.game.currentNode === node) || (state && state.activeNodeId && node.id === state.activeNodeId);
+
+        let span = document.createElement('span');
+        span.className = `move-ply ${isActive ? 'active' : ''}`;
         span.dataset.id = node.id;
         span.style.cssText = "display:inline-flex; align-items:center; vertical-align:middle; cursor:pointer;";
         
         const moveColorStr = node.fen.split(' ')[1] === 'w' ? 'b' : 'w';
         span.dataset.color = moveColorStr;
 
-        // 🔥 MULTIPLE NAG SUPPORT
         let nags = node.nag ? node.nag.toString().split(',') : [];
         let primaryInfo = null;
         let symbols = [];
@@ -3797,36 +3536,25 @@ createMoveSpanSafe(node) {
             const info = this.getNagInfo(n.trim());
             if (info) {
                 symbols.push(info);
-                // Assign move color based on Blunder/Mistake, ignoring the +- symbol color
-                if (['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy'].includes(info.type)) {
-                    primaryInfo = info;
-                }
+                if (['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy', 'excellent', 'great', 'miss'].includes(info.type)) primaryInfo = info;
             }
         });
 
         const moveColor = primaryInfo ? primaryInfo.color : 'var(--text-main)';
         if (primaryInfo && primaryInfo.type) span.dataset.nag = primaryInfo.type;
 
-        // 1. Move Text
         let txt = document.createElement('span');
         txt.innerText = node.moveSan;
-        if (primaryInfo) {
-            txt.style.color = moveColor;
-            txt.style.fontWeight = '700';
-        }
+        if (primaryInfo) { txt.style.color = moveColor; txt.style.fontWeight = '700'; }
         span.appendChild(txt);
 
-        // 2. ALL NAG Symbols Combined! (e.g. "!!" and "+-")
         symbols.forEach(info => {
             let nSpan = document.createElement('span');
-            nSpan.innerText = info.symbol;
-            nSpan.style.color = info.color;
-            nSpan.style.fontWeight = 'bold';
-            nSpan.style.marginLeft = '2px';
+            nSpan.innerText = info.symbol; nSpan.style.color = info.color;
+            nSpan.style.fontWeight = 'bold'; nSpan.style.marginLeft = '2px';
             span.appendChild(nSpan);
         });
 
-        // 3. Book Icon
         if (node.isBook) {
             let icon = document.createElement('span');
             icon.className = 'eval-icon';
@@ -3839,50 +3567,40 @@ createMoveSpanSafe(node) {
             span.appendChild(icon);
         }
 
-        // 4. Dot (Annotations)
-        if ((node.arrows && node.arrows.length > 0) || (node.circles && node.circles.length > 0)) {
+        const dotColor = this.getAnnotationDotColor(node);
+        if (dotColor) {
             let dot = document.createElement('span');
-            dot.style.cssText = "display:inline-block; width:6px; height:6px; background-color:#00b023; border-radius:50%; margin-left:4px; box-shadow:0 0 5px #00b023;";
+            dot.className = 'annotation-dot'; // 🔥 ADDED CLASS
+            dot.style.cssText = `display:inline-block; width:6px; height:6px; background-color:${dotColor}; border-radius:50%; margin-left:4px; box-shadow:0 0 5px ${dotColor};`;
             span.appendChild(dot);
         }
 
-        // 5. EVAL
         const evalData = this.getEvalData(node);
         if (evalData) {
             let ev = document.createElement('span');
             ev.className = evalData.className;
-            ev.innerText = evalData.text;
-            ev.style.marginLeft = "4px";
+            ev.innerText = evalData.text; ev.style.marginLeft = "4px";
             span.appendChild(ev);
         }
 
-        let captured = node;
+        const targetNodeId = node.id;
+        let capturedRef = node; 
 
         span.onmousedown = (e) => {
             if (e.button !== 0) return;
-            e.preventDefault(); 
-            e.stopPropagation();
+            e.preventDefault(); e.stopPropagation();
 
-            window.game.currentNode = captured;
-            window.game.loadFEN(captured.fen);
-            window.game.syncMoveHistory();
-            window.ui.renderBoard(false);
-            window.ui.updateHistory(); 
-            window.ui.renderArrows();
-            
-            if (window.ui.updateClocks) window.ui.updateClocks();
-            if (window.game.updateStockfish && !window.game.isPlayingLiveGame) {
-                window.game.updateStockfish();
+            if (window.game.goToNodeId(targetNodeId)) {
+                const freshState = window.game.getReader();
+                window.ui.renderBoard(false);
+                window.ui.updateHistory(); 
+                window.ui.renderArrows();
+                if (window.ui.updateClocks) window.ui.updateClocks();
+                if (freshState.mode !== 'play' && window.game.updateStockfish) window.game.updateStockfish();
             }
         };
 
-        // 2. Handle Annotation Menu (Right Click Only)
-        span.oncontextmenu = (e) => {
-            e.preventDefault();  // Stop default browser menu
-            e.stopPropagation(); // Stop the event from reaching parent containers
-            this.showAnnotationPopup(e, captured);
-        };
-
+        span.oncontextmenu = (e) => { e.preventDefault(); e.stopPropagation(); this.showAnnotationPopup(e, capturedRef); };
         return span;
     }
 renderTreeRecursive(node, container, moveNum) {
@@ -3895,7 +3613,6 @@ renderTreeRecursive(node, container, moveNum) {
         let isWhite = (ply % 2 !== 0);
         let row;
 
-        // --- Row Generation ---
         if (isWhite) {
             row = document.createElement('div');
             row.className ='move-row';
@@ -3919,7 +3636,6 @@ renderTreeRecursive(node, container, moveNum) {
             row.appendChild(this.createMoveSpanSafe(mainChild));
         }
 
-        // --- BRANCH VIEW: ANNOTATIONS TOGGLE (COMMENTS + VARIATIONS) ---
         let cleanComment = mainChild.comment ? mainChild.comment.replace(/\[%(cal|csl|clk|emt)[^\]]+\]/g,"").trim() : "";
         let hasComment = cleanComment.length > 0;
         let hasVariations = node.children.length > 1;
@@ -3939,7 +3655,6 @@ renderTreeRecursive(node, container, moveNum) {
 
             toggleBtn.onclick = (e) => {
                 e.stopPropagation();
-                // Save state to the node so it survives redraws!
                 mainChild.isCollapsed = !mainChild.isCollapsed;
                 const hidden = mainChild.isCollapsed;
                 
@@ -3952,19 +3667,17 @@ renderTreeRecursive(node, container, moveNum) {
             container.appendChild(toggleBtn);
             container.appendChild(annContainer);
 
-            // 1. Insert Comment
             if (hasComment) {
                 let commentDiv = document.createElement('div');
                 commentDiv.className ='full-width-item';
                 let commentSpan = document.createElement('span');
                 commentSpan.className ='inline-comment';
-                commentSpan.dataset.nodeId = mainChild.id; // 🔥 INJECT ID
+                commentSpan.dataset.nodeId = mainChild.id;
                 commentSpan.innerText = cleanComment;
                 commentDiv.appendChild(commentSpan);
                 annContainer.appendChild(commentDiv);
             }
 
-            // 2. Insert Variations
             if (hasVariations) {
                 node.children.forEach((child, i) => {
                     if (i !== activeIdx) {
@@ -3981,13 +3694,420 @@ renderTreeRecursive(node, container, moveNum) {
                 });
             }
         }
-
-        // --- Continue Main Line ---
         this.renderTreeRecursive(mainChild, container, moveNum + 1);
+    }
+renderTreeVertical(node, container) {
+        if (!node.children.length) return;
+
+        let line = document.createElement('div');
+        line.className = 'tree-line';
+        container.appendChild(line);
+
+        let curr = node.children[node.selectedChildIndex];
+        let isFirstInLine = true;
+        const state = window.game ? window.game.getReader() : null;
+
+        while (curr) {
+            let ply = this.getPly(curr);
+            let mNum = Math.ceil(ply / 2);
+            let moveText = "";
+
+            if (ply % 2 !== 0) moveText = `${mNum}.`;
+            else if (isFirstInLine) moveText = `${mNum}...`;
+
+            if (moveText) {
+                let idxSpan = document.createElement('span');
+                idxSpan.className = 'tree-index'; idxSpan.innerText = moveText;
+                line.appendChild(idxSpan);
+            }
+
+            let moveSpan = document.createElement('span');
+            if (!curr.id) curr.id = 'n_' + Math.random().toString(36).substr(2, 9);
+            const isActive = (window.game && window.game.currentNode === curr) || (state && state.activeNodeId && curr.id === state.activeNodeId);
+            
+            moveSpan.className = `tree-move ${isActive ? 'active' : ''}`;
+            moveSpan.dataset.id = curr.id;
+
+            if (curr.nag) {
+                let nags = curr.nag.toString().split(',');
+                let primaryInfo = null; let symbols = [];
+
+                nags.forEach(n => {
+                    const info = this.getNagInfo(n.trim());
+                    if (info) {
+                        symbols.push(info);
+                        if (['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy', 'excellent', 'great', 'miss'].includes(info.type)) primaryInfo = info;
+                    }
+                });
+
+                if (primaryInfo) { moveSpan.classList.add(`nag-${primaryInfo.type}`); moveSpan.style.color = primaryInfo.color; }
+                moveSpan.innerText = curr.moveSan; 
+                symbols.forEach(info => {
+                    let nagSpan = document.createElement('span');
+                    nagSpan.className = 'nag-glyph'; nagSpan.innerText = info.symbol;
+                    nagSpan.style.color = info.color; nagSpan.style.marginLeft = "2px"; nagSpan.style.fontWeight = "bold";
+                    moveSpan.appendChild(nagSpan);
+                });
+            } else moveSpan.innerText = curr.moveSan;
+
+            if (curr.isBook) {
+                const bookIcon = document.createElement('span');
+                bookIcon.className = 'tree-book-icon';
+                bookIcon.innerHTML = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG : '📖';
+                let bookColor = curr.nag ? (this.getNagInfo(curr.nag)?.color || '#A87C53') : '#A87C53';
+                bookIcon.style.cssText = `display:inline-flex; align-items:center; justify-content:center; width:1em; height:1em; margin-left:4px; vertical-align:middle; color:${bookColor};`;
+                let svg = bookIcon.querySelector('svg');
+                if (svg) { svg.style.fill = 'currentColor'; svg.style.width = '100%'; svg.style.height = '100%'; }
+                moveSpan.appendChild(bookIcon);
+            }
+
+            const dotColor = this.getAnnotationDotColor(curr);
+            if (dotColor) {
+                let dot = document.createElement('span');
+                dot.className = 'annotation-dot'; // 🔥 ADDED CLASS
+                dot.style.cssText = `display:inline-block; width:6px; height:6px; background-color:${dotColor}; border-radius:50%; margin-left:4px; box-shadow:0 0 5px ${dotColor};`;
+                moveSpan.appendChild(dot);
+            }
+
+            const evalData = this.getEvalData(curr);
+            if (evalData) {
+                let evalSpan = document.createElement('span');
+                evalSpan.className = evalData.className; evalSpan.innerText = evalData.text;
+                moveSpan.appendChild(evalSpan);
+            }
+
+            const targetNodeId = curr.id;
+            let capturedRef = curr; 
+
+            moveSpan.onmousedown = (e) => {
+                if (e.button !== 0) return;
+                e.preventDefault(); e.stopPropagation();
+                if (window.game.goToNodeId(targetNodeId)) {
+                    const freshState = window.game.getReader();
+                    window.ui.renderBoard(false); 
+                    window.ui.updateHistory(); 
+                    window.ui.renderArrows();
+                    if (freshState.mode !== 'play' && window.game.updateStockfish) window.game.updateStockfish();
+                }
+            };
+            moveSpan.oncontextmenu = (e) => { e.preventDefault(); this.showAnnotationPopup(e, capturedRef); };
+
+            line.appendChild(moveSpan);
+            isFirstInLine = false;
+
+            let cleanComment = curr.comment ? curr.comment.replace(/\[%(cal|csl|clk|emt)[^\]]+\]/g, "").trim() : "";
+            let hasComment = cleanComment.length > 0;
+            let siblings = curr.parent.children;
+            let hasVariations = siblings.length > 1;
+
+            if (hasComment || hasVariations) {
+                let isHidden = curr.isCollapsed === true;
+
+                let toggleBtn = document.createElement('span');
+                toggleBtn.innerHTML = isHidden ? " ▶ " : " ▼ ";
+                toggleBtn.style.cssText = "cursor:pointer; color:#888; font-size:10px; margin-left:6px; user-select:none;";
+                
+                let annContainer = document.createElement('div');
+                annContainer.className = 'nested-variation';
+                annContainer.style.display = isHidden ? 'none' : 'block';
+                
+                toggleBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    capturedRef.isCollapsed = !capturedRef.isCollapsed;
+                    const hidden = capturedRef.isCollapsed;
+                    annContainer.style.display = hidden ? 'none' : 'block';
+                    toggleBtn.innerHTML = hidden ? " ▶ " : " ▼ ";
+                };
+                
+                line.appendChild(toggleBtn);
+
+                if (hasComment) {
+                    let cSpan = document.createElement('span');
+                    cSpan.className = 'tree-comment';
+                    cSpan.dataset.nodeId = curr.id;
+                    cSpan.style.display = 'block'; cSpan.style.marginTop = '2px';
+                    cSpan.innerText = `// ${cleanComment}`;
+                    annContainer.appendChild(cSpan);
+                }
+
+                if (hasVariations) {
+                    siblings.forEach((sibling) => {
+                        if (sibling !== curr) this.renderTreeVerticalRecursiveSingle(sibling, annContainer);
+                    });
+                }
+
+                container.appendChild(annContainer);
+                line = document.createElement('div');
+                line.className = 'tree-line';
+                container.appendChild(line);
+                isFirstInLine = true;
+            }
+
+            if (curr.children.length > 0) curr = curr.children[curr.selectedChildIndex];
+            else curr = null;
+        }
+    }
+renderTreeVerticalRecursiveSingle(node, container) {
+        let line = document.createElement('div');
+        line.className = 'tree-line';
+        container.appendChild(line);
+
+        let curr = node;
+        let isFirstInLine = true;
+        const state = window.game ? window.game.getReader() : null;
+
+        while (curr) {
+            let ply = this.getPly(curr);
+            let mNum = Math.ceil(ply / 2);
+            let moveText = "";
+
+            if (ply % 2 !== 0) moveText = `${mNum}.`;
+            else if (isFirstInLine) moveText = `${mNum}...`;
+
+            if (moveText) {
+                let idxSpan = document.createElement('span');
+                idxSpan.className = 'tree-index'; idxSpan.innerText = moveText;
+                line.appendChild(idxSpan);
+            }
+
+            let moveSpan = document.createElement('span');
+            if (!curr.id) curr.id = 'n_' + Math.random().toString(36).substr(2, 9);
+            const isActive = (window.game && window.game.currentNode === curr) || (state && state.activeNodeId && curr.id === state.activeNodeId);
+            
+            moveSpan.className = `tree-move ${isActive ? 'active' : ''}`;
+            moveSpan.dataset.id = curr.id;
+            
+            if (curr.nag) {
+                let nags = curr.nag.toString().split(',');
+                let primaryInfo = null; let symbols = [];
+
+                nags.forEach(n => {
+                    const info = this.getNagInfo(n.trim());
+                    if (info) {
+                        symbols.push(info);
+                        if (['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy', 'excellent', 'great', 'miss'].includes(info.type)) primaryInfo = info;
+                    }
+                });
+
+                if (primaryInfo) { moveSpan.classList.add(`nag-${primaryInfo.type}`); moveSpan.style.color = primaryInfo.color; }
+                moveSpan.innerText = curr.moveSan; 
+                symbols.forEach(info => {
+                    let nagSpan = document.createElement('span');
+                    nagSpan.className = 'nag-glyph'; nagSpan.innerText = info.symbol;
+                    nagSpan.style.color = info.color; nagSpan.style.marginLeft = "2px"; nagSpan.style.fontWeight = "bold";
+                    moveSpan.appendChild(nagSpan);
+                });
+            } else moveSpan.innerText = curr.moveSan;
+
+            if (curr.isBook) {
+                const bookIcon = document.createElement('span');
+                bookIcon.className = 'tree-book-icon';
+                bookIcon.innerHTML = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG : '📖';
+                let bookColor = curr.nag ? (this.getNagInfo(curr.nag)?.color || '#A87C53') : '#A87C53';
+                bookIcon.style.cssText = `display:inline-flex; align-items:center; justify-content:center; width:1em; height:1em; margin-left:4px; vertical-align:middle; color:${bookColor};`;
+                let svg = bookIcon.querySelector('svg');
+                if (svg) { svg.style.fill = 'currentColor'; svg.style.width = '100%'; svg.style.height = '100%'; }
+                moveSpan.appendChild(bookIcon);
+            }
+            
+            const dotColor = this.getAnnotationDotColor(curr);
+            if (dotColor) {
+                let dot = document.createElement('span');
+                dot.className = 'annotation-dot'; // 🔥 ADDED CLASS
+                dot.style.cssText = `display:inline-block; width:6px; height:6px; background-color:${dotColor}; border-radius:50%; margin-left:4px; box-shadow:0 0 5px ${dotColor};`;
+                moveSpan.appendChild(dot);
+            }
+
+            const evalData = this.getEvalData(curr);
+            if (evalData) {
+                let evalSpan = document.createElement('span');
+                evalSpan.className = evalData.className; evalSpan.innerText = evalData.text;
+                moveSpan.appendChild(evalSpan);
+            }
+
+            const targetNodeId = curr.id;
+            let capturedRef = curr; 
+
+            moveSpan.onmousedown = (e) => {
+                if (e.button !== 0) return;
+                e.preventDefault(); e.stopPropagation();
+                if (window.game.goToNodeId(targetNodeId)) {
+                    const freshState = window.game.getReader();
+                    window.ui.renderBoard(true); 
+                    window.ui.updateHistory(); 
+                    window.ui.renderArrows();
+                    if (freshState.mode !== 'play' && window.game.updateStockfish) window.game.updateStockfish();
+                }
+            };
+            moveSpan.oncontextmenu = (e) => { e.preventDefault(); this.showAnnotationPopup(e, capturedRef); };
+
+            line.appendChild(moveSpan);
+            isFirstInLine = false;
+
+            let cleanComment = curr.comment ? curr.comment.replace(/\[%(cal|csl|clk|emt)[^\]]+\]/g, "").trim() : "";
+            let hasComment = cleanComment.length > 0;
+            let hasVariations = curr.children.length > 1;
+
+            if (hasComment || hasVariations) {
+                let isHidden = curr.isCollapsed === true;
+
+                let toggleBtn = document.createElement('span');
+                toggleBtn.innerHTML = isHidden ? " ▶ " : " ▼ ";
+                toggleBtn.style.cssText = "cursor:pointer; color:#888; font-size:10px; margin-left:6px; user-select:none;";
+                
+                let annContainer = document.createElement('div');
+                annContainer.className = 'nested-variation';
+                annContainer.style.display = isHidden ? 'none' : 'block';
+                
+                toggleBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    capturedRef.isCollapsed = !capturedRef.isCollapsed;
+                    const hidden = capturedRef.isCollapsed;
+                    annContainer.style.display = hidden ? 'none' : 'block';
+                    toggleBtn.innerHTML = hidden ? " ▶ " : " ▼ ";
+                };
+                
+                line.appendChild(toggleBtn);
+
+                if (hasComment) {
+                    let cSpan = document.createElement('span');
+                    cSpan.className = 'tree-comment';
+                    cSpan.dataset.nodeId = curr.id;
+                    cSpan.style.display = 'block'; cSpan.style.marginTop = '2px';
+                    cSpan.innerText = `// ${cleanComment}`;
+                    annContainer.appendChild(cSpan);
+                }
+
+                if (hasVariations) {
+                    curr.children.forEach((child, i) => {
+                        if (i !== curr.selectedChildIndex) {
+                            this.renderTreeVerticalRecursiveSingle(child, annContainer);
+                        }
+                    });
+                }
+
+                container.appendChild(annContainer);
+                line = document.createElement('div');
+                line.className = 'tree-line';
+                container.appendChild(line);
+                isFirstInLine = true;
+            }
+
+            if (curr.children.length > 0) curr = curr.children[curr.selectedChildIndex];
+            else curr = null;
+        }
+    }
+createPlyDiv(node) {
+        if (!node.id) node.id = 'n_' + Math.random().toString(36).substr(2, 9);
+        const state = window.game ? window.game.getReader() : null;
+        const isActive = (window.game && window.game.currentNode === node) || (state && state.activeNodeId && node.id === state.activeNodeId);
+        
+        let d = document.createElement('div');
+        d.className = `move-ply ${isActive ? 'active' : ''}`;
+        d.dataset.id = node.id;
+        d.style.cssText = "position: relative; display: inline-block;"; 
+
+        let mainWrap = document.createElement('span');
+        mainWrap.className = 'main-wrap'; // 🔥 ADDED CLASS
+
+        let nags = node.nag ? node.nag.toString().split(',') : [];
+        let primaryInfo = null; let symbols = [];
+
+        nags.forEach(n => {
+            const info = this.getNagInfo(n.trim());
+            if (info) {
+                symbols.push(info);
+                if (['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy', 'excellent', 'great', 'miss'].includes(info.type)) primaryInfo = info;
+            }
+        });
+
+        if (primaryInfo) { mainWrap.classList.add(`nag-${primaryInfo.type}`); mainWrap.style.color = primaryInfo.color; }
+        
+        mainWrap.appendChild(document.createTextNode(node.moveSan));
+        
+        symbols.forEach(info => {
+            let sym = document.createElement('span');
+            sym.className = `nag-glyph`; sym.innerText = info.symbol;
+            sym.style.color = info.color; sym.style.marginLeft = "3px"; sym.style.fontWeight = "bold";
+            mainWrap.appendChild(sym);
+        });
+        
+        const dotColor = this.getAnnotationDotColor(node);
+        if (dotColor) {
+            let dot = document.createElement('span');
+            dot.className = 'annotation-dot'; // 🔥 ADDED CLASS
+            dot.style.cssText = `display:inline-block; width:6px; height:6px; background-color:${dotColor}; border-radius:50%; margin-left:4px; box-shadow:0 0 5px ${dotColor};`;
+            mainWrap.appendChild(dot);
+        }
+
+        const evalData = this.getEvalData(node);
+        if (evalData) {
+            let evalSpan = document.createElement('span');
+            evalSpan.className = evalData.className; evalSpan.innerText = evalData.text; evalSpan.style.marginLeft = "4px";
+            mainWrap.appendChild(evalSpan);
+        }
+        d.appendChild(mainWrap);
+
+        let cleanComment = node.comment ? node.comment.replace(/\[%(cal|csl|clk|emt)[^\]]+\]/g, "").trim() : "";
+        let hasComment = cleanComment.length > 0;
+        let hasVariations = node.children && node.children.length > 1;
+
+        if (hasComment || hasVariations) {
+            let isHidden = node.isCollapsed === true;
+            let toggleBtn = document.createElement('span');
+            toggleBtn.innerHTML = isHidden ? " ▶ " : " ▼ ";
+            toggleBtn.style.cssText = "cursor:pointer; color:#888; font-size:10px; margin-left:4px;";
+            
+            let annContainer = document.createElement('div');
+            annContainer.style.cssText = "font-size: 0.85em; padding: 4px; background: rgba(0,0,0,0.15); border-left: 2px solid #555; margin-top: 4px; white-space: normal;";
+            annContainer.style.display = isHidden ? 'none' : 'block';
+
+            toggleBtn.onclick = (e) => {
+                e.stopPropagation();
+                node.isCollapsed = !node.isCollapsed;
+                const hidden = node.isCollapsed;
+                annContainer.style.display = hidden ? 'none' : 'block';
+                toggleBtn.innerHTML = hidden ? " ▶ " : " ▼ ";
+            };
+            
+            d.appendChild(toggleBtn); d.appendChild(annContainer);
+
+           if (hasComment) {
+                let c = document.createElement('div');
+                c.className = 'inline-comment'; c.dataset.nodeId = node.id;     
+                c.style.color = '#888'; c.style.marginBottom = hasVariations ? '4px' : '0';
+                c.innerText = `{ ${cleanComment} }`;
+                annContainer.appendChild(c);
+            }
+
+            if (hasVariations) {
+                node.children.forEach((child, i) => {
+                    if (i !== node.selectedChildIndex) {
+                        let vLine = document.createElement('div');
+                        this.renderVariationLine(child, vLine);
+                        annContainer.appendChild(vLine);
+                    }
+                });
+            }
+        }
+
+        const targetNodeId = node.id;
+        d.onclick = (e) => {
+            e.stopPropagation();
+            if (window.game.goToNodeId(targetNodeId)) {
+                const freshState = window.game.getReader();
+                window.ui.renderBoard(false); 
+                window.ui.updateHistory(); window.ui.renderArrows();
+                if (freshState.mode !== 'play' && window.game.updateStockfish) window.game.updateStockfish();
+            }
+        };
+        d.oncontextmenu = (e) => { e.preventDefault(); this.showAnnotationPopup(e, node); };
+        return d;
     }
 renderVariationLine(node, container) {
         let curr = node;
         let isFirst = true;
+        const state = window.game ? window.game.getReader() : null;
 
         while (curr) {
             let ply = this.getPly(curr);
@@ -3995,87 +4115,78 @@ renderVariationLine(node, container) {
             let txt = (ply % 2 !== 0) ? `${mn}.` : (isFirst ? `${mn}...` : ``);
 
             let span = document.createElement('span');
-            span.className = `var-move ${curr === window.game.currentNode ? 'active' : ''}`;
+            
             if (!curr.id) curr.id = 'n_' + Math.random().toString(36).substr(2, 9);
+            const isActive = (window.game && window.game.currentNode === curr) || (state && state.activeNodeId && curr.id === state.activeNodeId);
+            
+            span.className = `var-move ${isActive ? 'active' : ''}`;
             span.dataset.id = curr.id;
             span.innerText = `${txt} ${curr.moveSan}`;
 
-            // NAG
             if (curr.nag) {
                 let nags = curr.nag.toString().split(',');
-                let primaryInfo = null;
-                let symbols = [];
+                let primaryInfo = null; let symbols = [];
 
                 nags.forEach(n => {
                     const info = this.getNagInfo(n.trim());
                     if (info) {
                         symbols.push(info);
-                        if (['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy'].includes(info.type)) {
-                            primaryInfo = info;
-                        }
+                        if (['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy', 'excellent', 'great', 'miss'].includes(info.type)) primaryInfo = info;
                     }
                 });
 
-                if (primaryInfo) {
-                    span.style.color = primaryInfo.color;
-                    span.style.backgroundColor = primaryInfo.color + '20';
-                }
+                if (primaryInfo) { span.style.color = primaryInfo.color; span.style.backgroundColor = primaryInfo.color + '20'; }
                 
                 symbols.forEach(info => {
                     let nagSpan = document.createElement('span');
-                    nagSpan.className = 'nag-glyph';
-                    nagSpan.innerText = info.symbol;
-                    nagSpan.style.color = info.color;
-                    nagSpan.style.marginLeft = "2px";
-                    nagSpan.style.fontWeight = "bold";
+                    nagSpan.className = 'nag-glyph'; nagSpan.innerText = info.symbol;
+                    nagSpan.style.color = info.color; nagSpan.style.marginLeft = "2px"; nagSpan.style.fontWeight = "bold";
                     span.appendChild(nagSpan);
                 });
             }
+            const dotColor = this.getAnnotationDotColor(curr);
+            if (dotColor) {
+                let dot = document.createElement('span');
+                dot.className = 'annotation-dot'; // 🔥 ADDED CLASS
+                dot.style.cssText = `display:inline-block; width:6px; height:6px; background-color:${dotColor}; border-radius:50%; margin-left:4px; box-shadow:0 0 5px ${dotColor};`;
+                span.appendChild(dot);
+            }
 
-            // EVAL
             const evalData = this.getEvalData(curr);
             if (evalData) {
                 let evSpan = document.createElement('span');
-                evSpan.className = evalData.className;
-                evSpan.style.fontSize = "0.85em";
-                evSpan.style.marginLeft = "3px";
-                evSpan.innerText = evalData.text;
+                evSpan.className = evalData.className; evSpan.style.fontSize = "0.85em";
+                evSpan.style.marginLeft = "3px"; evSpan.innerText = evalData.text;
                 span.appendChild(evSpan);
             }
 
             span.appendChild(document.createTextNode(" "));
 
-            // Handlers (Captured Variable safely freezes 'curr')
-            let captured = curr;
+            const targetNodeId = curr.id;
+            let capturedRef = curr;
+
             span.onmousedown = (e) => {
                 if (e.button !== 0) return;
-
-                e.preventDefault(); 
-                e.stopPropagation();
+                e.preventDefault(); e.stopPropagation();
                 
-                window.game.currentNode = captured; 
-                window.game.loadFEN(captured.fen);
-                window.game.syncMoveHistory();
-                window.ui.renderBoard(false); 
-                window.ui.updateHistory(); 
-                window.ui.renderArrows();
-                
-                if (window.game.updateStockfish && !window.game.isPlayingLiveGame) {
-                    window.game.updateStockfish();
+                if (window.game.goToNodeId(targetNodeId)) {
+                    const freshState = window.game.getReader();
+                    window.ui.renderBoard(false); 
+                    window.ui.updateHistory(); window.ui.renderArrows();
+                    if (freshState.mode !== 'play' && window.game.updateStockfish) window.game.updateStockfish();
                 }
             };
-            span.oncontextmenu = (e) => { e.preventDefault(); this.showAnnotationPopup(e, captured); };
+            
+            span.oncontextmenu = (e) => { e.preventDefault(); this.showAnnotationPopup(e, capturedRef); };
 
             container.appendChild(span);
 
-            // --- STANDARD VIEW: INLINE ANNOTATIONS TOGGLE ---
             let cleanComment = curr.comment ? curr.comment.replace(/\[%(cal|csl|clk|emt)[^\]]+\]/g, "").trim() : "";
             let hasComment = cleanComment.length > 0;
             let hasVariations = curr.children.length > 1;
 
             if (hasComment || hasVariations) {
-                let isHidden = captured.isCollapsed === true;
-
+                let isHidden = capturedRef.isCollapsed === true;
                 let toggleBtn = document.createElement('span');
                 toggleBtn.innerText = isHidden ? " [+] " : " [-] ";
                 toggleBtn.style.cssText = "cursor:pointer; color:#888; font-weight:bold; font-size:0.9em; user-select:none;";
@@ -4086,20 +4197,17 @@ renderVariationLine(node, container) {
                 
                 toggleBtn.onclick = (e) => {
                     e.stopPropagation();
-                    // FIX: Use 'captured', not 'curr'
-                    captured.isCollapsed = !captured.isCollapsed;
-                    const hidden = captured.isCollapsed;
+                    capturedRef.isCollapsed = !capturedRef.isCollapsed;
+                    const hidden = capturedRef.isCollapsed;
                     annWrapper.style.display = hidden ? 'none' : 'inline';
                     toggleBtn.innerText = hidden ? " [+] " : " [-] ";
                 };
                 
-                container.appendChild(toggleBtn);
-                container.appendChild(annWrapper);
+                container.appendChild(toggleBtn); container.appendChild(annWrapper);
 
                 if (hasComment) {
                     let cSpan = document.createElement('span');
-                    cSpan.className = 'inline-comment';
-                    cSpan.dataset.nodeId = captured.id; // 🔥 INJECT ID
+                    cSpan.className = 'inline-comment'; cSpan.dataset.nodeId = capturedRef.id; 
                     cSpan.innerText = ` {${cleanComment}} `;
                     annWrapper.appendChild(cSpan);
                 }
@@ -4124,460 +4232,6 @@ renderVariationLine(node, container) {
             isFirst = false;
         }
     }
-renderTreeVertical(node, container) {
-        if (!node.children.length) return;
-
-        let line = document.createElement('div');
-        line.className = 'tree-line';
-        container.appendChild(line);
-
-        let curr = node.children[node.selectedChildIndex];
-        let isFirstInLine = true;
-
-        while (curr) {
-            let ply = this.getPly(curr);
-            let mNum = Math.ceil(ply / 2);
-            let moveText = "";
-
-            if (ply % 2 !== 0) moveText = `${mNum}.`;
-            else if (isFirstInLine) moveText = `${mNum}...`;
-
-            if (moveText) {
-                let idxSpan = document.createElement('span');
-                idxSpan.className = 'tree-index';
-                idxSpan.innerText = moveText;
-                line.appendChild(idxSpan);
-            }
-
-            let moveSpan = document.createElement('span');
-            moveSpan.className = `tree-move ${curr === window.game.currentNode ? 'active' : ''}`;
-            if (!curr.id) curr.id = 'n_' + Math.random().toString(36).substr(2, 9);
-            moveSpan.dataset.id = curr.id;
-
-            if (curr.nag) {
-                let nags = curr.nag.toString().split(',');
-                let primaryInfo = null;
-                let symbols = [];
-
-                nags.forEach(n => {
-                    const info = this.getNagInfo(n.trim());
-                    if (info) {
-                        symbols.push(info);
-                        if (['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy'].includes(info.type)) {
-                            primaryInfo = info;
-                        }
-                    }
-                });
-
-                if (primaryInfo) {
-                    moveSpan.classList.add(`nag-${primaryInfo.type}`);
-                    moveSpan.style.color = primaryInfo.color;
-                }
-                
-                moveSpan.innerText = curr.moveSan; 
-                
-                symbols.forEach(info => {
-                    let nagSpan = document.createElement('span');
-                    nagSpan.className = 'nag-glyph';
-                    nagSpan.innerText = info.symbol;
-                    nagSpan.style.color = info.color;
-                    nagSpan.style.marginLeft = "2px";
-                    nagSpan.style.fontWeight = "bold";
-                    moveSpan.appendChild(nagSpan);
-                });
-            } else {
-                moveSpan.innerText = curr.moveSan;
-            }
-
-            moveSpan.innerText = curr.moveSan + (curr.nag ? this.getNagInfo(curr.nag).symbol : "");
-
-            // Book Icon
-            if (curr.isBook) {
-                const bookIcon = document.createElement('span');
-                bookIcon.className = 'tree-book-icon';
-                bookIcon.innerHTML = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG : '📖';
-                let bookColor = curr.nag ? (this.getNagInfo(curr.nag)?.color || '#A87C53') : '#A87C53';
-                bookIcon.style.cssText = `display:inline-flex; align-items:center; justify-content:center; width:1em; height:1em; margin-left:4px; vertical-align:middle; color:${bookColor};`;
-                let svg = bookIcon.querySelector('svg');
-                if (svg) { svg.style.fill = 'currentColor'; svg.style.width = '100%'; svg.style.height = '100%'; }
-                moveSpan.appendChild(bookIcon);
-            }
-
-            // Dots & Eval
-            if ((curr.arrows && curr.arrows.length > 0) || (curr.circles && curr.circles.length > 0)) {
-                let dot = document.createElement('span');
-                dot.style.cssText = "display:inline-block; width:6px; height:6px; background-color:#00b023; border-radius:50%; margin-left:4px; box-shadow:0 0 5px #00b023;";
-                moveSpan.appendChild(dot);
-            }
-            const evalData = this.getEvalData(curr);
-            if (evalData) {
-                let evalSpan = document.createElement('span');
-                evalSpan.className = evalData.className;
-                evalSpan.innerText = evalData.text;
-                moveSpan.appendChild(evalSpan);
-            }
-
-            let captured = curr;
-            moveSpan.onmousedown = (e) => {
-                if (e.button !== 0) return;
-
-                e.preventDefault(); 
-                e.stopPropagation();
-                
-                window.game.currentNode = captured; 
-                window.game.loadFEN(captured.fen);
-                window.game.syncMoveHistory();
-                window.ui.renderBoard(false); 
-                window.ui.updateHistory(); 
-                window.ui.renderArrows();
-                
-                if (window.game.updateStockfish && !window.game.isPlayingLiveGame) {
-                    window.game.updateStockfish();
-                }
-            };
-            moveSpan.oncontextmenu = (e) => { e.preventDefault(); this.showAnnotationPopup(e, captured); };
-
-            line.appendChild(moveSpan);
-            isFirstInLine = false;
-
-            // --- TREE VIEW: ANNOTATIONS TOGGLE (MAIN TRUNK) ---
-            let cleanComment = curr.comment ? curr.comment.replace(/\[%(cal|csl|clk|emt)[^\]]+\]/g, "").trim() : "";
-            let hasComment = cleanComment.length > 0;
-            let siblings = curr.parent.children;
-            let hasVariations = siblings.length > 1;
-
-            if (hasComment || hasVariations) {
-                let isHidden = captured.isCollapsed === true;
-
-                let toggleBtn = document.createElement('span');
-                toggleBtn.innerHTML = isHidden ? " ▶ " : " ▼ ";
-                toggleBtn.style.cssText = "cursor:pointer; color:#888; font-size:10px; margin-left:6px; user-select:none;";
-                
-                let annContainer = document.createElement('div');
-                annContainer.className = 'nested-variation';
-                annContainer.style.display = isHidden ? 'none' : 'block';
-                
-                toggleBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    // FIX: Use 'captured'
-                    captured.isCollapsed = !captured.isCollapsed;
-                    const hidden = captured.isCollapsed;
-                    annContainer.style.display = hidden ? 'none' : 'block';
-                    toggleBtn.innerHTML = hidden ? " ▶ " : " ▼ ";
-                };
-                
-                line.appendChild(toggleBtn);
-
-                if (hasComment) {
-                    let cSpan = document.createElement('span');
-                    cSpan.className = 'tree-comment';
-                    cSpan.dataset.nodeId = captured.id; // 🔥 INJECT ID
-                    cSpan.style.display = 'block';
-                    cSpan.style.marginTop = '2px';
-                    cSpan.innerText = `// ${cleanComment}`;
-                    annContainer.appendChild(cSpan);
-                }
-
-                if (hasVariations) {
-                    siblings.forEach((sibling) => {
-                        if (sibling !== curr) this.renderTreeVerticalRecursiveSingle(sibling, annContainer);
-                    });
-                }
-
-                container.appendChild(annContainer);
-                
-                line = document.createElement('div');
-                line.className = 'tree-line';
-                container.appendChild(line);
-                isFirstInLine = true;
-            }
-
-            if (curr.children.length > 0) curr = curr.children[curr.selectedChildIndex];
-            else curr = null;
-        }
-    }
-renderTreeVerticalRecursiveSingle(node, container) {
-        let line = document.createElement('div');
-        line.className = 'tree-line';
-        container.appendChild(line);
-
-        let curr = node;
-        let isFirstInLine = true;
-
-        while (curr) {
-            let ply = this.getPly(curr);
-            let mNum = Math.ceil(ply / 2);
-            let moveText = "";
-
-            if (ply % 2 !== 0) moveText = `${mNum}.`;
-            else if (isFirstInLine) moveText = `${mNum}...`;
-
-            if (moveText) {
-                let idxSpan = document.createElement('span');
-                idxSpan.className = 'tree-index';
-                idxSpan.innerText = moveText;
-                line.appendChild(idxSpan);
-            }
-
-            let moveSpan = document.createElement('span');
-            moveSpan.className = `tree-move ${curr === window.game.currentNode ? 'active' : ''}`;
-            if (!curr.id) curr.id = 'n_' + Math.random().toString(36).substr(2, 9);
-            moveSpan.dataset.id = curr.id;
-            if (curr.nag) {
-                let nags = curr.nag.toString().split(',');
-                let primaryInfo = null;
-                let symbols = [];
-
-                nags.forEach(n => {
-                    const info = this.getNagInfo(n.trim());
-                    if (info) {
-                        symbols.push(info);
-                        if (['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy'].includes(info.type)) {
-                            primaryInfo = info;
-                        }
-                    }
-                });
-
-                if (primaryInfo) {
-                    moveSpan.classList.add(`nag-${primaryInfo.type}`);
-                    moveSpan.style.color = primaryInfo.color;
-                }
-                
-                moveSpan.innerText = curr.moveSan; 
-                
-                symbols.forEach(info => {
-                    let nagSpan = document.createElement('span');
-                    nagSpan.className = 'nag-glyph';
-                    nagSpan.innerText = info.symbol;
-                    nagSpan.style.color = info.color;
-                    nagSpan.style.marginLeft = "2px";
-                    nagSpan.style.fontWeight = "bold";
-                    moveSpan.appendChild(nagSpan);
-                });
-            } else {
-                moveSpan.innerText = curr.moveSan;
-            }
-
-            moveSpan.innerText = curr.moveSan + (curr.nag ? this.getNagInfo(curr.nag).symbol : "");
-
-            // Book Icon & Eval
-            if (curr.isBook) {
-                const bookIcon = document.createElement('span');
-                bookIcon.className = 'tree-book-icon';
-                bookIcon.innerHTML = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG : '📖';
-                let bookColor = curr.nag ? (this.getNagInfo(curr.nag)?.color || '#A87C53') : '#A87C53';
-                bookIcon.style.cssText = `display:inline-flex; align-items:center; justify-content:center; width:1em; height:1em; margin-left:4px; vertical-align:middle; color:${bookColor};`;
-                let svg = bookIcon.querySelector('svg');
-                if (svg) { svg.style.fill = 'currentColor'; svg.style.width = '100%'; svg.style.height = '100%'; }
-                moveSpan.appendChild(bookIcon);
-            }
-            if ((curr.arrows && curr.arrows.length > 0) || (curr.circles && curr.circles.length > 0)) {
-                let dot = document.createElement('span');
-                dot.style.cssText = "display:inline-block; width:6px; height:6px; background-color:#00b023; border-radius:50%; margin-left:4px; box-shadow:0 0 5px #00b023;";
-                moveSpan.appendChild(dot);
-            }
-            const evalData = this.getEvalData(curr);
-            if (evalData) {
-                let evalSpan = document.createElement('span');
-                evalSpan.className = evalData.className;
-                evalSpan.innerText = evalData.text;
-                moveSpan.appendChild(evalSpan);
-            }
-
-            let captured = curr;
-            moveSpan.onmousedown = (e) => {
-                e.preventDefault(); e.stopPropagation();
-                window.game.currentNode = captured; 
-                window.game.loadFEN(captured.fen);
-                window.game.syncMoveHistory();
-                window.ui.renderBoard(true); 
-                window.ui.updateHistory(); 
-                window.ui.renderArrows();
-                
-                if (window.game.updateStockfish && !window.game.isPlayingLiveGame) {
-                    window.game.updateStockfish();
-                }
-            };
-            moveSpan.oncontextmenu = (e) => { e.preventDefault(); this.showAnnotationPopup(e, captured); };
-
-            line.appendChild(moveSpan);
-            isFirstInLine = false;
-
-            // --- TREE VIEW: ANNOTATIONS TOGGLE (BRANCH) ---
-            let cleanComment = curr.comment ? curr.comment.replace(/\[%(cal|csl|clk|emt)[^\]]+\]/g, "").trim() : "";
-            let hasComment = cleanComment.length > 0;
-            let hasVariations = curr.children.length > 1;
-
-            if (hasComment || hasVariations) {
-                let isHidden = captured.isCollapsed === true;
-
-                let toggleBtn = document.createElement('span');
-                toggleBtn.innerHTML = isHidden ? " ▶ " : " ▼ ";
-                toggleBtn.style.cssText = "cursor:pointer; color:#888; font-size:10px; margin-left:6px; user-select:none;";
-                
-                let annContainer = document.createElement('div');
-                annContainer.className = 'nested-variation';
-                annContainer.style.display = isHidden ? 'none' : 'block';
-                
-                toggleBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    // FIX: Use 'captured'
-                    captured.isCollapsed = !captured.isCollapsed;
-                    const hidden = captured.isCollapsed;
-                    annContainer.style.display = hidden ? 'none' : 'block';
-                    toggleBtn.innerHTML = hidden ? " ▶ " : " ▼ ";
-                };
-                
-                line.appendChild(toggleBtn);
-
-                if (hasComment) {
-                    let cSpan = document.createElement('span');
-                    cSpan.className = 'tree-comment';
-                    cSpan.dataset.nodeId = captured.id; // 🔥 INJECT ID
-                    cSpan.style.display = 'block';
-                    cSpan.style.marginTop = '2px';
-                    cSpan.innerText = `// ${cleanComment}`;
-                    annContainer.appendChild(cSpan);
-                }
-
-                if (hasVariations) {
-                    curr.children.forEach((child, i) => {
-                        if (i !== curr.selectedChildIndex) {
-                            this.renderTreeVerticalRecursiveSingle(child, annContainer);
-                        }
-                    });
-                }
-
-                container.appendChild(annContainer);
-                
-                line = document.createElement('div');
-                line.className = 'tree-line';
-                container.appendChild(line);
-                isFirstInLine = true;
-            }
-
-            if (curr.children.length > 0) curr = curr.children[curr.selectedChildIndex];
-            else curr = null;
-        }
-    }
-createPlyDiv(node) {
-        let d = document.createElement('div');
-        d.className = `move-ply ${node === window.game.currentNode ?'active':''}`;
-        d.style.cssText = "position: relative; display: inline-block;"; 
-
-        let mainWrap = document.createElement('span');
-
-        // 🔥 THE FIX: Loop through ALL nags (e.g. $3 and $18) to get BOTH "!!" and "+-"
-        let nags = node.nag ? node.nag.toString().split(',') : [];
-        let primaryInfo = null;
-        let symbols = [];
-
-        nags.forEach(n => {
-            const info = this.getNagInfo(n.trim());
-            if (info) {
-                symbols.push(info);
-                // Color the text based on the move quality (!!, ??), ignoring the eval (+-)
-                if (['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy'].includes(info.type)) {
-                    primaryInfo = info;
-                }
-            }
-        });
-
-        if (primaryInfo) {
-            mainWrap.classList.add(`nag-${primaryInfo.type}`); 
-            mainWrap.style.color = primaryInfo.color;
-        }
-        
-        mainWrap.appendChild(document.createTextNode(node.moveSan));
-        
-        // Print ALL symbols perfectly next to the text
-        symbols.forEach(info => {
-            let sym = document.createElement('span');
-            sym.className = `nag-glyph`; 
-            sym.innerText = info.symbol;
-            sym.style.color = info.color;
-            sym.style.marginLeft = "3px";
-            sym.style.fontWeight = "bold";
-            mainWrap.appendChild(sym);
-        });
-        
-        const evalData = this.getEvalData(node);
-        if (evalData) {
-            let evalSpan = document.createElement('span');
-            evalSpan.className = evalData.className;
-            evalSpan.innerText = evalData.text;
-            evalSpan.style.marginLeft = "4px";
-            mainWrap.appendChild(evalSpan);
-        }
-        d.appendChild(mainWrap);
-
-        // --- GRID VIEW: ANNOTATIONS TOGGLE ---
-        let cleanComment = node.comment ? node.comment.replace(/\[%(cal|csl|clk|emt)[^\]]+\]/g, "").trim() : "";
-        let hasComment = cleanComment.length > 0;
-        let hasVariations = node.children && node.children.length > 1;
-
-        if (hasComment || hasVariations) {
-            let isHidden = node.isCollapsed === true;
-
-            let toggleBtn = document.createElement('span');
-            toggleBtn.innerHTML = isHidden ? " ▶ " : " ▼ ";
-            toggleBtn.style.cssText = "cursor:pointer; color:#888; font-size:10px; margin-left:4px;";
-            
-            let annContainer = document.createElement('div');
-            annContainer.style.cssText = "font-size: 0.85em; padding: 4px; background: rgba(0,0,0,0.15); border-left: 2px solid #555; margin-top: 4px; white-space: normal;";
-            annContainer.style.display = isHidden ? 'none' : 'block';
-
-            toggleBtn.onclick = (e) => {
-                e.stopPropagation();
-                node.isCollapsed = !node.isCollapsed;
-                const hidden = node.isCollapsed;
-                annContainer.style.display = hidden ? 'none' : 'block';
-                toggleBtn.innerHTML = hidden ? " ▶ " : " ▼ ";
-            };
-            
-            d.appendChild(toggleBtn);
-            d.appendChild(annContainer);
-
-       if (hasComment) {
-                let c = document.createElement('div');
-                c.className = 'inline-comment'; 
-                c.dataset.nodeId = node.id;     
-                c.style.color = '#888';
-                c.style.marginBottom = hasVariations ? '4px' : '0';
-                c.innerText = `{ ${cleanComment} }`;
-                annContainer.appendChild(c);
-            }
-
-            if (hasVariations) {
-                node.children.forEach((child, i) => {
-                    if (i !== node.selectedChildIndex) {
-                        let vLine = document.createElement('div');
-                        this.renderVariationLine(child, vLine);
-                        annContainer.appendChild(vLine);
-                    }
-                });
-            }
-        }
-
-        d.onclick = (e) => {
-            e.stopPropagation();
-            window.game.currentNode = node;
-            window.game.loadFEN(node.fen);
-            window.game.syncMoveHistory(); 
-            window.ui.renderBoard(false); 
-            window.ui.updateHistory();
-            window.ui.renderArrows();
-            
-            if (window.game.updateStockfish && !window.game.isPlayingLiveGame) {
-                window.game.updateStockfish();
-            }
-        };
-        d.oncontextmenu = (e) => {
-            e.preventDefault();
-            this.showAnnotationPopup(e, node);
-        };
-        return d;
-    }
 updateEvalBar(type, val) {
         const bar = document.getElementById('evalBarFill');
         const text = document.getElementById('evalScore');
@@ -4592,7 +4246,7 @@ updateEvalBar(type, val) {
         }
 
         // 2. Draws & Stalemate (1/2 - 1/2)
-        // [FIX] Safely check if in_threefold_repetition exists before calling it!
+        // Safely check if in_threefold_repetition exists before calling it!
         const isDraw = window.game.engine.in_draw() || 
                        window.game.engine.in_stalemate() || 
                        (typeof window.game.engine.in_threefold_repetition === 'function' && window.game.engine.in_threefold_repetition());
@@ -4649,13 +4303,13 @@ showAnnotationPopup(e, node) {
         let existing = document.getElementById('annotationPopup');
         if (existing) existing.remove();
 
+        const anchorElement = e.currentTarget || e.target;
+
         let popup = document.createElement('div');
         popup.id = 'annotationPopup';
         popup.className = 'annotation-popup';
         popup.style.position = 'absolute';
-        popup.style.left = e.pageX + 'px';
-        popup.style.top = e.pageY + 'px';
-        popup.style.zIndex = '1000';
+        popup.style.zIndex = '100000'; 
         popup.style.background = '#252525';
         popup.style.border = '1px solid #444';
         popup.style.padding = '8px 0'; 
@@ -4665,33 +4319,19 @@ showAnnotationPopup(e, node) {
         popup.style.flexDirection = 'column';
         popup.style.minWidth = '200px';
         popup.style.fontFamily = 'sans-serif';
-
-        // 🔥 THE FIX: Grab the scale instantly and apply it to the new popup
-        let currentScale = 1;
-        const scaler = document.getElementById('app-scaler');
-        if (scaler) {
-            const transform = window.getComputedStyle(scaler).transform;
-            if (transform !== 'none') {
-                const matrix = transform.match(/^matrix\((.+)\)$/);
-                if (matrix) currentScale = parseFloat(matrix[1].split(',')[0]);
-            }
-        }
-        
-        popup.style.transform = `scale(${currentScale})`;
-        // Use top left so the menu spawns exactly at your mouse cursor!
         popup.style.transformOrigin = 'top left';
+        popup.style.visibility = 'hidden'; 
 
-        // 🔥 THE FIX: Supercharged forceRedraw that completely wipes the HTML cache!
         const forceRedraw = () => {
             this._lastTreeSize = -1;
             this._lastChartedFen = null;
             
             const historyBox = document.getElementById('moveHistory');
-            if (historyBox) historyBox.innerHTML = ''; // Force HTML recreation
+            if (historyBox) historyBox.innerHTML = ''; 
             
             if (this.updateHistory) this.updateHistory(true);
             if (typeof this.renderCharts === 'function') this.renderCharts();
-            if (this.renderBoard) this.renderBoard(true);
+            if (this.renderBoard) this.renderBoard(false, false);
             if (window.game && window.game.updateStockfish) window.game.updateStockfish();
         };
 
@@ -4759,12 +4399,12 @@ showAnnotationPopup(e, node) {
         
         nagContainer.appendChild(createRow(cat2, cat2, 4));
         popup.appendChild(nagContainer);
-    
+
         let dividerBook = document.createElement('div');
         dividerBook.style.borderBottom = '1px solid #444';
         dividerBook.style.margin = '8px 0';
         popup.appendChild(dividerBook);
-    
+
         let bookContainer = document.createElement('div');
         bookContainer.style.padding = '0 8px';
         
@@ -4785,7 +4425,7 @@ showAnnotationPopup(e, node) {
         };
         bookContainer.appendChild(bookBtn);
         popup.appendChild(bookContainer);
-    
+
         let divider2 = document.createElement('div');
         divider2.style.borderBottom = '1px solid #444';
         divider2.style.margin = '8px 0';
@@ -4817,13 +4457,13 @@ showAnnotationPopup(e, node) {
 
         let hasComment = node.comment && node.comment.trim() !== "";
         actionsContainer.appendChild(createActionBtn('💬', hasComment ? 'Edit Comment' : 'Add Comment', () => {
-            if (window.game.currentNode !== node) {
-                window.game.currentNode = node;
-                window.game.loadFEN(node.fen);
-                window.game.syncMoveHistory(); 
-                if (this.renderBoard) this.renderBoard(false);
-                if (this.renderArrows) this.renderArrows();
-                forceRedraw(); 
+            const state = window.game ? window.game.getReader() : null;
+            if (state && state.activeNodeId !== node.id) {
+                if (window.game.goToNodeId(node.id)) {
+                    if (this.renderBoard) this.renderBoard(false, false);
+                    if (this.renderArrows) this.renderArrows();
+                    forceRedraw(); 
+                }
             }
 
             setTimeout(() => {
@@ -4853,43 +4493,103 @@ showAnnotationPopup(e, node) {
 
         if (hasComment) {
             actionsContainer.appendChild(createActionBtn('🗑️', 'Delete Comment', () => {
-                node.comment = "";
+                window.game.updateComment(node.id, "");
                 forceRedraw(); 
             }));
         }
 
         if (node.parent) {
-            // 🔥 THE FIX: Route perfectly to the master game logic!
             actionsContainer.appendChild(createActionBtn('⬆️', 'Promote Variation', () => {
-                if (window.game) window.game.promoteVariation(node);
+                if (window.game) window.game.promoteVariation(node.id);
                 forceRedraw(); 
             }));
             
-            // 🔥 THE FIX: Route perfectly to the master game logic!
             actionsContainer.appendChild(createActionBtn('🌟', 'Make Main Line', () => {
-                if (window.game) window.game.makeMainline(node);
+                if (window.game) window.game.makeMainline(node.id);
                 forceRedraw(); 
             }));
 
             actionsContainer.appendChild(createActionBtn('❌', 'Delete from here', () => {
-                if (window.game) {
-                    window.game.deleteNode(node);
-                }
+                if (window.game) window.game.deleteNode(node.id);
+                forceRedraw();
             }, true)); 
         }
 
         popup.appendChild(actionsContainer);
         document.body.appendChild(popup);
 
-        const rect = popup.getBoundingClientRect();
-        if (rect.right > window.innerWidth) popup.style.left = (window.innerWidth - rect.width - 10) + 'px';
-        if (rect.bottom > window.innerHeight) popup.style.top = (window.innerHeight - rect.height - 10) + 'px';
+        // 3. THE RECALCULATION & SCALING ENGINE
+        const updatePosition = () => {
+            if (!document.body.contains(popup)) {
+                window.removeEventListener('resize', updatePosition);
+                return;
+            }
 
+            let currentScale = 1;
+            const scaler = document.getElementById('app-scaler');
+            if (scaler) {
+                const transform = window.getComputedStyle(scaler).transform;
+                if (transform !== 'none') {
+                    const matrix = transform.match(/^matrix\((.+)\)$/);
+                    if (matrix) currentScale = parseFloat(matrix[1].split(',')[0]);
+                }
+            }
+            
+            popup.style.transform = `scale(${currentScale})`;
+
+            const anchorRect = anchorElement.getBoundingClientRect();
+            
+            // Calculate coordinates (including scroll offset just in case)
+            let px = anchorRect.left + window.scrollX;
+            let py = anchorRect.bottom + window.scrollY + (5 * currentScale);
+
+            if (anchorRect.width === 0) {
+                px = e.pageX;
+                py = e.pageY;
+            }
+
+            // Math-based scaled dimensions (much safer than getBoundingClientRect on a fresh element)
+            const scaledWidth = popup.offsetWidth * currentScale;
+            const scaledHeight = popup.offsetHeight * currentScale;
+
+            // Boundary checks against the Viewport
+            const viewportLeft = px - window.scrollX;
+            const viewportTop = py - window.scrollY;
+            
+            if (viewportLeft + scaledWidth > window.innerWidth) {
+                px = window.innerWidth + window.scrollX - scaledWidth - 10;
+            }
+            
+            if (viewportTop + scaledHeight > window.innerHeight) {
+                // Flip it ABOVE the clicked element if it hits bottom
+                px = anchorRect.left + window.scrollX; 
+                py = anchorRect.top + window.scrollY - scaledHeight - (5 * currentScale);
+                
+                // Re-check X boundary just in case it's tight in the corner
+                if (px - window.scrollX + scaledWidth > window.innerWidth) {
+                    px = window.innerWidth + window.scrollX - scaledWidth - 10;
+                }
+            }
+
+            popup.style.left = px + 'px';
+            popup.style.top = py + 'px';
+        };
+
+        // Wait 1 rendering frame for the HTML to calculate, THEN position and show it!
+        requestAnimationFrame(() => {
+            updatePosition();
+            popup.style.visibility = 'visible'; 
+        });
+
+        window.addEventListener('resize', updatePosition);
+
+        // 4. Clean-up Listeners
         setTimeout(() => {
             document.addEventListener('click', function close(ev) {
                 if (!popup.contains(ev.target)) {
                     popup.remove();
                     document.removeEventListener('click', close);
+                    window.removeEventListener('resize', updatePosition);
                 }
             });
         }, 10);
@@ -4955,11 +4655,11 @@ renderAnalysisLine(index, type, val, moves, startFen) {
             };
 
             const tempChess = new (typeof Chess === 'function' ? Chess : window.Chess)(currentFen);
-            const is960 = window.game ? window.game.isChess960 : false;
-            const displayMoves = moves.slice(0, 40); 
+            const is960 = window.game ? window.game.gameMode === 'chess960' : false;
+            const displayMoves = moves.slice(0, 40);
             
             let cumulativeMoves = [];
-            let validMoveCount = 0; // 🔥 THE FIX: Accurately count valid moves!
+            let validMoveCount = 0; //  Accurately count valid moves!
 
             for (let i = 0; i < displayMoves.length; i++) { 
                 const uci = displayMoves[i]; 
@@ -5026,7 +4726,7 @@ renderAnalysisLine(index, type, val, moves, startFen) {
                 } catch(e) { }
 
                 if (moveObj) {
-                    // 🔥 THE FIX: Push ONLY if the move didn't crash!
+                    //  Push ONLY if the move didn't crash!
                     cumulativeMoves.push(uci); 
                     validMoveCount++; 
 
@@ -5063,7 +4763,7 @@ renderAnalysisLine(index, type, val, moves, startFen) {
                 }
             } // End of For Loop
 
-            // 🔥 THE FIX: If no valid moves were appended, hide the entire row so the score isn't left hanging blank!
+            //  If no valid moves were appended, hide the entire row so the score isn't left hanging blank!
             if (validMoveCount === 0) {
                 li.style.display = 'none';
             } else {
@@ -5091,7 +4791,7 @@ hoverEngineMove(fen, e) {
         popup.style.margin = '0';
         
         // ==========================================================
-        // 🔥 THE FIX: DYNAMIC POPUP SCALING
+        //  DYNAMIC POPUP SCALING
         // ==========================================================
         // If the window is smaller than 1000px wide or 800px tall, start shrinking the popup.
         let scale = Math.min(window.innerWidth / 1000, window.innerHeight / 800);
@@ -5153,7 +4853,7 @@ renderPreviewSquare(container, r, c, pieceChar) {
         const sq = document.createElement('div');
         sq.className = `preview-square ${isLight ? 'light' : 'dark'}`;
         
-        // 🔥 THE FIX 1: Force the square to act as a strict container that centers its contents
+        // 1: Force the square to act as a strict container that centers its contents
         sq.style.position = 'relative';
         sq.style.boxSizing = 'border-box';
         sq.style.display = 'flex';
@@ -5197,7 +4897,7 @@ renderPreviewSquare(container, r, c, pieceChar) {
             let htmlBuffer = pHTML;
             if (pHTML) {
                 const trimmed = pHTML.trim();
-                // 🔥 THE FIX 2: Add object-fit:contain and remove all padding/margins on the image
+                //   2: Add object-fit:contain and remove all padding/margins on the image
                 if (trimmed.startsWith('<svg')) {
                     const encodedSVG = encodeURIComponent(trimmed);
                     htmlBuffer = `<img src="data:image/svg+xml;charset=utf-8,${encodedSVG}" style="width:100%; height:100%; object-fit:contain; display:block; pointer-events:none; margin:0; padding:0;" draggable="false">`;
@@ -5209,7 +4909,7 @@ renderPreviewSquare(container, r, c, pieceChar) {
             const pDiv = document.createElement('div');
             pDiv.className = 'preview-piece';
             
-            // 🔥 THE FIX 3: Lock the piece container perfectly over the square
+            //   3: Lock the piece container perfectly over the square
             pDiv.style.position = 'absolute';
             pDiv.style.top = '0';
             pDiv.style.left = '0';
@@ -5299,25 +4999,6 @@ n = n.parent;
 }
 return c;
 }
-promptComment() {
-if (window.game.currentNode) {
-let c = prompt("Comment:", window.game.currentNode.comment);
-if (c !== null) {
-window.game.currentNode.comment = c;
-this.updateHistory();
-}
-}
-}
-deleteNode() {
-        let n = this.contextNode;
-        if (n && n.parent) {
-            // 🔥 THE FIX: Let the master game logic handle it, no manual FEN wiping!
-            window.game.deleteNode(n);
-        }
-        if (this.annotationPopup) {
-            this.annotationPopup.style.display = 'none';
-        }
-    }
 updateStatus(msg) {
 const box = document.getElementById('commentaryBox');
 if (box)
@@ -5336,7 +5017,7 @@ getPieceHTML(piece) {
         
         const selector = document.getElementById('assetType');
         
-        // 🔥 FIX 1: Trust the dropdown first, then the internal memory , then default
+        //  FIX 1: Trust the dropdown first, then the internal memory , then default
         let setName = selector ? selector.value : 'cburnett';
         
         if (!PIECE_SETS[setName]) {
@@ -5369,7 +5050,7 @@ processTrashAction(e) {
         
         if (e.type === 'mousedown' || (e.type === 'mousemove' && e.buttons === 1)) {
             
-            // 🔥 THE FIX: Check if the mouse is actually on the board FIRST.
+            //  Check if the mouse is actually on the board FIRST.
             const idx = this.getSquareFromCoords(e.clientX, e.clientY);
             
             // If the mouse is outside the board (e.g., clicking a spare piece in the UI),
@@ -5414,7 +5095,7 @@ editorReset() {
             // 1. Update Game Logic
             window.game.loadFEN(INITIAL_FEN);
 
-            // [FIX] CLEAR HIGHLIGHTS (Last Move & Selection)
+            // CLEAR HIGHLIGHTS (Last Move & Selection)
             window.game.lastMove = null; 
             this.selectedSq = null;
             this.legalMoves = [];
@@ -5484,6 +5165,48 @@ finishEditor() {
             }
         }, 100);
     }
+updatePieceImagesSafe(pieceSet) {
+        if (!PIECE_SETS || !PIECE_SETS[pieceSet] || !PIECE_SETS[pieceSet].pieces) return;
+
+        const pieces = document.querySelectorAll('.piece');
+        
+        pieces.forEach(pieceEl => {
+            const pieceId = pieceEl.dataset.id;
+            
+            //  FIX 2: Look up the exact piece in the game memory using its ID!
+            let pieceObj = null;
+            if (window.game && window.game.board) {
+                pieceObj = window.game.board.find(p => p && p.id == pieceId);
+            }
+            
+            if (pieceObj) {
+                const pieceType = pieceObj.color + pieceObj.type.toUpperCase(); // Creates 'wP', 'bK', etc.
+
+                if (PIECE_SETS[pieceSet].pieces[pieceType]) {
+                    const rawSVG = PIECE_SETS[pieceSet].pieces[pieceType];
+                    let htmlBuffer = rawSVG;
+                    
+                    // Encode the SVG exactly the same way renderBoard() does to prevent visual glitches!
+                    if (rawSVG) {
+                        const trimmed = rawSVG.trim();
+                        if (trimmed.startsWith('<svg')) {
+                            const encodedSVG = encodeURIComponent(trimmed);
+                            htmlBuffer = `<img src="data:image/svg+xml;charset=utf-8,${encodedSVG}" class="piece-img" style="width:100%; height:100%; display:block; pointer-events:none;" draggable="false">`;
+                        }
+                    }
+
+                    // Preserve any evaluation badges (like !! or ??) attached to the piece!
+                    const nagIndicator = pieceEl.querySelector('.nag-indicator');
+                    
+                    pieceEl.innerHTML = htmlBuffer;
+                    
+                    if (nagIndicator) {
+                        pieceEl.appendChild(nagIndicator);
+                    }
+                }
+            }
+        });
+    }
 setPresetTheme(lightHex, darkHex, btnElement = null, accentColor = '#38bdf8', gridColor = 'transparent', pieceSet = null, appBg = null) {
         const lightInput = document.getElementById('colorLight');
         const darkInput = document.getElementById('colorDark');
@@ -5493,7 +5216,12 @@ setPresetTheme(lightHex, darkHex, btnElement = null, accentColor = '#38bdf8', gr
         
         this.currentGridColor = gridColor;
         this.currentAccentColor = accentColor; 
-        this.currentAppBg = appBg; // 🔥 NEW: Save the background
+        
+        if (!appBg && darkHex) {
+            appBg = this.getMatchingBackground(darkHex);
+        }
+        
+        this.currentAppBg = appBg; 
         
         if (pieceSet) {
             this.pieceTheme = pieceSet; 
@@ -5539,6 +5267,27 @@ setPresetTheme(lightHex, darkHex, btnElement = null, accentColor = '#38bdf8', gr
             });
         }
     }
+getMatchingBackground(hexCode) {
+        if (!hexCode || !hexCode.startsWith('#')) return `radial-gradient(circle at 50% 0%, #1e3a4c 0%, #0f172a 60%, #020617 100%)`;
+        
+        let hex = hexCode.replace(/^#/, '');
+        if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
+        
+        let r = parseInt(hex.slice(0, 2), 16) || 0;
+        let g = parseInt(hex.slice(2, 4), 16) || 0;
+        let b = parseInt(hex.slice(4, 6), 16) || 0;
+        
+        // Create a deep, dark atmospheric glow based on the board color
+        let r1 = Math.floor(r * 0.28);
+        let g1 = Math.floor(g * 0.28);
+        let b1 = Math.floor(b * 0.28);
+
+        let r2 = Math.floor(r * 0.12);
+        let g2 = Math.floor(g * 0.12);
+        let b2 = Math.floor(b * 0.12);
+        
+        return `radial-gradient(circle at 50% 0%, rgb(${r1}, ${g1}, ${b1}) 0%, rgb(${r2}, ${g2}, ${b2}) 65%, #020617 100%)`;
+    }
 updateTheme() {
         const light = document.getElementById('colorLight').value;
         const dark = document.getElementById('colorDark').value;
@@ -5563,69 +5312,43 @@ updateTheme() {
             board.style.border = `5px solid #222`;
         }
 
-        // 🔥 NEW: Apply the dynamic background while keeping your custom noise texture!
-        const noiseText = `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E")`;
+        const bgStyle = this.currentAppBg || `radial-gradient(circle at 50% 0%, #1e3a4c 0%, #0f172a 60%, #020617 100%)`;
         
-        // Default to your original base.css background if none is specified
-        const bgGradient = this.currentAppBg || `radial-gradient(circle at 50% 0%, #1e3a4c 0%, #0f172a 60%, #020617 100%)`;
-        
-        document.body.style.background = `${noiseText}, ${bgGradient}`;
-        document.body.style.backgroundAttachment = 'fixed';
-        document.body.style.backgroundSize = 'cover';
-    }
-updatePieceImagesSafe(pieceSet) {
-        if (!PIECE_SETS || !PIECE_SETS[pieceSet] || !PIECE_SETS[pieceSet].pieces) return;
-
-        const pieces = document.querySelectorAll('.piece');
-        
-        pieces.forEach(pieceEl => {
-            const pieceId = pieceEl.dataset.id;
-            
-            // 🔥 FIX 2: Look up the exact piece in the game memory using its ID!
-            let pieceObj = null;
-            if (window.game && window.game.board) {
-                pieceObj = window.game.board.find(p => p && p.id == pieceId);
-            }
-            
-            if (pieceObj) {
-                const pieceType = pieceObj.color + pieceObj.type.toUpperCase(); // Creates 'wP', 'bK', etc.
-
-                if (PIECE_SETS[pieceSet].pieces[pieceType]) {
-                    const rawSVG = PIECE_SETS[pieceSet].pieces[pieceType];
-                    let htmlBuffer = rawSVG;
-                    
-                    // Encode the SVG exactly the same way renderBoard() does to prevent visual glitches!
-                    if (rawSVG) {
-                        const trimmed = rawSVG.trim();
-                        if (trimmed.startsWith('<svg')) {
-                            const encodedSVG = encodeURIComponent(trimmed);
-                            htmlBuffer = `<img src="data:image/svg+xml;charset=utf-8,${encodedSVG}" class="piece-img" style="width:100%; height:100%; display:block; pointer-events:none;" draggable="false">`;
-                        }
-                    }
-
-                    // Preserve any evaluation badges (like !! or ??) attached to the piece!
-                    const nagIndicator = pieceEl.querySelector('.nag-indicator');
-                    
-                    pieceEl.innerHTML = htmlBuffer;
-                    
-                    if (nagIndicator) {
-                        pieceEl.appendChild(nagIndicator);
-                    }
-                }
-            }
-        });
+        if (bgStyle.includes('url(') && !bgStyle.includes('data:image/svg+xml')) {
+            // It's a custom uploaded image. Turn off noise and apply image!
+            root.style.setProperty('--bg-gradient', bgStyle);
+            root.style.setProperty('--noise-filter', 'none'); 
+        } else {
+            // It's a preset color theme. Restore noise and apply calculated gradient!
+            root.style.setProperty('--bg-gradient', bgStyle);
+            root.style.setProperty('--noise-filter', `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E")`);
+        }
     }
 setBackground(input) {
-if (input.files &&input.files[0]) {
-const btnSpan = input.parentElement.querySelector('span');
-if (btnSpan) btnSpan.innerText = input.files[0].name;
-const reader = new FileReader();
-reader.onload = function(e) {
-document.body.style.backgroundImage = `url('${e.target.result}')`;
-};
-reader.readAsDataURL(input.files[0]);
-}
-}
+        if (input.files && input.files[0]) {
+            const btnSpan = input.parentElement.querySelector('span');
+            if (btnSpan) btnSpan.innerText = input.files[0].name;
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                const bgUrl = `url('${e.target.result}')`;
+                
+                // 1. Save it to memory
+                this.currentAppBg = bgUrl;
+                
+                // 2. Save it to LocalStorage so it survives page reloads
+                try {
+                    let savedTheme = JSON.parse(localStorage.getItem('chessThemeCache')) || {};
+                    savedTheme.appBg = bgUrl;
+                    localStorage.setItem('chessThemeCache', JSON.stringify(savedTheme));
+                } catch(err) {}
+                
+                // 3. Apply it
+                this.updateTheme();
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
 flipBoard() {
     this.flipped = !this.flipped;
     document.body.classList.toggle('flipped-board');
@@ -5650,7 +5373,7 @@ copyPGN() {
         
         // Copy to clipboard
         navigator.clipboard.writeText(pgn).then(() => {
-            // 🔥 THE FIX: Trigger your notification system on success!
+            //  Trigger your notification system on success!
             if (typeof this.showNotification === 'function') {
                 this.showNotification("PGN successfully copied to clipboard!", "Copy PGN", "📋");
             }
@@ -5666,12 +5389,13 @@ navigator.clipboard.writeText(window.game.currentNode.fen);
 this.showNotification("Current FEN has been copied to your clipboard.","Copied","📋");
 }
 loadPgnAndAnalyze() {
-let val = document.getElementById('editorPgnInput').value;
-if (val) {
-window.game.loadPGN(val, true);
-this.switchTab('analysis');
-}
-}
+        let val = document.getElementById('editorPgnInput').value;
+        if (val) {
+            if (window.game) window.game.mode = 'analysis';
+            this.switchTab('analysis');
+            window.game.loadPGN(val, true);
+        }
+    }
 updatePlayerNames(topName, bottomName, skipRender = false) {
         // 1. Update the "Source of Truth" (this.playerInfo)
         // This is critical: We save the new names so renderHeaders() sees them
@@ -5703,7 +5427,7 @@ updatePlayerInfo() {
             const level = window.game.botLevel || 5;
             const botName = `Stockfish Level ${level}`;
             
-            // 🔥 THE FIX: Checks botColor properly and syncs to PGN Headers
+            //  Checks botColor properly and syncs to PGN Headers
             if (window.game.botColor === 'b') {
                 this.playerInfo['w'].name = "You";
                 this.playerInfo['b'].name = botName;
@@ -5775,7 +5499,7 @@ updateClocks() {
         let wTime = 600;
         let bTime = 600;
 
-        // 🔥 THE FIX 1: Always prioritize the LIVE ticking time over history snapshots!
+        //   1: Always prioritize the LIVE ticking time over history snapshots!
         if (window.game && window.game.isPlayingLiveGame) {
             wTime = window.game.whiteTime; 
             bTime = window.game.blackTime;
@@ -5817,7 +5541,7 @@ updateClocks() {
         wClockEl.classList.remove('active', 'running');
         bClockEl.classList.remove('active', 'running');
 
-        // 🔥 THE FIX 2: Lock the indicator to the TRUE live turn, ignoring PGN travel!
+        //   2: Lock the indicator to the TRUE live turn, ignoring PGN travel!
         if (window.game && window.game.isPlayingLiveGame) {
             const activeTurn = window.game.currentLiveTurn || window.game.turn;
             
@@ -6009,7 +5733,7 @@ showPromotionModal(color, destIdx, callback) {
         const overlay = document.getElementById('promotion-overlay');
         if (!overlay) return;
 
-        // [FIX] HIDE THE PIECE UNDERNEATH (e.g. Captured Piece)
+        // HIDE THE PIECE UNDERNEATH (e.g. Captured Piece)
         // This prevents the "ghost" piece from showing through the gaps
         // or flickering when you hover the promotion buttons.
         const squareWidth = this.boardEl.offsetWidth / 8;
@@ -6184,8 +5908,8 @@ initCharts() {
     const commonOptions = {
         responsive: false, 
         maintainAspectRatio: false,
-        animation: false, // 🔥 OPTIMIZATION: Disable animations
-        normalized: true, // 🔥 OPTIMIZATION: Skips data sorting checks
+        animation: false, //  OPTIMIZATION: Disable animations
+        normalized: true, //  OPTIMIZATION: Skips data sorting checks
         spanGaps: true,
         interaction: { mode: 'index', intersect: false },
         devicePixelRatio: window.devicePixelRatio
@@ -6222,7 +5946,7 @@ initCharts() {
                 plugins: { legend: { display: false } }, 
                 scales: { 
                     x: { display: false }, 
-                    // 🔥 THE FIX: Rename 'y' to 'yTime' so it matches forceRenderCharts
+                    //  Rename 'y' to 'yTime' so it matches forceRenderCharts
                     yTime: { 
                         type: 'linear',
                         position: 'left',
@@ -6237,7 +5961,7 @@ initCharts() {
                             }
                         } 
                     },
-                    // 🔥 Initialize yEval as hidden so it doesn't break on load
+                    //  Initialize yEval as hidden so it doesn't break on load
                     yEval: {
                         type: 'linear',
                         position: 'right',
@@ -6276,7 +6000,7 @@ if (toggleBtn && wrapper) {
             wrapper.style.display = 'flex';
             toggleBtn.innerText = "− Collapse Charts";
             
-            // 🔥 THE FIX: The Race Condition Killer
+            //  The Race Condition Killer
             // The first frame waits for the DOM to update.
             // The second frame waits for the browser to actually paint the flexbox.
             requestAnimationFrame(() => {
@@ -6302,7 +6026,7 @@ renderCharts(force = false) {
             lastNode = lastNode.children[lastNode.selectedChildIndex || 0];
         }
 
-        // 🔥 THE FIX: If 'force' is true, bypass the FEN checker entirely!
+        //  If 'force' is true, bypass the FEN checker entirely!
         if (!force && this.evalChart && this._lastChartedFen === lastNode.fen) {
             return; 
         }
@@ -6329,7 +6053,7 @@ safeResizeCharts() {
             const eWrap = document.getElementById('evalSizer');
             const tWrap = document.getElementById('timeSizer');
 
-            // 🔥 THE FIX: Strictly cap the height at 220px so it never gets too big!
+            //  Strictly cap the height at 220px so it never gets too big!
             if (this.evalChart && eWrap) {
                 const w = eWrap.offsetWidth;
                 const h = eWrap.offsetHeight > 0 ? eWrap.offsetHeight : 220;
@@ -6621,15 +6345,17 @@ jumpToChartMove(idx) {
         }
         
         if (curr) {
-            window.game.currentNode = curr;
-            window.game.loadFEN(curr.fen);
-            window.game.syncMoveHistory(); // 🔥 THE FIX: Rebuild array after jump!
-            this.renderBoard(false);
-            this.updateHistory();
-            this.renderArrows();
-            if (this.updateClocks) this.updateClocks();
-            if (window.game.updateStockfish && !window.game.isPlayingLiveGame) {
-                window.game.updateStockfish();
+            if (!curr.id) curr.id = 'n_' + Math.random().toString(36).substr(2, 9);
+            const success = window.game.goToNodeId(curr.id);
+            if (success) {
+                const state = window.game.getReader();
+                this.renderBoard(false);
+                this.updateHistory();
+                this.renderArrows();
+                if (this.updateClocks) this.updateClocks();
+                if (state.mode !== 'play' && window.game.updateStockfish) {
+                    window.game.updateStockfish();
+                }
             }
         }
     }
@@ -6665,7 +6391,7 @@ jumpToNextError(color, type) {
         
         window.game.currentNode = targetNode;
         window.game.loadFEN(targetNode.fen);
-        window.game.syncMoveHistory(); // 🔥 THE FIX: Rebuild array after jump!
+        window.game.goToNodeId(targetNode.id);
         this.renderBoard(false);
         this.updateHistory();
         this.renderArrows();
@@ -6712,7 +6438,7 @@ showReviewResults(wAcc, wBlun, wMist, wInacc, bAcc, bBlun, bMist, bInacc) {
             document.getElementById('mistBlack').innerText = bMist + ' Mistakes';
             if (document.getElementById('inaccBlack')) document.getElementById('inaccBlack').innerText = bInacc + ' Inaccuracies';
 
-            // 🔥 FIX: ADDED ONCLICK AND HOVER BINDING FOR CHART 🔥
+            //  FIX: ADDED ONCLICK AND HOVER BINDING FOR CHART 
             const bindHover = (id, color, type) => {
                 const el = document.getElementById(id);
                 if (el) {
@@ -6791,7 +6517,7 @@ renderAnalysisResult(stats) {
                     row.style.cssText = "display:flex; justify-content:space-between; padding:3px 0; cursor:pointer; transition: background-color 0.2s;";
                     row.innerHTML = `<span style="color:${type.color};">${type.label}</span><span>${count}</span>`;
                     
-                    // 🔥 ATTACH HOVER & CLICK TRIGGERS HERE AS WELL 🔥
+                    //  ATTACH HOVER & CLICK TRIGGERS HERE AS WELL 
                     row.onmouseenter = () => {
                         row.style.backgroundColor = 'rgba(255,255,255,0.1)'; 
                         this.highlightStatMoves(colorChar, type.key);
@@ -6817,7 +6543,7 @@ renderAnalysisResult(stats) {
     }
 highlightChartPoints(colorChar, nagType) {
         this.highlightedChartState = { color: colorChar, type: nagType };
-        // 🔥 FIX: Chart.js requires a full update to visibly resize the dots
+        //  FIX: Chart.js requires a full update to visibly resize the dots
         if (this.evalChart) this.forceRenderCharts();
     }
 renderChapters() {
@@ -6830,7 +6556,7 @@ renderChapters() {
             const isActive = idx === window.game.activeChapterIndex;
             const el = document.createElement('div');
             
-            // 🔥 Exact Lichess list styling!
+            //  Exact Lichess list styling!
             el.style.cssText = `
                 display: flex;
                 align-items: center;
@@ -6841,7 +6567,7 @@ renderChapters() {
                 border-left: 3px solid ${isActive ? '#d85000' : 'transparent'};
                 font-size: 13px;
                 transition: background 0.1s;
-                pointer-events: auto; /* 🔥 THE FIX: Force clicks to register */
+                pointer-events: auto; /*  Force clicks to register */
             `;
             
             el.onmouseenter = () => { 
@@ -6893,7 +6619,7 @@ openChapterModal(idx = -1) {
         window._editingChapterIdx = idx; // Cache what we are editing
 
         if (idx === -1) {
-            // 🔥 NEW CHAPTER MODE
+            //  NEW CHAPTER MODE
             title.innerText = "New chapter";
             nameInput.value = `Chapter ${window.game.chapters.length + 1}`;
             orientInput.value = 'w';
@@ -6901,7 +6627,7 @@ openChapterModal(idx = -1) {
             saveBtn.innerText = "CREATE CHAPTER";
             delBtn.style.display = "none";
         } else {
-            // 🔥 EDIT CHAPTER MODE
+            //  EDIT CHAPTER MODE
             const chap = window.game.chapters[idx];
             title.innerText = "Edit chapter";
             nameInput.value = chap.title;
@@ -6965,10 +6691,9 @@ switchChapterTab(tabName) {
 importFEN() {
         const fen = document.getElementById('exportFenText').value.trim();
         if (fen) {
-            window.game.loadFEN(fen);
-            this.updateHistory(true);
-            this.renderBoard(true);
+            window.game.loadNewPosition(fen);
             document.getElementById('shareExportModal').style.display = 'none';
+            this.switchTab('analysis');
         }
     }
 importPGN() {
@@ -6980,49 +6705,48 @@ importPGN() {
                 .filter(chapter => chapter.trim().length > 10);
 
             if (extractedGames.length > 0) {
-                if (extractedGames.length > 1) {
-                    // 🔥 MULTI-GAME IMPORT: Create a brand new Study!
-                    const newChapters = extractedGames.map((gameStr, idx) => {
+                window.game.mode = 'study';
+                this.switchTab('study');
+
+                setTimeout(() => {
+                    if (extractedGames.length > 1) {
+                        // MULTI-GAME IMPORT
+                        const newChapters = extractedGames.map((gameStr, idx) => {
+                            const chapterMatch = gameStr.match(/\[ChapterName\s+"([^"]+)"\]/);
+                            const eventMatch = gameStr.match(/\[Event\s+"([^"]+)"\]/);
+                            const title = chapterMatch ? chapterMatch[1] : (eventMatch ? eventMatch[1] : `Chapter ${idx + 1}`);
+                            return { title: title, pgn: gameStr.trim(), analysisMode: 'Normal analysis' };
+                        });
+                        
+                        const newStudyId = 'study_' + Date.now();
+                        const newStudy = {
+                            id: newStudyId,
+                            title: newChapters[0].title || "Imported Study",
+                            chapters: newChapters,
+                            activeChapterIndex: 0
+                        };
+                        
+                        window.game.allStudies.push(newStudy);
+                        window.game.loadStudy(newStudyId);
+                        
+                    } else {
+                        // SINGLE-GAME IMPORT
+                        const gameStr = extractedGames[0];
                         const chapterMatch = gameStr.match(/\[ChapterName\s+"([^"]+)"\]/);
                         const eventMatch = gameStr.match(/\[Event\s+"([^"]+)"\]/);
-                        const title = chapterMatch ? chapterMatch[1] : (eventMatch ? eventMatch[1] : `Chapter ${idx + 1}`);
-                        return { title: title, pgn: gameStr.trim() };
-                    });
+                        const title = chapterMatch ? chapterMatch[1] : (eventMatch ? eventMatch[1] : `Chapter ${window.game.chapters.length + 1}`);
+                        
+                        window.game.chapters.push({ title: title, pgn: gameStr.trim(), analysisMode: 'Normal analysis' });
+                        window.game.loadChapter(window.game.chapters.length - 1);
+                    }
                     
-                    const newStudyId = 'study_' + Date.now();
-                    const newStudy = {
-                        id: newStudyId,
-                        title: newChapters[0].title || "Imported Study", // Name it after the first game
-                        chapters: newChapters,
-                        activeChapterIndex: 0
-                    };
-                    
-                    // Add it to the list and instantly load it (making it the active study)
-                    window.game.allStudies.push(newStudy);
-                    window.game.loadStudy(newStudyId);
-                    
-                } else {
-                    // 🔥 SINGLE-GAME IMPORT: Append as a new chapter and jump to it!
-                    const gameStr = extractedGames[0];
-                    const chapterMatch = gameStr.match(/\[ChapterName\s+"([^"]+)"\]/);
-                    const eventMatch = gameStr.match(/\[Event\s+"([^"]+)"\]/);
-                    const title = chapterMatch ? chapterMatch[1] : (eventMatch ? eventMatch[1] : `Chapter ${window.game.chapters.length + 1}`);
-                    
-                    // Add to the end of the current study
-                    window.game.chapters.push({ title: title, pgn: gameStr.trim() });
-                    
-                    // Instantly load and jump to the newly added chapter at the bottom
-                    window.game.loadChapter(window.game.chapters.length - 1);
-                }
+                    if (typeof this.renderChapters === 'function') this.renderChapters();
+                    if (typeof this.renderStudyList === 'function') this.renderStudyList();
+                }, 50);
             }
             
-            // Close the modal
             const modal = document.getElementById('shareExportModal');
             if (modal) modal.style.display = 'none';
-            
-            // Force the sidebars to visually redraw
-            if (typeof this.renderChapters === 'function') this.renderChapters();
-            if (typeof this.renderStudyList === 'function') this.renderStudyList();
         }
     }
 openStudyManager() {
@@ -7064,19 +6788,13 @@ quickImport() {
         const text = document.getElementById('quickImportText').value.trim();
         if (!text) return;
         
-        // Auto-detect FEN or PGN
-        if (text.includes('[Event') || text.includes('1.')) {
-            window.game.loadPGN(text);
-        } else {
-            window.game.loadFEN(text);
-        }
+        if (window.game) window.game.mode = 'analysis';
+        this.switchTab('analysis'); 
+        
+            if (text.includes('[Event') || text.includes('1.')) window.game.loadPGN(text);
+            else window.game.loadNewPosition(text);
         
         document.getElementById('quickImportModal').style.display = 'none';
-        
-        // Let the game class handle the redraws if possible. 
-        // Only call these if your game class DOES NOT automatically update the UI after loading.
-        if (typeof this.updateHistory === 'function') this.updateHistory(true);
-        if (typeof this.renderBoard === 'function') this.renderBoard(true);
     }
 openChapterManager() {
         if (window.game) window.game.saveActiveChapter(); 
@@ -7179,7 +6897,7 @@ async _drawBoardToCanvas(canvas, ctx) {
         const boardRect = piecesLayer.getBoundingClientRect();
         const domSqSize = boardRect.width / 8;
 
-        // 🔥 THE FIX: Strictly filter out any captured pieces or pieces fading out!
+        //  Strictly filter out any captured pieces or pieces fading out!
         const pieces = Array.from(piecesLayer.children).filter(p => {
             const style = window.getComputedStyle(p);
             return style.display !== 'none' && style.opacity !== '0' && style.visibility !== 'hidden';
@@ -7228,7 +6946,6 @@ async _drawBoardToCanvas(canvas, ctx) {
         await Promise.all(drawPromises);
     }
 generateGIF() {
-         
         const previewArea = document.getElementById('gifPreviewArea');
         if (!previewArea) return;
         
@@ -7286,7 +7003,7 @@ generateGIF() {
             if (typeof window.ui.toggleAnimations === 'function') window.ui.toggleAnimations();
         }
         
-        // 2. 🔥 FORCE HARD RESET to Move 1 (Bypass goToStart completely) 🔥
+        // 2.  FORCE HARD RESET to Move 1 (Bypass goToStart completely) 
         window.game.currentNode = window.game.rootNode;
         window.game.engine.load(window.game.rootNode.fen);
         this.renderBoard(false); // Instantly visually redraw the starting position
@@ -7302,7 +7019,7 @@ generateGIF() {
             // Move Forward!
             if (window.game.currentNode.children && window.game.currentNode.children.length > 0) {
                 
-                // 🔥 THE FIX: Use your app's native stepForward so the board state actively updates!
+                //  Use your app's native stepForward so the board state actively updates!
                 window.game.stepForward(); 
                 
                 // Loop to the next frame
@@ -7361,7 +7078,7 @@ exportEmbed() {
                     if (el && (id === 'embedWidth' || id === 'embedHeight')) el.addEventListener('input', () => this.generateEmbedCodes());
                 });
 
-                // 🔥 NEW: Slider Resizer Logic
+                //  NEW: Slider Resizer Logic
                 const sliderEl = document.getElementById('embedSizeSlider');
                 if (sliderEl) {
                     sliderEl.addEventListener('input', (e) => {
@@ -7420,7 +7137,7 @@ generateEmbedCodes(copyToClipboard = false) {
         const width = widthEl && widthEl.value.trim() !== '' ? widthEl.value : '100%';
         const height = heightEl && heightEl.value.trim() !== '' ? heightEl.value : '480px';
 
-        // 🔥 THE FIX: Map colors so the visual preview actually updates when you select a theme!
+        //  Map colors so the visual preview actually updates when you select a theme!
         const themeColors = {
             'default': '#2bb7ca', 'marble': '#7d8796', 'green': '#769656', 
             'blue': '#60b1d9', 'purple': '#7a5c8d', 'pink': '#d960cb', 
@@ -7446,7 +7163,7 @@ generateEmbedCodes(copyToClipboard = false) {
         params.append('embedId', embedId);
         const embedUrl = `${baseUrl}?${params.toString()}`;
 
-        // 🔥 THE FIX: Put your auto-resizing script back into the iframe!
+        //  Put your auto-resizing script back into the iframe!
         const embedHtml = `<iframe id="${embedId}" allowtransparency="true" frameborder="0" style="width:${width}; border:none; min-height:${height};" src="${embedUrl}"></iframe><script nonce="chess-diagram">window.addEventListener("message",e=>{e['data']&&"${embedId}"===e['data']['id']&&document.getElementById(e['data']['id'])&&(document.getElementById(e['data']['id']).style.height=\`\${e['data']['frameHeight']+37}px\`)});<\/script>`;
         
         const gidFormat = `[gid=${gameId}]`;

@@ -1,7 +1,7 @@
-description: Ultralytics best model trained on /kaggle/working/chess_dataset/data.yaml
+description: Ultralytics best model trained on /kaggle/working/combined_chess_data.yaml
 author: Ultralytics
-date: '2026-03-18T04:00:24.522395'
-version: 8.4.23
+date: '2026-03-24T01:49:54.783549'
+version: 8.4.26
 license: AGPL-3.0 License (https://ultralytics.com/license)
 docs: https://docs.ultralytics.com
 stride: 32
@@ -23,7 +23,7 @@ names:
   9: r
   10: q
   11: k
-  12: board
+  12: empty
 args:
   batch: 1
   half: false

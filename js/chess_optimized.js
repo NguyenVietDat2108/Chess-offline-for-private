@@ -1,4 +1,8 @@
-var Chess = function(fen, is960 = false) {
+//This file is a customized chess.js file that respect the ES5 architecture but optimized for normal chess and support multiple variants such as:
+//'chess960','3check','antichess','atomic','bughouse','chaturanga','crazyhouse','duck','horde','kingofthehill','racingkings'
+//history[] is left null since it is handled in chessgame.js which also handle engine games pv lines when Load_pgn, thus putting at here seems unreasonable.
+
+var Chess = function(fen, gameMode = 'classical') {
     function log(ctx, msg) { console.log(`%c[${ctx}]`, "color: #0ff; font-weight: bold;", msg); }
     function error(ctx, msg) { console.error(`%c[${ctx}]`, "color: #f00; font-weight: bold;", msg); }
 
@@ -105,15 +109,41 @@ var Chess = function(fen, is960 = false) {
     }
 
     function create_empty_state() {
-        return { bb_lo: new Int32Array(12), bb_hi: new Int32Array(12), board: new Int8Array(64).fill(-1), turn: WHITE, castling: 0, ep_square: -1, half_moves: 0, move_number: 1, is960: false };
+        return { 
+            bb_lo: new Int32Array(12), 
+            bb_hi: new Int32Array(12), 
+            board: new Int8Array(64).fill(-1), 
+            turn: WHITE, 
+            castling: 0, 
+            ep_square: -1, 
+            half_moves: 0, 
+            move_number: 1, 
+            gameMode: 'classical',
+            checks: { w: 0, b: 0 },         // For 3-Check
+            pocket: { w: [], b: [] },       // For Crazyhouse / Bughouse
+            duck_sq: -1                     // For Duck Chess
+        };
     }
     function clone_state(s) {
-        return { bb_lo: s.bb_lo.slice(), bb_hi: s.bb_hi.slice(), board: s.board.slice(), turn: s.turn, castling: s.castling, ep_square: s.ep_square, half_moves: s.half_moves, move_number: s.move_number, is960: s.is960 };
+        return { 
+            bb_lo: s.bb_lo.slice(), 
+            bb_hi: s.bb_hi.slice(), 
+            board: s.board.slice(), 
+            turn: s.turn, 
+            castling: s.castling, 
+            ep_square: s.ep_square, 
+            half_moves: s.half_moves, 
+            move_number: s.move_number, 
+            gameMode: s.gameMode,
+            checks: { w: s.checks.w, b: s.checks.b },
+            pocket: { w: [...s.pocket.w], b: [...s.pocket.b] },
+            duck_sq: s.duck_sq
+        };
     }
     
-    function load_fen(fen, set960Flag = false) {
+    function load_fen(fen, setGameMode = 'classical') {
         var s = create_empty_state();
-        s.is960 = set960Flag; 
+        s.gameMode = setGameMode; 
         var tokens = fen.split(/\s+/);
         var sq = 56;
         for (var i = 0; i < tokens[0].length; i++) {
@@ -142,6 +172,13 @@ var Chess = function(fen, is960 = false) {
             let mask = (capSq<32) ? (1<<capSq) : (1<<(capSq-32));
             if (!((capSq<32 ? s.bb_lo[pawn] : s.bb_hi[pawn]) & mask)) s.ep_square = -1;
         }
+        if (s.gameMode === '3check') {
+            let checkMatch = fen.match(/\+(\d+)\+(\d+)/);
+            if (checkMatch) {
+                s.checks.w = parseInt(checkMatch[1], 10);
+                s.checks.b = parseInt(checkMatch[2], 10);
+            }
+        }
         return s;
     }
     
@@ -167,11 +204,16 @@ var Chess = function(fen, is960 = false) {
         if (s.castling & 4) c += "k"; if (s.castling & 8) c += "q";
         c = c || "-";
         var ep = (s.ep_square === -1) ? "-" : sq_str(s.ep_square);
-        return [fen, (s.turn === WHITE ? 'w' : 'b'), c, ep, s.half_moves, s.move_number].join(" ");
+        let finalFen = [fen, (s.turn === WHITE ? 'w' : 'b'), c, ep, s.half_moves, s.move_number].join(" ");
+        
+        if (s.gameMode === '3check') {
+            finalFen += ` +${s.checks.w}+${s.checks.b}`;
+        }
+        
+        return finalFen;
     }
-
-    // 🔥 THE FIX: FLAWLESS CASTLING RIGHT STRIPPING 🔥
-    function apply_move(prevState, m) {
+    
+    function apply_standard_move(prevState, m) {
         var next = clone_state(prevState);
         var us = next.turn, them = us ^ 1;
         var from = m & 0x3F, to = (m >>> 6) & 0x3F;
@@ -256,7 +298,50 @@ var Chess = function(fen, is960 = false) {
         }
         return next;
     }
+    // --- VARIANT SIDE-EFFECT STUBS ---
+    function apply_atomic_move(prevState, m) { return apply_standard_move(prevState, m); }
+    function apply_crazyhouse_move(prevState, m) { return apply_standard_move(prevState, m); }
+    function apply_bughouse_move(prevState, m) { return apply_standard_move(prevState, m); }
+    function apply_duck_move(prevState, m) { return apply_standard_move(prevState, m); }
+    function apply_chaturanga_move(prevState, m) { return apply_standard_move(prevState, m); }
 
+    // --------------------------------------------------------
+    // 🔥 VARIANT APPLY ROUTER (MASTER SHELL)
+    // --------------------------------------------------------
+    function apply_move(prevState, m) {
+        let nextState;
+        
+        // 1. Route the physical board changes
+        switch (prevState.gameMode) {
+            case 'atomic':     nextState = apply_atomic_move(prevState, m); break;
+            case 'bughouse':   nextState = apply_bughouse_move(prevState, m); break;
+            case 'chaturanga': nextState = apply_chaturanga_move(prevState, m); break;
+            case 'crazyhouse': nextState = apply_crazyhouse_move(prevState, m); break;
+            case 'duck':       nextState = apply_duck_move(prevState, m); break;
+            
+            // Variants that just move pieces normally
+            case 'classical':
+            case 'chess960':
+            case '3check':
+            case 'antichess':
+            case 'horde':
+            case 'kingofthehill':
+            case 'racingkings':
+            default:           nextState = apply_standard_move(prevState, m); break;
+        }
+
+        // 2. Post-move state trackers
+        if (prevState.gameMode === '3check') {
+            if (is_standard_checked(nextState, nextState.turn)) {
+                let us = prevState.turn; 
+                if (us === WHITE) nextState.checks.w++;
+                else nextState.checks.b++;
+            }
+        }
+
+        return nextState;
+    }
+    
     function is_attacked(state, sq, by_color) {
         var bb_lo = state.bb_lo, bb_hi = state.bb_hi;
         if (sq < 32) {
@@ -290,14 +375,34 @@ var Chess = function(fen, is960 = false) {
         return false;
     }
     
-    function is_checked(state, color) {
+    function is_standard_checked(state, color) {
         var klo = state.bb_lo[color*6+KING], khi = state.bb_hi[color*6+KING];
         if (klo===0 && khi===0) return true;
         var k = ctz(klo, khi);
         return is_attacked(state, k, color ^ 1);
     }
+    function is_checked(state, color) {
+        switch (state.gameMode) {
+            // Variants where Kings are ignored or checks don't exist
+            case 'antichess':   return false; 
+            case 'horde':       return false; 
+            case 'racingkings': return false; 
+            
+            // Variants that use standard check math
+            case 'classical':
+            case 'chess960':
+            case '3check':
+            case 'atomic':
+            case 'bughouse':
+            case 'chaturanga':
+            case 'crazyhouse':
+            case 'duck':
+            case 'kingofthehill':
+            default:            return is_standard_checked(state, color);
+        }
+    }
     
-    function generate_moves(state, options) {
+    function generate_standard_moves(state, options) {
         var moves = [];
         var us = state.turn, them = us ^ 1;
         var bb_lo = state.bb_lo, bb_hi = state.bb_hi;
@@ -389,7 +494,7 @@ var Chess = function(fen, is960 = false) {
         });
 
         if (!options || options.legal !== false) {
-            if (!state.is960) {
+            if (state.gameMode !== 'chess960') {
                 if (us === WHITE) {
                     if ((state.castling & 1) && !(occAllL & (MASKS_LO[5]|MASKS_LO[6]))) {
                         if (!is_attacked(state, 4, BLACK) && !is_attacked(state, 5, BLACK) && !is_attacked(state, 6, BLACK)) add_move(moves, 4, 6, BITS.KSIDE_CASTLE);
@@ -438,8 +543,6 @@ var Chess = function(fen, is960 = false) {
                             if (is_attacked(state, sq, them)) return;
                         }
                         
-                        // Output both the physical Rook square AND the standard algebraic square
-                        // This prevents UI drop rejections!
                         add_move(moves, kSq, rSq, isK ? BITS.KSIDE_CASTLE : BITS.QSIDE_CASTLE);
                         if (k_to !== rSq && k_to !== kSq) {
                             add_move(moves, kSq, k_to, isK ? BITS.KSIDE_CASTLE : BITS.QSIDE_CASTLE);
@@ -465,6 +568,39 @@ var Chess = function(fen, is960 = false) {
             }
         }
         return final_moves;
+    }
+    // --- VARIANT GENERATOR STUBS ---
+    function generate_antichess_moves(state, options) { return generate_standard_moves(state, options); }
+    function generate_atomic_moves(state, options) { return generate_standard_moves(state, options); }
+    function generate_bughouse_moves(state, options) { return generate_standard_moves(state, options); }
+    function generate_chaturanga_moves(state, options) { return generate_standard_moves(state, options); }
+    function generate_crazyhouse_moves(state, options) { return generate_standard_moves(state, options); }
+    function generate_duck_moves(state, options) { return generate_standard_moves(state, options); }
+    function generate_horde_moves(state, options) { return generate_standard_moves(state, options); }
+    function generate_racingkings_moves(state, options) { return generate_standard_moves(state, options); }
+
+    // --------------------------------------------------------
+    // VARIANT MOVE GENERATOR ROUTER (MASTER SHELL)
+    // --------------------------------------------------------
+    function generate_moves(state, options) {
+        switch(state.gameMode) {
+            // Variants with custom move generation or piece drops
+            case 'antichess':   return generate_antichess_moves(state, options);
+            case 'atomic':      return generate_atomic_moves(state, options);
+            case 'bughouse':    return generate_bughouse_moves(state, options);
+            case 'chaturanga':  return generate_chaturanga_moves(state, options);
+            case 'crazyhouse':  return generate_crazyhouse_moves(state, options);
+            case 'duck':        return generate_duck_moves(state, options);
+            case 'horde':       return generate_horde_moves(state, options);
+            case 'racingkings': return generate_racingkings_moves(state, options);
+            
+            // Variants that rely entirely on standard move generation rules
+            case 'classical':
+            case 'chess960':
+            case '3check':
+            case 'kingofthehill':
+            default:            return generate_standard_moves(state, options);
+        }
     }
     
     function add_move(l, f, t, fl) { l.push(f | (t << 6) | (fl << 12)); }
@@ -517,11 +653,10 @@ var Chess = function(fen, is960 = false) {
         } else if (piece === KING) {
             let isKDrop = (to === (us===WHITE ? 6 : 62));
             let isQDrop = (to === (us===WHITE ? 2 : 58));
-            let isStandardCastle = !state.is960 && Math.abs(to - from) === 2;
-            let is960Drop = state.is960 && (isKDrop || isQDrop);
+            let isStandardCastle = state.gameMode !== 'chess960' && Math.abs(to - from) === 2;
+            let is960Drop = state.gameMode === 'chess960' && (isKDrop || isQDrop);
 
             if (is960Drop && Math.abs(to - from) <= 1) {
-                // If it's 960 and the King just moved 1 square normally, do not force castle.
                 is960Drop = false; 
             }
 
@@ -561,7 +696,7 @@ var Chess = function(fen, is960 = false) {
         
         if (clean === "O-O" || clean === "0-0" || clean === "O-O-O" || clean === "0-0-0") {
             let isK = (clean === "O-O" || clean === "0-0");
-            if (!state.is960) {
+            if (state.gameMode !== 'chess960') {
                 return state.turn === WHITE ? build_move_direct(state, 4, isK ? 6 : 2) : build_move_direct(state, 60, isK ? 62 : 58);
             } else {
                 let kL = state.bb_lo[state.turn*6+KING], kH = state.bb_hi[state.turn*6+KING];
@@ -741,22 +876,44 @@ var Chess = function(fen, is960 = false) {
         clean = clean.replace(/[+#=]/g, "").trim();
         return { clean: clean, nag: nag };
     }
-
-    // --- API ---
-    currentState = load_fen(fen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", is960);
+    
+    function check_variant_win(state) {
+        switch (state.gameMode) {
+            case '3check':
+                if (state.checks.w >= 3) return WHITE; // White delivered 3 checks
+                if (state.checks.b >= 3) return BLACK; // Black delivered 3 checks
+                return null;
+            case 'atomic':        /* Logic later */ return null;
+            case 'antichess':     /* Logic later */ return null;
+            case 'horde':         /* Logic later */ return null;
+            case 'kingofthehill': /* Logic later */ return null;
+            case 'racingkings':   /* Logic later */ return null;
+            
+            // These variants rely on standard checkmate/draw rules
+            case 'classical':
+            case 'chess960':
+            case 'bughouse':
+            case 'chaturanga':
+            case 'crazyhouse':
+            case 'duck':
+            default:              return null; 
+        }
+    }
+    currentState = load_fen(fen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", gameMode);
     history.push(currentState);
-
-    return {
+return {
         WHITE: 'w', BLACK: 'b',
-        set960: function(flag) { 
-            currentState.is960 = !!flag; 
-            for (let i = 0; i < history.length; i++) history[i].is960 = !!flag; 
+        // Provide gameMode getter/setter replacing is960 flag
+        setGameMode: function(mode) { 
+            currentState.gameMode = mode; 
+            for (let i = 0; i < history.length; i++) history[i].gameMode = mode; 
         },
-        is960: function() { return currentState.is960; },
-        load: function(r) { currentState = load_fen(r, currentState.is960); history=[currentState]; return true; },
-        reset: function() { currentState = load_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", currentState.is960); history=[currentState]; },
+        gameMode: function() { return currentState.gameMode; },
+        
+        load: function(r) { currentState = load_fen(r, currentState.gameMode); history=[currentState]; return true; },
+        reset: function() { currentState = load_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", currentState.gameMode); history=[currentState]; },
         load_pgn: function(pgn) {
-            currentState = load_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", currentState.is960); history=[currentState];
+            currentState = load_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", currentState.gameMode); history=[currentState];
             var len = pgn.length, i = 0;
             while (i < len) {
                 var c = pgn.charCodeAt(i);
@@ -768,13 +925,11 @@ var Chess = function(fen, is960 = false) {
                 var start = i; 
                 while (i < len) { 
                     var cc = pgn.charCodeAt(i); 
-                    // 🔥 FIX 1: Added 123 '{' and 91 '[' so moves glued to comments are split correctly!
                     if (cc <= 32 || cc === 93 || cc === 125 || cc === 41 || cc === 40 || cc === 123 || cc === 91) break; 
                     i++; 
                 }
                 var word = pgn.substring(start, i);
                 
-                // 🔥 FIX 2: Explicitly catch all game-ending markers so the move parser doesn't crash on "0-1"
                 if (word === "1-0" || word === "0-1" || word === "1/2-1/2" || word === "*") continue;
                 
                 var firstChar = word.charCodeAt(0);
@@ -820,9 +975,15 @@ var Chess = function(fen, is960 = false) {
             var ret = to_obj(currentState, m, nag, null); 
             var nextState = apply_move(currentState, m);
             
-            if (is_checked(nextState, nextState.turn)) {
-                if (generate_moves(nextState, {legal:true}).length === 0) ret.san += "#";
-                else ret.san += "+";
+            // 🔥 THE FIX: Check if the variant rules dictate the game is over!
+            var isVariantWin = check_variant_win(nextState) !== null;
+            var isCheck = is_checked(nextState, nextState.turn);
+            var noMoves = generate_moves(nextState, {legal:true}).length === 0;
+
+            if (isVariantWin || (isCheck && noMoves)) {
+                ret.san += "#"; // Variant wins (like 3rd check) get Checkmate notation!
+            } else if (isCheck) {
+                ret.san += "+";
             }
             
             if (nag) { ret.san += nag; ret.nag = nag; }
@@ -843,7 +1004,7 @@ var Chess = function(fen, is960 = false) {
             if (currentState.board[idx] !== -1) return { type: PIECE_TO_CHAR[t], color: c===WHITE?'w':'b' };
             return null;
         },
-        fen: function() { return generate_fen(); },
+        fen: function() { return generate_fen(currentState); }, // 🔥 FIXED: Pass currentState
         board: function() {
             var b = [];
             for (var r = 0; r < 8; r++) {
@@ -859,8 +1020,15 @@ var Chess = function(fen, is960 = false) {
             return b;
         },
         turn: function() { return currentState.turn===WHITE?'w':'b'; },
+
+        variant_winner: function() { 
+            return check_variant_win(currentState); 
+        },
         in_check: function() { return is_checked(currentState, currentState.turn); },
-        in_checkmate: function() { return is_checked(currentState, currentState.turn) && generate_moves(currentState, {legal:true}).length === 0; },
+        in_checkmate: function() { 
+            if (check_variant_win(currentState) !== null) return true;
+            return is_checked(currentState, currentState.turn) && generate_moves(currentState, {legal:true}).length === 0; 
+        },
         in_stalemate: function() { return !is_checked(currentState, currentState.turn) && generate_moves(currentState, {legal:true}).length === 0; },
         in_threefold_repetition: function() {
             var current_key = generate_fen(currentState).split(' ').slice(0, 4).join(' ');
@@ -908,7 +1076,7 @@ var Chess = function(fen, is960 = false) {
             return currentState.half_moves >= 100 || this.in_stalemate() || this.in_threefold_repetition() || this.insufficient_material(); 
         },
         game_over: function() { 
-            return this.in_draw() || this.in_checkmate(); 
+            return this.in_draw() || this.in_checkmate() || (check_variant_win(currentState) !== null); 
         },
         validate_fen: function(fen) {
             if (!fen || typeof fen !== 'string') return { valid: false, error: 'Empty FEN string.' };
@@ -917,14 +1085,22 @@ var Chess = function(fen, is960 = false) {
             const ranks = tokens[0].split('/');
             if (ranks.length !== 8) return { valid: false, error: 'Piece placement must have 8 ranks.' };
             let s;
-            try { s = load_fen(fen, currentState.is960); } catch (e) { return { valid: false, error: 'Invalid piece placement syntax.' }; }
+            try { s = load_fen(fen, currentState.gameMode); } catch (e) { return { valid: false, error: 'Invalid piece placement syntax.' }; }
+            
             let wK = 0, bK = 0;
             for (let i = 0; i < 64; i++) {
                 if (s.board[i] === (WHITE << 3 | KING)) wK++;
                 if (s.board[i] === (BLACK << 3 | KING)) bK++;
             }
-            if (wK !== 1) return { valid: false, error: 'White must have exactly one King.' };
-            if (bK !== 1) return { valid: false, error: 'Black must have exactly one King.' };
+            
+            if (currentState.gameMode === 'atomic' || currentState.gameMode === 'antichess') {
+                if (wK > 1) return { valid: false, error: 'White cannot have more than one King.' };
+                if (bK > 1) return { valid: false, error: 'Black cannot have more than one King.' };
+            } else {
+                if (wK !== 1) return { valid: false, error: 'White must have exactly one King.' };
+                if (bK !== 1) return { valid: false, error: 'Black must have exactly one King.' };
+            }
+
             for (let i = 0; i < 8; i++) {
                 const p1 = s.board[i], p8 = s.board[56 + i];
                 if ((p1 !== -1 && (p1 & 7) === PAWN) || (p8 !== -1 && (p8 & 7) === PAWN)) {
@@ -932,11 +1108,13 @@ var Chess = function(fen, is960 = false) {
                 }
             }
             const us = s.turn, them = us ^ 1;
-            if (is_checked(s, them)) {
+            
+            // Racing Kings checks are illegal, so ignore the "left in check" validation
+            if (currentState.gameMode !== 'racingkings' && is_checked(s, them)) {
                 const sideName = (them === WHITE) ? 'White' : 'Black';
                 return { valid: false, error: `Illegal Position: ${sideName} is in check, but it is not their turn.` };
             }
             return { valid: true, error: 'No errors.' };
         }
     };
-};
+}
