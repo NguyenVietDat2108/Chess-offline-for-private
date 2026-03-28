@@ -4153,7 +4153,8 @@ loadPGN(pgn, isEditor = false, isInternalLoad = false) {
             this.clearPremoves();
             this.premoveQueue = []; 
             
-            if (this.mode !== 'study' && this.mode !== 'editor') {
+            // 🔥 THE FIX: Prevent the PGN loader from blindly forcing the game back into Analysis!
+            if (this.mode !== 'study' && this.mode !== 'editor' && this.mode !== 'puzzle') {
                 this.mode = 'analysis'; 
                 this.gameOver = false;
                 if (typeof this.saveState === 'function') this.saveState('analysis'); 
