@@ -28,3 +28,7 @@ Move the files you just downloaded into their exact required locations inside th
 
 ### 4. Start the Server!
 Fire up your local environment and you're ready to play.
+
+### 5. Update log:
+-Support variants: chess960, 3check, antichess , atomic  ,bughouse , chaturanga , crazyhouse , duck , horde , kingofthehill , racingkings
+-Support fairy-stockfish for variants
