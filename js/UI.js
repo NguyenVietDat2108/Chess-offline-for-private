@@ -2070,6 +2070,7 @@ switchTab(tabName) {
         const lowerTab = tabName.toLowerCase();
         
         if (window.game) {
+            // 🔥 BUG FIX: Levaing Editor
             if (window.game.mode === 'editor' && lowerTab !== 'editor') {
                 const fenInput = document.getElementById('fenInput');
                 const currentFen = fenInput ? fenInput.value : (typeof window.game.generateFEN === 'function' ? window.game.generateFEN() : "");
@@ -2078,18 +2079,30 @@ switchTab(tabName) {
                     this.showNotification("Invalid Board", `Cannot leave Editor`, "⚠️");
                     return;
                 }
-                const coreEnter = this.originalEditorFen ? this.originalEditorFen.split(' ').slice(0,3).join(' ') : "";
-                const coreExit = currentFen.split(' ').slice(0,3).join(' ');
+
+                // Check ONLY the physical board and rules, ignoring halfmove counters
+                const coreEnter = this.originalEditorFen ? this.originalEditorFen.split(' ').slice(0,4).join(' ') : "";
+                const coreExit = currentFen.split(' ').slice(0,4).join(' ');
+                
                 if (coreEnter && coreExit !== coreEnter) {
-                    window.game.loadNewPosition(currentFen);
+                    // IF A CHANGE WAS MADE: Wipe the memory and start a new game from the custom position
+                    if (typeof window.game.loadNewPosition === 'function') {
+                        const currentMode = document.getElementById('editorVariantSelect')?.value || window.game.gameMode;
+                        window.game.loadNewPosition(currentFen, currentMode);
+                    }
                     this._lastTreeSize = -1; 
-                } else if (this.originalEditorPgn) {
-                    this.loadPgnAndAnalyze();
-                }
+                } 
+                // IF NO CHANGES WERE MADE: Do absolutely nothing! The PGN stays perfectly intact.
+            }
+
+            // Save the exact FEN when entering the editor to compare later!
+            if (lowerTab === 'editor') {
+                this.originalEditorFen = typeof window.game.generateFEN === 'function' ? window.game.generateFEN() : (window.game.currentNode ? window.game.currentNode.fen : "");
             }
 
             window.game.switchMode(lowerTab);
         }
+
         const state = window.game ? window.game.getReader() : { mode: lowerTab, isLive: false };
 
         const resignBtn = document.getElementById('resignBtn');
@@ -2145,7 +2158,8 @@ switchTab(tabName) {
 
         if (state.mode === 'editor') {
             document.body.classList.add('show-editor');
-            if (this.updateEditorState) this.updateEditorState();
+            if (typeof this.syncEditorHTMLWithGame === 'function') this.syncEditorHTMLWithGame();
+            
             const variantSelect = document.getElementById('editorVariantSelect');
             if (variantSelect && window.game) variantSelect.value = window.game.gameMode || 'classical';
         } else {
@@ -2577,6 +2591,32 @@ finishDrag(e) {
         if (state.mode === 'editor' && moveMade) this.renderBoard(false);
         this.cleanupDrag(!moveMade);
         if (state.mode === 'editor' && typeof this.updateEditorInputs === 'function') this.updateEditorInputs();
+    }
+syncEditorHTMLWithGame() {
+        if (!window.game) return;
+        const curFen = typeof window.game.generateFEN === 'function' ? window.game.generateFEN() : (window.game.currentNode ? window.game.currentNode.fen : "");
+        if (!curFen) return;
+        
+        const fenInput = document.getElementById('fenInput');
+        if (fenInput) fenInput.value = curFen;
+
+        const parts = curFen.split(' ');
+        if (parts.length >= 4) {
+            const turn = parts[1];
+            const castling = parts[2];
+            const ep = parts[3];
+            
+            const turnEl = document.getElementById('editorTurn');
+            if (turnEl) turnEl.value = turn;
+            
+            if (document.getElementById('castling-wK')) document.getElementById('castling-wK').checked = castling.includes('K');
+            if (document.getElementById('castling-wQ')) document.getElementById('castling-wQ').checked = castling.includes('Q');
+            if (document.getElementById('castling-bK')) document.getElementById('castling-bK').checked = castling.includes('k');
+            if (document.getElementById('castling-bQ')) document.getElementById('castling-bQ').checked = castling.includes('q');
+            
+            const epInput = document.getElementById('epInput') || document.getElementById('editorEpSquare');
+            if (epInput) epInput.value = ep !== '-' ? ep : '';
+        }
     }
 cleanupDrag(keepSelection = false) {
 this.dragData = null;
@@ -3398,6 +3438,45 @@ getNagInfo(nag) {
             default:return null;
         }
         return info;
+    }
+updateEditorState() {
+        if (!window.game || window.game.mode !== 'editor') return;
+        const currentFen = typeof window.game.generateFEN === 'function' ? window.game.generateFEN() : (window.game.currentNode ? window.game.currentNode.fen : "");
+        const fenInput = document.getElementById('fenInput');
+        if (fenInput) fenInput.value = currentFen;
+
+        const parts = currentFen.split(' ');
+        if (parts.length >= 4) {
+            const turn = parts[1];
+            const castling = parts[2];
+            const ep = parts[3];
+            
+            const turnEl = document.getElementById('editorTurn');
+            if (turnEl) turnEl.value = turn;
+            
+            const wK = document.getElementById('castling-wK');
+            if (wK) wK.checked = castling.includes('K');
+            const wQ = document.getElementById('castling-wQ');
+            if (wQ) wQ.checked = castling.includes('Q');
+            const bK = document.getElementById('castling-bK');
+            if (bK) bK.checked = castling.includes('k');
+            const bQ = document.getElementById('castling-bQ');
+            if (bQ) bQ.checked = castling.includes('q');
+
+            const epEl = document.getElementById('editorEnPassant');
+            if (epEl) {
+                if (epEl.tagName === 'SELECT') {
+                    let found = Array.from(epEl.options).some(opt => opt.value === ep);
+                    if (!found && ep !== '-') {
+                        let opt = document.createElement('option');
+                        opt.value = ep;
+                        opt.text = ep;
+                        epEl.add(opt);
+                    }
+                }
+                epEl.value = ep !== '-' ? ep : '-';
+            }
+        }
     }
 updateInlineEval(node) {
         if (!node || !node.id) return;

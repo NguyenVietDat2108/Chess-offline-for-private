@@ -903,7 +903,6 @@ var Chess = function(fen, gameMode = 'classical') {
     history.push(currentState);
 return {
         WHITE: 'w', BLACK: 'b',
-        // Provide gameMode getter/setter replacing is960 flag
         setGameMode: function(mode) { 
             currentState.gameMode = mode; 
             for (let i = 0; i < history.length; i++) history[i].gameMode = mode; 
@@ -944,9 +943,16 @@ return {
             }
             return true;
         },
-        moves: function(o) { var ms = generate_moves(currentState, o); return (o && o.verbose) ? ms.map(m=>to_obj(currentState,m)) : ms.map(m=>get_san(currentState,m)); },
+        moves: function(o) {
+            if (this.game_over()) return [];
+            
+            var ms = generate_moves(currentState, o); 
+            return (o && o.verbose) ? ms.map(m=>to_obj(currentState,m)) : ms.map(m=>get_san(currentState,m)); 
+        },
         move: function(o) {
             if (!o) return null;
+            if (this.game_over()) return null;
+            
             var m = null;
             var nag = "";
             var clean_san = null;
@@ -975,7 +981,6 @@ return {
             var ret = to_obj(currentState, m, nag, null); 
             var nextState = apply_move(currentState, m);
             
-            // 🔥 THE FIX: Check if the variant rules dictate the game is over!
             var isVariantWin = check_variant_win(nextState) !== null;
             var isCheck = is_checked(nextState, nextState.turn);
             var noMoves = generate_moves(nextState, {legal:true}).length === 0;
@@ -1022,7 +1027,10 @@ return {
         turn: function() { return currentState.turn===WHITE?'w':'b'; },
 
         variant_winner: function() { 
-            return check_variant_win(currentState); 
+            let res = check_variant_win(currentState);
+            if (res === WHITE) return 'w';
+            if (res === BLACK) return 'b';
+            return null;
         },
         in_check: function() { return is_checked(currentState, currentState.turn); },
         in_checkmate: function() { 
@@ -1065,7 +1073,13 @@ return {
                     }
                 }
             }
-            if (num_pieces === 2) return true;
+            
+            if (num_pieces === 2) return true; 
+            
+            // A lone Knight or Bishop can easily deliver checks, 
+            // so they are NOT insufficient! The game must go on!(Although with a knight it's a theoritical draw)
+            if (s.gameMode === '3check') return false;
+
             if (num_pieces === 3 && (num_knights === 1 || num_bishops === 1)) return true;
             if (num_pieces === num_bishops + 2) {
                 if (sum_bishop_colors === 0 || sum_bishop_colors === num_bishops) return true;
@@ -1076,7 +1090,10 @@ return {
             return currentState.half_moves >= 100 || this.in_stalemate() || this.in_threefold_repetition() || this.insufficient_material(); 
         },
         game_over: function() { 
-            return this.in_draw() || this.in_checkmate() || (check_variant_win(currentState) !== null); 
+            if (check_variant_win(currentState) !== null) return true;
+            if (this.in_checkmate()) return true;
+            if (this.in_draw()) return true;
+            return false; 
         },
         validate_fen: function(fen) {
             if (!fen || typeof fen !== 'string') return { valid: false, error: 'Empty FEN string.' };

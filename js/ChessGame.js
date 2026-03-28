@@ -1,4 +1,4 @@
-import { INITIAL_FEN, FILES, RANKS, ICON_BOOK_SVG,SETTINGS_ICON_IMG } from './constants.js';
+import { INITIAL_FEN, FILES, RANKS, ICON_BOOK_SVG, SETTINGS_ICON_IMG, VARIANT_STARTING_FENS, nnueMap } from './constants.js';
 import { MoveNode } from './MoveNode.js';
 export class ChessGame {
     #engine;
@@ -51,7 +51,7 @@ constructor() {
             }
         }, 150);
 
-        this.mode = 'analysis'; 
+        this._internalMode = 'analysis'; 
         this.gameOver = false;
         this.isPaused = false;
         this.botColor = null;
@@ -70,6 +70,15 @@ get isBooting() { return this.#_isBooting; }
 get isAnalysisMode() { return this.mode === 'analysis' || this.gameOver; }
 get isAnalyzing() { return window.engineAnalysing === true; }
 get isEditing() { return this.mode === 'editor'; }
+get mode() { return this._internalMode; }
+set mode(val) {
+    if (val === 'play') {
+        if (this._internalMode === 'bot' || this._internalMode === 'local') return;
+        this._internalMode = 'local';
+        return;
+    }
+    this._internalMode = val;
+}
 get isPlayingLiveGame() { return (this.mode === 'local' || this.mode === 'bot') && !this.gameOver; }
 get isPuzzle() { return this.mode === 'puzzle'; }
 get currentLiveTurn() {
@@ -362,56 +371,106 @@ return FILES[f] + (8 - r);
         const now = Date.now();
         if (this._lastBotTrigger && (now - this._lastBotTrigger < 100)) return;
         this._lastBotTrigger = now;
-        const liveTurn = this.currentLiveTurn;
-        if (liveTurn !== this.botColor || !this.isPlayingLiveGame) return;
         
-        const fen = this.generateFEN();
+        // Ensure we are actually in a live game against the bot
+        if (this.mode !== 'local' && this.mode !== 'bot') return;
+        if (this.turn !== this.botColor) return;
+
+        const fen = typeof this.generateFEN === 'function' ? this.generateFEN() : this.#engine.fen();
         const level = this.botLevel || 8;
         this.botThinkStart = Date.now();
-        this.currentBotThinkTime = this.#calculateBotThinkTime();
+        
+        if (typeof this.#calculateBotThinkTime === 'function') {
+            this.currentBotThinkTime = this.#calculateBotThinkTime();
+        } else {
+            this.currentBotThinkTime = 1000;
+        }
 
-        // --- 1. ARTIFICIAL BLUNDER ---
         const blunderMap = { 1: 0.10, 2: 0.05 };
         const blunderChance = blunderMap[level] || 0;
 
+        // 1. Low Level Blunder Injection
         if (level <= 2 && Math.random() < blunderChance) {
             const legalMoves = this.#engine.moves({ verbose: true });
             if (legalMoves.length > 0) {
                 const choice = legalMoves[Math.floor(Math.random() * legalMoves.length)];
                 const randomUCI = choice.from + choice.to + (choice.promotion || '');
-                this.#executeBotMoveWithDelay(randomUCI);
+                
+                if (typeof this.#executeBotMoveWithDelay === 'function') {
+                    this.#executeBotMoveWithDelay(randomUCI);
+                } else if (typeof this.executeBotMove === 'function') {
+                    this.executeBotMove(randomUCI);
+                }
                 return;
             }
         }
 
-        // --- 2. BOOK MOVE ---
-        if (!ignoreBook && typeof this.#getBookMove === 'function') {
-            const bookCandidates = this.#getBookMove(fen, level);
+        // 2. OPENING BOOK (WITH ENGINE VALIDATION)
+        if (!ignoreBook) {
+            let bookCandidates = null;
+            if (typeof this.getBookMove === 'function') bookCandidates = this.getBookMove(fen, level);
+            else if (typeof this.#getBookMove === 'function') bookCandidates = this.#getBookMove(fen, level);
+            
             if (bookCandidates && bookCandidates.length > 0) {
                 const candidate = bookCandidates[Math.floor(Math.random() * bookCandidates.length)];
                 
-                // Pass TRUE flag so it plays opening theory fast!
-                this.#executeBotMoveWithDelay(candidate, true);
-                return; 
+                // 🔥 THE BOOK VALIDATION FIX:
+                // Instead of blindly playing the move, we force the engine to check it first!
+                if (window.sfWorker && level >= 3) {
+                    console.log(`%c[BOT] Validating book move: ${candidate}...`, "color: #b369f2");
+                    
+                    this.verifyingBookMove = candidate;
+                    this.verifyingBookScore = null;
+                    this.verifyingBookType = null;
+                    this.verifyingBookThreshold = -150; // Reject if it drops eval worse than -1.5 pawns
+                    
+                    window.sfWorker.postMessage('stop');
+                    
+                    if (this.activeEngineType === 'fairy') {
+                        const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
+                        window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
+                    } else {
+                        window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+                    }
+                    
+                    window.sfWorker.postMessage('position fen ' + fen);
+                    
+                    // Force the engine to ONLY look at the book candidate move
+                    // We do a fast depth 8 check to make sure it doesn't instantly lose
+                    window.sfWorker.postMessage(`go depth 8 searchmoves ${candidate}`);
+                    return; 
+                } else {
+                    // If playing on level 1 or 2, just blindly play it (mistakes are fine)
+                    if (typeof this.#executeBotMoveWithDelay === 'function') {
+                        this.#executeBotMoveWithDelay(candidate, true);
+                    } else if (typeof this.executeBotMove === 'function') {
+                        this.executeBotMove(candidate, true);
+                    }
+                    return; 
+                }
             }
         }
 
-        // --- 3. STANDARD ENGINE MOVE ---
+        // 3. STANDARD ENGINE CALCULATION (If no book move, or book move was rejected)
         if (window.sfWorker) {
             const difficultyMap = {
                 1: { uciElo: 1320 }, 2: { uciElo: 1320 },
-                3: { uciElo: 1400 }, 4: { uciElo: 1700 },
-                5: { uciElo: 2000 }, 6: { uciElo: 2300 },
-                7: { uciElo: 2700 }, 8: { uciElo: 3190 }
+                3: { uciElo: 1600 }, 4: { uciElo: 1900 },
+                5: { uciElo: 2150 }, 6: { uciElo: 2400 },
+                7: { uciElo: 2700 }, 8: { uciElo: 3200 }
             };
-            
             const settings = difficultyMap[level] || difficultyMap[8];
             
             window.sfWorker.postMessage('stop');
             window.sfWorker.postMessage('setoption name MultiPV value 1');
-            const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-            window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-            window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+            
+            if (this.activeEngineType === 'fairy') {
+                const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
+                window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
+            } else {
+                window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+            }
+            
             window.sfWorker.postMessage('setoption name UCI_LimitStrength value true');
             window.sfWorker.postMessage(`setoption name UCI_Elo value ${settings.uciElo}`);
             window.sfWorker.postMessage('position fen ' + fen);
@@ -643,9 +702,12 @@ return move.san;
 
         window.engineReady = true; 
 
-        const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-        window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-        window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+        if (this.activeEngineType === 'fairy') {
+            const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
+            window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
+        } else {
+            window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+        }
         
         window.sfWorker.postMessage('setoption name UCI_LimitStrength value false');
         window.sfWorker.postMessage('setoption name Skill Level value 20');
@@ -660,13 +722,28 @@ return move.san;
         const line = e.data.trim(); 
         if (!line) return;
         console.log("%c⬅️ [ENGINE SAYS]: " + line, "color: #a3e635");
-        const isAnalysingOrStudy = (this.mode === 'analysis' || this.mode === 'study');
 
-        if (isAnalysingOrStudy && window.engineAnalysing && !window.engineReady && (line.startsWith('info') || line.startsWith('bestmove'))) {
-            return; 
+        if (line === 'WORKER_INITIALIZED') {
+            window.sfWorker.postMessage('uci');
+            return;
         }
 
         if (line === 'readyok') {
+            window.engineReady = true; 
+            window.engineBooting = false; // 🔥 Engine is fully awake!
+
+            if (this.mode === 'bot' && this._pendingBotStart) {
+                this._pendingBotStart = false;
+                window.sfWorker.postMessage('ucinewgame');
+                if (this.turn === this.botColor) {
+                    setTimeout(() => this.#triggerBotMove(), 500);
+                }
+                return;
+            }
+
+            const isAnalysingOrStudy = (this.mode === 'analysis' || this.mode === 'study');
+            
+            // 🔥 YES! This is where the 'position fen' and 'go depth' are officially triggered!
             if (isAnalysingOrStudy && window.engineAnalysing && this._pendingFen) {
                 const targetFen = this._pendingFen;
                 this.analyzingNode = this._pendingNode;
@@ -674,6 +751,11 @@ return move.san;
                 this._pendingNode = null;
                 this.#triggerEngineGo(targetFen); 
             }
+            return; 
+        }
+
+        const isAnalysingOrStudy = (this.mode === 'analysis' || this.mode === 'study');
+        if (isAnalysingOrStudy && window.engineAnalysing && !window.engineReady && (line.startsWith('info') || line.startsWith('bestmove'))) {
             return; 
         }
 
@@ -697,19 +779,6 @@ return move.san;
             if (this.activeEngineType === 'fairy') {
                 const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
                 window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-                
-                const nnueMap = {
-                    '3check': '3check-cb5f517c228b.nnue',
-                    'antichess': 'antichess-dd3cbe53cd4e.nnue',
-                    'atomic': 'atomic-2cf13ff256cc.nnue',
-                    'bughouse': 'bughouse-cd8cceab93fe.nnue',
-                    'chaturanga': 'chaturanga-1889e98f8d54.nnue',
-                    'crazyhouse': 'crazyhouse-8ebf84784ad2.nnue',
-                    'duck': 'duck-ba21f91f5d81.nnue',
-                    'horde': 'horde-28173ddccabe.nnue',
-                    'kingofthehill': 'kingofthehill-978b86d0e6a4.nnue',
-                    'racingkings': 'racingkings-636b95f085e3.nnue'
-                };
 
                 const nnueFile = nnueMap[this.gameMode];
                 console.log(nnueFile);
@@ -962,7 +1031,7 @@ return move.san;
 #parsePGNTokens(tokens, index) {
         const tlRegex = /tl\s*=\s*(\d+(\.\d+)?)/;
         const lichessEvalRegex = /\[%eval\s+([#]?[+-]?[\d\.]+)\]/; 
-        const lichessClkRegex = /\[%clk\s+([0-9:]+)\]/; 
+        const lichessClkRegex = /\[%clk\s+([0-9:\.]+)\]/; // NOW ALLOWS DECIMALS
         const cccEvalRegex = /([+-]?(?:M)?\d+(?:\.\d+)?)\/(\d+)/; 
         
         const lichessCalRegex = /\[%cal\s+([^\]]+)\]/;
@@ -1023,7 +1092,8 @@ return move.san;
                                 this.currentNode.eval = whiteJustMoved ? "+M0" : "-M0";
                                 this.currentNode.evalScore = whiteJustMoved ? 100000 : -100000;
                             } else {
-                                this.currentNode.eval = (val > 0 ? "M" : "-M") + Math.abs(val);
+                                // 🔥 CORRECTLY PARSES '+M' AND '-M' Mates!
+                                this.currentNode.eval = (val > 0 ? "+M" : "-M") + Math.abs(val);
                                 this.currentNode.evalScore = val > 0 ? 100000 - Math.abs(val) : -100000 + Math.abs(val);
                             }
                         } else {
@@ -1035,7 +1105,8 @@ return move.san;
 
                 // 2. PARSE CCC EVAL
                 if (!this.currentNode.eval) {
-                    let engMatch = rawComment.match(/^([+-])?(M)?(\d+(\.\d+)?)\/(\d+)/);
+                    // Removed the strict ^ anchor so it can find the eval anywhere in the comment
+                    let engMatch = rawComment.match(/([+-])?(M)?(\d+(\.\d+)?)\/(\d+)/);
                     if (engMatch) {
                         let depth = parseInt(engMatch[5], 10);
                         if (depth > 0) { 
@@ -1069,7 +1140,8 @@ return move.san;
 
                 if (clkMatch) {
                     const parts = clkMatch[1].split(':');
-                    timeLeft = parts.reduce((acc, time) => (60 * acc) + +time, 0);
+                    // 🔥 Now parses fractional seconds properly using parseFloat!
+                    timeLeft = parts.reduce((acc, time) => (60 * acc) + parseFloat(time), 0);
                 } else if (tlMatch) {
                     timeLeft = parseFloat(tlMatch[1]);
                     this.currentNode.cccTimeLeft = tlMatch[1]; 
@@ -1129,7 +1201,6 @@ return move.san;
                 }
                 let cleanComment = rawComment.replace(/\[%(eval|clk|cal|csl)[^\]]*\]/g, '').trim();
                 
-                // 1. We test if there is ANY actual human text mixed in with the engine data
                 let humanTest = cleanComment.replace(/,?\s*tl=[^,\s]+/ig, "")
                                             .replace(/,?\s*nps=[^,\s]+/ig, "")
                                             .replace(/,?\s*latency=[^,\s]+/ig, "")
@@ -1140,19 +1211,15 @@ return move.san;
                                             .replace(/,?\s*-\s*$/, "")
                                             .replace(/^,?\s*/, "").replace(/,?\s*$/, "").trim();
 
-                // 2. If it is PURELY engine data (humanTest is empty), we wipe it so the UI doesn't draw an empty bubble!
                 if (humanTest === '' || humanTest === '-' || humanTest === ',-') {
                     cleanComment = ""; 
                 } else {
-                    // 3. If there IS human text, we keep the time and eval formats intact!
-                    // We just strip the ugly backend parameters like tl, pv, nps, latency
                     cleanComment = cleanComment.replace(/,?\s*tl=[^,\s]+/ig, "")
                                                .replace(/,?\s*nps=[^,\s]+/ig, "")
                                                .replace(/,?\s*latency=[^,\s]+/ig, "")
                                                .replace(/,?\s*pv=(?:\\*["'])?[^"}\\]*(?:\\*["'])?/ig, "")
                                                .replace(/,?\s*-\s*$/, "").trim();
                     
-                    // If it's a standard PGN (not an engine match), we aggressively clean it up
                     if (!this.isEngineMatch) {
                         cleanComment = cleanComment.replace(/,?\s*[-+]?(?:M)?\d+(?:\.\d+)?\/\d+/g, ""); 
                         cleanComment = cleanComment.replace(/,?\s*\b\d+(?:\.\d+)?s\b/g, ""); 
@@ -1167,7 +1234,6 @@ return move.san;
                     this.currentNode.comment = (this.currentNode.comment ? this.currentNode.comment + " " : "") + cleanComment;
                 }
                 
-                // Trigger Engine parsing for PV trees regardless of match type!
                 const isEngineLog = rawComment.includes('pv=') || 
                                     rawComment.includes('nps=') ||
                                     cccEvalRegex.test(rawComment);
@@ -1190,7 +1256,6 @@ return move.san;
                     let moveText = token;
                     let attachedNag = "";
                     
-                    // Isolates the SAN move from ALL trailing garbage (fixes Re5!+- crash)
                     const sanRegex = /^([KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[\+#]?|O-O-O[\+#]?|O-O[\+#]?)(.*)$/;
                     let match = token.match(sanRegex);
                     
@@ -1831,7 +1896,7 @@ return move.san;
         let evalVal = node.localEval !== undefined ? node.localEval : node.eval;
 
         // 1. Preserve existing clock matches before regex stripping
-        let rawClkMatch = node.comment ? node.comment.match(/\[%clk\s+([0-9:]+)\]/) : null;
+        let rawClkMatch = node.comment ? node.comment.match(/\[%clk\s+([0-9:\.]+)\]/) : null;
         let rawTlMatch = node.comment ? node.comment.match(/tl=([\d\.]+)s?/) : null;
         let origTimeSpentMatch = node.comment ? node.comment.match(/(?:^|\s|\{)\s*([\d\.]+)\s*s\b(?!.*tl=)/) : null;
 
@@ -1844,7 +1909,7 @@ return move.san;
             rawComment = rawComment.replace(/,?\s*nps=\d+/g, "");
             rawComment = rawComment.replace(/,?\s*latency=[\d\.]+s?/g, "");
             rawComment = rawComment.replace(/,?\s*pv=(?:\\*["'])?[^"}\\]*(?:\\*["'])?/g, "");
-            rawComment = rawComment.replace(/(?:^|\s|\{)\s*[\d\.]+\s*s\b(?!.*tl=)/g, "").trim(); // Strip raw duration
+            rawComment = rawComment.replace(/(?:^|\s|\{)\s*[\d\.]+\s*s\b(?!.*tl=)/g, "").trim(); 
             rawComment = rawComment.replace(/,?\s*-\s*$/, "").trim();
             if (rawComment === '-') rawComment = "";
             rawComment = rawComment.replace(/^,\s*/, "").replace(/,\s*$/, "").trim();
@@ -1852,7 +1917,7 @@ return move.san;
 
         if (format === 'clean') return rawComment ? `{ ${rawComment} }` : "";
 
-        // 2. Mathematically rebuild time remaining
+        // 2. Mathematically rebuild time remaining (NOW SUPPORTS DECIMALS!)
         let secondsLeft = null;
         let clkStr = null;
 
@@ -1880,22 +1945,30 @@ return move.san;
             let t = Math.max(0, secondsLeft);
             let h = Math.floor(t / 3600);
             let m = Math.floor((t % 3600) / 60);
-            let s = Math.floor(t % 60);
-            clkStr = `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            let sNum = t % 60;
+            // Support fractional seconds for Bullet/Blitz
+            let sStr = sNum % 1 === 0 ? sNum.toString().padStart(2, '0') : (sNum < 10 ? '0' + sNum.toFixed(1) : sNum.toFixed(1));
+            clkStr = `${h}:${m.toString().padStart(2, '0')}:${sStr}`;
         }
 
         if (secondsLeft === null && clkStr) {
             const cParts = clkStr.split(':');
-            if (cParts.length === 3) secondsLeft = (+cParts[0]) * 3600 + (+cParts[1]) * 60 + (+cParts[2]);
-            else if (cParts.length === 2) secondsLeft = (+cParts[0]) * 60 + (+cParts[1]);
+            if (cParts.length === 3) secondsLeft = (+cParts[0]) * 3600 + (+cParts[1]) * 60 + parseFloat(cParts[2]);
+            else if (cParts.length === 2) secondsLeft = (+cParts[0]) * 60 + parseFloat(cParts[1]);
         }
 
         // 3. Compile Lichess format
         if (format === 'lichess' || format === 'both') {
             if (evalVal !== undefined && evalVal !== null) {
-                let cleanEval = evalVal.toString().replace('+', '');
-                if (cleanEval.includes('M')) cleanEval = cleanEval.replace('-M', '#-').replace('M', '#');
-                parts.push(`[%eval ${cleanEval}]`);
+                let eStr = evalVal.toString();
+                // Map to Lichess syntax: [%eval 2.50] or [%eval #3]
+                if (eStr.includes('M')) {
+                    eStr = eStr.replace('+M', '#').replace('-M', '#-').replace('M', '#');
+                } else {
+                    let f = parseFloat(eStr);
+                    if (!isNaN(f)) eStr = f.toFixed(2);
+                }
+                parts.push(`[%eval ${eStr}]`);
             }
 
             if (clkStr) parts.push(`[%clk ${clkStr}]`);
@@ -1933,12 +2006,25 @@ return move.san;
         if (format === 'chesscom' || format === 'both') {
             if (evalVal !== undefined && evalVal !== null) {
                 let eStr = evalVal.toString();
+                
+                // Standardize the string
+                if (!eStr.includes('M')) {
+                    let f = parseFloat(eStr);
+                    if (!isNaN(f)) {
+                        eStr = f.toFixed(2);
+                        if (f > 0 && !eStr.startsWith('+')) eStr = '+' + eStr;
+                    }
+                } else {
+                    if (!eStr.startsWith('+') && !eStr.startsWith('-')) eStr = '+' + eStr;
+                }
+                
+                // ONLY flip the evaluation for Black if this is an official CCC Engine Tournament!
                 if (this.isEngineMatch && node.lastMove && node.lastMove.color === 'b') {
                     if (eStr.startsWith('+')) eStr = eStr.replace('+', '-');
                     else if (eStr.startsWith('-')) eStr = eStr.replace('-', '+');
-                    else if (!eStr.startsWith('-') && !eStr.startsWith('+') && eStr !== '0' && eStr !== '0.00') eStr = '-' + eStr;
+                    else if (eStr !== '0' && eStr !== '0.00') eStr = '-' + eStr;
                 }
-                if (!eStr.startsWith('+') && !eStr.startsWith('-') && !eStr.includes('M')) eStr = '+' + eStr;
+                
                 let d = node.depth || 20; 
                 chessComMetadata.push(`${eStr}/${d}`);
             }
@@ -1962,18 +2048,7 @@ return move.san;
             if (node.isBook && !chessComMetadata.join(' ').toLowerCase().includes("book")) chessComMetadata.push("book");
             
             if (node.pv) {
-                let shouldExportPV = false;
-                if (this.isEngineMatch) shouldExportPV = true;
-                else if (node.nag) {
-                    const nags = node.nag.toString().split(',');
-                    for (let n of nags) {
-                        let cleanN = n.trim().replace('$', '');
-                        if (['2', '4', '6', '?', '??', '?!'].includes(cleanN)) {
-                            shouldExportPV = true; break;
-                        }
-                    }
-                }
-                if (shouldExportPV) {
+                if (this.isEngineMatch) {
                     let pvString = Array.isArray(node.pv) ? node.pv.join(' ') : node.pv;
                     if (pvString.trim() !== "-") chessComMetadata.push(`pv="${pvString.replace(/["\\]/g, '')}"`);
                 }
@@ -1991,7 +2066,9 @@ return move.san;
         if (!node || !node.children || node.children.length === 0) return "";
         
         let pgn = "";
-        let activeIdx = node.selectedChildIndex || 0;
+        
+        // The PGN Mainline is ALWAYS children[0], regardless of what line is currently viewed in the UI!
+        let activeIdx = 0; 
         let mainChild = node.children[activeIdx];
         let ply = this.#getPly(mainChild);
         let mNum = Math.ceil(ply / 2);
@@ -2028,14 +2105,12 @@ return move.san;
         let hadVariations = false;
         if (node.children.length > 1) {
             
-            for (let i = 0; i < node.children.length; i++) {
-                if (i === activeIdx) continue;
+            for (let i = 1; i < node.children.length; i++) {
                 let varChild = node.children[i];
                 
                 if (varChild.isPV) {
                     let shouldExportTree = false;
                     
-                    // Do NOT automatically export PV trees for Engine Matches!
                     if (!this.isEngineMatch && mainChild.nag) {
                         const nags = mainChild.nag.toString().split(',');
                         for (let n of nags) {
@@ -2064,7 +2139,6 @@ return move.san;
 
                 let varComment = this.#evalPGNGenerate(varChild, format);
                 
-                // If the variation move has a comment, the NEXT move MUST display its number!
                 let forceVarNextNumber = (varComment && varComment !== "");
                 let subVarText = this.#generatePGNRecursive(varChild, isWhite ? mNum : mNum + 1, forceVarNextNumber, format);
                 
@@ -2106,7 +2180,7 @@ return move.san;
 
         // 3. Recursion
         if (node.children && node.children.length > 0) {
-            pgn += this.#generatePGNRecursive(node.children[node.selectedChildIndex || 0], startPly + 1, false, format);
+            pgn += this.#generatePGNRecursive(node.children[0], startPly + 1, false, format);
         }
 
         return pgn.trim();
@@ -2309,6 +2383,7 @@ updateComment(nodeId, text) {
     }
 getLegalMoves(squareIdx) {
         if (!this.#engine) return [];
+        if (this.#engine.game_over()) return [];
         
         const moves = this.#engine.moves({ verbose: true });
         
@@ -2340,28 +2415,49 @@ restoreAnalysisState() {
         }
         return restored;
     }
-setGameMode(mode) {
+setGameMode(mode, isInitialLoad = false, skipStorage = false) {
+        // 1. Save the CURRENT variant's state before switching
+        if (!isInitialLoad && !skipStorage && this.gameMode) {
+            this.saveVariantState(this.gameMode);
+        }
+
         this.gameMode = mode;
+        if (!skipStorage) {
+            localStorage.setItem('chess_last_variant', mode); 
+        }
         
-        // 1. Tell the internal ruleset to switch
+        // 2. Tell the internal ruleset to switch
         if (this.#engine && typeof this.#engine.setGameMode === 'function') {
             this.#engine.setGameMode(mode);
         }
         
-        if (this.#engine && typeof this.#engine.fen === 'function') {
-            const qualifiedFen = this.#engine.fen();
+        // 3. Restore the saved PGN for the NEW variant (or Reset to correct starting position)
+        if (!skipStorage) {
+            const savedPgn = localStorage.getItem(`chess_variant_pgn_${mode}`);
             
-            // Instantly update the HTML text box
-            const fenBox = document.getElementById('fenInput');
-            if (fenBox) fenBox.value = qualifiedFen;
-            
-            // Secure internal memory so PGNs export correctly
-            this.pgnHeaders["FEN"] = qualifiedFen;
-            if (this.rootNode) this.rootNode.fen = qualifiedFen;
-            if (this.currentNode === this.rootNode) this.currentNode.fen = qualifiedFen;
+            if (savedPgn) {
+                this.loadPGN(savedPgn, false, true);
+                
+                const fenBox = document.getElementById('fenInput');
+                if (fenBox && this.currentNode) fenBox.value = this.currentNode.fen;
+                
+            } else {
+                let startFen = VARIANT_STARTING_FENS[mode] || INITIAL_FEN;
+                
+                // Chess960 override (Dynamically shuffles the classical FEN)
+                if (mode === 'chess960' && typeof this.generateChess960FEN === 'function') {
+                    startFen = this.generateChess960FEN();
+                }
+                
+                if (typeof this.newGame === 'function') {
+                    this.newGame(startFen);
+                } else if (typeof this.resetGame === 'function') {
+                    this.resetGame(false, startFen);
+                }
+            }
         }
         
-        // Let the engine switcher handle booting Fairy-Stockfish
+        // 4. Let the engine switcher handle booting Fairy-Stockfish
         const didSwitch = this.#checkAndSwitchEngine();
         
         if (!didSwitch && window.sfWorker) {
@@ -2372,22 +2468,58 @@ setGameMode(mode) {
             }
         }
     }
-async loadEngineFromFolder() {
-        if (!window.showDirectoryPicker) return window.ui.showNotification("Browser not supported (Use Chrome).", "Error", "❌");
+saveVariantState(modeToSave) {
+        if (!modeToSave) return;
+        let pgnToSave = '';
         
-        try {
-            const dirHandle = await window.showDirectoryPicker();
-            let js, wasm;
-            for await (const entry of dirHandle.values()) {
-                if (entry.name.endsWith('.js') && (entry.name.includes('stockfish') || entry.name.includes('engine'))) js = await entry.getFile();
-                if (entry.name.endsWith('.wasm') && (entry.name.includes('stockfish') || entry.name.includes('engine'))) wasm = await entry.getFile();
-            }
+        // Dynamically find whatever PGN export function your app uses
+        if (typeof this.generatePGN === 'function') pgnToSave = this.generatePGN();
+        else if (typeof window.ui !== 'undefined' && typeof window.ui.exportPGN === 'function') pgnToSave = window.ui.exportPGN();
+        else if (this.#engine && typeof this.#engine.pgn === 'function') pgnToSave = this.#engine.pgn();
 
-            if (js && wasm) this.initEngine(js, wasm);
-            else window.ui.showNotification("Missing .js or .wasm files.", "Load Failed", "⚠️");
-        } catch (e) { console.log("Load Cancelled"); }
+        // Save it to a unique slot just for this variant!
+        if (pgnToSave && pgnToSave.trim() !== '') {
+            localStorage.setItem(`chess_variant_pgn_${modeToSave}`, pgnToSave);
+        } else {
+            // If the board is completely empty, clear the slot
+            localStorage.removeItem(`chess_variant_pgn_${modeToSave}`);
+        }
     }
-async initEngine(jsFile = null, wasmFile = null, engineType = null) {
+async loadEngineFromFolder() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.webkitdirectory = true;
+        input.multiple = true;
+        
+        input.onchange = async (e) => {
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
+            
+            let jsFile = null;
+            for (let i = 0; i < files.length; i++) {
+                if (files[i].name.endsWith('.js') && !jsFile) jsFile = files[i];
+            }
+            
+            if (jsFile) {
+                // Extract the folder name directly from the path! (e.g. "stockfish 17.1")
+                const parts = jsFile.webkitRelativePath.split('/');
+                const folderName = parts.length > 1 ? parts[0] : jsFile.name.replace('.js', '');
+                
+                const box = document.getElementById('assetEngineFolder');
+                if (box) box.value = folderName;
+                
+                // 🔥 NO MORE BLOBS! We map it to the pure native Server URL!
+                const nativeUrl = '/engine/' + jsFile.webkitRelativePath;
+                this.initEngine(nativeUrl, folderName, 'custom');
+            } else {
+                if (window.ui && typeof window.ui.showNotification === 'function') {
+                    window.ui.showNotification("No .js engine file found", "Error", "❌");
+                }
+            }
+        };
+        input.click();
+    }
+async initEngine(customUrl = null, customName = null, engineType = null) {
         if (window.sfWorker) {
             window.sfWorker.terminate();
             window.sfWorker = null;
@@ -2395,89 +2527,202 @@ async initEngine(jsFile = null, wasmFile = null, engineType = null) {
 
         try {
             let engineDisplayName = "Stockfish"; 
+            window.engineReady = false; 
+            window.engineBooting = true;
             
-            // 1. Determine which default engine we SHOULD be using
             if (!engineType) {
                 engineType = ['classical', 'chess960'].includes(this.gameMode) ? 'standard' : 'fairy';
             }
             this.activeEngineType = engineType;
 
-            // 2. Decide which engine to boot up
-            let enginePath = '';
-            
-            if (engineType === 'fairy') {
+            // ==========================================
+            // 🔥 NATIVE CUSTOM ENGINE
+            // ==========================================
+            if (this.activeEngineType === 'custom' && customUrl) {
+                engineDisplayName = customName || "Custom Engine";
+                window.sfWorker = new Worker(customUrl);
+            } 
+            // ==========================================
+            // 🔥 FAIRY STOCKFISH (Message Queue + VFS)
+            // ==========================================
+            else if (this.activeEngineType === 'fairy') {
                 engineDisplayName = "Fairy-Stockfish 14 NNUE";
                 
-                const origin = window.location.origin;
-                const engineDir = origin + '/engine/fairy/';
+                const originStr = window.location.origin;
+                const engineDir = originStr + '/engine/fairy/';
                 const jsUrl = engineDir + 'fairy-stockfish.js';
                 const wasmUrl = engineDir + 'fairy-stockfish.wasm';
+                const workerUrl = engineDir + 'fairy-stockfish.worker.js';
                 
                 const workerScript = `
-                    var Module = {
-                        locateFile: function(path) {
-                            if (path.endsWith('.wasm')) return '${wasmUrl}';
-                            if (path.endsWith('.js') || path.endsWith('.worker.js')) return '${jsUrl}';
-                            return '${engineDir}' + path;
-                        },
-                        mainScriptUrlOrBlob: '${jsUrl}',
-                        print: function(text) { self.postMessage(text); },
-                        printErr: function(text) { self.postMessage(text); },
-                        postRun: function() {
-                            var emscOnMessage = self.onmessage;
-                            self.onmessage = function(e) {
-                                if (e.data && e.data.action === 'INJECT_NNUE') {
-                                    try { 
-                                        var fsObj = typeof FS !== 'undefined' ? FS : Module.FS;
-                                        fsObj.writeFile(e.data.name, new Uint8Array(e.data.buffer)); 
-                                        console.log("✅ [WORKER VFS]: Injected " + e.data.name);
-                                    } catch(err) { console.error("VFS Error:", err); }
-                                    return; 
-                                }
-                                if (emscOnMessage) emscOnMessage(e);
-                            };
-                            self.postMessage('WORKER_INITIALIZED');
-                        }
-                    };
+                    var originStr = '${originStr}';
+                    var jsUrl = '${jsUrl}';
+                    var wasmUrl = '${wasmUrl}';
+                    var workerUrl = '${workerUrl}';
+
+                    function sanitize(rawUrl) {
+                        if (!rawUrl) return '';
+                        let u = typeof rawUrl === 'string' ? rawUrl : (rawUrl.url || rawUrl.toString());
+                        let oSlash = originStr + '/';
+                        if (u.includes(oSlash + 'blob:')) u = u.substring(u.indexOf('blob:'));
+                        if (u.includes(oSlash + 'http')) u = u.substring(u.indexOf('http', oSlash.length));
+                        u = u.replace(originStr + originStr, originStr);
+                        u = u.replace(originStr + '/' + originStr, originStr);
+                        return u;
+                    }
+
+                    function resolveUrl(rawUrl) {
+                        let url = sanitize(rawUrl);
+                        if (url.startsWith('blob:') || url.startsWith('data:')) return url;
+                        let fileName = decodeURIComponent(url.split('/').pop().split('?')[0].split('#')[0]);
+                        
+                        if (fileName.endsWith('.worker.js')) return workerUrl;
+                        if (fileName.endsWith('.wasm')) return wasmUrl;
+                        if (fileName.endsWith('.js')) return jsUrl;
+                        if (fileName.endsWith('.nnue')) return originStr + '/engine/nnue/' + fileName;
+                        
+                        if (url.startsWith('http')) return url;
+                        return originStr + '/' + (url.startsWith('/') ? url.substring(1) : url);
+                    }
+
+                    const nativeFetch = self.fetch;
+                    self.fetch = function(req, opts) { return nativeFetch(resolveUrl(req), opts); };
                     
-                    importScripts('${jsUrl}');
-                    if (typeof Stockfish === 'function') Stockfish(Module);
+                    const NativeRequest = self.Request;
+                    self.Request = function(input, init) { 
+                        try { return new NativeRequest(resolveUrl(input), init); }
+                        catch(e) { return new NativeRequest(originStr + '/' + input.toString().split('/').pop(), init); }
+                    };
+
+                    const NativeURL = self.URL;
+                    self.URL = function(url, base) {
+                        try {
+                            let resolved = resolveUrl(url);
+                            if (resolved.startsWith('blob:') || resolved.startsWith('http')) return new NativeURL(resolved);
+                            return new NativeURL(resolved, sanitize(base));
+                        } catch(e) { return new NativeURL(resolveUrl(url)); }
+                    };
+                    self.URL.createObjectURL = NativeURL.createObjectURL;
+                    self.URL.revokeObjectURL = NativeURL.revokeObjectURL;
+
+                    var engineInstance = null;
+                    var messageQueue = []; // 🔥 Buffer commands while booting!
+                    
+                    var Module = { 
+                        locateFile: function(path) { return resolveUrl(path); },
+                        mainScriptUrlOrBlob: jsUrl 
+                    };
+
+                    var isInitialized = false;
+                    var originalPostMessage = self.postMessage;
+                    
+                    self.postMessage = function(msg) {
+                        if (!isInitialized && typeof msg === 'string') {
+                            if (msg.includes('Stockfish') || msg.includes('Fairy') || msg.includes('id name')) {
+                                isInitialized = true;
+                                originalPostMessage('WORKER_INITIALIZED');
+                            }
+                        }
+                        originalPostMessage.apply(self, arguments);
+                    };
+
+                    self.addEventListener('message', function(e) {
+                        if (e.data && e.data.action === 'INJECT_NNUE') {
+                            try { 
+                                var fsObj = typeof FS !== 'undefined' ? FS : (engineInstance ? engineInstance.FS : Module.FS);
+                                fsObj.writeFile(e.data.name, new Uint8Array(e.data.buffer)); 
+                            } catch(err) {}
+                        } 
+                        else if (typeof e.data === 'string') {
+                            let cmd = e.data;
+                            if (cmd.startsWith('setoption name Hash value')) cmd = 'setoption name Hash value 256'; 
+                            else if (cmd.startsWith('setoption name Threads value')) {
+                                let requestedThreads = parseInt(cmd.split('value ')[1]);
+                                if (requestedThreads > 4) cmd = 'setoption name Threads value 4'; 
+                            }
+
+                            if (engineInstance) {
+                                if (typeof engineInstance.postMessage === 'function') engineInstance.postMessage(cmd);
+                                else if (typeof engineInstance.onCustomMessage === 'function') engineInstance.onCustomMessage(cmd);
+                                else if (typeof engineInstance === 'function') engineInstance(cmd);
+                            } else {
+                                // 🔥 Engine isn't ready yet! Save the command to the queue!
+                                messageQueue.push(cmd);
+                            }
+                        }
+                    });
+
+                    try { importScripts(jsUrl); } catch(e) {}
+                    
+                    if (typeof Stockfish === 'function') {
+                        Stockfish(Module).then(function(engine) {
+                            engineInstance = engine; 
+                            
+                            // 🔥 Flush the queue immediately upon boot!
+                            messageQueue.forEach(function(cmd) {
+                                if (typeof engineInstance.postMessage === 'function') engineInstance.postMessage(cmd);
+                                else if (typeof engineInstance.onCustomMessage === 'function') engineInstance.onCustomMessage(cmd);
+                                else if (typeof engineInstance === 'function') engineInstance(cmd);
+                            });
+                            messageQueue = [];
+                            
+                            if (typeof engine.addMessageListener === 'function') {
+                                engine.addMessageListener(function(line) { self.postMessage(line); });
+                            } else if (engine.print) {
+                                engine.print = function(line) { self.postMessage(line); };
+                                engine.printErr = function(line) { self.postMessage(line); };
+                            }
+                            
+                            setTimeout(function() {
+                                if (!isInitialized) {
+                                    isInitialized = true;
+                                    originalPostMessage('WORKER_INITIALIZED');
+                                }
+                            }, 3500);
+
+                        }).catch(function(e) {});
+                    }
                 `;
                 
                 const blob = new Blob([workerScript], { type: 'application/javascript' });
                 window.sfWorker = new Worker(URL.createObjectURL(blob));
-                
-            }  else {
-                enginePath = './engine/stockfish 18/stockfish-18.js';
-                engineDisplayName = "Stockfish 18";
-                window.sfWorker = new Worker(enginePath);
             }
-            
-            const input = document.getElementById('assetEngineFolder');
-            if (input) input.value = ''; 
+            // ==========================================
+            // 🔥 DEFAULT ENGINE (DYNAMIC AUTO-UPDATER)
+            // ==========================================
+            else {
+                try {
+                    const response = await fetch('/api/latest-engine');
+                    if (response.ok) {
+                        const data = await response.json();
+                        engineDisplayName = data.name; 
+                        window.sfWorker = new Worker(data.path);
+                    } else {
+                        throw new Error("Server API failed");
+                    }
+                } catch(e) {
+                    engineDisplayName = "Stockfish 18";
+                    window.sfWorker = new Worker('/engine/stockfish 18/stockfish-18.js');
+                }
+            }
 
-            // 3. Update UI and Event Listeners
             if (window.ui && typeof window.ui.updateEngineName === 'function') {
                 window.ui.updateEngineName(engineDisplayName);
             }
             window.currentEngineShortName = engineDisplayName;
 
-            console.log(`⚙️ [ENGINE] Booting up ${engineDisplayName}...`);
             const originalPost = window.sfWorker.postMessage.bind(window.sfWorker);
             window.sfWorker.postMessage = function(msg) {
                 if (typeof msg === 'string') console.log("%c➡️ [APP SAYS]: " + msg, "color: #38bdf8");
-                else console.log("%c➡️ [APP SAYS]: [Binary/Object Data]", "color: #38bdf8");
                 originalPost(msg);
             };
             window.sfWorker.onerror = function(e) { console.error("[ENGINE ERROR]", e); };
             window.sfWorker.onmessage = (event) => this.#handleEngineMessage(event);
 
-            window.engineReady = false; 
-            window.sfWorker.postMessage('uci'); 
-
-        } catch (e) {
-            console.error("Engine Init Failed", e);
-        }
+            if (this.activeEngineType !== 'fairy') {
+                window.sfWorker.postMessage('uci'); 
+            }
+        } catch (e) {}
     }
 updateStockfish() {
         if (!window.engineAnalysing) {
@@ -2503,16 +2748,13 @@ updateStockfish() {
             return; 
         }
 
-        // 1. Hard Halt
-        if (window.sfWorker) {
+        if (window.sfWorker && window.engineReady) {
             window.sfWorker.postMessage('stop');
             window.engineReady = false; 
         }
 
-        // 2. Clear any pending pings from previous rapid clicks
         if (this._engineTimeout) clearTimeout(this._engineTimeout);
 
-        // 3. Wipe the visual data immediately
         const box = document.getElementById('engine-lines-box');
         if (box) box.innerHTML = '<div id="calc-placeholder" style="color:#888; font-size:13px; font-style:italic; padding:8px;">Calculating...</div>';
         const arrowRoot = document.getElementById('tempArrowRoot');
@@ -2520,11 +2762,13 @@ updateStockfish() {
         const depthEl = document.getElementById('depth-display');
         if (depthEl) depthEl.innerText = 'Depth: 0 | Nps: 0';
 
-        // 4. Update the final destination FEN & LOCK THE NODE
         this._pendingFen = this.currentNode ? this.currentNode.fen : this.generateFEN();
         this._pendingNode = this.currentNode;
 
-        // 5. Wait until the user STOPS clicking, then ping the engine!
+        // 🔥 THE GUARD: Stop it from spamming 'isready' while NNUE is downloading!
+        // The engine's boot sequence will naturally process this._pendingFen when it finishes!
+        if (window.engineBooting) return;
+
         this._engineTimeout = setTimeout(() => {
             if (!window.sfWorker) {
                 console.warn("⚠️ [ENGINE] No Web Worker found! Booting default engine...");
@@ -2564,9 +2808,12 @@ async reviewGame(autoTriggered = false) {
                 if (window.ui && window.ui.showNotification) window.ui.showNotification("Analyzing game at Depth 20...", "Review Game", "⏳");
 
                 window.sfWorker.postMessage('setoption name MultiPV value 1');
-                const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-                window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-                window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+                if (this.activeEngineType === 'fairy') {
+                    const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
+                    window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
+                } else {
+                    window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+                }
                 for (let i = 0; i < nodes.length; i++) {
                     let node = nodes[i];
                     if (node.reviewed|| (node.isBook && this.isEngineMatch)) continue;
@@ -3504,6 +3751,16 @@ resetGame(clear = false, startFen = INITIAL_FEN) {
         this.currentNode = this.rootNode;
         this.loadFEN(startFen);
         this.gameOver = false;
+
+        const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
+        this.pgnHeaders = {
+            'Event': 'Casual Game',
+            'Site': 'Local',
+            'Date': dateStr,
+            'Variant': this.gameMode === 'classical' ? 'Standard' : this.gameMode,
+            'FEN': startFen,
+            'SetUp': startFen !== INITIAL_FEN ? "1" : "0"
+        };
         
         if (!this.isPlayingLiveGame && this.mode !== 'puzzle') {
             this.mode = 'analysis';
@@ -3728,14 +3985,16 @@ parseArrowsAndCircles(node, comment) {
             window.ui.renderArrows();
         }
     }
-loadPGN(pgn, isEditor = false) {
-        if (typeof pgn === 'string') {
+loadPGN(pgn, isEditor = false, isInternalLoad = false) {
+        if (typeof pgn === 'string' && !isInternalLoad) {
             let detectedMode = 'classical';
             const variantMatch = pgn.match(/\[Variant\s+"([^"]+)"\]/i);
             
             if (variantMatch && variantMatch[1]) {
                 const rawVariant = variantMatch[1].toLowerCase().replace(/[-_ ]/g, ''); 
+                // Full map included!
                 const modeMap = {
+                    'standard': 'classical', 'classical': 'classical',
                     'chess960': 'chess960', 'fischerandom': 'chess960',
                     '3check': '3check', 'threecheck': '3check',
                     'antichess': 'antichess', 'giveaway': 'antichess', 'losers': 'antichess',
@@ -3745,7 +4004,16 @@ loadPGN(pgn, isEditor = false) {
                 };
                 if (modeMap[rawVariant]) detectedMode = modeMap[rawVariant];
             }
-            this.setGameMode(detectedMode);
+            
+            if (this.gameMode !== detectedMode) {
+                // Use skipStorage=true so we don't accidentally trigger a save loop!
+                this.setGameMode(detectedMode, false, true); 
+                
+                if (typeof document !== 'undefined') {
+                    const variantSelect = document.getElementById('analysisVariantSelect');
+                    if (variantSelect) variantSelect.value = detectedMode;
+                }
+            }
         }
 
         this.isLoadingPGN = true;
@@ -3780,6 +4048,11 @@ loadPGN(pgn, isEditor = false) {
             let match;
             while ((match = headerRegex.exec(pgn)) !== null) {
                 this.pgnHeaders[match[1]] = match[2];
+            }
+
+            // 🔥 FIX: Guarantee the Variant header is correct during internal loading!
+            if (isInternalLoad) {
+                this.pgnHeaders['Variant'] = this.gameMode === 'classical' ? 'Standard' : this.gameMode;
             }
 
             let moveTextRaw = pgn.replace(/\[[A-Za-z0-9_]+\s+"[^"]*"\]/g, '').trim();
@@ -4224,6 +4497,7 @@ resign() {
         }
     }
 makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = false) {
+    if (this.#engine && this.#engine.game_over()) return null;
         const ui = (typeof window !== 'undefined' && window.ui) ? window.ui : null;
         if (!this.isChess960 && move && move.from !== undefined && move.to !== undefined && this.#engine) {
             const fromStr = typeof move.from === 'number' && this.#indexToSquare ? this.#indexToSquare(move.from) : move.from;
@@ -4491,9 +4765,12 @@ generateChess960FEN() {
     }
 startLocalGame(startFen = INITIAL_FEN) {
         if (window.sfWorker) {
-            const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-            window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-            window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+            if (this.activeEngineType === 'fairy') {
+                const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
+                window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
+            } else {
+                window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+            }
         }
 
         if (typeof window.engineAnalysing !== 'undefined') window.engineAnalysing = false;
@@ -4510,6 +4787,7 @@ startLocalGame(startFen = INITIAL_FEN) {
             if (arrowContainer) arrowContainer.innerHTML = '';
         }
 
+        // 🔥 REVERTED: Correctly set to 'local' for your getter!
         this.mode = 'local';
         this.botColor = null;
         
@@ -4526,7 +4804,7 @@ startLocalGame(startFen = INITIAL_FEN) {
         this.history = [];
         
         this.gameOver = false;
-        this.#stopTimer();
+        if (typeof this.#stopTimer === 'function') this.#stopTimer();
         this.whiteTime = Number(this.whiteStartSeconds);
         this.blackTime = Number(this.blackStartSeconds);
         
@@ -4569,10 +4847,8 @@ startLocalGame(startFen = INITIAL_FEN) {
             
             if (typeof window.ui.displayMetadata === 'function') window.ui.displayMetadata(this.pgnHeaders);
             window.ui.updateHistory(true); 
-            
             window.ui.renderHeaders();
             
-            // Failsafe clock ID alignment
             const headers = document.querySelectorAll('.player-header');
             if (headers[0]) headers[0].querySelector('.clock').id = window.ui.flipped ? 'timer-white' : 'timer-black';
             if (headers[1]) headers[1].querySelector('.clock').id = window.ui.flipped ? 'timer-black' : 'timer-white';
@@ -4581,18 +4857,21 @@ startLocalGame(startFen = INITIAL_FEN) {
             window.ui.renderBoard(true);
             window.ui.updateStatus("Local Game Started");
         }
+        if (typeof this.#startTimer === 'function') this.#startTimer();
         
-        this.#startTimer();
-    const resignBtn = document.getElementById('resignBtn');
+        const resignBtn = document.getElementById('resignBtn');
         const drawBtn = document.getElementById('drawBtn');
         if (resignBtn) resignBtn.style.display = 'block';
         if (drawBtn) drawBtn.style.display = 'block';
     }
 startBotGame(level, colorPreference, startFen = INITIAL_FEN) {
         if (window.sfWorker) {
-            const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-            window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-            window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+            if (this.activeEngineType === 'fairy') {
+                const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
+                window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
+            } else {
+                window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+            }
         }
 
         if (typeof window.engineAnalysing !== 'undefined') window.engineAnalysing = false;
@@ -4609,8 +4888,8 @@ startBotGame(level, colorPreference, startFen = INITIAL_FEN) {
             if (arrowContainer) arrowContainer.innerHTML = '';
         }
 
+        // 🔥 REVERTED: Correctly set to 'bot' for your getter!
         this.mode = 'bot';
-        
         this.loadFEN(startFen);
 
         this.turn = this.#engine.turn();
@@ -4620,7 +4899,7 @@ startBotGame(level, colorPreference, startFen = INITIAL_FEN) {
         this.history = [];
         
         this.gameOver = false;
-        this.#stopTimer(); 
+        if (typeof this.#stopTimer === 'function') this.#stopTimer(); 
         this.whiteTime = Number(this.whiteStartSeconds);
         this.blackTime = Number(this.blackStartSeconds);
         
@@ -4630,7 +4909,7 @@ startBotGame(level, colorPreference, startFen = INITIAL_FEN) {
         const levelSelect = document.getElementById('stockfishLevel');
         if (levelSelect) levelSelect.value = finalLevel; 
         this.botLevel = finalLevel;
-        if (this.updateEngineLevel) this.updateEngineLevel(); 
+        if (typeof this.updateEngineLevel === 'function') this.updateEngineLevel(); 
 
         let playerColor = colorPreference;
         if (colorPreference === 'random') playerColor = Math.random() < 0.5 ? 'w' : 'b';
@@ -4693,10 +4972,8 @@ startBotGame(level, colorPreference, startFen = INITIAL_FEN) {
             
             if (typeof window.ui.displayMetadata === 'function') window.ui.displayMetadata(this.pgnHeaders);
             window.ui.updateHistory(true); 
-            
             window.ui.renderHeaders();
             
-            // Failsafe clock ID alignment
             const headers = document.querySelectorAll('.player-header');
             if (headers[0]) headers[0].querySelector('.clock').id = window.ui.flipped ? 'timer-white' : 'timer-black';
             if (headers[1]) headers[1].querySelector('.clock').id = window.ui.flipped ? 'timer-black' : 'timer-white';
@@ -4710,12 +4987,15 @@ startBotGame(level, colorPreference, startFen = INITIAL_FEN) {
             window.sfWorker.postMessage('ucinewgame');
             window.sfWorker.postMessage('isready');
             if (this.turn === this.botColor) {
-                setTimeout(() => this.#triggerBotMove(), 500);
+                setTimeout(() => {
+                    if (typeof this.#triggerBotMove === 'function') this.#triggerBotMove();
+                    else if (typeof this.triggerBotMove === 'function') this.triggerBotMove();
+                }, 500);
             }
         }
         
-        this.#startTimer();
-    const resignBtn = document.getElementById('resignBtn');
+        if (typeof this.#startTimer === 'function') this.#startTimer();
+        const resignBtn = document.getElementById('resignBtn');
         const drawBtn = document.getElementById('drawBtn');
         if (resignBtn) resignBtn.style.display = 'block';
         if (drawBtn) drawBtn.style.display = 'block';

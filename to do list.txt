@@ -73,12 +73,15 @@ chess.js bitboard implementation
 -fix the travel in pgn change state of the fen/clock/.... when the game is in played mode.
 -loading the pgn played after the game ended in play mode (for both bot and human).
 -add staticstic check with lichess/chesscom accounts (basic stats done, deeper analysis not yet.)
+-implement Fairy-stockfish sucessfully to play.
 *) CONTINUE TO FIX:
 
 -implement import and export embedded and use model to use
 -implement import gif reading.
 -implement bot play variants
-(window.game.gameMode=['classical','chess960','3check','antichess','atomic','bughouse','chaturanga','crazyhouse','duck','horde','kingofthehill','racingkings'];)
+-implement rules for variants(window.game.gameMode=['classical','chess960','3check','antichess','atomic',
+'bughouse','chaturanga','crazyhouse','duck','horde','kingofthehill','racingkings'];)
+
 3 check-> normal chess with check count (implementing right now)
 antichess-> forced capture (promotion can be a king as well)
 atomic-> explode in 3x3 for the captured pieces excluding pawn that doesn't try to capture the captured piece. the capture piece(pawn does apply) also dissapear.
