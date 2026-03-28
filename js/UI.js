@@ -2070,7 +2070,7 @@ switchTab(tabName) {
         const lowerTab = tabName.toLowerCase();
         
         if (window.game) {
-            // 🔥 BUG FIX: Levaing Editor
+            // 🔥 BUG FIX: Leaving Editor
             if (window.game.mode === 'editor' && lowerTab !== 'editor') {
                 const fenInput = document.getElementById('fenInput');
                 const currentFen = fenInput ? fenInput.value : (typeof window.game.generateFEN === 'function' ? window.game.generateFEN() : "");
@@ -2100,7 +2100,13 @@ switchTab(tabName) {
                 this.originalEditorFen = typeof window.game.generateFEN === 'function' ? window.game.generateFEN() : (window.game.currentNode ? window.game.currentNode.fen : "");
             }
 
-            window.game.switchMode(lowerTab);
+            // 🔥 THE FIX: UI.js was calling the wrong function! 
+            // It must call handleTabSwitch so ChessGame.js correctly maps 'puzzles' to 'puzzle' and manages the memory!
+            if (typeof window.game.handleTabSwitch === 'function') {
+                window.game.handleTabSwitch(lowerTab);
+            } else if (typeof window.game.switchMode === 'function') {
+                window.game.switchMode(lowerTab);
+            }
         }
 
         const state = window.game ? window.game.getReader() : { mode: lowerTab, isLive: false };
@@ -2178,7 +2184,8 @@ switchTab(tabName) {
         const engineBtn = document.querySelector('.engine-toggle-btn');
         if (engineBtn) {
             engineBtn.style.display = isEditor ? 'none' : '';
-            if (isPuzzle && window.game && !state.isGameOver && state.puzzle.active) {
+            // Safe puzzle check
+            if (isPuzzle && window.game && !state.isGameOver && state.puzzle && state.puzzle.active) {
                 engineBtn.style.opacity = '0.5'; engineBtn.style.cursor = 'not-allowed';
             } else {
                 engineBtn.style.opacity = '1'; engineBtn.style.cursor = 'pointer';
