@@ -18,7 +18,7 @@ Clone or download this repository to your machine.
 Head over to the Releases page to grab the offline puzzle database and the Stockfish 18 WebAssembly engine:
 
 🔗 **[Download the Core Assets Here](https://github.com/NguyenVietDat2108/Chess-offline-for-private/releases)**
-* 📥 `lichess_db_puzzle.csv` *(The massive offline puzzle DB)*
+* 📥 `lichess_db_puzzle.csv` *(The massive offline lichess puzzle DB or you can download directly at https://database.lichess.org/#puzzles)* 
 * 📥 `stockfish-18.wasm` *(The Stockfish 18 engine)*
 
 ### 3. Place the Files
