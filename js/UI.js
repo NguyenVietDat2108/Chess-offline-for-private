@@ -5876,24 +5876,19 @@ showPromotionModal(color, destIdx, callback) {
         if (!overlay) return;
 
         // HIDE THE PIECE UNDERNEATH (e.g. Captured Piece)
-        // This prevents the "ghost" piece from showing through the gaps
-        // or flickering when you hover the promotion buttons.
         const squareWidth = this.boardEl.offsetWidth / 8;
         const file = destIdx % 8;
         const rank = Math.floor(destIdx / 8);
         
-        // Calculate visual coordinates of the square to find the piece
-        const targetX = (this.flipped ? (7 - file) : file) * 12.5; // %
-        const targetY = (this.flipped ? rank : (7 - rank)) * 12.5; // %
+        const targetX = (this.flipped ? (7 - file) : file) * 12.5; 
+        const targetY = (this.flipped ? rank : (7 - rank)) * 12.5; 
 
-        // Find and hide the piece element at this position
         const pieceEls = this.piecesLayer.children;
         for (let el of pieceEls) {
-            // Check if element style matches target position (approximate match for safety)
             const left = parseFloat(el.style.left);
             const top = parseFloat(el.style.top);
             if (Math.abs(left - targetX) < 1 && Math.abs(top - targetY) < 1) {
-                el.style.opacity = '0'; // Hide it
+                el.style.opacity = '0'; 
             }
         }
 
@@ -5907,14 +5902,16 @@ showPromotionModal(color, destIdx, callback) {
                 overlay.style.display = 'none';
                 this.selectedSq = null;
                 this.legalMoves = [];
-                // Re-rendering the board will automatically unhide the piece
-                // if the move was cancelled.
                 this.renderBoard(false); 
             }
         };
 
-        // 3. Determine Stack Direction
-        const pieces = ['q', 'n', 'r', 'b']; 
+        // 3. Determine Stack Direction & Piece Options
+        // 🔥 ANTICHESS FIX: Inject the King into the promotion options!
+        let pieces = ['q', 'n', 'r', 'b']; 
+        if (window.game && window.game.gameMode === 'antichess') {
+            pieces.push('k');
+        }
         
         pieces.forEach((type, i) => {
             const btn = document.createElement('div');
@@ -5938,13 +5935,9 @@ showPromotionModal(color, destIdx, callback) {
             btn.style.transform = 'scale(0)';
             setTimeout(() => {
                 btn.style.transform = 'scale(1)';
-                
-                // 3. CRITICAL: Remove the inline transform after animation ends (200ms).
-                // This allows the CSS :hover effect (scale 1.15) to work without conflict.
                 setTimeout(() => {
                     btn.style.transform = ''; 
                 }, 200); 
-                
             }, i * 60);
 
             // Click Handler

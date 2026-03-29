@@ -299,7 +299,41 @@ var Chess = function(fen, gameMode = 'classical') {
         return next;
     }
     // --- VARIANT SIDE-EFFECT STUBS ---
-    function apply_atomic_move(prevState, m) { return apply_standard_move(prevState, m); }
+    function apply_atomic_move(prevState, m) {
+        var next = apply_standard_move(prevState, m);
+        var flags = (m >>> 12) & 0x7F;
+        var to = (m >>> 6) & 0x3F;
+        
+        // 🔥 ATOMIC FIX: Resolve the explosion on capture!
+        if ((flags & BITS.CAPTURE) || (flags & BITS.EP_CAPTURE)) {
+            var us = prevState.turn;
+            var p_type = next.board[to] & 7;
+            
+            // 1. Remove the capturing piece (which is now at the 'to' square)
+            if (p_type !== -1) {
+                if (to < 32) next.bb_lo[us*6+p_type] &= ~(1<<to); else next.bb_hi[us*6+p_type] &= ~(1<<(to-32));
+                next.board[to] = -1;
+            }
+            
+            // 2. Explode all surrounding squares!
+            var r = to >> 3, f = to & 7;
+            var dirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+            for(var i=0; i<8; i++) {
+                var cr = r + dirs[i][0], cf = f + dirs[i][1];
+                if (cr >= 0 && cr < 8 && cf >= 0 && cf < 8) {
+                    var sq = cr * 8 + cf;
+                    var p = next.board[sq];
+                    // Pawns survive explosions! Everything else dies.
+                    if (p !== -1 && (p & 7) !== PAWN) {
+                        var col = p >> 3, typ = p & 7;
+                        if (sq < 32) next.bb_lo[col*6+typ] &= ~(1<<sq); else next.bb_hi[col*6+typ] &= ~(1<<(sq-32));
+                        next.board[sq] = -1;
+                    }
+                }
+            }
+        }
+        return next;
+    }
     function apply_crazyhouse_move(prevState, m) { return apply_standard_move(prevState, m); }
     function apply_bughouse_move(prevState, m) { return apply_standard_move(prevState, m); }
     function apply_duck_move(prevState, m) { return apply_standard_move(prevState, m); }
@@ -384,17 +418,21 @@ var Chess = function(fen, gameMode = 'classical') {
     
     function is_checked(state, color) {
         switch (state.gameMode) {
-            // Variants where Kings are ignored or checks don't exist
             case 'antichess':   return false; 
             case 'racingkings': return false; 
             
             case 'horde':       return color === BLACK ? is_standard_checked(state, color) : false; 
-            
-            // Variants that use standard check math
             case 'classical':
             case 'chess960':
             case '3check':
             case 'atomic':
+                var wkL = state.bb_lo[WHITE*6+KING], wkH = state.bb_hi[WHITE*6+KING];
+                var bkL = state.bb_lo[BLACK*6+KING], bkH = state.bb_hi[BLACK*6+KING];
+                if ((wkL || wkH) && (bkL || bkH)) {
+                    var wk = ctz(wkL, wkH), bk = ctz(bkL, bkH);
+                    if (Math.abs((wk>>3)-(bk>>3)) <= 1 && Math.abs((wk&7)-(bk&7)) <= 1) return false;
+                }
+                return is_standard_checked(state, color);
             case 'bughouse':
             case 'chaturanga':
             case 'crazyhouse':
@@ -428,7 +466,7 @@ var Chess = function(fen, gameMode = 'classical') {
             let to = ctz(bbL, bbH);
             if(to<32) bbL &= ~(1<<to); else bbH &= ~(1<<(to-32));
             let from = (us === WHITE) ? to - 8 : to + 8;
-            if (to < 8 || to >= 56) add_promo(moves, from, to, BITS.PROMOTION);
+            if (to < 8 || to >= 56) add_promo(moves, from, to, BITS.PROMOTION, state.gameMode);
             else {
                 add_move(moves, from, to, BITS.NORMAL);
                 if ((us === WHITE && to >= 16 && to <= 23) || (us === BLACK && to >= 40 && to <= 47)) {
@@ -466,7 +504,7 @@ var Chess = function(fen, gameMode = 'classical') {
                 if(to<32) cL &= ~(1<<to); else cH &= ~(1<<(to-32));
                 let from = (us === WHITE) ? (offset===1 ? to-9 : to-7) : (offset===1 ? to+7 : to+9);
                 if (from >= 0 && from < 64) {
-                    if (to < 8 || to >= 56) add_promo(moves, from, to, BITS.CAPTURE | BITS.PROMOTION);
+                    if (to < 8 || to >= 56) add_promo(moves, from, to, BITS.CAPTURE | BITS.PROMOTION, state.gameMode);
                     else add_move(moves, from, to, BITS.CAPTURE);
                 }
             }
@@ -572,8 +610,70 @@ var Chess = function(fen, gameMode = 'classical') {
         return final_moves;
     }
     // --- VARIANT GENERATOR STUBS ---
-    function generate_antichess_moves(state, options) { return generate_standard_moves(state, options); }
-    function generate_atomic_moves(state, options) { return generate_standard_moves(state, options); }
+    function generate_antichess_moves(state, options) { 
+        var moves = generate_standard_moves(state, options);
+        var captures = [];
+        for (var i = 0; i < moves.length; i++) {
+            var m = moves[i];
+            var flags = (m >>> 12) & 0x7F;
+            if ((flags & BITS.CAPTURE) || (flags & BITS.EP_CAPTURE)) {
+                captures.push(m);
+            }
+        }
+        if (captures.length > 0) return captures;
+        return moves; 
+    }
+    function generate_atomic_moves(state, options) { 
+        var moves = generate_standard_moves(state, {legal: false});
+        var valid = [];
+        var us = state.turn, them = us ^ 1;
+        for (var i = 0; i < moves.length; i++) {
+            var m = moves[i];
+            var from = m & 0x3F, to = (m >>> 6) & 0x3F;
+            
+            if (options && options.square && SQ_STR[from] !== options.square) continue;
+
+            var p_type = state.board[from] & 7;
+            var flags = (m >>> 12) & 0x7F;
+
+            // 🔥 ATOMIC FIX: Kings can NEVER capture.
+            if (p_type === KING && (flags & BITS.CAPTURE || flags & BITS.EP_CAPTURE)) continue;
+
+            var next = apply_atomic_move(state, m);
+
+            var myK_lo = next.bb_lo[us*6+KING], myK_hi = next.bb_hi[us*6+KING];
+            var theirK_lo = next.bb_lo[them*6+KING], theirK_hi = next.bb_hi[them*6+KING];
+
+            if (!myK_lo && !myK_hi) continue; // We blew up our own king (Illegal)
+            if (!theirK_lo && !theirK_hi) { valid.push(m); continue; } // We blew up their king (Legal Win)
+
+            var myK = ctz(myK_lo, myK_hi);
+            var theirK = ctz(theirK_lo, theirK_hi);
+            var kingsAdj = Math.abs((myK>>3)-(theirK>>3)) <= 1 && Math.abs((myK&7)-(theirK&7)) <= 1;
+
+            if (kingsAdj) {
+                valid.push(m); // If adjacent, we are immune to check
+            } else {
+                if (!is_standard_checked(next, us)) valid.push(m);
+            }
+        }
+        return valid;
+    }
+    function generate_racingkings_moves(state, options) { 
+        var moves = generate_standard_moves(state, options);
+        var valid = [];
+        var us = state.turn;
+        for (var i = 0; i < moves.length; i++) {
+            var m = moves[i];
+            var next = apply_standard_move(state, m);
+            
+            // 🔥 RACING KINGS FIX: You are absolutely NOT allowed to put the opponent in check!
+            if (!is_standard_checked(next, us ^ 1)) {
+                valid.push(m);
+            }
+        }
+        return valid; 
+    }
     function generate_bughouse_moves(state, options) { return generate_standard_moves(state, options); }
     function generate_chaturanga_moves(state, options) { return generate_standard_moves(state, options); }
     function generate_crazyhouse_moves(state, options) { return generate_standard_moves(state, options); }
@@ -600,7 +700,6 @@ var Chess = function(fen, gameMode = 'classical') {
         }
         return moves; 
     }
-    function generate_racingkings_moves(state, options) { return generate_standard_moves(state, options); }
 
     // --------------------------------------------------------
     // VARIANT MOVE GENERATOR ROUTER (MASTER SHELL)
@@ -627,11 +726,12 @@ var Chess = function(fen, gameMode = 'classical') {
     }
     
     function add_move(l, f, t, fl) { l.push(f | (t << 6) | (fl << 12)); }
-    function add_promo(l, f, t, fl) {
+    function add_promo(l, f, t, fl, gameMode) {
         l.push(f | (t << 6) | (fl << 12) | (4 << 19));
         l.push(f | (t << 6) | (fl << 12) | (3 << 19));
         l.push(f | (t << 6) | (fl << 12) | (2 << 19));
         l.push(f | (t << 6) | (fl << 12) | (1 << 19));
+        if (gameMode === 'antichess') l.push(f | (t << 6) | (fl << 12) | (5 << 19)); 
     }
     function serialize_moves(l, f, attL, attH, enemies) {
         while (attL || attH) {
@@ -916,10 +1016,48 @@ var Chess = function(fen, gameMode = 'classical') {
                 }
                 if (!whiteHasPieces) return BLACK;
                 return null;
-            case 'atomic':        /* Logic later */ return null;
-            case 'antichess':     /* Logic later */ return null;
-            case 'kingofthehill': /* Logic later */ return null;
-            case 'racingkings':   /* Logic later */ return null;
+            case 'atomic':
+                let wKa = state.bb_lo[WHITE*6+KING] | state.bb_hi[WHITE*6+KING];
+                let bKa = state.bb_lo[BLACK*6+KING] | state.bb_hi[BLACK*6+KING];
+                if (!wKa && bKa) return BLACK;
+                if (!bKa && wKa) return WHITE;
+                return null;
+            case 'antichess':
+                let anti_us = state.turn;
+                let anti_hasPieces = false;
+                for (let i = 0; i < 64; i++) {
+                    if (state.board[i] !== -1 && (state.board[i] >> 3) === anti_us) {
+                        anti_hasPieces = true;
+                        break;
+                    }
+                }
+                if (!anti_hasPieces) return anti_us;
+                
+                let baseMoves = generate_standard_moves(state, {legal: true});
+                if (baseMoves.length === 0) return anti_us;
+                return null;
+            case 'kingofthehill':
+                let wk_lo = state.bb_lo[WHITE*6+KING], wk_hi = state.bb_hi[WHITE*6+KING];
+                let bk_lo = state.bb_lo[BLACK*6+KING], bk_hi = state.bb_hi[BLACK*6+KING];
+                if (wk_lo || wk_hi) {
+                    let k = ctz(wk_lo, wk_hi);
+                    if (k === 27 || k === 28 || k === 35 || k === 36) return WHITE;
+                }
+                if (bk_lo || bk_hi) {
+                    let k = ctz(bk_lo, bk_hi);
+                    if (k === 27 || k === 28 || k === 35 || k === 36) return BLACK;
+                }
+                return null;
+            case 'racingkings':
+                let rk_wK_lo = state.bb_lo[WHITE*6+KING], rk_wK_hi = state.bb_hi[WHITE*6+KING];
+                let rk_bK_lo = state.bb_lo[BLACK*6+KING], rk_bK_hi = state.bb_hi[BLACK*6+KING];
+                if ((rk_wK_lo || rk_wK_hi) && (rk_bK_lo || rk_bK_hi)) {
+                    let rk_wk = ctz(rk_wK_lo, rk_wK_hi);
+                    let rk_bk = ctz(rk_bK_lo, rk_bK_hi);
+                    if (rk_wk >= 56 && rk_bk < 56 && state.turn === WHITE) return WHITE;
+                    if (rk_bk >= 56 && rk_wk < 56 && state.turn === BLACK) return BLACK;
+                }
+                return null;
             
             // These variants rely on standard checkmate/draw rules
             case 'classical':
@@ -1110,7 +1248,7 @@ return {
             
             // A lone Knight or Bishop can easily deliver checks, 
             // so they are NOT insufficient! The game must go on!(Although with a knight it's a theoritical draw)
-            if (s.gameMode === '3check') return false;
+            if (s.gameMode === '3check' || s.gameMode === 'antichess') return false;
 
             if (num_pieces === 3 && (num_knights === 1 || num_bishops === 1)) return true;
             if (num_pieces === num_bishops + 2) {
@@ -1119,6 +1257,14 @@ return {
             return false;
         },
         in_draw: function() { 
+            if (currentState.gameMode === 'racingkings') {
+                let wkL = currentState.bb_lo[WHITE*6+KING], wkH = currentState.bb_hi[WHITE*6+KING];
+                let bkL = currentState.bb_lo[BLACK*6+KING], bkH = currentState.bb_hi[BLACK*6+KING];
+                if ((wkL || wkH) && (bkL || bkH)) {
+                    let wk = ctz(wkL, wkH), bk = ctz(bkL, bkH);
+                    if (wk >= 56 && bk >= 56) return true;
+                }
+            }
             return currentState.half_moves >= 100 || this.in_stalemate() || this.in_threefold_repetition() || this.insufficient_material(); 
         },
         game_over: function() { 
