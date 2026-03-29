@@ -82,17 +82,23 @@ chess.js bitboard implementation
 -implement rules for variants(window.game.gameMode=['classical','chess960','3check','antichess','atomic',
 'bughouse','chaturanga','crazyhouse','duck','horde','kingofthehill','racingkings'];)
 
-3 check-> normal chess with check count (implementing right now)
-antichess-> forced capture (promotion can be a king as well)
-atomic-> explode in 3x3 for the captured pieces excluding pawn that doesn't try to capture the captured piece. the capture piece(pawn does apply) also dissapear.
-bughouse -> seeing the 
+3 check-> normal chess with check count (done)
+antichess-> forced capture (promotion can be a king as well) (done)
+atomic-> explode in 3x3 for the captured pieces excluding pawn that doesn't try to capture the captured piece. the capture piece(pawn does apply) also dissapear. (done)
+bughouse -> 
 chaturange ->
 crazyhouse->
 duck->
-horde->
-kingofthehill-> normal chess with extra winning condition
-racingkings
-
+horde-> (done)
+kingofthehill-> normal chess with extra winning condition (done)
+racingkings (done)
+Spell Chess
+Cast a spell before making a move
+Spells are limited, recharge after 3 full turns, and you cannot cast the same spell two moves in a row
+Use the Jump spell on another piece to hop over like it isn’t there
+Or use the Freeze spell to prevent pieces from moving or checking within a 3x3 area of effect
+Be careful—any piece, including your own, will freeze if it enters the spell area
+Use spells to find a checkmate or king capture!
 -building engine analysis for progressive chess:
 
 

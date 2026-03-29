@@ -866,14 +866,18 @@ var Chess = function(fen, gameMode = 'classical') {
                     candL = PAWN_LO[us^1][to] & bb_lo[us*6+PAWN];
                     candH = PAWN_HI[us^1][to] & bb_hi[us*6+PAWN];
                 }
-            } else {
+            }  else {
                 var from1 = us === WHITE ? to - 8 : to + 8;
                 if (from1 >= 0 && from1 < 64 && (state.board[from1]&7) === PAWN) {
                     if(from1<32) candL |= (1<<from1); else candH |= (1<<(from1-32));
                 }
                 var from2 = us === WHITE ? to - 16 : to + 16;
                 var mid = us === WHITE ? to - 8 : to + 8;
-                if (Math.floor(to / 8) === (us===WHITE?3:4) && (state.board[from2]&7) === PAWN && state.board[mid]===-1 && state.board[from1]===-1) {
+                
+                var isStandardDouble = Math.floor(to / 8) === (us===WHITE?3:4);
+                var isHordeDouble = (state.gameMode === 'horde' && us === WHITE && Math.floor(to / 8) === 2);
+                
+                if ((isStandardDouble || isHordeDouble) && from2 >= 0 && from2 < 64 && (state.board[from2]&7) === PAWN && state.board[mid]===-1 && state.board[from1]===-1) {
                     if(from2<32) candL |= (1<<from2); else candH |= (1<<(from2-32));
                 }
             }
