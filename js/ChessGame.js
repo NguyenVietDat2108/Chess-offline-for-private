@@ -12,11 +12,26 @@ constructor() {
         this.#board = Array(64).fill(null);
         this.#timerInterval = null;
         this.#_isBooting = true;
+        this.gameMode = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_last_variant') : 'classical') || 'classical';
+        let startingFen = INITIAL_FEN;
         
-        this.rootNode = new MoveNode(INITIAL_FEN, null);
+        if (typeof VARIANT_STARTING_FENS !== 'undefined') {
+            startingFen = VARIANT_STARTING_FENS[this.gameMode] || INITIAL_FEN;
+        }
+        if (typeof localStorage !== 'undefined') {
+            const savedPgn = localStorage.getItem(`chess_variant_pgn_${this.gameMode}`);
+            if (savedPgn) {
+                // Extract the exact FEN from the saved PGN headers
+                const fenMatch = savedPgn.match(/\[FEN\s+"([^"]+)"\]/i);
+                if (fenMatch && fenMatch[1]) {
+                    startingFen = fenMatch[1];
+                }
+            }
+        }
+
+        this.rootNode = new MoveNode(startingFen, null);
         this.currentNode = this.rootNode;
         this.pgnHeaders = {};
-        this.gameMode = 'classical';
         this.availableModes = ['classical', 'chess960', '3check', 'antichess', 'atomic', 'bughouse', 'chaturanga', 'crazyhouse', 'duck', 'horde', 'kingofthehill', 'racingkings'];
         
         this.whiteStartSeconds = 600;
@@ -62,7 +77,7 @@ constructor() {
         this.premoveMode = 'multi';
         this.lastMoveTime = Date.now(); 
         
-        this.loadFEN(INITIAL_FEN);
+        this.loadFEN(startingFen);
     }
 get board() { return this.#board; }
 get engine() { return this.#engine; }
@@ -111,6 +126,7 @@ getReader() {
             botColor: this.botColor,
             
             currentFen: this.currentNode ? this.currentNode.fen : '',
+            startingFen: this.rootNode ? this.rootNode.fen : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
             activeNodeId: this.currentNode ? this.currentNode.id : null,
             lastMove: this.currentNode ? this.currentNode.lastMove : null,
             headers: Object.freeze({ ...this.pgnHeaders }),
@@ -2067,8 +2083,19 @@ return move.san;
         
         let pgn = "";
         
-        // The PGN Mainline is ALWAYS children[0], regardless of what line is currently viewed in the UI!
-        let activeIdx = 0; 
+        // 🔥 THE PV FIX: Find the TRUE main line.
+        // If the engine injected PV ghost lines, skip them and find the user's actual played move!
+        let activeIdx = -1; 
+        for (let i = 0; i < node.children.length; i++) {
+            if (!node.children[i].isPV) {
+                activeIdx = i;
+                break;
+            }
+        }
+        
+        // If NO real moves exist (they are all just engine PV ghosts), stop generating the PGN here!
+        if (activeIdx === -1) return "";
+        
         let mainChild = node.children[activeIdx];
         let ply = this.#getPly(mainChild);
         let mNum = Math.ceil(ply / 2);
@@ -2104,8 +2131,9 @@ return move.san;
         // 4. Handle Variations safely
         let hadVariations = false;
         if (node.children.length > 1) {
-            
-            for (let i = 1; i < node.children.length; i++) {
+            for (let i = 0; i < node.children.length; i++) {
+                if (i === activeIdx) continue; // Skip the main line we just picked
+                
                 let varChild = node.children[i];
                 
                 if (varChild.isPV) {
@@ -2180,7 +2208,17 @@ return move.san;
 
         // 3. Recursion
         if (node.children && node.children.length > 0) {
-            pgn += this.#generatePGNRecursive(node.children[0], startPly + 1, false, format);
+            // 🔥 PV FIX: Find the first non-PV child to recurse into
+            let activeIdx = -1;
+            for (let i = 0; i < node.children.length; i++) {
+                if (!node.children[i].isPV) {
+                    activeIdx = i;
+                    break;
+                }
+            }
+            if (activeIdx !== -1) {
+                pgn += this.#generatePGNRecursive(node.children[activeIdx], startPly + 1, false, format);
+            }
         }
 
         return pgn.trim();
@@ -3737,12 +3775,19 @@ window.ui.renderBoard(true);
 window.ui.updateHistory();
 window.ui.renderArrows();
 }
-resetGame(clear = false, startFen = INITIAL_FEN) {
+resetGame(clear = false, startFen = null) {
         if (clear) {
             this.#board = Array(64).fill(null);
             this.turn ='w';
             if (typeof window.ui !=='undefined') window.ui.renderBoard(false);
             return;
+        }
+
+        if (!startFen) {
+            startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode]) ? VARIANT_STARTING_FENS[this.gameMode] : INITIAL_FEN;
+            if (this.gameMode === 'chess960' && typeof this.generateChess960FEN === 'function') {
+                startFen = this.generateChess960FEN();
+            }
         }
 
         this.whiteTime = this.whiteStartSeconds;
@@ -3819,7 +3864,14 @@ window.ui.loadPgnAndAnalyze();
 reader.readAsText(file);
 input.value ='';
 }
-newGame(startFen = INITIAL_FEN) {
+newGame(startFen = null) {
+        if (!startFen) {
+            startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode]) ? VARIANT_STARTING_FENS[this.gameMode] : INITIAL_FEN;
+            if (this.gameMode === 'chess960' && typeof this.generateChess960FEN === 'function') {
+                startFen = this.generateChess960FEN();
+            }
+        }
+
         this.isPaused = false;
         this.gameOver = false;
         this.updateSettingsTime();
@@ -3869,7 +3921,11 @@ deleteNode(nodeId) {
             if (this.currentNode && (this.currentNode.id === nodeId || this.#isDescendant(node, this.currentNode))) {
                 this.goToNodeId(p.id); 
             } else if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
-            if (this.mode === 'analysis') this.#saveState('analysis');
+            
+            // 🔥 THE FIX: Save to Study if in study mode!
+            if (this.mode === 'study') this.saveActiveChapter();
+            else if (this.mode === 'analysis') this.#saveState('analysis');
+            
             return true;
         }
         return false;
@@ -3885,7 +3941,11 @@ promoteVariation(nodeId) {
             p.children[idx] = temp;
             p.selectedChildIndex = idx - 1;
             if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory(); 
-            if (this.mode === 'analysis') this.#saveState('analysis');
+            
+            // 🔥 THE FIX: Save to Study if in study mode!
+            if (this.mode === 'study') this.saveActiveChapter();
+            else if (this.mode === 'analysis') this.#saveState('analysis');
+            
             return true;
         }
         return false;
@@ -3902,7 +3962,11 @@ makeMainline(nodeId) {
             curr = p;
         }
         if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory(); 
-        if (this.mode === 'analysis') this.#saveState('analysis');
+        
+        // 🔥 THE FIX: Save to Study if in study mode!
+        if (this.mode === 'study') this.saveActiveChapter();
+        else if (this.mode === 'analysis') this.#saveState('analysis');
+        
         return true;
     }
 resetTreeSelection(node) {
@@ -4421,7 +4485,7 @@ rematch() {
         if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
         if (typeof this.#saveState === 'function') this.#saveState(this.mode);
 
-        let startFen = INITIAL_FEN;
+        let startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode]) ? VARIANT_STARTING_FENS[this.gameMode] : INITIAL_FEN;
         if (this.gameMode === 'chess960' && typeof this.generateChess960FEN === 'function') {
             startFen = this.generateChess960FEN();
         }
@@ -4764,7 +4828,14 @@ generateChess960FEN() {
         // Returns the formatted FEN string. Standard KQkq is accepted by most engines.
         return `${backRank.toLowerCase()}/pppppppp/8/8/8/8/PPPPPPPP/${backRank.toUpperCase()} w KQkq - 0 1`;
     }
-startLocalGame(startFen = INITIAL_FEN) {
+startLocalGame(startFen = null) {
+        if (!startFen) {
+            startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode]) ? VARIANT_STARTING_FENS[this.gameMode] : INITIAL_FEN;
+            if (this.gameMode === 'chess960' && typeof this.generateChess960FEN === 'function') {
+                startFen = this.generateChess960FEN();
+            }
+        }
+
         if (window.sfWorker) {
             if (this.activeEngineType === 'fairy') {
                 const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
@@ -4788,7 +4859,6 @@ startLocalGame(startFen = INITIAL_FEN) {
             if (arrowContainer) arrowContainer.innerHTML = '';
         }
 
-        // 🔥 REVERTED: Correctly set to 'local' for your getter!
         this.mode = 'local';
         this.botColor = null;
         
@@ -4865,7 +4935,14 @@ startLocalGame(startFen = INITIAL_FEN) {
         if (resignBtn) resignBtn.style.display = 'block';
         if (drawBtn) drawBtn.style.display = 'block';
     }
-startBotGame(level, colorPreference, startFen = INITIAL_FEN) {
+startBotGame(level, colorPreference, startFen = null) {
+        if (!startFen) {
+            startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode]) ? VARIANT_STARTING_FENS[this.gameMode] : INITIAL_FEN;
+            if (this.gameMode === 'chess960' && typeof this.generateChess960FEN === 'function') {
+                startFen = this.generateChess960FEN();
+            }
+        }
+
         if (window.sfWorker) {
             if (this.activeEngineType === 'fairy') {
                 const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
@@ -4889,7 +4966,6 @@ startBotGame(level, colorPreference, startFen = INITIAL_FEN) {
             if (arrowContainer) arrowContainer.innerHTML = '';
         }
 
-        // 🔥 REVERTED: Correctly set to 'bot' for your getter!
         this.mode = 'bot';
         this.loadFEN(startFen);
 

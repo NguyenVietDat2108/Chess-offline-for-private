@@ -306,7 +306,7 @@ var Chess = function(fen, gameMode = 'classical') {
     function apply_chaturanga_move(prevState, m) { return apply_standard_move(prevState, m); }
 
     // --------------------------------------------------------
-    // 🔥 VARIANT APPLY ROUTER (MASTER SHELL)
+    // VARIANT APPLY ROUTER (MASTER SHELL)
     // --------------------------------------------------------
     function apply_move(prevState, m) {
         let nextState;
@@ -377,16 +377,18 @@ var Chess = function(fen, gameMode = 'classical') {
     
     function is_standard_checked(state, color) {
         var klo = state.bb_lo[color*6+KING], khi = state.bb_hi[color*6+KING];
-        if (klo===0 && khi===0) return true;
+        if (klo===0 && khi===0) return false; 
         var k = ctz(klo, khi);
         return is_attacked(state, k, color ^ 1);
     }
+    
     function is_checked(state, color) {
         switch (state.gameMode) {
             // Variants where Kings are ignored or checks don't exist
             case 'antichess':   return false; 
-            case 'horde':       return false; 
             case 'racingkings': return false; 
+            
+            case 'horde':       return color === BLACK ? is_standard_checked(state, color) : false; 
             
             // Variants that use standard check math
             case 'classical':
@@ -576,7 +578,28 @@ var Chess = function(fen, gameMode = 'classical') {
     function generate_chaturanga_moves(state, options) { return generate_standard_moves(state, options); }
     function generate_crazyhouse_moves(state, options) { return generate_standard_moves(state, options); }
     function generate_duck_moves(state, options) { return generate_standard_moves(state, options); }
-    function generate_horde_moves(state, options) { return generate_standard_moves(state, options); }
+    function generate_horde_moves(state, options) { 
+        var moves = generate_standard_moves(state, options);
+        var us = state.turn;
+
+        if (us === WHITE) {
+            for (var from = 0; from <= 7; from++) {
+                if (state.board[from] === (WHITE << 3 | PAWN)) {
+                    var to1 = from + 8;  // 1 square up
+                    var to2 = from + 16; // 2 squares up
+                    
+                    // If both the square directly in front and 2 squares in front are empty
+                    if (state.board[to1] === -1 && state.board[to2] === -1) {
+                        if (options && options.square) {
+                            if (SQ_STR[from] !== options.square) continue;
+                        }
+                        moves.push(from | (to2 << 6) | (BITS.BIG_PAWN << 12));
+                    }
+                }
+            }
+        }
+        return moves; 
+    }
     function generate_racingkings_moves(state, options) { return generate_standard_moves(state, options); }
 
     // --------------------------------------------------------
@@ -880,12 +903,21 @@ var Chess = function(fen, gameMode = 'classical') {
     function check_variant_win(state) {
         switch (state.gameMode) {
             case '3check':
-                if (state.checks.w >= 3) return WHITE; // White delivered 3 checks
-                if (state.checks.b >= 3) return BLACK; // Black delivered 3 checks
+                if (state.checks.w >= 3) return WHITE; 
+                if (state.checks.b >= 3) return BLACK; 
+                return null;
+            case 'horde':
+                let whiteHasPieces = false;
+                for (let i = 0; i < 64; i++) {
+                    if (state.board[i] !== -1 && (state.board[i] >> 3) === WHITE) {
+                        whiteHasPieces = true;
+                        break;
+                    }
+                }
+                if (!whiteHasPieces) return BLACK;
                 return null;
             case 'atomic':        /* Logic later */ return null;
             case 'antichess':     /* Logic later */ return null;
-            case 'horde':         /* Logic later */ return null;
             case 'kingofthehill': /* Logic later */ return null;
             case 'racingkings':   /* Logic later */ return null;
             
@@ -1113,15 +1145,26 @@ return {
             if (currentState.gameMode === 'atomic' || currentState.gameMode === 'antichess') {
                 if (wK > 1) return { valid: false, error: 'White cannot have more than one King.' };
                 if (bK > 1) return { valid: false, error: 'Black cannot have more than one King.' };
+            } else if (currentState.gameMode === 'horde') {
+                if (wK !== 0) return { valid: false, error: 'White cannot have a King in Horde.' };
+                if (bK !== 1) return { valid: false, error: 'Black must have exactly one King.' };
             } else {
                 if (wK !== 1) return { valid: false, error: 'White must have exactly one King.' };
                 if (bK !== 1) return { valid: false, error: 'Black must have exactly one King.' };
             }
 
-            for (let i = 0; i < 8; i++) {
-                const p1 = s.board[i], p8 = s.board[56 + i];
-                if ((p1 !== -1 && (p1 & 7) === PAWN) || (p8 !== -1 && (p8 & 7) === PAWN)) {
-                    return { valid: false, error: 'Pawns cannot be on the 1st or 8th rank.' };
+            if (currentState.gameMode === 'horde') {
+                for (let i = 0; i < 8; i++) {
+                    const p1 = s.board[i], p8 = s.board[56 + i];
+                    if (p8 !== -1 && (p8 & 7) === PAWN) return { valid: false, error: 'Pawns cannot be on the 8th rank.' };
+                    if (p1 !== -1 && (p1 & 7) === PAWN && (p1 >> 3) === BLACK) return { valid: false, error: 'Black pawns cannot be on the 1st rank.' };
+                }
+            } else {
+                for (let i = 0; i < 8; i++) {
+                    const p1 = s.board[i], p8 = s.board[56 + i];
+                    if ((p1 !== -1 && (p1 & 7) === PAWN) || (p8 !== -1 && (p8 & 7) === PAWN)) {
+                        return { valid: false, error: 'Pawns cannot be on the 1st or 8th rank.' };
+                    }
                 }
             }
             const us = s.turn, them = us ^ 1;

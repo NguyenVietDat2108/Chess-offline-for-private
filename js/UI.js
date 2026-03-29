@@ -1,4 +1,4 @@
-import { FILES, RANKS, ICON_BOOK_SVG,ICON_BOOK_SVG_IMG_BLUE,INITIAL_FEN,ICON_SETTING_SVG } from './constants.js';
+import { FILES, RANKS, ICON_BOOK_SVG,ICON_BOOK_SVG_IMG_BLUE,INITIAL_FEN,ICON_SETTING_SVG,VARIANT_STARTING_FENS } from './constants.js';
 import { MoveNode } from './MoveNode.js';
 import {PIECE_SETS} from './piece.js';
 export class UI {
@@ -2685,7 +2685,7 @@ executeMove(move, animate = true, promoOverride = null) {
 renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         const state = window.game ? window.game.getReader() : null;
         if (!state) return;
-
+        
         const theme = document.getElementById('assetType').value;
         const boardContainer = document.getElementById('chessBoard');
         if (boardContainer) {
@@ -3074,8 +3074,12 @@ animateToStartPosition(targetFen = null, onCompleteCallback = null) {
         }
 
         if (!targetFen) {
-            const input = document.getElementById('fenInput');
-            targetFen = (input && input.value) ? input.value : "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR";
+            const state = window.game ? window.game.getReader() : null;
+            if (state && state.startingFen && state.startingFen !== 'start') {
+                targetFen = state.startingFen;
+            } else {
+                targetFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+            }
         }
 
         const targets = [];
@@ -5177,29 +5181,81 @@ editorClear() {
         this.updateEditorInputs();
     }
 editorReset() {
-        this.animateToStartPosition(INITIAL_FEN, () => {
+        let startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        
+        if (window.game) {
+            if (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[window.game.gameMode]) {
+                startFen = VARIANT_STARTING_FENS[window.game.gameMode];
+            }
+            if (window.game.gameMode === 'chess960' && typeof window.game.generateChess960FEN === 'function') {
+                startFen = window.game.generateChess960FEN();
+            }
+        }
+
+        this.animateToStartPosition(startFen, () => {
             // 1. Update Game Logic
-            window.game.loadFEN(INITIAL_FEN);
+            if (window.game) {
+                window.game.loadFEN(startFen);
+                
+                // 🔥 CRITICAL: We must overwrite the engine's memory tree! 
+                // If we don't, the engine will secretly hold onto the previous game's root FEN!
+                if (typeof MoveNode !== 'undefined') {
+                    window.game.rootNode = new MoveNode(startFen, null);
+                    window.game.currentNode = window.game.rootNode;
+                }
+                window.game.moveList = [];
+                window.game.history = [];
+            }
 
             // CLEAR HIGHLIGHTS (Last Move & Selection)
-            window.game.lastMove = null; 
+            if (window.game) window.game.lastMove = null; 
             this.selectedSq = null;
             this.legalMoves = [];
 
-            // 2. Reset Editor Inputs
-            if (document.getElementById('editorCastlingW')) document.getElementById('editorCastlingW').value = "KQ";
-            if (document.getElementById('editorCastlingB')) document.getElementById('editorCastlingB').value = "kq";
-            if (document.getElementById('editorEpSquare')) document.getElementById('editorEpSquare').value = "-";
-            if (document.getElementById('editorHalfMove')) document.getElementById('editorHalfMove').value = "0";
-            if (document.getElementById('editorFullMove')) document.getElementById('editorFullMove').value = "1";
+            // 2. Parse the FEN to correctly reset the Editor UI Inputs!
+            const parts = startFen.split(' ');
+            const turn = parts[1] || 'w';
+            const castling = parts[2] || '-';
+            const ep = parts[3] || '-';
+            const halfMove = parts[4] || '0';
+            const fullMove = parts[5] || '1';
+
+            this.editorTurn = turn;
+            const turnSelect = document.getElementById('editorTurn');
+            if (turnSelect) turnSelect.value = turn;
+
+            // Handle Checkboxes
+            if (document.getElementById('castling-wK')) document.getElementById('castling-wK').checked = castling.includes('K');
+            if (document.getElementById('castling-wQ')) document.getElementById('castling-wQ').checked = castling.includes('Q');
+            if (document.getElementById('castling-bK')) document.getElementById('castling-bK').checked = castling.includes('k');
+            if (document.getElementById('castling-bQ')) document.getElementById('castling-bQ').checked = castling.includes('q');
+
+            // Handle Text Inputs (if they are used instead of checkboxes)
+            if (document.getElementById('editorCastlingW')) {
+                let wC = "";
+                if (castling.includes('K')) wC += "K";
+                if (castling.includes('Q')) wC += "Q";
+                document.getElementById('editorCastlingW').value = wC || "-";
+            }
+            if (document.getElementById('editorCastlingB')) {
+                let bC = "";
+                if (castling.includes('k')) bC += "k";
+                if (castling.includes('q')) bC += "q";
+                document.getElementById('editorCastlingB').value = bC || "-";
+            }
+
+            if (document.getElementById('editorEpSquare')) document.getElementById('editorEpSquare').value = ep;
+            if (document.getElementById('editorHalfMove')) document.getElementById('editorHalfMove').value = halfMove;
+            if (document.getElementById('editorFullMove')) document.getElementById('editorFullMove').value = fullMove;
             
-            this.editorTurn = 'w';
-            window.game.syncEngineToBoard();
+            if (window.game && typeof window.game.syncEngineToBoard === 'function') {
+                window.game.syncEngineToBoard();
+            }
 
             // 3. Force Render to Clean Board (Removes colored squares)
             this.renderBoard(false); 
             
-            this.updateStatus("Editor Reset to Start Position");
+            this.updateStatus("Editor Reset to Variant Start Position");
         });
     }
 finishEditor() {
