@@ -4326,7 +4326,25 @@ updateEvalBar(type, val) {
         const bar = document.getElementById('evalBarFill');
         const text = document.getElementById('evalScore');
         
-        // 1. Hard Checkmate (1-0 / 0-1)
+        if (!window.game || !window.game.engine) return;
+
+        // 1. Check for Variant-Specific Wins (e.g., King of the Hill, Atomic, Horde)
+        let vWinner = null;
+        if (typeof window.game.engine.variant_winner === 'function') {
+            vWinner = window.game.engine.variant_winner();
+        }
+
+        if (vWinner === 'w') {
+            if (text) text.innerText = "1-0";
+            if (bar) bar.style.height = "100%";
+            return;
+        } else if (vWinner === 'b') {
+            if (text) text.innerText = "0-1";
+            if (bar) bar.style.height = "0%";
+            return;
+        }
+
+        // 2. Hard Checkmate (1-0 / 0-1)
         if (window.game.engine.in_checkmate()) {
             const winner = (window.game.turn === 'w') ? "0-1" : "1-0";
             const percent = (window.game.turn === 'w') ? 0 : 100;
@@ -4335,7 +4353,7 @@ updateEvalBar(type, val) {
             return; 
         }
 
-        // 2. Draws & Stalemate (1/2 - 1/2)
+        // 3. Draws & Stalemate (1/2 - 1/2)
         // Safely check if in_threefold_repetition exists before calling it!
         const isDraw = window.game.engine.in_draw() || 
                        window.game.engine.in_stalemate() || 
@@ -4347,7 +4365,7 @@ updateEvalBar(type, val) {
             return;
         }
 
-        // 3. Normal Evaluation
+        // 4. Normal Evaluation
         let display = "0.00";
         let percent = 50;
         

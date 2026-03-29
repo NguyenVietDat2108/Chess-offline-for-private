@@ -4136,8 +4136,18 @@ loadPGN(pgn, isEditor = false, isInternalLoad = false) {
             
             this.currentWTime = this.currentBTime = initialTime;
 
-            const fen = this.pgnHeaders['FEN'] || INITIAL_FEN;
-            this.rootNode = new MoveNode(fen, null);
+            let startFen = this.pgnHeaders['FEN'];
+            if (!startFen) {
+                startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode]) 
+                    ? VARIANT_STARTING_FENS[this.gameMode] 
+                    : INITIAL_FEN;
+                    
+                if (this.gameMode === 'chess960' && typeof this.generateChess960FEN === 'function') {
+                    startFen = this.generateChess960FEN();
+                }
+            }
+
+            this.rootNode = new MoveNode(startFen, null);
             this.rootNode.clock = { w: initialTime, b: initialTime };
 
             this.currentNode = this.rootNode;
