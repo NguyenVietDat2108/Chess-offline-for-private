@@ -632,7 +632,9 @@ resizeApp() {
         if (rightW > 0) targetWidth += rightW + 40; 
         
         targetWidth += 40; 
-
+        if (window.game && window.game.getReader().gameMode === 'duck') {
+            targetWidth += 85; 
+        }
         scaler.style.width = targetWidth + 'px';
         scaler.style.height = targetHeight + 'px';
         scaler.style.position = 'absolute';
@@ -786,6 +788,17 @@ resizeApp() {
                 popup.style.zIndex = '999';
             }
         });
+        let duckBank = document.getElementById('duckBank');
+        if (duckBank) {
+            duckBank.style.transition = 'all 0.3s ease';
+            duckBank.style.position = 'absolute';
+            duckBank.style.left = '-85px'; 
+            duckBank.style.right = 'auto';
+            duckBank.style.top = '50%'; 
+            duckBank.style.transform = 'translateY(-50%)';
+            duckBank.style.backgroundColor = 'rgba(0,0,0,0.4)';
+            duckBank.style.zIndex = '999';
+        }
     }
 setMoveMethod(val) {
 this.moveInputMode = val;
@@ -2444,7 +2457,34 @@ updateGhostPosition(e) {
 startDrag(e, idx, piece) {
         const state = window.game ? window.game.getReader() : null;
         if (!state) return;
-
+        if (this.duckPlacementMoves) {
+            if (piece.type === 'duck') {
+                e.preventDefault(); e.stopPropagation();
+                this.dragData = { fromIdx: idx, piece: piece, isSpare: true, isDuck: true };
+                
+                let rawSVG = this.getPieceHTML(piece);
+                let ghostHTML = rawSVG;
+                if (rawSVG && rawSVG.trim().startsWith('<svg')) {
+                    ghostHTML = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(rawSVG.trim())}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
+                }
+                
+                this.initDragGhost(e, ghostHTML);
+                
+                // Visually dim the duck source while dragging
+                if (idx === 'bank') {
+                    const bank = document.getElementById('duckBank');
+                    if (bank) bank.style.opacity = '0.3';
+                } else {
+                    const sq = document.querySelector(`.piece[data-id='${piece.id}']`);
+                    if (sq) sq.style.opacity = '0.3';
+                }
+            } else {
+                // If they try to drag a regular piece during duck placement, cancel the placement!
+                this.duckPlacementMoves = null;
+                this.renderBoard(false);
+            }
+            return; 
+        }
         if (state.mode === 'editor' && this.editorTool === 'trash') {
             e.preventDefault(); e.stopPropagation();
             window.game.editBoard(idx, null);
@@ -2539,7 +2579,41 @@ finishDrag(e) {
         }
 
         let moveMade = false;
+        if (this.dragData && this.dragData.isDuck && this.duckPlacementMoves) {
+            if (dropIdx !== -1) {
+                if (!this.pendingDuckMove) {
+                    this.cleanupDrag(false);
+                    return; // CRITICAL SAFETY CHECK
+                }
 
+                // Ensure square is dynamically empty (accounting for visual spoof)
+                let isEmpty = !state.board[dropIdx] || dropIdx === this.pendingDuckMove.from;
+                if (dropIdx === this.pendingDuckMove.to) isEmpty = false;
+                
+                if (isEmpty && dropIdx !== state.duck_sq) {
+                    let duckMove = {
+                        from: this.pendingDuckMove.from,
+                        to: this.pendingDuckMove.to,
+                        promotion: this.pendingDuckMove.promotion,
+                        duck_sq: dropIdx,
+                        _duckBypass: true
+                    };
+                    
+                    this.duckPlacementMoves = null; // Exit Phase
+                    this.pendingDuckMove = null;
+                    
+                    this.executeMove(duckMove, true); // FIRE FULL MOVE!
+                    moveMade = true;
+                }
+            }
+            
+            if (this.dragData.fromIdx === 'bank') {
+                const bank = document.getElementById('duckBank');
+                if (bank) bank.style.opacity = '1';
+            }
+            this.cleanupDrag(!moveMade);
+            return; 
+        }
         if (dropIdx !== -1) {
             if (state.mode === 'editor') {
                 let newPiece = { ...this.dragData.piece };
@@ -2639,7 +2713,21 @@ this.renderBoard(false);
 executeMove(move, animate = true, promoOverride = null) {
         const state = window.game ? window.game.getReader() : null;
         if (!state) return;
+        
+        const targetPiece = state.board[move.to];
+        const isKingCapture = state.gameMode === 'duck' && targetPiece && targetPiece.type.toLowerCase() === 'k';
 
+        if (state && state.gameMode === 'duck' && !this.duckPlacementMoves && move.duck_sq !== undefined && !move._duckBypass && !isKingCapture) {
+            this.duckPlacementMoves = this.legalMoves.filter(m => m.from === move.from && m.to === move.to);
+            this.pendingDuckMove = move; // Store the move for the Visual Spoof!
+            this.selectedSq = null;
+            this.legalMoves = [];
+            this.renderBoard(false);
+            return;
+        }
+        
+        this.pendingDuckMove = null;
+    
         const piece = state.board[move.from];
         if (!piece) return;
         
@@ -2694,7 +2782,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         }
         this.coordsPosition = document.getElementById('coordPosition')?.value || 'inside';
         let moveDuration = 250;
-        let castleDuration = 400;
+        let castleDuration = 250;
 
         if (animate) {
             const now = performance.now();
@@ -2725,7 +2813,53 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         if (annoLayer) annoLayer.innerHTML = '';
         const extLayer = document.getElementById('external-coords-layer');
         if (extLayer && this.coordsPosition === 'inside') extLayer.innerHTML = '';
-
+    
+        let duckBank = document.getElementById('duckBank');
+        if (state.gameMode === 'duck') {
+            if (!duckBank) {
+                duckBank = document.createElement('div');
+                duckBank.id = 'duckBank';
+                duckBank.style.position = 'absolute';
+                duckBank.style.width = '65px';
+                duckBank.style.height = '65px';
+                duckBank.style.background = 'rgba(0,0,0,0.6)';
+                duckBank.style.border = '2px dashed #555';
+                duckBank.style.borderRadius = '12px';
+                duckBank.style.display = 'flex';
+                duckBank.style.alignItems = 'center';
+                duckBank.style.justifyContent = 'center';
+                duckBank.style.zIndex = '999';
+                duckBank.style.transition = 'all 0.2s ease';
+                if (this.boardWrapper) this.boardWrapper.appendChild(duckBank);
+            }
+            
+            // Show the bank when waiting for placement OR if the duck hasn't been placed yet (Move 1)
+            if (this.duckPlacementMoves || state.duck_sq === -1 || state.duck_sq === undefined) {
+                duckBank.style.display = 'flex';
+                duckBank.innerHTML = this.getPieceHTML({color: 'none', type: 'duck'});
+                
+                if (this.duckPlacementMoves) {
+                    duckBank.style.borderColor = '#ffeb3b';
+                    duckBank.style.boxShadow = '0 0 15px rgba(255, 235, 59, 0.5)';
+                    duckBank.style.cursor = 'grab';
+                    duckBank.onmousedown = (e) => {
+                        e.preventDefault(); e.stopPropagation();
+                        this.startDrag(e, 'bank', {id: 'duck_piece', type: 'duck', color: 'none'});
+                    };
+                } else {
+                    duckBank.style.borderColor = '#444';
+                    duckBank.style.boxShadow = 'none';
+                    duckBank.style.cursor = 'default';
+                    duckBank.onmousedown = null;
+                }
+            } else {
+                duckBank.style.display = 'none'; // Hide if placed on board and not in placement phase
+                duckBank.onmousedown = null;
+            }
+            if (typeof this.resizeApp === 'function') this.resizeApp(); // Trigger position calculation
+        } else if (duckBank) {
+            duckBank.remove();
+        }
         let kIdx = -1;
         if (state.isCheck && state.mode !== 'editor') {
             for (let i = 0; i < 64; i++) {
@@ -2789,7 +2923,45 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             }
 
             sq.onmousedown = null;
+            if (this.duckPlacementMoves && state.mode !== 'editor') {
+                if (!this.pendingDuckMove) continue; // CRITICAL SAFETY CHECK
 
+                let isEmpty = !state.board[i] || i === this.pendingDuckMove.from;
+                if (i === this.pendingDuckMove.to) isEmpty = false;
+
+                if (isEmpty && i !== state.duck_sq) {
+                    sq.classList.add('valid-move');
+                    let hint = document.createElement('div');
+                    hint.className = 'hint-dot'; 
+                    hint.style.backgroundColor = '#ffeb3b'; // Golden Duck color
+                    hint.style.boxShadow = '0 0 10px #ffeb3b';
+                    sq.appendChild(hint);
+                    
+                    // 🔥 UI FIX: Cache the move data BEFORE the click to prevent null errors!
+                    let cachedMove = {
+                        from: this.pendingDuckMove.from,
+                        to: this.pendingDuckMove.to,
+                        promotion: this.pendingDuckMove.promotion,
+                        duck_sq: i,
+                        _duckBypass: true
+                    };
+
+                    sq.onmousedown = (e) => {
+                        e.preventDefault(); e.stopPropagation();
+                        this.duckPlacementMoves = null; 
+                        this.pendingDuckMove = null; 
+                        
+                        this.executeMove(cachedMove, true); // FIRE FULL MOVE!
+                    };
+                } else {
+                    sq.onmousedown = (e) => {
+                        this.duckPlacementMoves = null;
+                        this.pendingDuckMove = null;
+                        this.renderBoard(false);
+                    };
+                }
+                continue; 
+            }
             if (this.selectedSq != null) {
                 let move = this.legalMoves.find(m => m.to === i);
                 if (!move && typeof this.resolveCastlingIntent === 'function') {
@@ -2830,14 +3002,24 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         }
 
         if (this.coordsPosition === 'outside') this.renderExternalCoords();
-
+        let visualBoard = [...state.board];
+        if (this.duckPlacementMoves && this.pendingDuckMove) {
+            const fromIdx = this.pendingDuckMove.from;
+            const toIdx = this.pendingDuckMove.to;
+            if (fromIdx >= 0 && fromIdx < 64 && toIdx >= 0 && toIdx < 64) {
+                visualBoard[toIdx] = visualBoard[fromIdx];
+                visualBoard[fromIdx] = null;
+            }
+        }
         const piecesMap = new Map();
         for (let i = 0; i < 64; i++) {
             if (state.board[i]) {
                 piecesMap.set(state.board[i].id, { ...state.board[i], idx: i });
             }
         }
-
+        if (state.gameMode === 'duck' && state.duck_sq !== undefined && state.duck_sq !== -1) {
+            piecesMap.set('duck_piece', { id: 'duck_piece', type: 'duck', color: 'none', idx: state.duck_sq });
+        }
         Array.from(this.piecesLayer.children).forEach(el => {
             const oldId = el.dataset.id;
             if (piecesMap.has(oldId)) return;
@@ -2864,6 +3046,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
 
             if (rawSVG) {
                 const trimmed = rawSVG.trim();
+                let duckClass = (p.type === 'duck' && this.animationsEnabled !== false) ? ' piece-heartbeat' : '';
                 if (trimmed.startsWith('<svg')) {
                     const encodedSVG = encodeURIComponent(trimmed);
                     htmlBuffer = `<img src="data:image/svg+xml;charset=utf-8,${encodedSVG}" class="piece-img" style="width:100%; height:100%; display:block; pointer-events:none;">`;
@@ -2871,7 +3054,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     htmlBuffer = `<img src="${trimmed}" class="piece-img" style="width:100%; height:100%; display:block; pointer-events:none;">`;
                 }
             }
-
+            
             if (activeMove && p.idx === activeMove.to && window.game && window.game.currentNode && window.game.currentNode.nag) {
                 const info = this.getNagInfo(window.game.currentNode.nag);
                 if (info && ['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy', 'excellent', 'great', 'miss'].includes(info.type)) {
@@ -2974,20 +3157,23 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 el.classList.add('animating');
                 if (isCastlingMove) el.classList.add('castling-jump');
 
-                if (showMangaTail && isMovedPiece && !isCastlingMove && targetMove) {
+                if (showMangaTail && (isMovedPiece || isCastlingMove) && targetMove) {
                     const dx = (c - startC); const dy = (r - startR);
                     const dist = Math.sqrt(dx*dx + dy*dy);
                     if (dist > 0.5) {
+                        const activeDuration = isCastlingMove ? castleDuration : moveDuration;
+                        
                         el.style.setProperty('--tail-length-scale', dist);
                         el.style.setProperty('--move-angle', `${Math.atan2(dy, dx)}rad`);
-                        el.style.setProperty('--anim-duration', `${moveDuration}ms`);
+                        el.style.setProperty('--anim-duration', `${activeDuration}ms`);
                         el.classList.add('manga-tail');
+                        
                         el.dataset.tailTimeout = setTimeout(() => {
                             el.classList.remove('manga-tail');
                             el.style.removeProperty('--tail-length-scale');
                             el.style.removeProperty('--move-angle');
                             el.style.removeProperty('--anim-duration');
-                        }, moveDuration + 50);
+                        }, activeDuration + 50);
                     }
                 }
                 
@@ -4762,12 +4948,14 @@ renderAnalysisLine(index, type, val, moves, startFen) {
                 }
             };
 
-            const tempChess = new (typeof Chess === 'function' ? Chess : window.Chess)(currentFen);
-            const is960 = window.game ? window.game.gameMode === 'chess960' : false;
+            // 🔥 DUCK FIX: Inject the Variant Game Mode so tempChess understands duck moves natively!
+            const gameMode = window.game ? window.game.getReader().gameMode : 'classical';
+            const tempChess = new (typeof Chess === 'function' ? Chess : window.Chess)(currentFen, gameMode);
+            const is960 = gameMode === 'chess960';
             const displayMoves = moves.slice(0, 40);
             
             let cumulativeMoves = [];
-            let validMoveCount = 0; //  Accurately count valid moves!
+            let validMoveCount = 0; 
 
             for (let i = 0; i < displayMoves.length; i++) { 
                 const uci = displayMoves[i]; 
@@ -4786,16 +4974,20 @@ renderAnalysisLine(index, type, val, moves, startFen) {
                     moveObj = tempChess.move(uci, { sloppy: true });
                     
                     if (!moveObj) {
-                        const from = uci.substring(0, 2);
-                        const to = uci.substring(2, 4);
-                        const pPromo = uci.length > 4 ? uci.substring(4, 5) : undefined;
+                        let baseUci = uci;
+                        if (baseUci.includes(',')) baseUci = baseUci.split(',')[0];
+                        else if (baseUci.includes('@')) baseUci = baseUci.split('@')[0];
+
+                        const from = baseUci.substring(0, 2);
+                        const to = baseUci.substring(2, 4);
+                        const pPromo = baseUci.length > 4 ? baseUci.substring(4, 5) : undefined;
                         
                         if (is960) {
                             const p1 = tempChess.get(from);
                             const p2 = tempChess.get(to);
                             if (p1 && p2 && p1.type === 'k' && p2.type === 'r' && p1.color === p2.color) {
                                 let newCastling = parts[2].replace(turn === 'w' ? 'K' : '', '').replace(turn === 'w' ? 'Q' : '', '')
-                                                          .replace(turn === 'b' ? 'k' : '', '').replace(turn === 'b' ? 'q' : '', '');
+                                                  .replace(turn === 'b' ? 'k' : '', '').replace(turn === 'b' ? 'q' : '', '');
                                 if (newCastling === '') newCastling = '-';
 
                                 const isKingside = to.charCodeAt(0) > from.charCodeAt(0);
@@ -4834,11 +5026,20 @@ renderAnalysisLine(index, type, val, moves, startFen) {
                 } catch(e) { }
 
                 if (moveObj) {
-                    //  Push ONLY if the move didn't crash!
                     cumulativeMoves.push(uci); 
                     validMoveCount++; 
 
                     const fenAtMove = tempChess.fen();
+                    const duckSq = tempChess.get_duck_sq ? tempChess.get_duck_sq() : -1;
+                    const safeUciMoves = cumulativeMoves.map(m => {
+                        if (gameMode === 'duck' && m.includes(',')) {
+                            let p = m.split(',');
+                            let dStr = p[1].replace(/[^a-h1-8]/g, '');
+                            let dSqstr = dStr.length === 4 ? dStr.substring(2,4) : dStr;
+                            return p[0] + '@' + dSqstr;
+                        }
+                        return m;
+                    });
                     const seqString = cumulativeMoves.join(',');
                     
                     let span = document.createElement('span');
@@ -4851,7 +5052,7 @@ renderAnalysisLine(index, type, val, moves, startFen) {
                     span.onmouseenter = (e) => {
                         span.style.color = '#fff';
                         span.style.textDecoration = 'underline';
-                        if (window.ui && window.ui.hoverEngineMove) window.ui.hoverEngineMove(fenAtMove, e);
+                        if (window.ui && window.ui.hoverEngineMove) window.ui.hoverEngineMove(fenAtMove, e, duckSq);
                     };
                     span.onmouseleave = () => {
                         span.style.color = '';
@@ -4869,9 +5070,8 @@ renderAnalysisLine(index, type, val, moves, startFen) {
                 } else {
                     break; 
                 }
-            } // End of For Loop
+            }
 
-            //  If no valid moves were appended, hide the entire row so the score isn't left hanging blank!
             if (validMoveCount === 0) {
                 li.style.display = 'none';
             } else {
@@ -4882,12 +5082,11 @@ renderAnalysisLine(index, type, val, moves, startFen) {
             console.error("[UI RENDER FATAL ERROR]", err);
         }
     }
-hoverEngineMove(fen, e) {
+hoverEngineMove(fen, e, duckSq = -1) {
         const popup = document.getElementById('previewPopup');
         const grid = document.getElementById('previewGrid');
         if (!popup || !grid) return;
 
-        // Ensure the popup lives in the raw body coordinate system
         if (popup.parentElement !== document.body) {
             document.body.appendChild(popup);
         }
@@ -4898,34 +5097,22 @@ hoverEngineMove(fen, e) {
         popup.style.zIndex = '999999'; 
         popup.style.margin = '0';
         
-        // ==========================================================
-        //  DYNAMIC POPUP SCALING
-        // ==========================================================
-        // If the window is smaller than 1000px wide or 800px tall, start shrinking the popup.
         let scale = Math.min(window.innerWidth / 1000, window.innerHeight / 800);
-        
-        // Clamp the scale so it never grows larger than 100% (1.0) 
-        // and never shrinks smaller than 40% (0.4) so it's still readable.
         scale = Math.min(1.0, Math.max(0.4, scale));
 
-        // Apply the scale from the top-left corner so placement math stays accurate
         popup.style.transformOrigin = 'top left';
         popup.style.transform = `scale(${scale})`;
 
-        // The raw CSS width of the popup is roughly 220px (200px board + 20px padding)
         const rawPopupSize = 220; 
-        const scaledSize = rawPopupSize * scale; // The actual physical pixels it takes up now
+        const scaledSize = rawPopupSize * scale; 
         
-        // Anchor it 10px exactly below the hovered text
         let top = rect.bottom + 10; 
         let left = rect.left; 
 
-        // Collision Detection: Don't bleed off the right edge of the screen
         if (left + scaledSize > window.innerWidth) {
             left = window.innerWidth - scaledSize - 10; 
         }
 
-        // Collision Detection: If hovering near the bottom of the screen, flip it ABOVE the text
         if (top + scaledSize > window.innerHeight) {
             top = rect.top - scaledSize - 10; 
         }
@@ -4939,17 +5126,22 @@ hoverEngineMove(fen, e) {
         const parts = fen.split(' ');
         const rows = parts[0].split('/');
         
+        // 🔥 DUCK FIX: Inject the duck onto the mini-preview board grid!
         for (let r = 0; r < 8; r++) { 
             let rankStr = rows[r]; 
             let fileIdx = 0; 
             for (let char of rankStr) { 
                 if (isNaN(char)) {
-                    this.renderPreviewSquare(grid, r, fileIdx, char); 
+                    let currentSq = r * 8 + fileIdx;
+                    let renderPiece = (currentSq === duckSq) ? 'duck' : char;
+                    this.renderPreviewSquare(grid, r, fileIdx, renderPiece); 
                     fileIdx++;
                 } else {
                     let empties = parseInt(char); 
                     for (let k = 0; k < empties; k++) {
-                        this.renderPreviewSquare(grid, r, fileIdx, null);
+                        let currentSq = r * 8 + fileIdx;
+                        let renderPiece = (currentSq === duckSq) ? 'duck' : null;
+                        this.renderPreviewSquare(grid, r, fileIdx, renderPiece);
                         fileIdx++;
                     }
                 }
@@ -4961,7 +5153,6 @@ renderPreviewSquare(container, r, c, pieceChar) {
         const sq = document.createElement('div');
         sq.className = `preview-square ${isLight ? 'light' : 'dark'}`;
         
-        // 1: Force the square to act as a strict container that centers its contents
         sq.style.position = 'relative';
         sq.style.boxSizing = 'border-box';
         sq.style.display = 'flex';
@@ -4972,7 +5163,6 @@ renderPreviewSquare(container, r, c, pieceChar) {
         const currentTheme = document.getElementById('assetType')?.value;
         const isDisguised = currentTheme === 'disguised';
 
-        // Dynamically clone the exact CSS of the main board
         if (isDisguised) {
             const colorClass = isLight ? 'light' : 'dark';
             const cleanSq = document.querySelector(`.square.${colorClass}:not(.last-move):not(.selected):not(.in-check)`);
@@ -4997,15 +5187,21 @@ renderPreviewSquare(container, r, c, pieceChar) {
         }
         
         if (pieceChar) {
-            const color = (pieceChar === pieceChar.toUpperCase()) ? 'w' : 'b';
-            const type = pieceChar.toUpperCase();
+            let color, type;
+            // 🔥 DUCK FIX: Convert internal preview duck flag into the actual Duck SVG request
+            if (pieceChar === 'duck') {
+                color = 'none';
+                type = 'duck';
+            } else {
+                color = (pieceChar === pieceChar.toUpperCase()) ? 'w' : 'b';
+                type = pieceChar.toUpperCase();
+            }
+
             const pHTML = this.getPieceHTML({ color, type });
             
-            // Convert raw SVG into a safe <img> tag
             let htmlBuffer = pHTML;
             if (pHTML) {
                 const trimmed = pHTML.trim();
-                //   2: Add object-fit:contain and remove all padding/margins on the image
                 if (trimmed.startsWith('<svg')) {
                     const encodedSVG = encodeURIComponent(trimmed);
                     htmlBuffer = `<img src="data:image/svg+xml;charset=utf-8,${encodedSVG}" style="width:100%; height:100%; object-fit:contain; display:block; pointer-events:none; margin:0; padding:0;" draggable="false">`;
@@ -5016,8 +5212,6 @@ renderPreviewSquare(container, r, c, pieceChar) {
 
             const pDiv = document.createElement('div');
             pDiv.className = 'preview-piece';
-            
-            //   3: Lock the piece container perfectly over the square
             pDiv.style.position = 'absolute';
             pDiv.style.top = '0';
             pDiv.style.left = '0';
@@ -5026,7 +5220,7 @@ renderPreviewSquare(container, r, c, pieceChar) {
             pDiv.style.display = 'flex';
             pDiv.style.justifyContent = 'center';
             pDiv.style.alignItems = 'center';
-            pDiv.style.transformOrigin = 'center'; // Guarantees 180-deg flips stay in place!
+            pDiv.style.transformOrigin = 'center'; 
             
             pDiv.innerHTML = htmlBuffer;
             sq.appendChild(pDiv);
@@ -5074,10 +5268,6 @@ previewEngineMove(fen) {
         window.ui.updateHistory();
         if (window.engineAnalysing) window.game.updateStockfish();
     }
-stopHoverEngineMove() {
-const popup = document.getElementById('previewPopup');
-if (popup) popup.style.display ='none';
-}
 setNag(nag) {
 if (this.contextNode) {
 if (this.contextNode.nag == nag) {
@@ -5113,6 +5303,9 @@ if (box)
 box.innerText = msg;
 }
 getPieceHTML(piece) {
+        if (piece.type === 'duck') {
+            return `<img src="assets/tabs-icon/variant-duckchess.svg" style="width:100%; height:100%; display:block; pointer-events:none; z-index: 100;">`;
+        }
         if (this.pieceTheme === 'custom' && this.customPieces) {
             const key = piece.color + piece.type.toUpperCase(); // "wP", "bK"
             if (this.customPieces[key]) {

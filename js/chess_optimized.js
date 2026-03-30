@@ -336,7 +336,11 @@ var Chess = function(fen, gameMode = 'classical') {
     }
     function apply_crazyhouse_move(prevState, m) { return apply_standard_move(prevState, m); }
     function apply_bughouse_move(prevState, m) { return apply_standard_move(prevState, m); }
-    function apply_duck_move(prevState, m) { return apply_standard_move(prevState, m); }
+    function apply_duck_move(prevState, m) {
+        var next = apply_standard_move(prevState, m);
+        next.duck_sq = (m >>> 22) & 0x3F; 
+        return next;
+    }
     function apply_chaturanga_move(prevState, m) { return apply_standard_move(prevState, m); }
 
     // --------------------------------------------------------
@@ -436,7 +440,7 @@ var Chess = function(fen, gameMode = 'classical') {
             case 'bughouse':
             case 'chaturanga':
             case 'crazyhouse':
-            case 'duck':
+            case 'duck':        return false;
             case 'kingofthehill':
             default:            return is_standard_checked(state, color);
         }
@@ -450,6 +454,10 @@ var Chess = function(fen, gameMode = 'classical') {
         for(let i=us*6; i<us*6+6; i++) { occUsL|=bb_lo[i]; occUsH|=bb_hi[i]; }
         for(let i=them*6; i<them*6+6; i++) { occThemL|=bb_lo[i]; occThemH|=bb_hi[i]; }
         var occAllL = occUsL | occThemL, occAllH = occUsH | occThemH;
+        if (state.gameMode === 'duck' && state.duck_sq !== -1) {
+            if (state.duck_sq < 32) { occUsL |= (1 << state.duck_sq); occAllL |= (1 << state.duck_sq); }
+            else { occUsH |= (1 << (state.duck_sq - 32)); occAllH |= (1 << (state.duck_sq - 32)); }
+        }
         var emptyL = ~occAllL, emptyH = ~occAllH;
         var pL = bb_lo[us*6+PAWN], pH = bb_hi[us*6+PAWN];
 
@@ -677,7 +685,37 @@ var Chess = function(fen, gameMode = 'classical') {
     function generate_bughouse_moves(state, options) { return generate_standard_moves(state, options); }
     function generate_chaturanga_moves(state, options) { return generate_standard_moves(state, options); }
     function generate_crazyhouse_moves(state, options) { return generate_standard_moves(state, options); }
-    function generate_duck_moves(state, options) { return generate_standard_moves(state, options); }
+    function generate_duck_moves(state, options) { 
+        var piece_moves = generate_standard_moves(state, {legal: false});
+        var valid = [];
+        var us = state.turn, them = us ^ 1;
+
+        for (var i = 0; i < piece_moves.length; i++) {
+            var m = piece_moves[i];
+            var from = m & 0x3F;
+            if (options && options.square && SQ_STR[from] !== options.square) continue;
+
+            var next = apply_standard_move(state, m);
+            
+            var myK_lo = next.bb_lo[us*6+KING], myK_hi = next.bb_hi[us*6+KING];
+            var theirK_lo = next.bb_lo[them*6+KING], theirK_hi = next.bb_hi[them*6+KING];
+            if (!myK_lo && !myK_hi) continue; // Moved into capture (Illegal)
+            
+            // If we captured THEIR King, we win instantly! 
+            if (!theirK_lo && !theirK_hi) {
+                valid.push(m | ((state.duck_sq !== -1 ? state.duck_sq : 0) << 22));
+                continue;
+            }
+
+            // Normal Move: Generate 60+ variations for every possible empty duck placement!
+            for (var sq = 0; sq < 64; sq++) {
+                if (next.board[sq] === -1 && sq !== state.duck_sq) {
+                    valid.push(m | (sq << 22));
+                }
+            }
+        }
+        return valid; 
+    }
     function generate_horde_moves(state, options) { 
         var moves = generate_standard_moves(state, options);
         var us = state.turn;
@@ -950,6 +988,7 @@ var Chess = function(fen, gameMode = 'classical') {
             color: state.turn===WHITE?'w':'b', from: sq_str(from), to: sq_str(to), flags: f, piece: PIECE_TO_CHAR[state.board[from]&7], 
             san: known_san || get_san(state, m), promotion: (flags & BITS.PROMOTION) ? PIECE_TO_CHAR[promoInt] : undefined, captured: cap 
         };
+        if (state.gameMode === 'duck') obj.duck_sq = sq_str((m >>> 22) & 0x3F);
         if (nag) obj.nag = nag;
         return obj;
     }
@@ -994,6 +1033,7 @@ var Chess = function(fen, gameMode = 'classical') {
         }
         s += SQ_STR[to];
         if (flags & BITS.PROMOTION) s += "=" + PIECE_TO_CHAR[promo].toUpperCase();
+        if (state.gameMode === 'duck') s += "@" + SQ_STR[(m >>> 22) & 0x3F];
         return s;
     }
     
@@ -1070,6 +1110,11 @@ var Chess = function(fen, gameMode = 'classical') {
             case 'chaturanga':
             case 'crazyhouse':
             case 'duck':
+                let duck_wK = state.bb_lo[WHITE*6+KING] | state.bb_hi[WHITE*6+KING];
+                let duck_bK = state.bb_lo[BLACK*6+KING] | state.bb_hi[BLACK*6+KING];
+                if (!duck_wK) return BLACK;
+                if (!duck_bK) return WHITE;
+                return null;
             default:              return null; 
         }
     }
@@ -1083,8 +1128,35 @@ return {
         },
         gameMode: function() { return currentState.gameMode; },
         
-        load: function(r) { currentState = load_fen(r, currentState.gameMode); history=[currentState]; return true; },
-        reset: function() { currentState = load_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", currentState.gameMode); history=[currentState]; },
+        load: function(r) { 
+            let fenToLoad = r;
+            let duckSquare = -1;
+            
+            if (currentState.gameMode === 'duck') {
+                const parts = r.trim().split(/\s+/);
+                if (parts.length >= 7) {
+                    duckSquare = str_to_sq(parts[6]);
+                    fenToLoad = parts.slice(0, 6).join(' '); 
+                }
+            }
+            
+            let s = load_fen(fenToLoad, currentState.gameMode);
+            if (!s) return false;
+            
+            currentState = s; 
+            // Manually inject the duck square back in!
+            if (currentState.gameMode === 'duck') {
+                currentState.duck_sq = duckSquare;
+            }
+            
+            history=[currentState]; 
+            return true; 
+        },
+        reset: function() { 
+            currentState = load_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", currentState.gameMode); 
+            if (currentState.gameMode === 'duck') currentState.duck_sq = -1;
+            history=[currentState]; 
+        },
         load_pgn: function(pgn) {
             currentState = load_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", currentState.gameMode); history=[currentState];
             var len = pgn.length, i = 0;
@@ -1119,7 +1191,6 @@ return {
         },
         moves: function(o) {
             if (this.game_over()) return [];
-            
             var ms = generate_moves(currentState, o); 
             return (o && o.verbose) ? ms.map(m=>to_obj(currentState,m)) : ms.map(m=>get_san(currentState,m)); 
         },
@@ -1130,16 +1201,33 @@ return {
             var m = null;
             var nag = "";
             var clean_san = null;
+            var explicit_duck = -1;
             
             if (typeof o === 'string') {
                 var parsed = parse_nag(o);
                 nag = parsed.nag;
                 clean_san = parsed.clean;
+                
+                // 🔥 DUCK CHESS FIX: Universally parse engine UCI (,) and PGN (@) formats!
+                if (currentState.gameMode === 'duck') {
+                    if (clean_san.includes(',')) {
+                        let parts = clean_san.split(',');
+                        clean_san = parts[0];
+                        let d_str = parts[1].replace(/[^a-h1-8]/g, '');
+                        // Extracts "e3" out of "d5e3" safely
+                        explicit_duck = str_to_sq(d_str.length === 4 ? d_str.substring(2,4) : d_str); 
+                    } else if (clean_san.includes('@')) {
+                        let parts = clean_san.split('@');
+                        clean_san = parts[0];
+                        explicit_duck = str_to_sq(parts[1].replace(/[^a-h1-8]/g, ''));
+                    }
+                }
+                
                 if (/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(clean_san)) {
                     let f = str_to_sq(clean_san.substring(0,2));
                     let t = str_to_sq(clean_san.substring(2,4));
                     let p = clean_san.length === 5 ? clean_san[4] : null;
-                    m = build_move_direct(currentState, f, t, p); 
+                    m = build_move_direct(currentState, f, t, p);
                     clean_san = null;
                 } else {
                     m = tr(currentState, clean_san); 
@@ -1148,11 +1236,42 @@ return {
                 let f = (typeof o.from === 'number') ? o.from : str_to_sq(o.from);
                 let t = (typeof o.to === 'number') ? o.to : str_to_sq(o.to);
                 m = build_move_direct(currentState, f, t, o.promotion); 
+                
+                if (currentState.gameMode === 'duck' && o.duck_sq !== undefined) {
+                    explicit_duck = (typeof o.duck_sq === 'number') ? o.duck_sq : str_to_sq(o.duck_sq);
+                }
             }
             
             if (m === null) { error("INVALID_MOVE", o); return null; }
             
+            // 🔥 DUCK CHESS FIX: Pack the duck square into the move integer natively!
+            if (currentState.gameMode === 'duck') {
+                // If duck is missing from the command, inherit its current square so it NEVER teleports to a1!
+                let duckToUse = (explicit_duck !== -1) ? explicit_duck : currentState.duck_sq;
+                if (duckToUse === -1) duckToUse = 0; 
+                m = (m & 0x3FFFFF) | (duckToUse << 22);
+            }
+            
             var ret = to_obj(currentState, m, nag, null); 
+            
+            // 🔥 ENGINE COMMUNICATION FIX: Format UCI accurately for Fairy-Stockfish!
+            if (currentState.gameMode === 'duck') {
+                let prevDuck = currentState.duck_sq;
+                let prevDuckStr = (prevDuck !== -1 && prevDuck !== undefined) ? SQ_STR[prevDuck] : '@';
+                let duckSqStr = SQ_STR[(m >>> 22) & 0x3F];
+                
+                // Build the base UCI manually to prevent crashes
+                let baseUci = ret.from + ret.to + (ret.promotion ? ret.promotion : '');
+                
+                // Fairy-Stockfish UCI MUST BE: [piece_move],[prev_duck][new_duck] (e.g. e2e4,d5e3)
+                // If duck wasn't on board, it safely defaults to [piece_move],@[new_duck]
+                if (prevDuck !== -1 && prevDuck !== undefined) {
+                    ret.uci = baseUci + ',' + prevDuckStr + duckSqStr;
+                } else {
+                    ret.uci = baseUci + ',' + prevDuckStr + duckSqStr;
+                }
+            }
+            
             var nextState = apply_move(currentState, m);
             
             var isVariantWin = check_variant_win(nextState) !== null;
@@ -1160,7 +1279,7 @@ return {
             var noMoves = generate_moves(nextState, {legal:true}).length === 0;
 
             if (isVariantWin || (isCheck && noMoves)) {
-                ret.san += "#"; // Variant wins (like 3rd check) get Checkmate notation!
+                ret.san += "#"; 
             } else if (isCheck) {
                 ret.san += "+";
             }
@@ -1183,7 +1302,13 @@ return {
             if (currentState.board[idx] !== -1) return { type: PIECE_TO_CHAR[t], color: c===WHITE?'w':'b' };
             return null;
         },
-        fen: function() { return generate_fen(currentState); }, // 🔥 FIXED: Pass currentState
+        fen: function() { 
+            let f = generate_fen(currentState);
+            if (currentState.gameMode === 'duck' && currentState.duck_sq !== undefined && currentState.duck_sq !== -1) {
+                f += ' ' + SQ_STR[currentState.duck_sq];
+            }
+            return f;
+        },
         board: function() {
             var b = [];
             for (var r = 0; r < 8; r++) {
@@ -1206,6 +1331,7 @@ return {
             if (res === BLACK) return 'b';
             return null;
         },
+        get_duck_sq: function() { return currentState.duck_sq; },
         in_check: function() { return is_checked(currentState, currentState.turn); },
         in_checkmate: function() { 
             if (check_variant_win(currentState) !== null) return true;
@@ -1279,6 +1405,11 @@ return {
         },
         validate_fen: function(fen) {
             if (!fen || typeof fen !== 'string') return { valid: false, error: 'Empty FEN string.' };
+            let fenToTest = fen;
+            if (currentState.gameMode === 'duck') {
+                const parts = fen.trim().split(/\s+/);
+                if (parts.length >= 7) fenToTest = parts.slice(0, 6).join(' ');
+            }
             const tokens = fen.split(/\s+/);
             if (tokens.length < 4) return { valid: false, error: 'FEN must contain at least 4 fields.' };
             const ranks = tokens[0].split('/');

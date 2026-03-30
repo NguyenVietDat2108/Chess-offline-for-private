@@ -115,6 +115,16 @@ get currentLiveFen() {
         return this.generateFEN();
     }
 getReader() {
+        // 🔥 FIX: Restore the vital UI coordinate mapping! 
+        // The engine natively uses 0=a1 (bottom-up), but the UI renders 0=a8 (top-down).
+        let engineDuck = (this.#engine && this.#engine.get_duck_sq) ? this.#engine.get_duck_sq() : -1;
+        let uiDuckSq = -1;
+        if (engineDuck !== -1) {
+            let file = engineDuck % 8;
+            let rank = Math.floor(engineDuck / 8);
+            uiDuckSq = (7 - rank) * 8 + file;
+        }
+
         return Object.freeze({
             mode: this.mode,
             isGameOver: this.gameOver,
@@ -148,6 +158,9 @@ getReader() {
                 solution: this.puzzleSolution,
                 cursor: this.puzzleCursor
             }),
+            
+            // 🔥 The UI will now perfectly sync with the engine's logic!
+            duck_sq: uiDuckSq, 
             
             studyTitle: this.studyTitle,
             activeChapterIndex: this.activeChapterIndex,
@@ -1272,14 +1285,14 @@ return move.san;
                     let moveText = token;
                     let attachedNag = "";
                     
-                    const sanRegex = /^([KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[\+#]?|O-O-O[\+#]?|O-O[\+#]?)(.*)$/;
+                    const sanRegex = /^([KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?(?:@[a-h][1-8])?[\+#]?|O-O-O(?:@[a-h][1-8])?[\+#]?|O-O(?:@[a-h][1-8])?[\+#]?)(.*)$/;
                     let match = token.match(sanRegex);
                     
                     if (match && match[2]) { 
                         moveText = match[1]; 
                         attachedNag = match[2]; 
                     } else {
-                        let fallbackMatch = token.match(/^([a-zA-Z0-9\+#\-]+?)([!?[\]=±∓∞⩲⩱]|\+\-|\-\+|\+\/-|-\/\+)+$/);
+                        let fallbackMatch = token.match(/^([a-zA-Z0-9\+#\-@]+?)([!?[\]=±∓∞⩲⩱]|\+\-|\-\+|\+\/-|-\/\+)+$/);
                         if (fallbackMatch) {
                             moveText = fallbackMatch[1];
                             attachedNag = fallbackMatch[2];
@@ -2425,13 +2438,20 @@ getLegalMoves(squareIdx) {
         
         const moves = this.#engine.moves({ verbose: true });
         
-        let mapped = moves.map(m => ({
-            from: this.#squareToIndex(m.from),
-            to: this.#squareToIndex(m.to),
-            san: m.san,
-            promotion: m.promotion,
-            isCapture: m.flags.includes('c') || m.flags.includes('e')
-        }));
+        let mapped = moves.map(m => {
+            let out = {
+                from: this.#squareToIndex(m.from),
+                to: this.#squareToIndex(m.to),
+                san: m.san,
+                promotion: m.promotion,
+                isCapture: m.flags.includes('c') || m.flags.includes('e')
+            };
+            // 🔥 FIX: Pass the duck square natively to the UI!
+            if (m.duck_sq !== undefined) {
+                out.duck_sq = this.#squareToIndex(m.duck_sq);
+            }
+            return out;
+        });
 
         if (squareIdx !== undefined && squareIdx !== null && squareIdx !== 'w' && squareIdx !== 'b') {
             const sqInt = parseInt(squareIdx, 10);
@@ -2440,7 +2460,6 @@ getLegalMoves(squareIdx) {
             }
         }
         
-        // If no valid square index was passed, return all legal moves
         return mapped; 
     }
 consumePremove() {
@@ -4630,7 +4649,9 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             to: this.#indexToSquare(move.to)
         };
         if (promotion) moveObj.promotion = promotion;
-
+        if (move.duck_sq !== undefined) {
+            moveObj.duck_sq = this.#indexToSquare(move.duck_sq);
+        }
         // ============================================================
         // INTERACTIVE LESSON INTERCEPTOR 
         // ============================================================
