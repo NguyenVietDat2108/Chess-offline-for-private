@@ -567,6 +567,20 @@ resizeApp() {
         const isAnalysis = game ? game.isAnalysisMode : false;
         const isStudy = game ? game.mode === 'study' : false;
         const isWideMode = isAnalysis || isStudy;
+        
+        // ✨ SAFE GAME MODE DETECTION
+        let isDuckMode = false;
+        let isPocketMode = false;
+        try {
+            if (game) {
+                let state = typeof game.getReader === 'function' ? game.getReader() : null;
+                let gMode = state ? state.gameMode : game.gameMode;
+                if (gMode === 'duck') isDuckMode = true;
+                if (gMode === 'crazyhouse' || gMode === 'bughouse') isPocketMode = true;
+            }
+        } catch(err) {
+            console.warn("Caught early read error in resizeApp:", err);
+        }
 
         if (isWideMode) {
             if (mainLayout) mainLayout.style.justifyContent = 'flex-start';
@@ -580,9 +594,24 @@ resizeApp() {
         if (studySidebar) studySidebar.style.height = '';
         if (analysisPanel) analysisPanel.style.height = '';
 
+        // Reset margins temporarily so height calculation doesn't infinitely loop
+        if (boardSection) {
+            boardSection.style.marginTop = '0px';
+            boardSection.style.marginBottom = '0px';
+        }
+
         const boardSecHeight = boardSection ? boardSection.offsetHeight : 936;
         const safeSidebarHeight = Math.max(936, boardSecHeight);
         let targetHeight = Math.max(986, safeSidebarHeight + 50); 
+
+        // ✨ CRAZYHOUSE FIX: Make 180px of vertical room for the pockets!
+        if (isPocketMode) {
+            targetHeight += 180;
+            if (boardSection) {
+                boardSection.style.marginTop = '90px';
+                boardSection.style.marginBottom = '90px';
+            }
+        }
 
         if (mainSidebar) mainSidebar.style.height = safeSidebarHeight + 'px';
         if (studySidebar) studySidebar.style.height = safeSidebarHeight + 'px';
@@ -612,9 +641,6 @@ resizeApp() {
             }
         });
 
-        // ==========================================================
-        // DYNAMIC TARGET WIDTH 
-        // ==========================================================
         let targetWidth = 0;
 
         const getW = (el) => {
@@ -628,13 +654,23 @@ resizeApp() {
         const rightW = getW(mainSidebar);
 
         if (leftW > 0) targetWidth += leftW + 40;   
+        
+        // Push the board 85px to the right and add 85px to total width to fit the Duck Bank safely!
+        if (isDuckMode) {
+            targetWidth += 40;
+            if (boardSection) boardSection.style.marginLeft = '40px';
+        } else {
+            if (boardSection) boardSection.style.marginLeft = '0px';
+        }
+        if (isPocketMode) {
+            targetWidth += 40;
+            if (boardSection) boardSection.style.marginRight = '40px';
+        }
         targetWidth += boardW;                      
         if (rightW > 0) targetWidth += rightW + 40; 
         
         targetWidth += 40; 
-        if (window.game && window.game.getReader().gameMode === 'duck') {
-            targetWidth += 85; 
-        }
+        
         scaler.style.width = targetWidth + 'px';
         scaler.style.height = targetHeight + 'px';
         scaler.style.position = 'absolute';
@@ -1773,6 +1809,146 @@ renderArrows() {
             // 0.6 opacity is the perfect sweet spot for the Lichess feel
             this.drawArrow(this.arrowLayer, fromIdx, toIdx, arrow.color, 0.6);
         });
+    }
+renderPockets(pocket) {
+        let topPocket = document.getElementById('top-pocket');
+        let bottomPocket = document.getElementById('bottom-pocket');
+        
+        // ✨ UI FIX: Position pockets ABSOLUTELY to the RIGHT side, just like duckBank on the left!
+        if (!topPocket) {
+            topPocket = document.createElement('div');
+            topPocket.id = 'top-pocket';
+            topPocket.style.cssText = 'position: absolute; right: -85px; top: 0; width: 65px; height: 50%; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: flex-start; z-index: 10; pointer-events: none;';
+            if (this.boardWrapper) this.boardWrapper.appendChild(topPocket);
+        }
+        
+        if (!bottomPocket) {
+            bottomPocket = document.createElement('div');
+            bottomPocket.id = 'bottom-pocket';
+            bottomPocket.style.cssText = 'position: absolute; right: -85px; bottom: 0; width: 65px; height: 50%; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: flex-end; z-index: 10; pointer-events: none;';
+            if (this.boardWrapper) this.boardWrapper.appendChild(bottomPocket);
+        }
+
+        topPocket.innerHTML = '';
+        bottomPocket.innerHTML = '';
+
+        const gameMode = window.game ? window.game.gameMode : 'classical';
+        if (gameMode !== 'crazyhouse' && gameMode !== 'bughouse') {
+            topPocket.style.display = 'none';
+            bottomPocket.style.display = 'none';
+            return;
+        } else {
+            topPocket.style.display = 'flex';
+            bottomPocket.style.display = 'flex';
+        }
+
+        const isFlipped = this.flipped;
+        const topColor = isFlipped ? 'w' : 'b';
+        const bottomColor = isFlipped ? 'b' : 'w';
+
+        const drawPocket = (container, color) => {
+            if (!pocket || !pocket[color]) return;
+            const pieceCounts = {};
+            pocket[color].forEach(pType => pieceCounts[pType] = (pieceCounts[pType] || 0) + 1);
+            
+            // Order pieces visually from strongest to weakest
+            const pieceChars = ['q', 'r', 'b', 'n', 'p'];
+            
+            pieceChars.forEach(pChar => {
+                const pType = ['p','n','b','r','q'].indexOf(pChar);
+                if (pieceCounts[pType]) {
+                    const el = document.createElement('div');
+                    el.style.cssText = 'position: relative; width: 55px; height: 55px; cursor: grab; pointer-events: auto; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid #444;';
+                    
+                    const rawHTML = this.getPieceHTML({ color: color, type: pChar.toUpperCase() });
+                    let imgHTML = rawHTML;
+                    if (rawHTML) {
+                        let trimmed = rawHTML.trim();
+                        if (trimmed.startsWith('<svg')) {
+                            imgHTML = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}" style="width:100%; height:100%; pointer-events:none;">`;
+                        } else if (trimmed.startsWith('data:image/') || trimmed.startsWith('http') || trimmed.endsWith('.svg') || trimmed.endsWith('.png')) {
+                            imgHTML = `<img src="${trimmed}" style="width:100%; height:100%; pointer-events:none;">`;
+                        }
+                    }
+
+                    el.innerHTML = `
+                        <div style="position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; padding: 3px;">${imgHTML}</div>
+                        ${pieceCounts[pType] > 1 ? `<div style="position: absolute; bottom: -6px; left: -6px; font-weight: bold; color: white; text-shadow: 1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black; font-size: 15px; z-index: 2; pointer-events:none; background: #c33; padding: 1px 6px; border-radius: 6px; border: 1px solid white;">${pieceCounts[pType]}</div>` : ''}
+                    `;
+                    
+                    const handleDragStart = (clientX, clientY) => {
+                        this.dragData = { source: '@', piece: pChar, color: color };
+                        this.draggedPieceGhost.style.backgroundImage = 'none'; 
+                        this.draggedPieceGhost.innerHTML = `<div style="width:100%; height:100%;">${imgHTML}</div>`;
+                        this.draggedPieceGhost.style.display = 'block';
+                        
+                        // Size ghost perfectly to the board's squares
+                        const sqWidth = this.boardEl.offsetWidth / 8;
+                        const sqHeight = this.boardEl.offsetHeight / 8;
+                        this.draggedPieceGhost.style.width = sqWidth + 'px';
+                        this.draggedPieceGhost.style.height = sqHeight + 'px';
+                        
+                        const scaler = document.getElementById('app-scaler') || document.body;
+                        
+                        const updateGhostPosition = (cx, cy) => {
+                            // ✨ UI SCALE FIX: Undo the transform distortion so the piece tracks the mouse exactly!
+                            const rect = scaler.getBoundingClientRect();
+                            const scale = window.appScale || 1;
+                            const logicalX = (cx - rect.left) / scale;
+                            const logicalY = (cy - rect.top) / scale;
+                            
+                            this.draggedPieceGhost.style.left = `${logicalX - (sqWidth / 2)}px`;
+                            this.draggedPieceGhost.style.top = `${logicalY - (sqHeight / 2)}px`;
+                        };
+                        updateGhostPosition(clientX, clientY);
+                        
+                        const onMove = (moveEvent) => {
+                            let cx = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
+                            let cy = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
+                            updateGhostPosition(cx, cy);
+                        };
+                        
+                        const onUp = (upEvent) => {
+                            document.removeEventListener('mousemove', onMove);
+                            document.removeEventListener('mouseup', onUp);
+                            document.removeEventListener('touchmove', onMove);
+                            document.removeEventListener('touchend', onUp);
+                            
+                            this.draggedPieceGhost.style.display = 'none';
+                            
+                            let cx = upEvent.changedTouches ? upEvent.changedTouches[0].clientX : upEvent.clientX;
+                            let cy = upEvent.changedTouches ? upEvent.changedTouches[0].clientY : upEvent.clientY;
+                            
+                            const rect = this.boardEl.getBoundingClientRect();
+                            if (cx >= rect.left && cx <= rect.right && cy >= rect.top && cy <= rect.bottom) {
+                                const file = Math.floor((cx - rect.left) / (rect.width / 8));
+                                const rank = 7 - Math.floor((cy - rect.top) / (rect.height / 8));
+                                const sq = String.fromCharCode(97 + (this.flipped ? 7 - file : file)) + (this.flipped ? 8 - rank : rank + 1);
+                                
+                                if (window.game && typeof window.game.makeMove === 'function') {
+                                    window.game.makeMove({ from: '@', to: sq, drop: pChar }, undefined, true);
+                                }
+                            }
+                            this.dragData = null;
+                        };
+                        
+                        document.addEventListener('mousemove', onMove);
+                        document.addEventListener('mouseup', onUp);
+                        document.addEventListener('touchmove', onMove, {passive: false});
+                        document.addEventListener('touchend', onUp);
+                    };
+
+                    el.addEventListener('mousedown', (e) => { if (e.button !== 0) return; e.preventDefault(); handleDragStart(e.clientX, e.clientY); });
+                    el.addEventListener('touchstart', (e) => { e.preventDefault(); handleDragStart(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
+                    container.appendChild(el);
+                }
+            });
+        };
+
+        drawPocket(topPocket, topColor);
+        drawPocket(bottomPocket, bottomColor);
+
+        if (typeof this.resizeApp === 'function') this.resizeApp();
     }
 getNodeVisuals(node) {
 if ((node.arrows &&node.arrows.length > 0) || (node.circles &&node.circles.length > 0)) {
@@ -3194,6 +3370,11 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         if (resignBtn) {
             const isPlaying = window.game && (window.game.mode === 'local' || window.game.mode === 'bot') && !window.game.gameOver;
             resignBtn.style.display = isPlaying ? 'inline-block' : 'none';
+        }
+        if (window.game && window.game.engine && typeof window.game.engine.pocket === 'function') {
+            if (typeof this.renderPockets === 'function') {
+                this.renderPockets(window.game.engine.pocket());
+            }
         }
     }
 renderExternalCoords() {
@@ -4962,7 +5143,13 @@ renderAnalysisLine(index, type, val, moves, startFen) {
                 
                 const turn = tempChess.turn(); 
                 const parts = tempChess.fen().split(' ');
-                const moveNum = parts[5] || 1; 
+                let moveNum = parseInt(parts[5]) || 1;
+                
+                // ✨ THE NAN FIX: Safely grab the move number if the FEN has a 5th Duck token!
+                if (gameMode === 'duck' && parts.length >= 7 && isNaN(parseInt(parts[4]))) {
+                    moveNum = parts[6];
+                }
+                moveNum = parseInt(moveNum) || 1;
 
                 let prefix = "";
                 if (turn === 'w') prefix = `${moveNum}. `;
@@ -5559,6 +5746,9 @@ updatePieceImagesSafe(pieceSet) {
                 }
             }
         });
+        if (window.game && window.game.engine && typeof window.game.engine.pocket === 'function') {
+            this.renderPockets(window.game.engine.pocket());
+        }
     }
 setPresetTheme(lightHex, darkHex, btnElement = null, accentColor = '#38bdf8', gridColor = 'transparent', pieceSet = null, appBg = null) {
         const lightInput = document.getElementById('colorLight');

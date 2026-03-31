@@ -74,11 +74,12 @@ chess.js bitboard implementation
 -loading the pgn played after the game ended in play mode (for both bot and human).
 -add staticstic check with lichess/chesscom accounts (basic stats done, deeper analysis not yet.)
 -implement Fairy-stockfish sucessfully to play.
+- delete move should delete the move viewed right away.
 *) CONTINUE TO FIX:
+- the first sub moves that made becomes the mainline after the reload page in the PGN for the first time, second time it does correctly.
 
 -implement import and export embedded and use model to use
 -implement import gif reading.
--implement bot play variants
 -implement rules for variants(window.game.gameMode=['classical','chess960','3check','antichess','atomic',
 'bughouse','chaturanga','crazyhouse','duck','horde','kingofthehill','racingkings'];)
 
@@ -99,10 +100,10 @@ Use the Jump spell on another piece to hop over like it isn’t there
 Or use the Freeze spell to prevent pieces from moving or checking within a 3x3 area of effect
 Be careful—any piece, including your own, will freeze if it enters the spell area
 Use spells to find a checkmate or king capture!
+
+
+
 -building engine analysis for progressive chess:
-
-
-
 -eco.js implementation (opening detail, opening win rate, sort by evaluation, opponent's rating,time control,.....)
 -sound.js check (my god, lichess use move by default, and some file sound still use the standard/duplicate one) (might wanna use another sound package instead)
 -study implementation (implementing interaction and import pgn with interaction, basic things done.)

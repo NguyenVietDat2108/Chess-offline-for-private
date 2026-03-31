@@ -10,7 +10,7 @@ var Chess = function(fen, gameMode = 'classical') {
     const PAWN = 0, KNIGHT = 1, BISHOP = 2, ROOK = 3, QUEEN = 4, KING = 5;
     const PIECE_TO_CHAR = ['p', 'n', 'b', 'r', 'q', 'k'];
     const CHAR_TO_PIECE = { p:0, n:1, b:2, r:3, q:4, k:5 };
-    const BITS = { NORMAL: 1, CAPTURE: 2, BIG_PAWN: 4, EP_CAPTURE: 8, PROMOTION: 16, KSIDE_CASTLE: 32, QSIDE_CASTLE: 64 };
+    const BITS = { NORMAL: 1, CAPTURE: 2, BIG_PAWN: 4, EP_CAPTURE: 8, PROMOTION: 16, KSIDE_CASTLE: 32, QSIDE_CASTLE: 64, DROP: 128 };
     const SQ_STR = [
         "a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1", "a2", "b2", "c2", "d2", "e2", "f2", "g2", "h2",
         "a3", "b3", "c3", "d3", "e3", "f3", "g3", "h3", "a4", "b4", "c4", "d4", "e4", "f4", "g4", "h4",
@@ -121,22 +121,25 @@ var Chess = function(fen, gameMode = 'classical') {
             gameMode: 'classical',
             checks: { w: 0, b: 0 },         // For 3-Check
             pocket: { w: [], b: [] },       // For Crazyhouse / Bughouse
+            promoted: { lo: 0, hi: 0 },     // ✨ FIX: Added missing promoted tracker!
             duck_sq: -1                     // For Duck Chess
         };
     }
     function clone_state(s) {
-        return { 
-            bb_lo: s.bb_lo.slice(), 
-            bb_hi: s.bb_hi.slice(), 
-            board: s.board.slice(), 
-            turn: s.turn, 
-            castling: s.castling, 
-            ep_square: s.ep_square, 
-            half_moves: s.half_moves, 
-            move_number: s.move_number, 
+        return {
+            bb_lo: new Int32Array(s.bb_lo),
+            bb_hi: new Int32Array(s.bb_hi),
+            board: new Int8Array(s.board),
+            turn: s.turn,
+            castling: s.castling,
+            ep_square: s.ep_square,
+            half_moves: s.half_moves,
+            move_number: s.move_number,
             gameMode: s.gameMode,
             checks: { w: s.checks.w, b: s.checks.b },
             pocket: { w: [...s.pocket.w], b: [...s.pocket.b] },
+            // ✨ FIX: Safely clone the promoted tracker, creating a fallback if it's missing!
+            promoted: s.promoted ? { lo: s.promoted.lo, hi: s.promoted.hi } : { lo: 0, hi: 0 }, 
             duck_sq: s.duck_sq
         };
     }
@@ -145,11 +148,36 @@ var Chess = function(fen, gameMode = 'classical') {
         var s = create_empty_state();
         s.gameMode = setGameMode; 
         var tokens = fen.split(/\s+/);
+        var boardToken = tokens[0];
+        if (setGameMode === 'crazyhouse' && boardToken.includes('[')) {
+            var parts = boardToken.split('[');
+            boardToken = parts[0];
+            var pocketStr = parts[1].replace(']', '');
+            for (var i = 0; i < pocketStr.length; i++) {
+                var c = pocketStr.charAt(i);
+                s.pocket[c === c.toUpperCase() ? 'w' : 'b'].push(CHAR_TO_PIECE[c.toLowerCase()]);
+            }
+            tokens[0] = boardToken; // Safely put the board back for the rest of the parser!
+        }
         var sq = 56;
+        
         for (var i = 0; i < tokens[0].length; i++) {
             var c = tokens[0].charAt(i);
-            if (c === '/') sq -= 16; else if (/\d/.test(c)) sq += parseInt(c);
-            else {
+            if (c === '/') {
+                sq -= 16; 
+            } else if (/\d/.test(c)) {
+                sq += parseInt(c);
+            } else if (c === '*') {
+                // ✨ DUCK FIX: Extract duck directly from the board string!
+                if (setGameMode === 'duck') s.duck_sq = sq;
+                sq++;
+            } else if (c === '~') {
+                // ✨ CRAZYHOUSE: The piece we just placed was promoted!
+                let prevSq = sq - 1;
+                if (prevSq >= 0 && prevSq < 64) {
+                    if (prevSq < 32) s.promoted.lo |= (1<<prevSq); else s.promoted.hi |= (1<<(prevSq-32));
+                }
+            }else {
                 var col = (c < 'a') ? WHITE : BLACK;
                 var typ = CHAR_TO_PIECE[c.toLowerCase()];
                 if (sq>=0 && sq<64) {
@@ -159,12 +187,27 @@ var Chess = function(fen, gameMode = 'classical') {
                 sq++;
             }
         }
+        
         s.turn = (tokens[1] === 'w') ? WHITE : BLACK;
         s.castling = 0;
         if (tokens[2].includes('K')) s.castling |= 1; if (tokens[2].includes('Q')) s.castling |= 2;
         if (tokens[2].includes('k')) s.castling |= 4; if (tokens[2].includes('q')) s.castling |= 8;
         s.ep_square = (tokens[3] === '-' || !tokens[3]) ? -1 : str_to_sq(tokens[3]);
-        s.half_moves = parseInt(tokens[4]||0); s.move_number = parseInt(tokens[5]||1);
+        
+        // ✨ Standard 6-field parsing restores!
+        s.half_moves = parseInt(tokens[4]||0); 
+        s.move_number = parseInt(tokens[5]||1);
+        
+        // Backwards compatibility for your old saved PGNs / Engine quirks
+        if (setGameMode === 'duck' && tokens.length >= 7) {
+            if (isNaN(parseInt(tokens[4]))) {
+                s.duck_sq = (tokens[4] === '-') ? -1 : str_to_sq(tokens[4]);
+                s.half_moves = parseInt(tokens[5]||0);
+                s.move_number = parseInt(tokens[6]||1);
+            } else {
+                s.duck_sq = (tokens[6] === '-') ? -1 : str_to_sq(tokens[6]);
+            }
+        }
         
         if (s.ep_square !== -1) {
             let capSq = (s.turn === WHITE) ? s.ep_square - 8 : s.ep_square + 8;
@@ -172,6 +215,7 @@ var Chess = function(fen, gameMode = 'classical') {
             let mask = (capSq<32) ? (1<<capSq) : (1<<(capSq-32));
             if (!((capSq<32 ? s.bb_lo[pawn] : s.bb_hi[pawn]) & mask)) s.ep_square = -1;
         }
+        
         if (s.gameMode === '3check') {
             let checkMatch = fen.match(/\+(\d+)\+(\d+)/);
             if (checkMatch) {
@@ -179,40 +223,61 @@ var Chess = function(fen, gameMode = 'classical') {
                 s.checks.b = parseInt(checkMatch[2], 10);
             }
         }
+        
         return s;
     }
     
     function generate_fen(targetState) {
         var s = targetState || currentState; 
         var empty = 0, fen = "";
+        
         for (var r = 7; r >= 0; r--) {
             for (var f = 0; f < 8; f++) {
                 var sq = r * 8 + f;
                 var val = s.board[sq];
-                if (val === -1) empty++;
-                else {
+                
+                // ✨ DUCK FIX: Inject '*' directly into the board string!
+                if (s.gameMode === 'duck' && s.duck_sq === sq) {
+                    if (empty > 0) { fen += empty; empty = 0; }
+                    fen += '*';
+                } else if (val === -1) {
+                    empty++;
+                } else {
                     if (empty > 0) { fen += empty; empty = 0; }
                     var char = PIECE_TO_CHAR[val & 7];
                     fen += ((val >> 3) === WHITE) ? char.toUpperCase() : char;
-                }
+                    
+                    // ✨ CRAZYHOUSE FIX: Flag promoted pieces
+                    if (s.gameMode === 'crazyhouse' && s.promoted && ((sq < 32) ? (s.promoted.lo & (1<<sq)) : (s.promoted.hi & (1<<(sq-32))))) {
+                        fen += '~';
+                    }
+                } // <-- THIS WAS THE MISSING BRACKET!
             }
             if (empty > 0) { fen += empty; empty = 0; }
             if (r > 0) fen += "/";
         }
+        
         var c = "";
         if (s.castling & 1) c += "K"; if (s.castling & 2) c += "Q";
         if (s.castling & 4) c += "k"; if (s.castling & 8) c += "q";
         c = c || "-";
-        var ep = (s.ep_square === -1) ? "-" : sq_str(s.ep_square);
-        let finalFen = [fen, (s.turn === WHITE ? 'w' : 'b'), c, ep, s.half_moves, s.move_number].join(" ");
         
+        var ep = (s.ep_square === -1) ? "-" : sq_str(s.ep_square);
+        
+        // ✨ THE ENGINE FIX: Return to a perfect 6-field standard FEN!
+        let finalFen = [fen, (s.turn === WHITE ? 'w' : 'b'), c, ep, s.half_moves, s.move_number].join(" ");
+        if (s.gameMode === 'crazyhouse') {
+            var pocketStr = "";
+            for (var i = 0; i < s.pocket.w.length; i++) pocketStr += PIECE_TO_CHAR[s.pocket.w[i]].toUpperCase();
+            for (var i = 0; i < s.pocket.b.length; i++) pocketStr += PIECE_TO_CHAR[s.pocket.b[i]];
+            if (pocketStr !== "") finalFen = finalFen.replace(fen, fen + "[" + pocketStr + "]");
+        }
         if (s.gameMode === '3check') {
             finalFen += ` +${s.checks.w}+${s.checks.b}`;
         }
         
         return finalFen;
     }
-    
     function apply_standard_move(prevState, m) {
         var next = clone_state(prevState);
         var us = next.turn, them = us ^ 1;
@@ -334,8 +399,60 @@ var Chess = function(fen, gameMode = 'classical') {
         }
         return next;
     }
-    function apply_crazyhouse_move(prevState, m) { return apply_standard_move(prevState, m); }
-    function apply_bughouse_move(prevState, m) { return apply_standard_move(prevState, m); }
+    function apply_crazyhouse_move(prevState, m) {
+        var flags = (m >>> 12) & 0xFF;
+        var us = prevState.turn;
+        var to = (m >>> 6) & 0x3F;
+
+        // 1. Handle Drops from Pocket
+        if (flags & BITS.DROP) {
+            var next = clone_state(prevState);
+            var p_type = m & 0x3F; // For drops, 'from' holds the piece type
+            
+            var pocketStr = us === WHITE ? 'w' : 'b';
+            var idx = next.pocket[pocketStr].indexOf(p_type);
+            if (idx !== -1) next.pocket[pocketStr].splice(idx, 1);
+            
+            if (to < 32) next.bb_lo[us*6+p_type] |= (1<<to); else next.bb_hi[us*6+p_type] |= (1<<(to-32));
+            next.board[to] = (us << 3) | p_type;
+            
+            next.turn ^= 1;
+            next.ep_square = -1;
+            if (p_type === PAWN) next.half_moves = 0; else next.half_moves++;
+            if (us === BLACK) next.move_number++;
+            return next;
+        }
+
+        // 2. Normal Moves & Captures
+        var next = apply_standard_move(prevState, m);
+        var from = m & 0x3F;
+        
+        // Track promoted pieces so they demote properly upon capture
+        var isPromoted = false;
+        if ((from < 32) ? (prevState.promoted.lo & (1<<from)) : (prevState.promoted.hi & (1<<(from-32)))) {
+            isPromoted = true;
+            if (from < 32) next.promoted.lo &= ~(1<<from); else next.promoted.hi &= ~(1<<(from-32));
+            if (to < 32) next.promoted.lo |= (1<<to); else next.promoted.hi |= (1<<(to-32));
+        }
+        if (flags & BITS.PROMOTION) {
+            if (to < 32) next.promoted.lo |= (1<<to); else next.promoted.hi |= (1<<(to-32));
+        }
+
+        // Handle Captures -> Pocket
+        if (flags & BITS.CAPTURE || flags & BITS.EP_CAPTURE) {
+            var cap_sq = (flags & BITS.EP_CAPTURE) ? ((us === WHITE) ? to - 8 : to + 8) : to;
+            var cap_piece = prevState.board[cap_sq] & 7;
+            
+            var capPromoted = (cap_sq < 32) ? (prevState.promoted.lo & (1<<cap_sq)) : (prevState.promoted.hi & (1<<(cap_sq-32)));
+            if (capPromoted) {
+                cap_piece = PAWN; // Demote!
+                if (cap_sq < 32) next.promoted.lo &= ~(1<<cap_sq); else next.promoted.hi &= ~(1<<(cap_sq-32));
+            }
+            next.pocket[us === WHITE ? 'w' : 'b'].push(cap_piece);
+        }
+        return next;
+    }
+    function apply_bughouse_move(prevState, m) { return apply_crazyhouse_move(prevState, m); }
     function apply_duck_move(prevState, m) {
         var next = apply_standard_move(prevState, m);
         next.duck_sq = (m >>> 22) & 0x3F; 
@@ -675,16 +792,62 @@ var Chess = function(fen, gameMode = 'classical') {
             var m = moves[i];
             var next = apply_standard_move(state, m);
             
-            // 🔥 RACING KINGS FIX: You are absolutely NOT allowed to put the opponent in check!
-            if (!is_standard_checked(next, us ^ 1)) {
+            // ✨ RACING KINGS FIX: Kings cannot give check AND cannot walk into check!
+            if (!is_standard_checked(next, us ^ 1) && !is_standard_checked(next, us)) {
                 valid.push(m);
             }
         }
         return valid; 
     }
-    function generate_bughouse_moves(state, options) { return generate_standard_moves(state, options); }
+    function generate_bughouse_moves(state, options) { return generate_crazyhouse_moves(state, options); }
     function generate_chaturanga_moves(state, options) { return generate_standard_moves(state, options); }
-    function generate_crazyhouse_moves(state, options) { return generate_standard_moves(state, options); }
+    function generate_crazyhouse_moves(state, options) {
+        var moves = generate_standard_moves(state, options);
+        var us = state.turn;
+        var pocket = state.pocket[us === WHITE ? 'w' : 'b'];
+        
+        if (pocket.length > 0) {
+            var unique_pocket = [];
+            for (var i=0; i<pocket.length; i++) if (!unique_pocket.includes(pocket[i])) unique_pocket.push(pocket[i]);
+            
+            var empty_sqs = [];
+            for (var sq = 0; sq < 64; sq++) {
+                if (state.board[sq] === -1) empty_sqs.push(sq);
+            }
+            
+            for (var i=0; i<unique_pocket.length; i++) {
+                var p_type = unique_pocket[i];
+                for (var j=0; j<empty_sqs.length; j++) {
+                    var sq = empty_sqs[j];
+                    var rank = Math.floor(sq / 8);
+                    if (p_type === PAWN && (rank === 0 || rank === 7)) continue; // Pawns can't drop on edges
+                    
+                    var m = p_type | (sq << 6) | (BITS.DROP << 12);
+                    
+                    if (!options || options.legal !== false) {
+                        var nextState = apply_crazyhouse_move(state, m);
+                        if (!is_checked(nextState, us)) moves.push(m);
+                    } else {
+                        moves.push(m);
+                    }
+                }
+            }
+        }
+        
+        if (options && options.square) {
+            var filtered = [];
+            for(var i=0; i<moves.length; i++) {
+                var m = moves[i];
+                if ((m >>> 12 & 0xFF) & BITS.DROP) {
+                    if (options.square === '@' || options.square.includes('@')) filtered.push(m);
+                } else {
+                    if (SQ_STR[m & 0x3F] === options.square) filtered.push(m);
+                }
+            }
+            return filtered;
+        }
+        return moves;
+    }
     function generate_duck_moves(state, options) { 
         var piece_moves = generate_standard_moves(state, {legal: false});
         var valid = [];
@@ -785,7 +948,23 @@ var Chess = function(fen, gameMode = 'classical') {
     function build_move_direct(state, from, to, promo) {
         var us = state.turn, piece = (state.board[from]&7);
         if (state.board[from] === -1 || (state.board[from]>>3) !== us) return null;
-        
+        if (state.gameMode === 'duck' && state.duck_sq !== -1) {
+            if (to === state.duck_sq) return null; 
+            if (piece !== KNIGHT && piece !== KING && piece !== PAWN) {
+                let r1 = from >> 3, c1 = from & 7, r2 = to >> 3, c2 = to & 7;
+                let dr = Math.sign(r2 - r1), dc = Math.sign(c2 - c1);
+                let cr = r1 + dr, cc = c1 + dc;
+                while (cr !== r2 || cc !== c2) {
+                    if (cr * 8 + cc === state.duck_sq) return null;
+                    cr += dr; cc += dc;
+                }
+            } else if (piece === PAWN) {
+                if (Math.abs(to - from) === 16) {
+                    let mid = (from + to) / 2;
+                    if (mid === state.duck_sq) return null;
+                }
+            }
+        }
         var is960Castle = false;
         if (state.board[to] !== -1 && (state.board[to]>>3) === us) {
             if (piece === KING && (state.board[to]&7) === ROOK) is960Castle = true;
@@ -842,6 +1021,12 @@ var Chess = function(fen, gameMode = 'classical') {
         
         var m = from | (to << 6) | (flags << 12) | (promoInt << 19);
         var next = apply_move(state, m);
+        
+        if (state.gameMode === 'racingkings') {
+            if (is_standard_checked(next, us) || is_standard_checked(next, them)) return null;
+            return m;
+        }
+        
         if (!is_checked(next, us)) return m;
         return null;
     }
@@ -970,7 +1155,7 @@ var Chess = function(fen, gameMode = 'classical') {
     }
     
     function to_obj(state, m, nag, known_san) {
-        var from = m & 0x3F, to = (m >>> 6) & 0x3F, flags = (m >>> 12) & 0x7F, promoInt = (m >>> 19) & 0x7;
+        var from = m & 0x3F, to = (m >>> 6) & 0x3F, flags = (m >>> 12) & 0xFF, promoInt = (m >>> 19) & 0x7;
         var f = "n";
         if (flags & BITS.KSIDE_CASTLE) f = "k";
         else if (flags & BITS.QSIDE_CASTLE) f = "q";
@@ -979,6 +1164,20 @@ var Chess = function(fen, gameMode = 'classical') {
         else if (flags & BITS.CAPTURE) f = "c";
         else if (flags & BITS.EP_CAPTURE) f = "e";
         else if (flags & BITS.BIG_PAWN) f = "b";
+        else if (flags & BITS.DROP) f = "d"; // ✨ Recognize Drop Flags!
+
+        // Handle Drops Object Formatting
+        if (flags & BITS.DROP) {
+            var pType = m & 0x3F; 
+            var obj = { 
+                color: state.turn===WHITE?'w':'b', from: '@', to: sq_str(to), 
+                flags: 'd', piece: PIECE_TO_CHAR[pType], drop: PIECE_TO_CHAR[pType], 
+                san: known_san || get_san(state, m) 
+            };
+            if (nag) obj.nag = nag;
+            return obj;
+        }
+
         var cap = undefined;
         if (flags & BITS.CAPTURE) {
             var t = (state.board[to]&7);
@@ -994,7 +1193,21 @@ var Chess = function(fen, gameMode = 'classical') {
     }
     
     function get_san(state, m) {
-        var from = m & 0x3F, to = (m >>> 6) & 0x3F, flags = (m >>> 12) & 0x7F, promo = (m >>> 19) & 0x7;
+        var flags = (m >>> 12) & 0xFF; // ✨ Must be 0xFF to catch BITS.DROP (128)
+        
+        // Handle Drop SAN string generation
+        if (flags & BITS.DROP) {
+            var pType = m & 0x3F;
+            var to = (m >>> 6) & 0x3F;
+            var s = PIECE_TO_CHAR[pType].toUpperCase() + '@' + SQ_STR[to];
+            var nextState = apply_move(state, m);
+            if (is_checked(nextState, nextState.turn)) {
+                if (generate_moves(nextState, {legal:true}).length === 0) s += '#'; else s += '+';
+            }
+            return s;
+        }
+
+        var from = m & 0x3F, to = (m >>> 6) & 0x3F, promo = (m >>> 19) & 0x7;
         if (flags & BITS.KSIDE_CASTLE) return "O-O"; 
         if (flags & BITS.QSIDE_CASTLE) return "O-O-O";
         var pType = state.board[from] & 7; 
@@ -1018,7 +1231,9 @@ var Chess = function(fen, gameMode = 'classical') {
             for (var i = 0; i < ms.length; i++) {
                 var o = ms[i];
                 var o_f = o & 0x3F, o_t = (o >>> 6) & 0x3F;
-                if (o_f !== from && o_t === to && (state.board[o_f]&7) === pType) {
+                var o_flags = (o >>> 12) & 0xFF;
+                // Exclude drops when checking for ambiguities
+                if (!(o_flags & BITS.DROP) && o_f !== from && o_t === to && (state.board[o_f]&7) === pType) {
                     var mStr = SQ_STR[from], oStr = SQ_STR[o_f];
                     if (mStr[0] === oStr[0]) ambigRank = true; else ambigFile = true;
                 }
@@ -1098,8 +1313,14 @@ var Chess = function(fen, gameMode = 'classical') {
                 if ((rk_wK_lo || rk_wK_hi) && (rk_bK_lo || rk_bK_hi)) {
                     let rk_wk = ctz(rk_wK_lo, rk_wK_hi);
                     let rk_bk = ctz(rk_bK_lo, rk_bK_hi);
+                    
+                    // If Black reaches the 8th rank and White is not there, Black wins immediately!
+                    if (rk_bk >= 56 && rk_wk < 56) return BLACK;
+                    
+                    // If White reaches 8th rank, White only wins if Black failed to catch up on their turn!
                     if (rk_wk >= 56 && rk_bk < 56 && state.turn === WHITE) return WHITE;
-                    if (rk_bk >= 56 && rk_wk < 56 && state.turn === BLACK) return BLACK;
+                    
+                    // (Note: If both are >= 56, the in_draw() function successfully catches it as a Draw)
                 }
                 return null;
             
@@ -1109,11 +1330,20 @@ var Chess = function(fen, gameMode = 'classical') {
             case 'bughouse':
             case 'chaturanga':
             case 'crazyhouse':
+                let std_wK = state.bb_lo[WHITE*6+KING] | state.bb_hi[WHITE*6+KING];
+                let std_bK = state.bb_lo[BLACK*6+KING] | state.bb_hi[BLACK*6+KING];
+                if (!std_wK) return BLACK;
+                if (!std_bK) return WHITE;
+                return null;
             case 'duck':
                 let duck_wK = state.bb_lo[WHITE*6+KING] | state.bb_hi[WHITE*6+KING];
                 let duck_bK = state.bb_lo[BLACK*6+KING] | state.bb_hi[BLACK*6+KING];
                 if (!duck_wK) return BLACK;
                 if (!duck_bK) return WHITE;
+                
+                if (generate_moves(state, {legal: true}).length === 0) {
+                    return state.turn === WHITE ? BLACK : WHITE;
+                }
                 return null;
             default:              return null; 
         }
@@ -1127,28 +1357,11 @@ return {
             for (let i = 0; i < history.length; i++) history[i].gameMode = mode; 
         },
         gameMode: function() { return currentState.gameMode; },
-        
+        pocket: function() { return { w: [...currentState.pocket.w], b: [...currentState.pocket.b] }; },
         load: function(r) { 
-            let fenToLoad = r;
-            let duckSquare = -1;
-            
-            if (currentState.gameMode === 'duck') {
-                const parts = r.trim().split(/\s+/);
-                if (parts.length >= 7) {
-                    duckSquare = str_to_sq(parts[6]);
-                    fenToLoad = parts.slice(0, 6).join(' '); 
-                }
-            }
-            
-            let s = load_fen(fenToLoad, currentState.gameMode);
+            let s = load_fen(r, currentState.gameMode);
             if (!s) return false;
-            
             currentState = s; 
-            // Manually inject the duck square back in!
-            if (currentState.gameMode === 'duck') {
-                currentState.duck_sq = duckSquare;
-            }
-            
             history=[currentState]; 
             return true; 
         },
@@ -1208,45 +1421,62 @@ return {
                 nag = parsed.nag;
                 clean_san = parsed.clean;
                 
-                // 🔥 DUCK CHESS FIX: Universally parse engine UCI (,) and PGN (@) formats!
                 if (currentState.gameMode === 'duck') {
                     if (clean_san.includes(',')) {
                         let parts = clean_san.split(',');
                         clean_san = parts[0];
                         let d_str = parts[1].replace(/[^a-h1-8]/g, '');
-                        // Extracts "e3" out of "d5e3" safely
-                        explicit_duck = str_to_sq(d_str.length === 4 ? d_str.substring(2,4) : d_str); 
+                        explicit_duck = str_to_sq(d_str.length >= 2 ? d_str.substring(d_str.length - 2) : d_str); 
                     } else if (clean_san.includes('@')) {
                         let parts = clean_san.split('@');
                         clean_san = parts[0];
                         explicit_duck = str_to_sq(parts[1].replace(/[^a-h1-8]/g, ''));
+                    } else {
+                        let fsMatch = clean_san.match(/^([a-h][1-8][a-h][1-8][qrbn]?)([a-h][1-8])$/);
+                        if (fsMatch) { clean_san = fsMatch[1]; explicit_duck = str_to_sq(fsMatch[2]); }
                     }
+                } else if ((currentState.gameMode === 'crazyhouse' || currentState.gameMode === 'bughouse') && clean_san.includes('@')) {
+                    // ✨ ENGINE DROP PARSER (e.g., P@e4)
+                    let parts = clean_san.split('@');
+                    let pTypeStr = parts[0].toLowerCase();
+                    let pType = CHAR_TO_PIECE[pTypeStr.charAt(pTypeStr.length - 1)]; 
+                    let toSq = str_to_sq(parts[1].replace(/[^a-h1-8]/g, ''));
+                    m = pType | (toSq << 6) | (BITS.DROP << 12);
+                    let legals = generate_moves(currentState, {legal: true});
+                    if (!legals.includes(m)) m = null;
+                    clean_san = null; // Important: Clear to skip standard parsing!
                 }
                 
-                if (/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(clean_san)) {
-                    let f = str_to_sq(clean_san.substring(0,2));
-                    let t = str_to_sq(clean_san.substring(2,4));
-                    let p = clean_san.length === 5 ? clean_san[4] : null;
-                    m = build_move_direct(currentState, f, t, p);
-                    clean_san = null;
-                } else {
-                    m = tr(currentState, clean_san); 
+                if (clean_san) {
+                    if (/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(clean_san)) {
+                        let f = str_to_sq(clean_san.substring(0,2));
+                        let t = str_to_sq(clean_san.substring(2,4));
+                        let p = clean_san.length === 5 ? clean_san[4] : null;
+                        m = build_move_direct(currentState, f, t, p);
+                    } else { m = tr(currentState, clean_san); }
                 }
             } else {
-                let f = (typeof o.from === 'number') ? o.from : str_to_sq(o.from);
-                let t = (typeof o.to === 'number') ? o.to : str_to_sq(o.to);
-                m = build_move_direct(currentState, f, t, o.promotion); 
-                
-                if (currentState.gameMode === 'duck' && o.duck_sq !== undefined) {
-                    explicit_duck = (typeof o.duck_sq === 'number') ? o.duck_sq : str_to_sq(o.duck_sq);
+                if (o.from === '@' || o.drop) {
+                    // ✨ UI DROP PARSER
+                    let pTypeStr = typeof o.drop === 'string' ? o.drop : o.piece;
+                    let pType = CHAR_TO_PIECE[pTypeStr.toLowerCase()];
+                    let t = (typeof o.to === 'number') ? o.to : str_to_sq(o.to);
+                    m = pType | (t << 6) | (BITS.DROP << 12);
+                    let legals = generate_moves(currentState, {legal: true});
+                    if (!legals.includes(m)) m = null;
+                } else {
+                    let f = (typeof o.from === 'number') ? o.from : str_to_sq(o.from);
+                    let t = (typeof o.to === 'number') ? o.to : str_to_sq(o.to);
+                    m = build_move_direct(currentState, f, t, o.promotion); 
+                    if (currentState.gameMode === 'duck' && o.duck_sq !== undefined) {
+                        explicit_duck = (typeof o.duck_sq === 'number') ? o.duck_sq : str_to_sq(o.duck_sq);
+                    }
                 }
             }
             
             if (m === null) { error("INVALID_MOVE", o); return null; }
             
-            // 🔥 DUCK CHESS FIX: Pack the duck square into the move integer natively!
             if (currentState.gameMode === 'duck') {
-                // If duck is missing from the command, inherit its current square so it NEVER teleports to a1!
                 let duckToUse = (explicit_duck !== -1) ? explicit_duck : currentState.duck_sq;
                 if (duckToUse === -1) duckToUse = 0; 
                 m = (m & 0x3FFFFF) | (duckToUse << 22);
@@ -1254,35 +1484,25 @@ return {
             
             var ret = to_obj(currentState, m, nag, null); 
             
-            // 🔥 ENGINE COMMUNICATION FIX: Format UCI accurately for Fairy-Stockfish!
             if (currentState.gameMode === 'duck') {
-                let prevDuck = currentState.duck_sq;
-                let prevDuckStr = (prevDuck !== -1 && prevDuck !== undefined) ? SQ_STR[prevDuck] : '@';
                 let duckSqStr = SQ_STR[(m >>> 22) & 0x3F];
-                
-                // Build the base UCI manually to prevent crashes
                 let baseUci = ret.from + ret.to + (ret.promotion ? ret.promotion : '');
-                
-                // Fairy-Stockfish UCI MUST BE: [piece_move],[prev_duck][new_duck] (e.g. e2e4,d5e3)
-                // If duck wasn't on board, it safely defaults to [piece_move],@[new_duck]
-                if (prevDuck !== -1 && prevDuck !== undefined) {
-                    ret.uci = baseUci + ',' + prevDuckStr + duckSqStr;
-                } else {
-                    ret.uci = baseUci + ',' + prevDuckStr + duckSqStr;
-                }
+                ret.uci = baseUci + ',' + ret.to + duckSqStr;
+            } else if ((currentState.gameMode === 'crazyhouse' || currentState.gameMode === 'bughouse') && (((m >>> 12) & 0xFF) & BITS.DROP)) {
+                // ✨ Tell Fairy-Stockfish we dropped a piece!
+                let pType = m & 0x3F;
+                ret.uci = PIECE_TO_CHAR[pType].toUpperCase() + '@' + ret.to;
+            } else {
+                ret.uci = ret.from + ret.to + (ret.promotion ? ret.promotion : '');
             }
             
             var nextState = apply_move(currentState, m);
-            
             var isVariantWin = check_variant_win(nextState) !== null;
             var isCheck = is_checked(nextState, nextState.turn);
             var noMoves = generate_moves(nextState, {legal:true}).length === 0;
 
-            if (isVariantWin || (isCheck && noMoves)) {
-                ret.san += "#"; 
-            } else if (isCheck) {
-                ret.san += "+";
-            }
+            if (isVariantWin || (isCheck && noMoves)) ret.san += "#"; 
+            else if (isCheck) ret.san += "+";
             
             if (nag) { ret.san += nag; ret.nag = nag; }
             history.push(nextState);
@@ -1303,11 +1523,7 @@ return {
             return null;
         },
         fen: function() { 
-            let f = generate_fen(currentState);
-            if (currentState.gameMode === 'duck' && currentState.duck_sq !== undefined && currentState.duck_sq !== -1) {
-                f += ' ' + SQ_STR[currentState.duck_sq];
-            }
-            return f;
+            return generate_fen(currentState);
         },
         board: function() {
             var b = [];
@@ -1337,7 +1553,7 @@ return {
             if (check_variant_win(currentState) !== null) return true;
             return is_checked(currentState, currentState.turn) && generate_moves(currentState, {legal:true}).length === 0; 
         },
-        in_stalemate: function() { return !is_checked(currentState, currentState.turn) && generate_moves(currentState, {legal:true}).length === 0; },
+        in_stalemate: function() { if (currentState.gameMode === 'duck') return false; return !is_checked(currentState, currentState.turn) && generate_moves(currentState, {legal:true}).length === 0; },
         in_threefold_repetition: function() {
             var current_key = generate_fen(currentState).split(' ').slice(0, 4).join(' ');
             var count = 0;
@@ -1378,7 +1594,7 @@ return {
             
             // A lone Knight or Bishop can easily deliver checks, 
             // so they are NOT insufficient! The game must go on!(Although with a knight it's a theoritical draw)
-            if (s.gameMode === '3check' || s.gameMode === 'antichess') return false;
+            if (s.gameMode === '3check' || s.gameMode === 'antichess'||s.gameMode === 'atomic') return false;
 
             if (num_pieces === 3 && (num_knights === 1 || num_bishops === 1)) return true;
             if (num_pieces === num_bishops + 2) {
@@ -1405,12 +1621,7 @@ return {
         },
         validate_fen: function(fen) {
             if (!fen || typeof fen !== 'string') return { valid: false, error: 'Empty FEN string.' };
-            let fenToTest = fen;
-            if (currentState.gameMode === 'duck') {
-                const parts = fen.trim().split(/\s+/);
-                if (parts.length >= 7) fenToTest = parts.slice(0, 6).join(' ');
-            }
-            const tokens = fen.split(/\s+/);
+            const tokens = fen.trim().split(/\s+/);
             if (tokens.length < 4) return { valid: false, error: 'FEN must contain at least 4 fields.' };
             const ranks = tokens[0].split('/');
             if (ranks.length !== 8) return { valid: false, error: 'Piece placement must have 8 ranks.' };

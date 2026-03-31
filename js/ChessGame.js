@@ -520,9 +520,29 @@ return FILES[f] + (8 - r);
         const delay = Math.max(0, expectedThinkTime - elapsed);
 
         setTimeout(() => {
-            const from = uciMove.substring(0, 2);
-            const to = uciMove.substring(2, 4);
-            const promo = uciMove.length > 4 ? uciMove.substring(4, 5) : undefined;
+            let duck_sq = undefined;
+            let cleanUci = uciMove;
+            
+            if (cleanUci.includes(',')) {
+                let parts = cleanUci.split(',');
+                cleanUci = parts[0];
+                let dStr = parts[1].replace(/[^a-h1-8]/g, '');
+                duck_sq = this.#squareToIndex(dStr.length >= 2 ? dStr.substring(dStr.length - 2) : dStr);
+            } else if (cleanUci.includes('@')) {
+                let parts = cleanUci.split('@');
+                cleanUci = parts[0];
+                duck_sq = this.#squareToIndex(parts[1].replace(/[^a-h1-8]/g, ''));
+            } else {
+                let fsMatch = cleanUci.match(/^([a-h][1-8][a-h][1-8][qrbn]?)([a-h][1-8])$/);
+                if (fsMatch) {
+                    cleanUci = fsMatch[1];
+                    duck_sq = this.#squareToIndex(fsMatch[2]);
+                }
+            }
+
+            const from = cleanUci.substring(0, 2);
+            const to = cleanUci.substring(2, 4);
+            const promo = cleanUci.length > 4 ? cleanUci.substring(4, 5) : undefined;
             
             const fromIdx = this.#squareToIndex(from);
             const toIdx = this.#squareToIndex(to);
@@ -530,9 +550,11 @@ return FILES[f] + (8 - r);
             if (this.isPlayingLiveGame && typeof this.goToEnd === 'function') {
                 this.goToEnd();
             }
+            
+            const moveObj = { from: fromIdx, to: toIdx };
+            if (duck_sq !== undefined) moveObj.duck_sq = duck_sq;
 
-            const result = this.makeMove({ from: fromIdx, to: toIdx }, promo, false, null, false);
-
+            const result = this.makeMove(moveObj, promo, false, null, false);
             if (result && typeof window !== 'undefined' && window.ui) {
                 this.triggerMoveSound(result);
                 window.ui.renderBoard(true); 
@@ -567,7 +589,7 @@ if (typeof OPENING_BOOK ==='undefined') return [];
 let depthLimit = 10; 
 if (level <=2) depthLimit=2; else if (level <= 4) depthLimit = 6;  
 else if (level <=7) depthLimit=15; else depthLimit=25; // Level 8 can read deep theory
-const moveNum=parseInt(fen.split(' ')[5]) || 1;
+const moveNum = parseInt(fen.split(' ')[5]) || 1;
 if (moveNum> depthLimit) return [];
 const legalMoves = this.#engine.moves({ verbose:true });
 let possibleMoves = [];
@@ -849,7 +871,7 @@ return move.san;
         if (line.startsWith('bestmove')) {
             const liveTurn = this.currentLiveTurn || this.turn;
             if (this.mode === 'bot' && liveTurn === this.botColor) {
-                const match = line.match(/bestmove\s+([a-h][1-8][a-h][1-8][qrbn]?)/);
+                const match = line.match(/bestmove\s+([a-h][1-8][a-h][1-8][qrbn]?(?:[,@][a-h][1-8]{1,2})?)/);
                 console.log(match);
                 const isVerifying = !!this.verifyingBookMove;
                 const candidate = this.verifyingBookMove;
@@ -1329,6 +1351,14 @@ return move.san;
 
                     newNode.parent = this.currentNode;
                     this.currentNode.children.push(newNode);
+
+                    // ONLY sort when loading PGNs to prevent manual sub-moves from stealing index 0
+                    if (this.currentNode.children.length > 1 && this.isLoadingPGN) {
+                        this.currentNode.children.sort((a, b) => {
+                            if (a.isPV === b.isPV) return 0;
+                            return a.isPV ? 1 : -1; 
+                        });
+                    }
                     this.currentNode = newNode;
                     
                     this.currentNode.clock = { w: this.currentWTime, b: this.currentBTime };
@@ -1414,6 +1444,11 @@ return move.san;
 
         if (existingChild) {
             this.currentNode = existingChild;
+            // Ensure manual clicks on existing variations update the selected path
+            if (!isPVMove && !this.isLoadingPGN) {
+                const idx = this.currentNode.parent.children.indexOf(this.currentNode);
+                if (idx !== -1) this.currentNode.parent.selectedChildIndex = idx;
+            }
         } else {
             let newNode = new MoveNode(fen, moveSan, this.currentNode, "", 0, toSq);
             newNode.lastMove = moveData;
@@ -1439,25 +1474,19 @@ return move.san;
             }
 
             this.currentNode.children.push(newNode);
+            // Determine the new index of the node we just added
+            const newIdx = this.currentNode.children.indexOf(newNode);
+
             if (this.currentNode.children.length === 1) {
                 this.currentNode.selectedChildIndex = 0;
+            } else if (!isPVMove && !this.isLoadingPGN) {
+                // If it's a newly played real move, auto-select it!
+                this.currentNode.selectedChildIndex = newIdx;
             }
 
             this.currentNode = newNode;
         }
 
-        if (!isPVMove) {
-            if (!this.history) this.history = [];
-            if (!this.moveList) this.moveList = [];
-
-            if (this.history.length === 0) {
-                const startFen = this.rootNode.fen === 'start' ? INITIAL_FEN : this.rootNode.fen;
-                this.history.push(startFen);
-            }
-            
-            this.moveList.push(this.currentNode.lastMove || this.currentNode.moveSan);
-            this.history.push(this.currentNode.fen);
-        }
         if (this.mode === 'analysis' && !this._isParsingPV) {
             this.#saveState('analysis');
         }
@@ -2096,20 +2125,22 @@ return move.san;
         
         let pgn = "";
         
-        // 🔥 THE PV FIX: Find the TRUE main line.
-        // If the engine injected PV ghost lines, skip them and find the user's actual played move!
-        let activeIdx = -1; 
-        for (let i = 0; i < node.children.length; i++) {
-            if (!node.children[i].isPV) {
-                activeIdx = i;
-                break;
-            }
-        }
-        
-        // If NO real moves exist (they are all just engine PV ghosts), stop generating the PGN here!
-        if (activeIdx === -1) return "";
-        
+        let activeIdx = 0; 
         let mainChild = node.children[activeIdx];
+
+        // If the mainline is an engine ghost line, we WANT to skip it...
+        // UNLESS there is a manual sub-move branching from it. If so, we must export 
+        // this one engine move to act as the mainline anchor for the variation!
+        if (mainChild.isPV) {
+            let hasManualVariation = false;
+            for (let i = 1; i < node.children.length; i++) {
+                if (!node.children[i].isPV) {
+                    hasManualVariation = true;
+                    break;
+                }
+            }
+            if (!hasManualVariation) return ""; // Safely skip the engine ghost line!
+        }
         let ply = this.#getPly(mainChild);
         let mNum = Math.ceil(ply / 2);
         let isWhite = (ply % 2 !== 0);
@@ -2221,17 +2252,7 @@ return move.san;
 
         // 3. Recursion
         if (node.children && node.children.length > 0) {
-            // 🔥 PV FIX: Find the first non-PV child to recurse into
-            let activeIdx = -1;
-            for (let i = 0; i < node.children.length; i++) {
-                if (!node.children[i].isPV) {
-                    activeIdx = i;
-                    break;
-                }
-            }
-            if (activeIdx !== -1) {
-                pgn += this.#generatePGNRecursive(node.children[activeIdx], startPly + 1, false, format);
-            }
+            pgn += " " + this.#generatePGNRecursive(node.children[0], startPly + 1, false, format);
         }
 
         return pgn.trim();
@@ -3930,25 +3951,50 @@ togglePause() {
         }
     }
 deleteNode(nodeId) {
-        const node = this.#findNodeById(this.rootNode, nodeId);
-        if (!node || !node.parent) return false;
-        const p = node.parent;
-        const idx = p.children.indexOf(node);
-        if (idx !== -1) {
-            p.children.splice(idx, 1);
-            if (p.selectedChildIndex >= p.children.length) p.selectedChildIndex = Math.max(0, p.children.length - 1);
-            if (this.currentNode && (this.currentNode.id === nodeId || this.#isDescendant(node, this.currentNode))) {
-                this.goToNodeId(p.id); 
-            } else if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
-            
-            // 🔥 THE FIX: Save to Study if in study mode!
-            if (this.mode === 'study') this.saveActiveChapter();
-            else if (this.mode === 'analysis') this.#saveState('analysis');
-            
-            return true;
-        }
-        return false;
+    const node = this.#findNodeById(this.rootNode, nodeId);
+    // 1. Prevent deleting the root or a non-existent node
+    if (!node || !node.parent) return false;
+    
+    const p = node.parent;
+    const idx = p.children.indexOf(node);
+    if (idx === -1) return false;
+
+    // 2. ABSOLUTE DELETE: Remove the move and all its descendants from the parent
+    p.children.splice(idx, 1);
+    
+    // Reset the parent's selected index if it was pointing to the deleted move
+    if (p.selectedChildIndex >= p.children.length) {
+        p.selectedChildIndex = Math.max(0, p.children.length - 1);
     }
+
+    // 3. INSTANT VIEW UPDATE:
+    // If we are currently viewing the move we just deleted (or something further down that branch)
+    // we MUST snap the engine and board back to the parent instantly.
+    if (this.currentNode && (this.currentNode.id === nodeId || this.#isDescendant(node, this.currentNode))) {
+        // This handles engine.load(p.fen) and UI.renderBoard() internally
+        this.goToNodeId(p.id); 
+    } else {
+        // If we were viewing a different branch, just sync the PGN text
+        if (typeof this.#syncMoveHistory === 'function') {
+            this.#syncMoveHistory();
+        }
+    }
+
+    // 4. Force the UI move list to redraw immediately
+    if (typeof window !== 'undefined' && window.ui && typeof window.ui.updateHistory === 'function') {
+        window.ui.updateHistory(true);
+        // Ensure the board is rendered to the parent position
+        if (typeof window.ui.renderBoard === 'function') {
+            window.ui.renderBoard(); 
+        }
+    }
+    
+    // 5. Persist changes
+    if (this.mode === 'study') this.saveActiveChapter();
+    else if (this.mode === 'analysis') this.#saveState('analysis');
+    
+    return true;
+}
 promoteVariation(nodeId) {
         const node = this.#findNodeById(this.rootNode, nodeId);
         if (!node || !node.parent) return false;
