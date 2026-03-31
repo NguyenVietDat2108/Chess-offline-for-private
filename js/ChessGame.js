@@ -423,7 +423,13 @@ return FILES[f] + (8 - r);
             const legalMoves = this.#engine.moves({ verbose: true });
             if (legalMoves.length > 0) {
                 const choice = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-                const randomUCI = choice.from + choice.to + (choice.promotion || '');
+                let randomUCI = "";
+                if (choice.from === '@' || choice.drop || choice.flags === 'd') {
+                    randomUCI = (choice.drop || choice.piece).toUpperCase() + '@' + choice.to;
+                } else {
+                    randomUCI = choice.from + choice.to + (choice.promotion || '');
+                    if (choice.duck_sq !== undefined) randomUCI += choice.duck_sq;
+                }
                 
                 if (typeof this.#executeBotMoveWithDelay === 'function') {
                     this.#executeBotMoveWithDelay(randomUCI);
@@ -512,47 +518,45 @@ return FILES[f] + (8 - r);
         const start = this.botThinkStart || now;
         const elapsed = now - start;
         
-        // If it's a book move, blitz it out fast (max 800ms). Otherwise, use the dynamic calculated time!
-        const expectedThinkTime = isBookMove 
-            ? Math.min(this.currentBotThinkTime || 1000, 800) 
-            : (this.currentBotThinkTime || 1500);
+        const expectedThinkTime = isBookMove ? Math.min(this.currentBotThinkTime || 1000, 800) : (this.currentBotThinkTime || 1500);
 
         const delay = Math.max(0, expectedThinkTime - elapsed);
 
         setTimeout(() => {
-            let duck_sq = undefined;
-            let cleanUci = uciMove;
-            
-            if (cleanUci.includes(',')) {
-                let parts = cleanUci.split(',');
-                cleanUci = parts[0];
-                let dStr = parts[1].replace(/[^a-h1-8]/g, '');
-                duck_sq = this.#squareToIndex(dStr.length >= 2 ? dStr.substring(dStr.length - 2) : dStr);
-            } else if (cleanUci.includes('@')) {
-                let parts = cleanUci.split('@');
-                cleanUci = parts[0];
-                duck_sq = this.#squareToIndex(parts[1].replace(/[^a-h1-8]/g, ''));
-            } else {
-                let fsMatch = cleanUci.match(/^([a-h][1-8][a-h][1-8][qrbn]?)([a-h][1-8])$/);
-                if (fsMatch) {
-                    cleanUci = fsMatch[1];
-                    duck_sq = this.#squareToIndex(fsMatch[2]);
-                }
-            }
+            let moveObj = {};
+            let promo = undefined;
+            let cleanUci = uciMove.trim();
 
-            const from = cleanUci.substring(0, 2);
-            const to = cleanUci.substring(2, 4);
-            const promo = cleanUci.length > 4 ? cleanUci.substring(4, 5) : undefined;
-            
-            const fromIdx = this.#squareToIndex(from);
-            const toIdx = this.#squareToIndex(to);
+            if (cleanUci.includes('@')) {
+                // Drop move (Crazyhouse/Bughouse)
+                let parts = cleanUci.split('@');
+                moveObj.from = '@';
+                moveObj.drop = parts[0].toLowerCase() || 'p';
+                moveObj.to = this.#squareToIndex(parts[1].replace(/[^a-h1-8]/g, ''));
+            } else {
+                let duck_sq = undefined;
+                if (cleanUci.includes(',')) {
+                    let parts = cleanUci.split(',');
+                    cleanUci = parts[0];
+                    duck_sq = this.#squareToIndex(parts[1].replace(/[^a-h1-8]/g, ''));
+                } else {
+                    // Extract Duck Square if it exists cleanly
+                    let fsMatch = cleanUci.match(/^([a-h][1-8][a-h][1-8][qrbn]?)([a-h][1-8])$/);
+                    if (fsMatch) {
+                        cleanUci = fsMatch[1];
+                        duck_sq = this.#squareToIndex(fsMatch[2]);
+                    }
+                }
+
+                moveObj.from = this.#squareToIndex(cleanUci.substring(0, 2));
+                moveObj.to = this.#squareToIndex(cleanUci.substring(2, 4));
+                promo = cleanUci.length > 4 ? cleanUci.substring(4, 5) : undefined;
+                if (duck_sq !== undefined) moveObj.duck_sq = duck_sq;
+            }
             
             if (this.isPlayingLiveGame && typeof this.goToEnd === 'function') {
                 this.goToEnd();
             }
-            
-            const moveObj = { from: fromIdx, to: toIdx };
-            if (duck_sq !== undefined) moveObj.duck_sq = duck_sq;
 
             const result = this.makeMove(moveObj, promo, false, null, false);
             if (result && typeof window !== 'undefined' && window.ui) {
@@ -781,7 +785,7 @@ return move.san;
 
         if (line === 'readyok') {
             window.engineReady = true; 
-            window.engineBooting = false; // 🔥 Engine is fully awake!
+            window.engineBooting = false; 
 
             if (this.mode === 'bot' && this._pendingBotStart) {
                 this._pendingBotStart = false;
@@ -793,8 +797,6 @@ return move.san;
             }
 
             const isAnalysingOrStudy = (this.mode === 'analysis' || this.mode === 'study');
-            
-            // 🔥 YES! This is where the 'position fen' and 'go depth' are officially triggered!
             if (isAnalysingOrStudy && window.engineAnalysing && this._pendingFen) {
                 const targetFen = this._pendingFen;
                 this.analyzingNode = this._pendingNode;
@@ -832,7 +834,6 @@ return move.san;
                 window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
 
                 const nnueFile = nnueMap[this.gameMode];
-                console.log(nnueFile);
                 if (nnueFile) {
                     fetch('./engine/nnue/' + nnueFile)
                         .then(res => {
@@ -840,12 +841,7 @@ return move.san;
                             return res.arrayBuffer();
                         })
                         .then(buffer => {
-                            window.sfWorker.postMessage({
-                                action: 'INJECT_NNUE',
-                                name: nnueFile,
-                                buffer: buffer
-                            });
-                            
+                            window.sfWorker.postMessage({ action: 'INJECT_NNUE', name: nnueFile, buffer: buffer });
                             setTimeout(() => {
                                 window.sfWorker.postMessage('setoption name EvalFile value ' + nnueFile);
                                 window.sfWorker.postMessage('isready'); 
@@ -871,8 +867,8 @@ return move.san;
         if (line.startsWith('bestmove')) {
             const liveTurn = this.currentLiveTurn || this.turn;
             if (this.mode === 'bot' && liveTurn === this.botColor) {
-                const match = line.match(/bestmove\s+([a-h][1-8][a-h][1-8][qrbn]?(?:[,@][a-h][1-8]{1,2})?)/);
-                console.log(match);
+                // 🔥 FIX: Match any continuous string to catch e2e4d5 (Duck) AND P@e4 (Crazyhouse)
+                const match = line.match(/bestmove\s+(\S+)/);
                 const isVerifying = !!this.verifyingBookMove;
                 const candidate = this.verifyingBookMove;
                 const score = this.verifyingBookScore;
@@ -887,26 +883,20 @@ return move.san;
                 if (match) {
                     let moveUCI = match[1];
 
-                    // Did we just verify a book move?
                     if (isVerifying) {
                         let isBadMove = false;
-                        
-                        if (type === 'mate' && score < 0) {
-                            isBadMove = true;
-                        } else if (type === 'cp' && (score === null || score < threshold)) {
-                            isBadMove = true;
-                        }
+                        if (type === 'mate' && score < 0) isBadMove = true;
+                        else if (type === 'cp' && (score === null || score < threshold)) isBadMove = true;
 
                         if (isBadMove) {
-                            console.log(`%c[BOT] Book move ${candidate} rejected (Score: ${score}). Recalculating...`, "color:#fa412d");
+                            console.log(`%c[BOT] Book move ${candidate} rejected. Recalculating...`, "color:#fa412d");
                             this.#triggerBotMove(true); 
                         } else {
-                            console.log(`%c[BOT] Book move ${candidate} verified (Score: ${score}).`, "color:#96bc4b");
+                            console.log(`%c[BOT] Book move ${candidate} verified.`, "color:#96bc4b");
                             this.#executeBotMoveWithDelay(candidate);
                         }
                         return;
                     }
-
                     this.#executeBotMoveWithDelay(moveUCI);
                 } else {
                     if (isVerifying) {
@@ -915,7 +905,14 @@ return move.san;
                         const legalMoves = this.#engine.moves({ verbose: true });
                         if (legalMoves.length > 0) {
                             const choice = legalMoves[0];
-                            this.#executeBotMoveWithDelay(choice.from + choice.to + (choice.promotion || ''));
+                            let fallbackUCI = "";
+                            if (choice.from === '@' || choice.drop || choice.flags === 'd') {
+                                fallbackUCI = (choice.drop || choice.piece).toUpperCase() + '@' + choice.to;
+                            } else {
+                                fallbackUCI = choice.from + choice.to + (choice.promotion || '');
+                                if (choice.duck_sq) fallbackUCI += choice.duck_sq;
+                            }
+                            this.#executeBotMoveWithDelay(fallbackUCI);
                         }
                     }
                 }
@@ -926,7 +923,6 @@ return move.san;
         if (line.startsWith('info') && line.includes('score')) {
             const multiPvMatch = line.match(/multipv (\d+)/);
             const lineIndex = multiPvMatch ? parseInt(multiPvMatch[1]) : 1;
-            
             const depthMatch = line.match(/depth (\d+)/);
             const depth = depthMatch ? parseInt(depthMatch[1]) : 0;
             const pvMatch = line.match(/ pv (.+)/);
@@ -954,11 +950,8 @@ return move.san;
             if (isBlackTurn) score *= -1; 
 
             if (type === 'mate') {
-                if (score === 0) {
-                    rawEval = isBlackTurn ? 100000 : -100000;
-                } else {
-                    rawEval = score > 0 ? 100000 - Math.abs(score) : -100000 + Math.abs(score);
-                }
+                if (score === 0) rawEval = isBlackTurn ? 100000 : -100000;
+                else rawEval = score > 0 ? 100000 - Math.abs(score) : -100000 + Math.abs(score);
             } else {
                 rawEval = score;
             }
@@ -966,7 +959,6 @@ return move.san;
             if (window.engineAnalysing && window.ui && window.ui.renderAnalysisLine && targetNode === this.currentNode) {
                 const placeholder = document.getElementById('calc-placeholder');
                 if (placeholder) placeholder.remove();
-
                 window.ui.renderAnalysisLine(lineIndex, type, score, rawMoves, currentFen);
             }
 
@@ -1020,15 +1012,10 @@ return move.san;
                         if (!window.chartUpdatePending) {
                             window.chartUpdatePending = true;
                             window.ui._lastChartedFen = null; 
-                            
                             requestAnimationFrame(() => { 
-                                try {
-                                    window.ui.renderCharts(); 
-                                } catch (e) {
-                                    console.error("Chart Render Error:", e);
-                                } finally {
-                                    window.chartUpdatePending = false; 
-                                }
+                                try { window.ui.renderCharts(); } 
+                                catch (e) { console.error("Chart Render Error:", e); } 
+                                finally { window.chartUpdatePending = false; }
                             });
                         }
                     }
@@ -1487,9 +1474,20 @@ return move.san;
             this.currentNode = newNode;
         }
 
+        // 🔥 THE FIX: Remove the hardcoded manual `.push()` to the flat arrays!
+        // Blindly pushing flat arrays destroys the branch structure in memory and forces the UI
+        // to treat the newly played sub-move as part of a flat, linear "mainline".
+        // Instead, we force the engine to dynamically recalculate the exact path from the root.
+        if (!isPVMove) {
+            if (typeof this.#syncMoveHistory === 'function') {
+                this.#syncMoveHistory();
+            }
+        }
+
         if (this.mode === 'analysis' && !this._isParsingPV) {
             this.#saveState('analysis');
         }
+        
         if (this.isLoadingPGN || isPVMove) return; 
         
         try {
@@ -4637,13 +4635,14 @@ resign() {
         }
     }
 makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = false) {
-    if (this.#engine && this.#engine.game_over()) return null;
+        if (this.#engine && this.#engine.game_over()) return null;
         const ui = (typeof window !== 'undefined' && window.ui) ? window.ui : null;
+        
         if (!this.isChess960 && move && move.from !== undefined && move.to !== undefined && this.#engine) {
             const fromStr = typeof move.from === 'number' && this.#indexToSquare ? this.#indexToSquare(move.from) : move.from;
             const toStr = typeof move.to === 'number' && this.#indexToSquare ? this.#indexToSquare(move.to) : move.to;
 
-            if (fromStr && toStr) {
+            if (fromStr && toStr && fromStr !== '@') {
                 const srcPiece = this.#engine.get(fromStr);
                 const tgtPiece = this.#engine.get(toStr);
                 const currTurn = this.#engine.turn();
@@ -4664,16 +4663,25 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
                 }
             }
         }
-        // =========================================================================
 
         const promotion = (promo && promo.length === 1) ? promo.toLowerCase() : undefined;
 
         if (batchMode) {
-            const result = this.#engine.move({
-                from: this.#indexToSquare(move.from),
-                to: this.#indexToSquare(move.to),
-                promotion: promotion || 'q'
-            });
+            const batchObj = {};
+            if (move.from === '@' || move.drop) {
+                batchObj.from = '@';
+                batchObj.drop = move.drop || move.piece;
+                batchObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
+            } else {
+                batchObj.from = typeof move.from === 'number' ? this.#indexToSquare(move.from) : move.from;
+                batchObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
+            }
+            batchObj.promotion = promotion || 'q';
+            if (move.duck_sq !== undefined) {
+                batchObj.duck_sq = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
+            }
+
+            const result = this.#engine.move(batchObj);
             if (!result) return null;
             const newFen = this.#engine.fen();
             this.#reconcileBoardIds(newFen, move);
@@ -4690,14 +4698,21 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             this.#startTimer();
         }
 
-        const moveObj = {
-            from: this.#indexToSquare(move.from),
-            to: this.#indexToSquare(move.to)
-        };
+        // 🔥 FIX: Build the move object natively for variant support!
+        const moveObj = {};
+        if (move.from === '@' || move.drop) {
+            moveObj.from = '@';
+            moveObj.drop = move.drop || move.piece;
+            moveObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
+        } else {
+            moveObj.from = typeof move.from === 'number' ? this.#indexToSquare(move.from) : move.from;
+            moveObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
+        }
         if (promotion) moveObj.promotion = promotion;
         if (move.duck_sq !== undefined) {
-            moveObj.duck_sq = this.#indexToSquare(move.duck_sq);
+            moveObj.duck_sq = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
         }
+        
         // ============================================================
         // INTERACTIVE LESSON INTERCEPTOR 
         // ============================================================
@@ -4747,6 +4762,7 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
 
         const newFen = this.#engine.fen();
         const nextTurn = this.#engine.turn(); 
+
         // --- PUZZLE LOGIC ---
         if (this.mode === 'puzzle') {
             const userStr = (result.from + result.to + (result.promotion || '')).toLowerCase();
@@ -4808,7 +4824,7 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             let resultStr = "1/2-1/2";
             let statusMsg = "Draw by agreement";
 
-            // 1. Check if a VARIANT specifically ended the game (like 3-check or atomic)
+            // 1. Check if a VARIANT specifically ended the game
             let variantWinner = typeof this.#engine.variant_winner === 'function' ? this.#engine.variant_winner() : null;
 
             if (variantWinner !== null) {
@@ -4816,7 +4832,6 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
                 resultStr = winnerColor === 'White' ? "1-0" : "0-1";
                 statusMsg = `${winnerColor} wins by Variant Rules`;
             } 
-            // 2. Otherwise check for standard conditions
             else if (this.#engine.in_checkmate()) {
                 const winnerColor = this.turn === 'w' ? 'Black' : 'White';
                 resultStr = winnerColor === 'White' ? "1-0" : "0-1";
@@ -4842,8 +4857,10 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             }
             return result;
         }
+        
         const liveTurn = this.currentLiveTurn || this.turn;
         const isBotTurn = (this.mode === 'bot' && liveTurn === this.botColor);
+        
         // --- BOT LOGIC ---
         if (this.isPlayingLiveGame && isBotTurn) {
             setTimeout(() => this.#triggerBotMove(), 250);
