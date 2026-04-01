@@ -5504,24 +5504,23 @@ hoverEngineMove(fen, e, duckSq = -1) {
         
         grid.innerHTML = ''; 
         
-        // ✨ DUCK FIX: Convert duckSq (e.g. 'c6' or 18) into a standard 0-63 grid index!
+        // ✨ DUCK MATH FIX: Treat duckSq perfectly as a dense 0-63 index (0 = a1, 63 = h8)
         let targetGridIndex = -1;
         if (duckSq !== -1 && duckSq !== undefined && duckSq !== null) {
             let sqStr = "";
             if (typeof duckSq === 'number') {
-                // It's a 0x88 index, convert to string (e.g., 18 -> "c6")
-                const file = duckSq & 7;
-                const rank = duckSq >> 4;
-                sqStr = String.fromCharCode(97 + file) + (8 - rank);
+                // Divide by 8 for Rank, Modulo 8 for File!
+                const file = duckSq % 8;
+                const rank = Math.floor(duckSq / 8); 
+                sqStr = String.fromCharCode(97 + file) + (rank + 1);
             } else if (typeof duckSq === 'string') {
-                // It's already a string (e.g., "c6")
-                sqStr = duckSq;
+                sqStr = duckSq.toLowerCase();
             }
             
-            // Convert string to 0-63 grid index (0 is a8, 63 is h1)
-            if (sqStr && sqStr.length === 2) {
+            // Convert String (e.g. "c6") to visual FEN grid index (0 is a8, 63 is h1)
+            if (sqStr && sqStr.length >= 2) {
                 const fileIdx = sqStr.charCodeAt(0) - 97; // 0-7
-                const rankIdx = 8 - parseInt(sqStr[1]);   // 0-7 (Rank 8 is index 0)
+                const rankIdx = 8 - parseInt(sqStr[1], 10);   // 0-7
                 targetGridIndex = rankIdx * 8 + fileIdx;
             }
         }
@@ -5535,7 +5534,14 @@ hoverEngineMove(fen, e, duckSq = -1) {
             for (let char of rankStr) { 
                 if (isNaN(char)) {
                     let currentSq = r * 8 + fileIdx;
-                    let renderPiece = (currentSq === targetGridIndex) ? 'duck' : char;
+                    let renderPiece = char;
+                    
+                    // Safely erase any ghost asterisks left in the raw FEN
+                    if (char === '*') renderPiece = null;
+                    
+                    // Force the actual target Duck onto the correct square
+                    if (currentSq === targetGridIndex) renderPiece = 'duck';
+                    
                     this.renderPreviewSquare(grid, r, fileIdx, renderPiece); 
                     fileIdx++;
                 } else {
@@ -5550,7 +5556,8 @@ hoverEngineMove(fen, e, duckSq = -1) {
             }
         }
     }
-renderPreviewSquare(container, r, c, pieceChar) {
+
+    renderPreviewSquare(container, r, c, pieceChar) {
         const isLight = (r + c) % 2 === 0;
         const sq = document.createElement('div');
         sq.className = `preview-square ${isLight ? 'light' : 'dark'}`;
@@ -5590,7 +5597,8 @@ renderPreviewSquare(container, r, c, pieceChar) {
         
         if (pieceChar) {
             let color, type;
-            // 🔥 DUCK FIX: Convert internal preview duck flag into the actual Duck SVG request
+            
+            // ✨ IMAGE FIX: Routes 'duck' to your getPieceHTML perfectly
             if (pieceChar === 'duck') {
                 color = 'none';
                 type = 'duck';
@@ -5609,6 +5617,8 @@ renderPreviewSquare(container, r, c, pieceChar) {
                     htmlBuffer = `<img src="data:image/svg+xml;charset=utf-8,${encodedSVG}" style="width:100%; height:100%; object-fit:contain; display:block; pointer-events:none; margin:0; padding:0;" draggable="false">`;
                 } else if (trimmed.startsWith('data:image/') || trimmed.startsWith('http') || trimmed.endsWith('.svg') || trimmed.endsWith('.png')) {
                     htmlBuffer = `<img src="${trimmed}" style="width:100%; height:100%; object-fit:contain; display:block; pointer-events:none; margin:0; padding:0;" draggable="false">`;
+                } else if (trimmed.startsWith('<img')) {
+                    htmlBuffer = trimmed; // Injects your native duck <img> tag flawlessly!
                 }
             }
 
@@ -5624,7 +5634,7 @@ renderPreviewSquare(container, r, c, pieceChar) {
             pDiv.style.alignItems = 'center';
             pDiv.style.transformOrigin = 'center'; 
             
-            pDiv.innerHTML = htmlBuffer;
+            pDiv.innerHTML = htmlBuffer || '';
             sq.appendChild(pDiv);
         }
         
