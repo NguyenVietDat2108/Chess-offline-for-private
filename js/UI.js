@@ -2700,7 +2700,17 @@ drawGhostPiece(container, sqIdx, pieceType, color) {
         const finalFile = this.flipped ? 7 - file : file;
         const finalRank = this.flipped ? 7 - rank : rank;
 
-        const rawSVG = this.getPieceHTML({ type: pieceType.toUpperCase(), color: color });
+        // ✨ FIX: Do not uppercase if it's the duck!
+        let queryType = pieceType;
+        let queryColor = color;
+        if (pieceType === '*' || pieceType.toLowerCase() === 'duck') {
+            queryType = 'duck';
+            queryColor = 'none';
+        } else {
+            queryType = pieceType.toUpperCase();
+        }
+
+        const rawSVG = this.getPieceHTML({ type: queryType, color: queryColor });
         let htmlBuffer = rawSVG;
         
         if (rawSVG) {
@@ -2710,6 +2720,9 @@ drawGhostPiece(container, sqIdx, pieceType, color) {
                 htmlBuffer = `<img src="data:image/svg+xml;charset=utf-8,${encodedSVG}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
             } else if (trimmed.startsWith('data:image/') || trimmed.startsWith('http') || trimmed.endsWith('.svg') || trimmed.endsWith('.png')) {
                 htmlBuffer = `<img src="${trimmed}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
+            } else if (trimmed.startsWith('<img')) {
+                // ✨ FIX: If getPieceHTML already returned an <img> tag (like your duck), use it directly!
+                htmlBuffer = trimmed;
             }
         }
 
@@ -2722,7 +2735,7 @@ drawGhostPiece(container, sqIdx, pieceType, color) {
         div.style.zIndex = "45"; 
         div.classList.add("ghost-suggestion");
         
-        div.innerHTML = htmlBuffer;
+        div.innerHTML = htmlBuffer || '';
         board.appendChild(div);
     }
 clearGhostPiece() {
