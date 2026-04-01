@@ -1094,7 +1094,9 @@ return move.san;
                     const arrowRoot = document.getElementById('tempArrowRoot');
                     if (arrowRoot && window.ui) {
                         arrowRoot.innerHTML = '';
-                        document.querySelectorAll('.ghost-suggestion').forEach(el => el.remove());
+                        if (window.ui && typeof window.ui.clearGhostPiece === 'function') {
+                            window.ui.clearGhostPiece(); // ✨ Wipes HTML and Memory!
+                        }
 
                         if (rawMoves.length > 0) {
                             let bestMove = rawMoves[0];
@@ -2954,7 +2956,9 @@ updateStockfish() {
             if (box) box.innerHTML = ''; 
             const arrowRoot = document.getElementById('tempArrowRoot');
             if (arrowRoot) arrowRoot.innerHTML = '';
-            document.querySelectorAll('.ghost-suggestion').forEach(el => el.remove());
+            if (window.ui && typeof window.ui.clearGhostPiece === 'function') {
+            window.ui.clearGhostPiece(); // ✨ Wipes HTML and Memory!
+            }
             const depthEl = document.getElementById('depth-display');
             if (depthEl) depthEl.innerText = '';
             
