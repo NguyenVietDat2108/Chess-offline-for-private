@@ -562,6 +562,7 @@ resizeApp() {
         const studySidebar = document.getElementById('study-sidebar'); 
         const bottomPanel = document.getElementById('studyBottomPanel'); 
         const mainSidebar = document.getElementById('mainSidebar'); 
+        const pocketContainer = document.getElementById('pocket-container');
 
         const game = window.game;
         const isAnalysis = game ? game.isAnalysisMode : false;
@@ -576,7 +577,7 @@ resizeApp() {
                 let state = typeof game.getReader === 'function' ? game.getReader() : null;
                 let gMode = state ? state.gameMode : game.gameMode;
                 if (gMode === 'duck') isDuckMode = true;
-                if (gMode === 'crazyhouse' || gMode === 'bughouse') isPocketMode = true;
+                if (gMode === 'crazyhouse' || gMode === 'bughouse' || gMode === 'placement') isPocketMode = true;
             }
         } catch(err) {
             console.warn("Caught early read error in resizeApp:", err);
@@ -590,9 +591,24 @@ resizeApp() {
             if (mainContainer) mainContainer.style.justifyContent = 'center';
         }
 
-        if (mainSidebar) mainSidebar.style.height = '';
-        if (studySidebar) studySidebar.style.height = '';
-        if (analysisPanel) analysisPanel.style.height = '';
+        // Toggle Pocket Container display
+        if (pocketContainer) {
+            pocketContainer.style.display = isPocketMode ? 'flex' : 'none';
+        }
+
+        // ====================================================================
+        // ✨ THE FIX: CRUSH THE SIDEBARS TO 0px BEFORE MEASURING THE BOARD!
+        // This forces the PGN text to stop holding the flex container height hostage.
+        // ====================================================================
+        [mainSidebar, studySidebar, analysisPanel].forEach(el => {
+            if (el) {
+                el.style.height = '0px';
+                el.style.minHeight = '0px';
+                el.style.maxHeight = '0px';
+                el.style.overflow = 'hidden'; 
+            }
+        });
+        if (bottomPanel) bottomPanel.style.display = 'none';
 
         // Reset margins temporarily so height calculation doesn't infinitely loop
         if (boardSection) {
@@ -600,30 +616,29 @@ resizeApp() {
             boardSection.style.marginBottom = '0px';
         }
 
-        const boardSecHeight = boardSection ? boardSection.offsetHeight : 936;
-        const safeSidebarHeight = Math.max(936, boardSecHeight);
-        let targetHeight = Math.max(986, safeSidebarHeight + 50); 
+        // Force layout recalculation with crushed sidebars
+        void document.body.offsetHeight;
 
-        // ✨ CRAZYHOUSE FIX: Make 180px of vertical room for the pockets!
-        if (isPocketMode) {
-            targetHeight += 180;
-            if (boardSection) {
-                boardSection.style.marginTop = '90px';
-                boardSection.style.marginBottom = '90px';
+        // NOW get the true height (Pocket HTML natively adds to width, not height!)
+        const boardSecHeight = boardSection ? boardSection.offsetHeight : 600;
+        const safeSidebarHeight = Math.max(300, boardSecHeight); 
+        let targetHeight = safeSidebarHeight + 50; 
+
+        // Restore sidebar dimensions
+        [mainSidebar, studySidebar, analysisPanel].forEach(el => {
+            if (el) {
+                el.style.height = safeSidebarHeight + 'px';
+                el.style.maxHeight = safeSidebarHeight + 'px';
+                el.style.minHeight = '0px';
+                el.style.overflow = '';
+                el.style.display = (el.id === 'study-sidebar' && !isStudy) || (el.id === 'analysisPanel' && !isAnalysis) ? 'none' : 'flex';
+                el.style.flexDirection = 'column';
             }
-        }
-
-        if (mainSidebar) mainSidebar.style.height = safeSidebarHeight + 'px';
-        if (studySidebar) studySidebar.style.height = safeSidebarHeight + 'px';
-        if (analysisPanel) analysisPanel.style.height = safeSidebarHeight + 'px';
+        });
 
         // ==========================================================
         // FORCE THE PGN TABS TO COLLAPSE AND SCROLL
         // ==========================================================
-        if (mainSidebar) mainSidebar.style.maxHeight = safeSidebarHeight + 'px';
-        if (studySidebar) studySidebar.style.maxHeight = safeSidebarHeight + 'px';
-        if (analysisPanel) analysisPanel.style.maxHeight = safeSidebarHeight + 'px';
-
         document.querySelectorAll('.tabs-content, .tab-pane').forEach(el => {
             if (el) {
                 el.style.display = 'flex';
@@ -650,6 +665,7 @@ resizeApp() {
         };
 
         const leftW = isStudy ? getW(studySidebar) : (isAnalysis ? getW(analysisPanel) : 0);
+        
         const boardW = boardSection ? boardSection.offsetWidth : 650;
         const rightW = getW(mainSidebar);
 
@@ -662,10 +678,22 @@ resizeApp() {
         } else {
             if (boardSection) boardSection.style.marginLeft = '0px';
         }
-        if (isPocketMode) {
-            targetWidth += 40;
-            if (boardSection) boardSection.style.marginRight = '40px';
+        
+        // ✨ EXACT FIX 1: Mathematically add the width of the pocket if it exists!
+        let pocketW = 0;
+        if (isPocketMode && pocketContainer && pocketContainer.style.display !== 'none') {
+            pocketW = getW(pocketContainer) > 0 ? getW(pocketContainer) + 10 : 140; // ~130px width + margins
+            targetWidth += pocketW;
         }
+
+        // ✨ EXACT FIX 2: Mathematically add the width of the Eval Bar if it is visible!
+        let evalW = 0;
+        const enginePanel = document.getElementById('enginePanel');
+        if (enginePanel && enginePanel.style.display !== 'none') {
+            evalW = getW(enginePanel) > 0 ? getW(enginePanel) + 10 : 35; // ~25px width + gap
+            targetWidth += evalW;
+        }
+        
         targetWidth += boardW;                      
         if (rightW > 0) targetWidth += rightW + 40; 
         
@@ -684,7 +712,8 @@ resizeApp() {
                 const lW = getW(studySidebar);
                 const pW = getW(mainSidebar);
                 
-                let exactWidth = lW + boardW + pW;
+                // ✨ Update chart width to match the newly expanded target width (Board + Pocket + Eval)
+                let exactWidth = lW + boardW + pW + pocketW + evalW;
                 if (lW > 0) exactWidth += 40; 
                 if (pW > 0) exactWidth += 40; 
                 
@@ -739,6 +768,7 @@ resizeApp() {
         totalLogicalHeight = Math.max(totalLogicalHeight, logicalHeight);
         let totalLogicalWidth = isStudy ? (targetWidth + 300 + 50) : targetWidth;
         totalLogicalWidth = Math.max(totalLogicalWidth, logicalWidth);
+        
         // 1. Force all background overlays to exactly cover the physical monitor
         const fullScreenModals = [
             'botMenuModal', 'continueSetupModal', 'gameOverModal', 
@@ -768,13 +798,11 @@ resizeApp() {
                 
                 if (modalBox) {
                     if (id === 'notificationModal'||id==='gameOverModal') {
-                        // Match this to the 280px you set in your CSS!
                         modalBox.style.setProperty('width', '280px', 'important');
                     } else {
                         modalBox.style.setProperty('width', '480px', 'important');
                     }
                     
-                    // The JS now applies scale to the wrapper, leaving the inner animation alone
                     modalBox.style.setProperty('transform', `scale(${scale})`, 'important');
                     modalBox.style.transformOrigin = 'center center';
                 }
@@ -819,7 +847,6 @@ resizeApp() {
                     document.body.appendChild(popup);
                 }
                 
-                // Keep them fixed relative to the screen
                 popup.style.position = 'fixed'; 
                 popup.style.zIndex = '999';
             }
@@ -1811,78 +1838,90 @@ renderArrows() {
         });
     }
 renderPockets(pocket) {
+        const pocketContainer = document.getElementById('pocket-container');
         let topPocket = document.getElementById('top-pocket');
         let bottomPocket = document.getElementById('bottom-pocket');
-        
-        // ✨ UI FIX: Position pockets ABSOLUTELY to the RIGHT side, just like duckBank on the left!
-        if (!topPocket) {
-            topPocket = document.createElement('div');
-            topPocket.id = 'top-pocket';
-            topPocket.style.cssText = 'position: absolute; right: -85px; top: 0; width: 65px; height: 50%; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: flex-start; z-index: 10; pointer-events: none;';
-            if (this.boardWrapper) this.boardWrapper.appendChild(topPocket);
-        }
-        
-        if (!bottomPocket) {
-            bottomPocket = document.createElement('div');
-            bottomPocket.id = 'bottom-pocket';
-            bottomPocket.style.cssText = 'position: absolute; right: -85px; bottom: 0; width: 65px; height: 50%; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: flex-end; z-index: 10; pointer-events: none;';
-            if (this.boardWrapper) this.boardWrapper.appendChild(bottomPocket);
-        }
-
-        topPocket.innerHTML = '';
-        bottomPocket.innerHTML = '';
 
         const gameMode = window.game ? window.game.gameMode : 'classical';
-        if (gameMode !== 'crazyhouse' && gameMode !== 'bughouse') {
-            topPocket.style.display = 'none';
-            bottomPocket.style.display = 'none';
+        const isPocketMode = (gameMode === 'crazyhouse' || gameMode === 'bughouse' || gameMode === 'placement');
+
+        // 1. Hide container if no pieces or wrong mode
+        if (!isPocketMode || !pocket || (!pocket.w.length && !pocket.b.length)) {
+            if (pocketContainer) pocketContainer.style.display = 'none';
+            if (topPocket) topPocket.innerHTML = '';
+            if (bottomPocket) bottomPocket.innerHTML = '';
             return;
-        } else {
-            topPocket.style.display = 'flex';
-            bottomPocket.style.display = 'flex';
         }
+
+        // 2. Show container
+        if (pocketContainer) pocketContainer.style.display = 'flex';
+        if (topPocket) topPocket.innerHTML = '';
+        if (bottomPocket) bottomPocket.innerHTML = '';
 
         const isFlipped = this.flipped;
         const topColor = isFlipped ? 'w' : 'b';
         const bottomColor = isFlipped ? 'b' : 'w';
 
         const drawPocket = (container, color) => {
-            if (!pocket || !pocket[color]) return;
+            if (!pocket || !pocket[color] || !container) return;
             const pieceCounts = {};
             pocket[color].forEach(pType => pieceCounts[pType] = (pieceCounts[pType] || 0) + 1);
             
-            // Order pieces visually from strongest to weakest
-            const pieceChars = ['q', 'r', 'b', 'n', 'p'];
+            const pieceChars = ['k', 'q', 'r', 'b', 'n', 'p']; 
             
             pieceChars.forEach(pChar => {
-                const pType = ['p','n','b','r','q'].indexOf(pChar);
+                const pType = ['p','n','b','r','q','k'].indexOf(pChar); 
+                
                 if (pieceCounts[pType]) {
                     const el = document.createElement('div');
+                    // Size set to 55px so pieces perfectly fit side-by-side in the new 130px container!
                     el.style.cssText = 'position: relative; width: 55px; height: 55px; cursor: grab; pointer-events: auto; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid #444;';
                     
-                    const rawHTML = this.getPieceHTML({ color: color, type: pChar.toUpperCase() });
-                    let imgHTML = rawHTML;
+                    const rawHTML = this.getPieceHTML({ color: color, type: pChar }); 
+                    
+                    let staticImgHTML = rawHTML;
                     if (rawHTML) {
                         let trimmed = rawHTML.trim();
                         if (trimmed.startsWith('<svg')) {
-                            imgHTML = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}" style="width:100%; height:100%; pointer-events:none;">`;
+                            staticImgHTML = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}" style="width:100%; height:100%; pointer-events:none;">`;
                         } else if (trimmed.startsWith('data:image/') || trimmed.startsWith('http') || trimmed.endsWith('.svg') || trimmed.endsWith('.png')) {
-                            imgHTML = `<img src="${trimmed}" style="width:100%; height:100%; pointer-events:none;">`;
+                            staticImgHTML = `<img src="${trimmed}" style="width:100%; height:100%; pointer-events:none;">`;
+                        }
+                    }
+
+                    let pulseClass = (this.animationsEnabled !== false) ? " piece-heartbeat" : "";
+                    let ghostHTML = rawHTML;
+                    if (rawHTML) {
+                        let trimmed = rawHTML.trim();
+                        if (trimmed.startsWith('<svg')) {
+                            ghostHTML = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}" class="piece-img${pulseClass}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
+                        } else if (trimmed.startsWith('data:image/') || trimmed.startsWith('http') || trimmed.endsWith('.svg') || trimmed.endsWith('.png')) {
+                            ghostHTML = `<img src="${trimmed}" class="piece-img${pulseClass}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
                         }
                     }
 
                     el.innerHTML = `
-                        <div style="position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; padding: 3px;">${imgHTML}</div>
+                        <div style="position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; padding: 3px;">${staticImgHTML}</div>
                         ${pieceCounts[pType] > 1 ? `<div style="position: absolute; bottom: -6px; left: -6px; font-weight: bold; color: white; text-shadow: 1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black; font-size: 15px; z-index: 2; pointer-events:none; background: #c33; padding: 1px 6px; border-radius: 6px; border: 1px solid white;">${pieceCounts[pType]}</div>` : ''}
                     `;
                     
-                    const handleDragStart = (clientX, clientY) => {
-                        this.dragData = { source: '@', piece: pChar, color: color };
-                        this.draggedPieceGhost.style.backgroundImage = 'none'; 
-                        this.draggedPieceGhost.innerHTML = `<div style="width:100%; height:100%;">${imgHTML}</div>`;
-                        this.draggedPieceGhost.style.display = 'block';
+                    const handleDragStart = (e) => {
+                        let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                        let clientY = e.touches ? e.touches[0].clientY : e.clientY;
                         
-                        // Size ghost perfectly to the board's squares
+                        this.dragData = { source: '@', piece: pChar, color: color };
+                        
+                        if (typeof this.initDragGhost === 'function') {
+                            this.initDragGhost(e, ghostHTML);
+                        } else {
+                            this.draggedPieceGhost.style.backgroundImage = 'none'; 
+                            this.draggedPieceGhost.innerHTML = ghostHTML; 
+                            this.draggedPieceGhost.style.display = 'block';
+                        }
+                        
+                        this.draggedPieceGhost.classList.add('piece', 'animating');
+                        el.classList.add('dragging-source');
+                        
                         const sqWidth = this.boardEl.offsetWidth / 8;
                         const sqHeight = this.boardEl.offsetHeight / 8;
                         this.draggedPieceGhost.style.width = sqWidth + 'px';
@@ -1891,7 +1930,6 @@ renderPockets(pocket) {
                         const scaler = document.getElementById('app-scaler') || document.body;
                         
                         const updateGhostPosition = (cx, cy) => {
-                            // ✨ UI SCALE FIX: Undo the transform distortion so the piece tracks the mouse exactly!
                             const rect = scaler.getBoundingClientRect();
                             const scale = window.appScale || 1;
                             const logicalX = (cx - rect.left) / scale;
@@ -1916,6 +1954,9 @@ renderPockets(pocket) {
                             
                             this.draggedPieceGhost.style.display = 'none';
                             
+                            this.draggedPieceGhost.classList.remove('piece', 'animating');
+                            el.classList.remove('dragging-source');
+                            document.body.classList.remove('grabbing');
                             let cx = upEvent.changedTouches ? upEvent.changedTouches[0].clientX : upEvent.clientX;
                             let cy = upEvent.changedTouches ? upEvent.changedTouches[0].clientY : upEvent.clientY;
                             
@@ -1925,8 +1966,11 @@ renderPockets(pocket) {
                                 const rank = 7 - Math.floor((cy - rect.top) / (rect.height / 8));
                                 const sq = String.fromCharCode(97 + (this.flipped ? 7 - file : file)) + (this.flipped ? 8 - rank : rank + 1);
                                 
-                                if (window.game && typeof window.game.makeMove === 'function') {
-                                    window.game.makeMove({ from: '@', to: sq, drop: pChar }, undefined, true);
+                                if (typeof this.executeMove === 'function') {
+                                    this.executeMove({ from: '@', to: sq, drop: pChar }, true);
+                                } else if (window.game && typeof window.game.makeMove === 'function') {
+                                    window.game.makeMove({ from: '@', to: sq, drop: pChar });
+                                    if (typeof this.renderBoard === 'function') this.renderBoard(true);
                                 }
                             }
                             this.dragData = null;
@@ -1938,15 +1982,20 @@ renderPockets(pocket) {
                         document.addEventListener('touchend', onUp);
                     };
 
-                    el.addEventListener('mousedown', (e) => { if (e.button !== 0) return; e.preventDefault(); handleDragStart(e.clientX, e.clientY); });
-                    el.addEventListener('touchstart', (e) => { e.preventDefault(); handleDragStart(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
+                    el.addEventListener('mousedown', (e) => { if (e.button !== 0) return; e.preventDefault(); handleDragStart(e); });
+                    el.addEventListener('touchstart', (e) => { e.preventDefault(); handleDragStart(e); }, {passive: false});
                     container.appendChild(el);
                 }
             });
         };
 
-        drawPocket(topPocket, topColor);
-        drawPocket(bottomPocket, bottomColor);
+        if (this.flipped) {
+            drawPocket(topPocket, 'w');
+            drawPocket(bottomPocket, 'b');
+        } else {
+            drawPocket(topPocket, 'b');
+            drawPocket(bottomPocket, 'w');
+        }
 
         if (typeof this.resizeApp === 'function') this.resizeApp();
     }
@@ -2576,12 +2625,15 @@ initDragGhost(e, html) {
             safeContent = `<img src="data:image/svg+xml;charset=utf-8,${encodedSVG}" style="width:100%; height:100%; display:block;">`;
         }
 
-        // Manually construct classes to ensure NO 'in-check' or 'selected' classes are present
+        // ✨ THE FIX: Safely parse the data whether it came from the Board (Object) or Pocket (String)
         const p = this.dragData.piece;
-        const colorClass = p.color === 'w' ? 'piece-w' : 'piece-b';
-        const cleanClasses = `piece ${colorClass} ${p.type}`;
+        const pColor = typeof p === 'object' ? p.color : this.dragData.color;
+        const pType = typeof p === 'object' ? p.type : p;
 
-        // Inline styles with !important to override any CSS animations
+        const colorClass = pColor === 'w' ? 'piece-w' : 'piece-b';
+        const cleanClasses = `piece ${colorClass} ${pType}`;
+
+        // Inline styles with !important to override any CSS animations inside the wrapper
         this.draggedPieceGhost.innerHTML = `<div class="${cleanClasses}" style="width:100%; height:100%; transition: none !important; animation: none !important; transform: none !important;">${safeContent}</div>`;
         
         this.draggedPieceGhost.style.display = 'block';
@@ -2594,14 +2646,17 @@ initDragGhost(e, html) {
         this.draggedPieceGhost.style.transition = 'none';
         this.draggedPieceGhost.style.animation = 'none';
 
+        // Apply correct ghost class based on the safely extracted color
         this.draggedPieceGhost.className = '';
-        if (p.color === 'w') {
+        if (pColor === 'w') {
             this.draggedPieceGhost.classList.add('ghost-w');
         } else {
             this.draggedPieceGhost.classList.add('ghost-b');
         }
 
-        this.updateGhostPosition(e);
+        if (typeof this.updateGhostPosition === 'function') {
+            this.updateGhostPosition(e);
+        }
         document.body.classList.add('grabbing');
     }
 updateGhostPosition(e) {
@@ -2630,9 +2685,61 @@ updateGhostPosition(e) {
         this.draggedPieceGhost.style.left = (localX - w / 2) + 'px';
         this.draggedPieceGhost.style.top = (localY - h / 2) + 'px';
     }
+drawGhostPiece(container, sqIdx, pieceType, color) {
+        // ✨ SAVE STATE: Remember the ghost so it can survive theme changes!
+        this._lastGhostParams = { sqIdx, pieceType, color };
+
+        const board = this.boardEl;
+        if (!board) return;
+        
+        board.querySelectorAll('.ghost-suggestion').forEach(el => el.remove());
+
+        const size = 100 / 8;
+        const file = sqIdx % 8;
+        const rank = Math.floor(sqIdx / 8);
+        const finalFile = this.flipped ? 7 - file : file;
+        const finalRank = this.flipped ? 7 - rank : rank;
+
+        const rawSVG = this.getPieceHTML({ type: pieceType.toUpperCase(), color: color });
+        let htmlBuffer = rawSVG;
+        
+        if (rawSVG) {
+            const trimmed = rawSVG.trim();
+            if (trimmed.startsWith('<svg')) {
+                const encodedSVG = encodeURIComponent(trimmed);
+                htmlBuffer = `<img src="data:image/svg+xml;charset=utf-8,${encodedSVG}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
+            } else if (trimmed.startsWith('data:image/') || trimmed.startsWith('http') || trimmed.endsWith('.svg') || trimmed.endsWith('.png')) {
+                htmlBuffer = `<img src="${trimmed}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
+            }
+        }
+
+        const div = document.createElement("div");
+        div.style.position = "absolute";
+        div.style.left = (finalFile * size) + "%";
+        div.style.top = (finalRank * size) + "%";
+        div.style.width = size + "%";
+        div.style.height = size + "%";
+        div.style.zIndex = "45"; 
+        div.classList.add("ghost-suggestion");
+        
+        div.innerHTML = htmlBuffer;
+        board.appendChild(div);
+    }
+clearGhostPiece() {
+        this._lastGhostParams = null;
+        if (this.boardEl) {
+            this.boardEl.querySelectorAll('.ghost-suggestion').forEach(el => el.remove());
+        }
+    }
+redrawGhostPiece() {
+        if (this._lastGhostParams && this.boardEl) {
+            this.drawGhostPiece(this.boardEl, this._lastGhostParams.sqIdx, this._lastGhostParams.pieceType, this._lastGhostParams.color);
+        }
+    }
 startDrag(e, idx, piece) {
         const state = window.game ? window.game.getReader() : null;
         if (!state) return;
+        
         if (this.duckPlacementMoves) {
             if (piece.type === 'duck') {
                 e.preventDefault(); e.stopPropagation();
@@ -2641,26 +2748,28 @@ startDrag(e, idx, piece) {
                 let rawSVG = this.getPieceHTML(piece);
                 let ghostHTML = rawSVG;
                 if (rawSVG && rawSVG.trim().startsWith('<svg')) {
-                    ghostHTML = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(rawSVG.trim())}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
+                    ghostHTML = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(rawSVG.trim())}" class="piece-img piece-heartbeat" style="width:100%; height:100%; display:block; pointer-events:none;">`;
                 }
                 
                 this.initDragGhost(e, ghostHTML);
                 
-                // Visually dim the duck source while dragging
+                // ✨ CSS FIX: Inject user's custom .piece.animating class to the ghost!
+                this.draggedPieceGhost.classList.add('piece', 'animating');
+                
                 if (idx === 'bank') {
                     const bank = document.getElementById('duckBank');
-                    if (bank) bank.style.opacity = '0.3';
+                    if (bank) bank.classList.add('dragging-source');
                 } else {
                     const sq = document.querySelector(`.piece[data-id='${piece.id}']`);
-                    if (sq) sq.style.opacity = '0.3';
+                    if (sq) sq.classList.add('dragging-source');
                 }
             } else {
-                // If they try to drag a regular piece during duck placement, cancel the placement!
                 this.duckPlacementMoves = null;
                 this.renderBoard(false);
             }
             return; 
         }
+        
         if (state.mode === 'editor' && this.editorTool === 'trash') {
             e.preventDefault(); e.stopPropagation();
             window.game.editBoard(idx, null);
@@ -2682,7 +2791,7 @@ startDrag(e, idx, piece) {
         if (this.moveInputMode === 'click' || this.moveInputMode === 'both') {
             if (this.selectedSq !== null) {
                 let move = this.legalMoves.find(m => m.to === idx);
-                if (!move) {
+                if (!move && typeof this.resolveCastlingIntent === 'function') {
                     const castleMove = this.resolveCastlingIntent(this.selectedSq, idx);
                     if (castleMove) move = castleMove;
                 }
@@ -2724,7 +2833,10 @@ startDrag(e, idx, piece) {
 
         let rawSVG = this.getPieceHTML(piece); 
         let ghostHTML = rawSVG;
+        
+        // ✨ CSS RESTORE: The pulse class now applies to ALL normal pieces, not just the duck!
         let pulseClass = (this.animationsEnabled !== false) ? " piece-heartbeat" : "";
+        
         if (rawSVG) {
             let trimmed = rawSVG.trim();
             if (trimmed.startsWith('<svg')) {
@@ -2733,13 +2845,41 @@ startDrag(e, idx, piece) {
                  ghostHTML = `<img src="${trimmed}" class="piece-img${pulseClass}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
             }
         }
+        
         this.initDragGhost(e, ghostHTML);
+        
+        // ✨ CSS FIX: Inject your custom .piece.animating class to the ghost so it receives your 100 z-index!
+        this.draggedPieceGhost.classList.add('piece', 'animating');
+        
         const sq = document.querySelector(`.piece[data-id='${piece.id}']`);
-        if (sq) sq.style.opacity = '0.5';
+        if (sq) sq.classList.add('dragging-source');
+    }
+cleanupDrag(keepSelection = false) {
+        this.dragData = null;
+        this.draggedPieceGhost.style.display ='none';
+        
+        // ✨ CSS FIX: Clean up the injected animating classes from the ghost
+        this.draggedPieceGhost.classList.remove('piece', 'animating');
+        
+        document.body.classList.remove('grabbing');
+        
+        document.querySelectorAll('.dragging-source').forEach(el => el.classList.remove('dragging-source'));
+
+        if (!keepSelection) {
+            this.selectedSq = null;
+            this.legalMoves = [];
+        }
+        this.renderBoard(false);
     }
 finishDrag(e) {
         const state = window.game ? window.game.getReader() : null;
         if (!state) return;
+
+        // 🔥 POCKET DROP FIX: Let renderPockets handle its own drop events!
+        // If we don't return here, this global event will try to process the drop as a premove and crash.
+        if (this.dragData && this.dragData.source === '@') {
+            return; 
+        }
 
         const rect = this.boardEl.getBoundingClientRect();
         const x = e.clientX - rect.left;
@@ -2807,20 +2947,26 @@ finishDrag(e) {
                         this.cleanupDrag(true);
                         return;
                     }
-                    if (state.turn !== this.dragData.piece.color) {
+
+                    // 🔥 STRING FALLBACK FIX: Safely parse the color/type just in case another flow sends a string instead of an object
+                    const pData = this.dragData.piece || {};
+                    const pColor = typeof pData === 'string' ? this.dragData.color : pData.color;
+                    const pType = typeof pData === 'string' ? pData : pData.type;
+
+                    if (state.turn !== pColor) {
                         if (state.mode === 'analysis') {
                             this.cleanupDrag(true);
                             return;
                         }
-                        const piece = this.dragData.piece;
+                        
                         const toRow = Math.floor(dropIdx / 8);
                         let promo = undefined;
-                        if (piece.type.toLowerCase() === 'p') {
-                            if ((piece.color === 'w' && toRow === 0) || (piece.color === 'b' && toRow === 7)) {
+                        if (pType && pType.toLowerCase() === 'p') {
+                            if ((pColor === 'w' && toRow === 0) || (pColor === 'b' && toRow === 7)) {
                                 promo = document.getElementById('autoQueen')?.checked ? 'q' : 'q';
                             }
                         }
-                        const moveObj = { from: this.dragData.fromIdx, to: dropIdx, color: piece.color, piece: piece.type, promotion: promo };
+                        const moveObj = { from: this.dragData.fromIdx, to: dropIdx, color: pColor, piece: pType, promotion: promo };
                         window.game.addPremove(moveObj);
                         moveMade = true;
                         this.renderBoard(false);
@@ -2875,27 +3021,27 @@ syncEditorHTMLWithGame() {
             if (epInput) epInput.value = ep !== '-' ? ep : '';
         }
     }
-cleanupDrag(keepSelection = false) {
-this.dragData = null;
-this.draggedPieceGhost.style.display ='none';
-document.body.classList.remove('grabbing');
-if (!keepSelection) {
-this.selectedSq = null;
-this.legalMoves = [];
-}
-// Re-render to ensure ghost is gone and highlights are correct
-this.renderBoard(false);
-}
 executeMove(move, animate = true, promoOverride = null) {
         const state = window.game ? window.game.getReader() : null;
         if (!state) return;
         
-        const targetPiece = state.board[move.to];
+        // ✨ THE DROP FIX: Identify if this is a pocket drop
+        const isDrop = move.from === '@';
+        
+        // ✨ SAFE TARGET SQUARE PARSING (Handles Pocket Drops "e4" vs Normal Moves 28)
+        let destIdx = move.to;
+        if (typeof move.to === 'string') {
+            const f = move.to.charCodeAt(0) - 97;
+            const r = 8 - parseInt(move.to[1]);
+            destIdx = r * 8 + f;
+        }
+        
+        const targetPiece = state.board[destIdx];
         const isKingCapture = state.gameMode === 'duck' && targetPiece && targetPiece.type.toLowerCase() === 'k';
 
         if (state && state.gameMode === 'duck' && !this.duckPlacementMoves && move.duck_sq !== undefined && !move._duckBypass && !isKingCapture) {
             this.duckPlacementMoves = this.legalMoves.filter(m => m.from === move.from && m.to === move.to);
-            this.pendingDuckMove = move; // Store the move for the Visual Spoof!
+            this.pendingDuckMove = move; 
             this.selectedSq = null;
             this.legalMoves = [];
             this.renderBoard(false);
@@ -2904,20 +3050,24 @@ executeMove(move, animate = true, promoOverride = null) {
         
         this.pendingDuckMove = null;
     
-        const piece = state.board[move.from];
-        if (!piece) return;
+        // ✨ THE DROP FIX: Bypass physical board check if it's a pocket drop!
+        let piece = isDrop ? { type: move.drop || move.piece, color: state.turn } : state.board[move.from];
+        
+        // Now it only aborts if a normal piece is missing
+        if (!piece) return; 
         
         const isPawn = (piece.type.toLowerCase() === 'p');
-        const destRank = Math.floor(move.to / 8);
+        const destRank = Math.floor(destIdx / 8);
         const isRank8 = (destRank === 0 || destRank === 7);
         let promoChar = promoOverride;
         
-        if (isPawn && isRank8 && !promoChar) {
+        // Drops cannot promote, so we bypass the modal!
+        if (!isDrop && isPawn && isRank8 && !promoChar) {
             const autoQueen = document.getElementById('autoQueen')?.checked;
             if (autoQueen) {
                 promoChar = 'q';
             } else {
-                this.showPromotionModal(piece.color, move.to, (selectedType) => {
+                this.showPromotionModal(piece.color, destIdx, (selectedType) => {
                     this.executeMove(move, animate, selectedType);
                 });
                 return;
@@ -2933,7 +3083,14 @@ executeMove(move, animate = true, promoOverride = null) {
             }
         }
 
-        let res = window.game.makeMove(move, promoChar || 'q');
+        // 🔥 Ensure the drop move is passed to the engine perfectly
+        let moveAttempt = move;
+        if (isDrop && typeof move.to === 'number') {
+             // The engine needs the string square for drops, e.g. 'e4'
+             moveAttempt = { from: '@', to: window.game.indexToSquare(move.to), drop: piece.type };
+        }
+
+        let res = window.game.makeMove(moveAttempt, promoChar || 'q');
         if (res && typeof window.game.triggerMoveSound === 'function') window.game.triggerMoveSound(res);
         
         this.selectedSq = null;
@@ -3225,9 +3382,9 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 let duckClass = (p.type === 'duck' && this.animationsEnabled !== false) ? ' piece-heartbeat' : '';
                 if (trimmed.startsWith('<svg')) {
                     const encodedSVG = encodeURIComponent(trimmed);
-                    htmlBuffer = `<img src="data:image/svg+xml;charset=utf-8,${encodedSVG}" class="piece-img" style="width:100%; height:100%; display:block; pointer-events:none;">`;
+                    htmlBuffer = `<img src="data:image/svg+xml;charset=utf-8,${encodedSVG}" class="piece-img${duckClass}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
                 } else if (trimmed.startsWith('data:image/') || trimmed.startsWith('http') || trimmed.endsWith('.svg') || trimmed.endsWith('.png')) {
-                    htmlBuffer = `<img src="${trimmed}" class="piece-img" style="width:100%; height:100%; display:block; pointer-events:none;">`;
+                    htmlBuffer = `<img src="${trimmed}" class="piece-img${duckClass}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
                 }
             }
             
@@ -3309,6 +3466,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             if (animate && (positionChanged || forceAnimate) && (!isNew || forceAnimate)) {
                 
                 const getSafeIndex = (val) => {
+                    if (val === '@') return p.idx; // Drops start at their destination
                     if (typeof val === 'number') return val;
                     if (typeof val === 'string' && val.length === 2) {
                         let f = val.charCodeAt(0) - 97;
@@ -3322,7 +3480,12 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 
                 let startR = Math.floor(fromGridSq / 8); let startC = fromGridSq % 8;
                 if (this.flipped) { startR = 7 - startR; startC = 7 - startC; }
-                const startTransform = `translate(${startC * 100}%, ${startR * 100}%)`;
+                let startTransform = `translate(${startC * 100}%, ${startR * 100}%)`;
+
+                // ✨ SHOCKWAVE FIX: If it's a drop, we physically scale it up first so the CSS transition actually triggers!
+                if (targetMove && targetMove.from === '@' && isMovedPiece) {
+                    startTransform += ' scale(1.5)';
+                }
 
                 el.style.transition = 'none';
                 el.style.transform = startTransform;
@@ -3333,12 +3496,27 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 el.classList.add('animating');
                 if (isCastlingMove) el.classList.add('castling-jump');
 
-                if (showMangaTail && (isMovedPiece || isCastlingMove) && targetMove) {
+                // ✨ CREATE THE DOM SHOCKWAVE RIPPLE ON THE SQUARE
+                if (isMovedPiece && this.squaresLayer.children[p.idx]) {
+                    const sqEl = this.squaresLayer.children[p.idx];
+                    let wave = document.createElement('div');
+                    wave.className = 'shockwave'; 
+                    // Add an inline fallback just in case the CSS is missing
+                    wave.style.cssText = 'position:absolute; top:0; left:0; width:100%; height:100%; border-radius:50%; box-shadow: 0 0 20px 8px rgba(255,255,255,0.4); transform: scale(0); animation: shockwaveAnim 0.4s ease-out; pointer-events:none; z-index:5;';
+                    if (!document.getElementById('sw-style')) {
+                        let style = document.createElement('style'); style.id = 'sw-style';
+                        style.innerHTML = `@keyframes shockwaveAnim { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }`;
+                        document.head.appendChild(style);
+                    }
+                    sqEl.appendChild(wave);
+                    setTimeout(() => wave.remove(), 400);
+                }
+
+                if (showMangaTail && (isMovedPiece || isCastlingMove) && targetMove && targetMove.from !== '@') {
                     const dx = (c - startC); const dy = (r - startR);
                     const dist = Math.sqrt(dx*dx + dy*dy);
                     if (dist > 0.5) {
                         const activeDuration = isCastlingMove ? castleDuration : moveDuration;
-                        
                         el.style.setProperty('--tail-length-scale', dist);
                         el.style.setProperty('--move-angle', `${Math.atan2(dy, dx)}rad`);
                         el.style.setProperty('--anim-duration', `${activeDuration}ms`);
@@ -3376,6 +3554,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 this.renderPockets(window.game.engine.pocket());
             }
         }
+        if (typeof this.redrawGhostPiece === 'function') this.redrawGhostPiece();
     }
 renderExternalCoords() {
     let layer = document.getElementById('external-coords-layer');
@@ -4063,8 +4242,8 @@ createMoveSpanSafe(node) {
 renderTreeRecursive(node, container, moveNum) {
         if (!node.children || node.children.length === 0) return;
         
-        let activeIdx = node.selectedChildIndex || 0; 
-        let mainChild = node.children[activeIdx];
+        let mainIdx = 0; // ✨ FIX: Hardcode structural mainline to index 0
+        let mainChild = node.children[mainIdx];
         let ply = this.getPly(mainChild);
         let mNum = Math.ceil(ply / 2);
         let isWhite = (ply % 2 !== 0);
@@ -4137,7 +4316,7 @@ renderTreeRecursive(node, container, moveNum) {
 
             if (hasVariations) {
                 node.children.forEach((child, i) => {
-                    if (i !== activeIdx) {
+                    if (i !== mainIdx) { // ✨ FIX: Variations are always indexes > 0
                         let varBlock = document.createElement('div');
                         varBlock.className ='variation-block';
                         varBlock.style.cssText = "margin-left: 15px; border-left: 2px solid #444; padding-left: 5px; margin-bottom: 5px;";
@@ -4160,7 +4339,7 @@ renderTreeVertical(node, container) {
         line.className = 'tree-line';
         container.appendChild(line);
 
-        let curr = node.children[node.selectedChildIndex];
+        let curr = node.children[0]; // ✨ FIX: Lock vertical tree line to 0
         let isFirstInLine = true;
         const state = window.game ? window.game.getReader() : null;
 
@@ -4221,7 +4400,7 @@ renderTreeVertical(node, container) {
             const dotColor = this.getAnnotationDotColor(curr);
             if (dotColor) {
                 let dot = document.createElement('span');
-                dot.className = 'annotation-dot'; // 🔥 ADDED CLASS
+                dot.className = 'annotation-dot'; 
                 dot.style.cssText = `display:inline-block; width:6px; height:6px; background-color:${dotColor}; border-radius:50%; margin-left:4px; box-shadow:0 0 5px ${dotColor};`;
                 moveSpan.appendChild(dot);
             }
@@ -4288,8 +4467,10 @@ renderTreeVertical(node, container) {
                 }
 
                 if (hasVariations) {
-                    siblings.forEach((sibling) => {
-                        if (sibling !== curr) this.renderTreeVerticalRecursiveSingle(sibling, annContainer);
+                    siblings.forEach((sibling, i) => {
+                        if (i !== 0) { // ✨ FIX: Sub-variants lock to 0
+                            this.renderTreeVerticalRecursiveSingle(sibling, annContainer);
+                        }
                     });
                 }
 
@@ -4300,7 +4481,7 @@ renderTreeVertical(node, container) {
                 isFirstInLine = true;
             }
 
-            if (curr.children.length > 0) curr = curr.children[curr.selectedChildIndex];
+            if (curr.children.length > 0) curr = curr.children[0]; // ✨ FIX: Follow index 0 down
             else curr = null;
         }
     }
@@ -4370,7 +4551,7 @@ renderTreeVerticalRecursiveSingle(node, container) {
             const dotColor = this.getAnnotationDotColor(curr);
             if (dotColor) {
                 let dot = document.createElement('span');
-                dot.className = 'annotation-dot'; // 🔥 ADDED CLASS
+                dot.className = 'annotation-dot'; 
                 dot.style.cssText = `display:inline-block; width:6px; height:6px; background-color:${dotColor}; border-radius:50%; margin-left:4px; box-shadow:0 0 5px ${dotColor};`;
                 moveSpan.appendChild(dot);
             }
@@ -4437,7 +4618,7 @@ renderTreeVerticalRecursiveSingle(node, container) {
 
                 if (hasVariations) {
                     curr.children.forEach((child, i) => {
-                        if (i !== curr.selectedChildIndex) {
+                        if (i !== 0) { // ✨ FIX: Sub-variants lock to 0
                             this.renderTreeVerticalRecursiveSingle(child, annContainer);
                         }
                     });
@@ -4450,7 +4631,7 @@ renderTreeVerticalRecursiveSingle(node, container) {
                 isFirstInLine = true;
             }
 
-            if (curr.children.length > 0) curr = curr.children[curr.selectedChildIndex];
+            if (curr.children.length > 0) curr = curr.children[0]; // ✨ FIX: Follow index 0 down
             else curr = null;
         }
     }
@@ -4465,7 +4646,7 @@ createPlyDiv(node) {
         d.style.cssText = "position: relative; display: inline-block;"; 
 
         let mainWrap = document.createElement('span');
-        mainWrap.className = 'main-wrap'; // 🔥 ADDED CLASS
+        mainWrap.className = 'main-wrap';
 
         let nags = node.nag ? node.nag.toString().split(',') : [];
         let primaryInfo = null; let symbols = [];
@@ -4492,7 +4673,7 @@ createPlyDiv(node) {
         const dotColor = this.getAnnotationDotColor(node);
         if (dotColor) {
             let dot = document.createElement('span');
-            dot.className = 'annotation-dot'; // 🔥 ADDED CLASS
+            dot.className = 'annotation-dot'; 
             dot.style.cssText = `display:inline-block; width:6px; height:6px; background-color:${dotColor}; border-radius:50%; margin-left:4px; box-shadow:0 0 5px ${dotColor};`;
             mainWrap.appendChild(dot);
         }
@@ -4539,7 +4720,7 @@ createPlyDiv(node) {
 
             if (hasVariations) {
                 node.children.forEach((child, i) => {
-                    if (i !== node.selectedChildIndex) {
+                    if (i !== 0) { // ✨ FIX: Lock variations to 0
                         let vLine = document.createElement('div');
                         this.renderVariationLine(child, vLine);
                         annContainer.appendChild(vLine);
@@ -4604,7 +4785,7 @@ renderVariationLine(node, container) {
             const dotColor = this.getAnnotationDotColor(curr);
             if (dotColor) {
                 let dot = document.createElement('span');
-                dot.className = 'annotation-dot'; // 🔥 ADDED CLASS
+                dot.className = 'annotation-dot'; 
                 dot.style.cssText = `display:inline-block; width:6px; height:6px; background-color:${dotColor}; border-radius:50%; margin-left:4px; box-shadow:0 0 5px ${dotColor};`;
                 span.appendChild(dot);
             }
@@ -4674,7 +4855,7 @@ renderVariationLine(node, container) {
                     annWrapper.appendChild(document.createTextNode("("));
                     
                     curr.children.forEach((child, i) => {
-                        if (i !== curr.selectedChildIndex) {
+                        if (i !== 0) { // ✨ FIX: Sub-variations inside variations also lock to 0
                             this.renderVariationLine(child, annWrapper);
                             if (i < curr.children.length - 1) annWrapper.appendChild(document.createTextNode("; "));
                         }
@@ -4684,7 +4865,7 @@ renderVariationLine(node, container) {
                 }
             }
 
-            if (curr.children.length > 0) curr = curr.children[curr.selectedChildIndex];
+            if (curr.children.length > 0) curr = curr.children[0]; // ✨ FIX: Traverse down index 0
             else curr = null;
             isFirst = false;
         }
@@ -5310,24 +5491,45 @@ hoverEngineMove(fen, e, duckSq = -1) {
         
         grid.innerHTML = ''; 
         
+        // ✨ DUCK FIX: Convert duckSq (e.g. 'c6' or 18) into a standard 0-63 grid index!
+        let targetGridIndex = -1;
+        if (duckSq !== -1 && duckSq !== undefined && duckSq !== null) {
+            let sqStr = "";
+            if (typeof duckSq === 'number') {
+                // It's a 0x88 index, convert to string (e.g., 18 -> "c6")
+                const file = duckSq & 7;
+                const rank = duckSq >> 4;
+                sqStr = String.fromCharCode(97 + file) + (8 - rank);
+            } else if (typeof duckSq === 'string') {
+                // It's already a string (e.g., "c6")
+                sqStr = duckSq;
+            }
+            
+            // Convert string to 0-63 grid index (0 is a8, 63 is h1)
+            if (sqStr && sqStr.length === 2) {
+                const fileIdx = sqStr.charCodeAt(0) - 97; // 0-7
+                const rankIdx = 8 - parseInt(sqStr[1]);   // 0-7 (Rank 8 is index 0)
+                targetGridIndex = rankIdx * 8 + fileIdx;
+            }
+        }
+        
         const parts = fen.split(' ');
         const rows = parts[0].split('/');
         
-        // 🔥 DUCK FIX: Inject the duck onto the mini-preview board grid!
         for (let r = 0; r < 8; r++) { 
             let rankStr = rows[r]; 
             let fileIdx = 0; 
             for (let char of rankStr) { 
                 if (isNaN(char)) {
                     let currentSq = r * 8 + fileIdx;
-                    let renderPiece = (currentSq === duckSq) ? 'duck' : char;
+                    let renderPiece = (currentSq === targetGridIndex) ? 'duck' : char;
                     this.renderPreviewSquare(grid, r, fileIdx, renderPiece); 
                     fileIdx++;
                 } else {
                     let empties = parseInt(char); 
                     for (let k = 0; k < empties; k++) {
                         let currentSq = r * 8 + fileIdx;
-                        let renderPiece = (currentSq === duckSq) ? 'duck' : null;
+                        let renderPiece = (currentSq === targetGridIndex) ? 'duck' : null;
                         this.renderPreviewSquare(grid, r, fileIdx, renderPiece);
                         fileIdx++;
                     }

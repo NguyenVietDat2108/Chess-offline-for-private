@@ -3,29 +3,39 @@ export const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'];
 export const INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 export const VARIANT_STARTING_FENS = {
     'classical': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-    'chess960': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', // Dynamically overridden later
+    'chess960': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+    // Dynamically overridden later
     '3check': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 +0+0',
-    'antichess': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1', // No castling allowed
+    'antichess': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1',
+    // No castling allowed
     'atomic': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-    'bughouse': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1', // Empty piece pocket
-    'chaturanga': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1', // No castling allowed
-    'crazyhouse': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1', // Empty piece pocket
+    'bughouse': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1',
+    // Empty piece pocket
+    'chaturanga': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1',
+    // No castling allowed
+    'crazyhouse': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1',
+    // Empty piece pocket
     'duck': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-    'horde': 'rnbqkbnr/pppppppp/8/1PP2PP1/PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP w kq - 0 1', // White has 36 pawns
+    'horde': 'rnbqkbnr/pppppppp/8/1PP2PP1/PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP w kq - 0 1',
+    // White has 36 pawns
     'kingofthehill': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-    'racingkings': '8/8/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1' // 8th rank race, no castling
+    'racingkings': '8/8/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1', // 8th rank race, no castling
+    
+    // ✨ PLACEMENT CHESS FIX: Only pawns on the board, all other pieces in the pocket
+    'placement': '8/pppppppp/8/8/8/8/PPPPPPPP/8[KQRRNNBBkqrrnnbb] w - - 0 1'
 };
 export const nnueMap = {
-'3check': '3check-cb5f517c228b.nnue',
-'antichess': 'antichess-dd3cbe53cd4e.nnue',
-'atomic': 'atomic-2cf13ff256cc.nnue',
-'bughouse': 'bughouse-cd8cceab93fe.nnue',
-'chaturanga': 'chaturanga-1889e98f8d54.nnue',
-'crazyhouse': 'crazyhouse-8ebf84784ad2.nnue',
-'duck': 'duck-ba21f91f5d81.nnue',
-'horde': 'horde-28173ddccabe.nnue',
-'kingofthehill': 'kingofthehill-978b86d0e6a4.nnue',
-'racingkings': 'racingkings-636b95f085e3.nnue'
+    '3check': '3check-cb5f517c228b.nnue',
+    'antichess': 'antichess-dd3cbe53cd4e.nnue',
+    'atomic': 'atomic-2cf13ff256cc.nnue',
+    'bughouse': 'bughouse-cd8cceab93fe.nnue',
+    'chaturanga': 'chaturanga-1889e98f8d54.nnue',
+    'crazyhouse': 'crazyhouse-8ebf84784ad2.nnue',
+    'duck': 'duck-ba21f91f5d81.nnue',
+    'horde': 'horde-28173ddccabe.nnue',
+    'kingofthehill': 'kingofthehill-978b86d0e6a4.nnue',
+    'racingkings': 'racingkings-636b95f085e3.nnue',
+    'placement': 'nn-46832cfbead3.nnue'
 };
 export const ICON_BOOK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="30" height="30" style="vertical-align: middle;"><circle cx="12" cy="12" r="10.5" fill="currentColor"/><g transform=" translate(12, 12) scale(0.75) translate(-12, -12)"><path fill="#f0dec3" d="M17,7 c-2,0 -3.5,1 -4,2 h-2 c-0.5,-1 -2,-2 -4,-2 c-2,0 -3,1 -3,1 v10 c0,0 1,-1 3,-1 c2,0 3.5,1 4,1 h2 c0.5,0 2,-1 4,-1 c2,0 3,1 3,1 V8 C20,8 19,7 17,7 z"/><path fill="#7a5533" d="M11.5,9 h1 v9 h-1 V9 z" /></g></svg>`;
 export const BOOK_ICON_IMG = new Image();

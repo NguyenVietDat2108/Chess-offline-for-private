@@ -32,7 +32,7 @@ constructor() {
         this.rootNode = new MoveNode(startingFen, null);
         this.currentNode = this.rootNode;
         this.pgnHeaders = {};
-        this.availableModes = ['classical', 'chess960', '3check', 'antichess', 'atomic', 'bughouse', 'chaturanga', 'crazyhouse', 'duck', 'horde', 'kingofthehill', 'racingkings'];
+        this.availableModes = ['classical', 'chess960', '3check', 'antichess', 'atomic', 'bughouse', 'chaturanga', 'crazyhouse', 'duck', 'horde', 'kingofthehill', 'racingkings', 'placement'];
         
         this.whiteStartSeconds = 600;
         this.blackStartSeconds = 600;
@@ -200,14 +200,24 @@ getReader() {
             for (let char of row) {
                 if (/\d/.test(char)) {
                     idx += parseInt(char);
+                } else if (char === '~') {
+                    // ✨ CRAZYHOUSE FIX: '~' means the previous piece was promoted. Do NOT increment idx!
+                    if (newPieces.length > 0) {
+                        newPieces[newPieces.length - 1].promoted = true;
+                    }
+                } else if (char === '*') {
+                    // ✨ DUCK CHESS FIX: Format the duck correctly so it keeps its ID and animates!
+                    newPieces.push({ 
+                        type: 'duck', color: 'none', idx, 
+                        r: Math.floor(idx / 8), c: idx % 8, id: null 
+                    });
+                    idx++;
                 } else {
                     const color = (char === char.toUpperCase()) ? 'w' : 'b';
                     const type = char.toLowerCase();
                     newPieces.push({ 
                         type, color, idx, 
-                        r: Math.floor(idx / 8), 
-                        c: idx % 8, 
-                        id: null 
+                        r: Math.floor(idx / 8), c: idx % 8, id: null 
                     });
                     idx++;
                 }
@@ -223,32 +233,25 @@ getReader() {
         // 3. MATCHING ALGORITHM (The "Chessboard.js" Behavior)
 
         // A. Move Priority: If we have a specific move, lock those pieces first
-        if (move) {
-            const src = oldPieces.find(p => p.idx === move.from);
-            const dst = newPieces.find(p => p.idx === move.to);
-            if (src && dst && src.color === dst.color) {
+        if (move && move.from !== '@') {
+            // Safely parse indices just in case 'move.from' is a string like 'e2'
+            const srcIdx = typeof move.from === 'number' ? move.from : this.#squareToIndex(move.from);
+            const dstIdx = typeof move.to === 'number' ? move.to : this.#squareToIndex(move.to);
+            
+            const src = oldPieces.find(p => p.idx === srcIdx);
+            const dst = newPieces.find(p => p.idx === dstIdx);
+            
+            // Only lock if the piece type matches (ignores promotions so they get a fresh ID)
+            if (src && dst && src.color === dst.color && src.type === dst.type) {
                 dst.id = src.id;
                 src.assigned = true;
                 dst.idAssigned = true;
             }
-            // Handle Castling Rooks
-            if (move.flags && (move.flags.includes('k') || move.flags.includes('q'))) {
-                let rFrom, rTo;
-                if (move.to === 62) { rFrom=63; rTo=61; }      // White K
-                else if (move.to === 58) { rFrom=56; rTo=59; } // White Q
-                else if (move.to === 6) { rFrom=7; rTo=5; }    // Black K
-                else if (move.to === 2) { rFrom=0; rTo=3; }    // Black Q
-                
-                if (rFrom !== undefined) {
-                    const oldRook = oldPieces.find(p => p.idx === rFrom);
-                    const newRook = newPieces.find(p => p.idx === rTo);
-                    if (oldRook && newRook) {
-                        newRook.id = oldRook.id;
-                        oldRook.assigned = true;
-                        newRook.idAssigned = true;
-                    }
-                }
-            }
+            
+            // ✨ CHESS960 CASTLING FIX: 
+            // We removed the hardcoded Rook castling logic (62, 58, 6, 2). 
+            // Why? Because Step C (Closest Match) will automatically detect the displaced 
+            // rook and slide it to its new square organically, perfectly supporting Chess960!
         }
 
         // B. Exact Match: Lock pieces that haven't moved (Distance 0)
@@ -262,7 +265,7 @@ getReader() {
             }
         });
 
-        // C. Closest Match: Find nearest neighbor for scrubbing/reset
+        // C. Closest Match: Find nearest neighbor for scrubbing/reset & Castling
         newPieces.forEach(np => {
             if (np.idAssigned) return;
             
@@ -286,8 +289,8 @@ getReader() {
                 bestMatch.assigned = true;
                 np.idAssigned = true;
             } else {
-                // New Piece (e.g. Promotion or Edit)
-                np.id = this.getUID(); 
+                // New Piece (e.g. Promotion, Pocket Drop, or Edit mode)
+                np.id = (typeof this.getUID === 'function') ? this.getUID() : ('p' + Math.random().toString(36).substr(2, 9)); 
             }
         });
 
@@ -295,6 +298,8 @@ getReader() {
         const finalBoard = new Array(64).fill(null);
         newPieces.forEach(p => {
             finalBoard[p.idx] = { type: p.type, color: p.color, id: p.id };
+            // Preserve the crazyhouse promotion flag if it exists
+            if (p.promoted) finalBoard[p.idx].promoted = true; 
         });
         
         this.#board = finalBoard;
@@ -307,82 +312,109 @@ getReader() {
             this.#reconcileBoardIds(fen, null);
             return;
         }
-        const newBoard = new Array(64).fill(null);
-        const cleanFen = fen.trim();
-        const fenParts = cleanFen.split(' ');
-        if (!fenParts[0]) {
-            console.warn("Invalid FEN structure:", fen);
-            this.#reconcileBoardIds(fen, null);
-            return;
-        }
 
-        const fenRows = fenParts[0].split('/');
-
+        const cleanFen = fen.trim().split(' ')[0];
+        const fenRows = cleanFen.split('/');
         if (fenRows.length !== 8) {
-            console.warn("Invalid FEN rows:", fen);
             this.#reconcileBoardIds(fen, null);
             return;
         }
 
+        const newPieces = [];
         let idx = 0;
 
+        // 1. Parse the past FEN
         for (let r = 0; r < 8; r++) {
             const row = fenRows[r];
             if (!row) { idx += 8; continue; }
 
             for (let c = 0; c < row.length; c++) {
                 const char = row[c];
-                if (!isNaN(char)) {
+                if (/\d/.test(char)) {
                     idx += parseInt(char, 10);
+                } else if (char === '~') {
+                    // Crazyhouse Promoted marker
+                    if (newPieces.length > 0) newPieces[newPieces.length - 1].promoted = true;
+                } else if (char === '*') {
+                    // Duck Chess marker
+                    newPieces.push({ type: 'duck', color: 'none', idx, r: Math.floor(idx / 8), c: idx % 8, id: null });
+                    idx++;
                 } else {
                     const color = (char === char.toUpperCase()) ? 'w' : 'b';
                     const type = char.toLowerCase();
-                    newBoard[idx] = { type: type, color: color };
+                    newPieces.push({ type, color, idx, r: Math.floor(idx / 8), c: idx % 8, id: null });
                     idx++;
                 }
             }
         }
-        const pieceAtTo = this.#board[move.to];
-        const pieceAtFrom = newBoard[move.from];
 
-        if (pieceAtTo && pieceAtFrom && pieceAtTo.type === pieceAtFrom.type && pieceAtTo.color === pieceAtFrom.color) {
-            pieceAtFrom.id = pieceAtTo.id; 
+        const oldPieces = [];
+        this.#board.forEach((p, i) => {
+            if (p) oldPieces.push({ ...p, idx: i, assigned: false });
+        });
+
+        // 3. MATCHING ALGORITHM (Reverse Direction)
+
+        // A. Move Priority: Track the moved piece backwards
+        if (move && move.from !== '@') {
+            const srcIdx = typeof move.from === 'number' ? move.from : this.#squareToIndex(move.from);
+            const dstIdx = typeof move.to === 'number' ? move.to : this.#squareToIndex(move.to);
+
+            // In reverse, the piece is currently at the destination and going back to the source
+            const currentlyAt = oldPieces.find(p => p.idx === dstIdx);
+            const goingBackTo = newPieces.find(p => p.idx === srcIdx);
+
+            if (currentlyAt && goingBackTo && currentlyAt.color === goingBackTo.color) {
+                goingBackTo.id = currentlyAt.id;
+                currentlyAt.assigned = true;
+                goingBackTo.idAssigned = true;
+            }
         }
 
-        // B. Castling Rook Logic
-        if (move.flags && (move.flags.includes('k') || move.flags.includes('q'))) {
-            let rookFrom, rookTo;
+        // B. Exact Match: Lock pieces that didn't move
+        newPieces.forEach(np => {
+            if (np.idAssigned) return;
+            const match = oldPieces.find(op => !op.assigned && op.type === np.type && op.color === np.color && op.idx === np.idx);
+            if (match) {
+                np.id = match.id;
+                match.assigned = true;
+                np.idAssigned = true;
+            }
+        });
 
-            if (move.to === 62) { rookFrom = 61; rookTo = 63; } // White Short
-            else if (move.to === 58) { rookFrom = 59; rookTo = 56; } // White Long
-            else if (move.to === 6)  { rookFrom = 5;  rookTo = 7; }  // Black Short
-            else if (move.to === 2)  { rookFrom = 3;  rookTo = 0; }  // Black Long
+        // C. Closest Match (Handles Castling Rooks reverting in standard & Chess960 natively)
+        newPieces.forEach(np => {
+            if (np.idAssigned) return;
+            let bestMatch = null;
+            let minDistance = Infinity;
 
-            if (typeof rookFrom !== 'undefined') {
-                const rookNow = this.#board[rookFrom];
-                const rookOld = newBoard[rookTo];
-                if (rookNow && rookOld) {
-                    rookOld.id = rookNow.id; 
+            oldPieces.forEach(op => {
+                if (op.assigned || op.type !== np.type || op.color !== np.color) return;
+                const dist = Math.abs((op.idx % 8) - np.c) + Math.abs(Math.floor(op.idx / 8) - np.r);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    bestMatch = op;
                 }
-            }
-        }
-        for (let i = 0; i < 64; i++) {
-            if (i === move.from || i === move.to) continue; 
+            });
 
-            const pCurrent = this.#board[i];
-            const pNew = newBoard[i];
-
-            if (pCurrent && pNew && pCurrent.type === pNew.type && pCurrent.color === pNew.color && !pNew.id) {
-                pNew.id = pCurrent.id;
+            if (bestMatch) {
+                np.id = bestMatch.id;
+                bestMatch.assigned = true;
+                np.idAssigned = true;
+            } else {
+                // If it's a piece coming back from the dead (Undo a capture)
+                np.id = (typeof this.getUID === 'function') ? this.getUID() : ('p' + Math.random().toString(36).substr(2, 9)); 
             }
-        }
-        for (let i = 0; i < 64; i++) {
-            if (newBoard[i] && !newBoard[i].id) {
-                newBoard[i].id = this.getUID();
-            }
-        }
+        });
 
-        this.#board = newBoard;
+        // 4. Rebuild Board
+        const finalBoard = new Array(64).fill(null);
+        newPieces.forEach(p => {
+            finalBoard[p.idx] = { type: p.type, color: p.color, id: p.id };
+            if (p.promoted) finalBoard[p.idx].promoted = true; 
+        });
+
+        this.#board = finalBoard;
     }
 #squareToIndex(sq) {
 if (!sq || typeof sq !== 'string') return -1; 
@@ -401,7 +433,6 @@ return FILES[f] + (8 - r);
         if (this._lastBotTrigger && (now - this._lastBotTrigger < 100)) return;
         this._lastBotTrigger = now;
         
-        // Ensure we are actually in a live game against the bot
         if (this.mode !== 'local' && this.mode !== 'bot') return;
         if (this.turn !== this.botColor) return;
 
@@ -415,33 +446,101 @@ return FILES[f] + (8 - r);
             this.currentBotThinkTime = 1000;
         }
 
-        const blunderMap = { 1: 0.10, 2: 0.05 };
+        const blunderMap = { 1: 0.25, 2: 0.10 };
         const blunderChance = blunderMap[level] || 0;
 
-        // 1. Low Level Blunder Injection
+        // 1. LOW LEVEL BLUNDER INJECTION (STRICTLY VALIDATED)
         if (level <= 2 && Math.random() < blunderChance) {
-            const legalMoves = this.#engine.moves({ verbose: true });
+            const tempEngine = new (typeof Chess === 'function' ? Chess : window.Chess)(fen, this.gameMode);
+            const legalMoves = tempEngine.moves({ verbose: true });
+            
             if (legalMoves.length > 0) {
-                const choice = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-                let randomUCI = "";
-                if (choice.from === '@' || choice.drop || choice.flags === 'd') {
-                    randomUCI = (choice.drop || choice.piece).toUpperCase() + '@' + choice.to;
-                } else {
-                    randomUCI = choice.from + choice.to + (choice.promotion || '');
-                    if (choice.duck_sq !== undefined) randomUCI += choice.duck_sq;
+                legalMoves.sort(() => Math.random() - 0.5);
+                let validBlunderUci = null;
+                
+                for (let choice of legalMoves) {
+                    let randomUCI = "";
+                    if (choice.from === '@' || choice.drop || choice.flags === 'd') {
+                        randomUCI = (choice.drop || choice.piece).toUpperCase() + '@' + choice.to;
+                    } else {
+                        randomUCI = choice.from + choice.to + (choice.promotion || '');
+                    }
+
+                    if (this.gameMode === 'duck' && !randomUCI.includes('@')) {
+                        const emptySqs = [];
+                        for (let i = 0; i < 64; i++) {
+                            const sqStr = typeof this.#indexToSquare === 'function' 
+                                ? this.#indexToSquare(i) 
+                                : String.fromCharCode(97 + (i % 8)) + (8 - Math.floor(i / 8));
+                            if (sqStr === choice.from) emptySqs.push(sqStr);
+                            else if (sqStr !== choice.to && !tempEngine.get(sqStr)) emptySqs.push(sqStr);
+                        }
+                        emptySqs.sort(() => Math.random() - 0.5);
+                        
+                        let foundValidDuck = false;
+                        for (let duckSq of emptySqs) {
+                            let testUci = randomUCI + ',' + duckSq;
+                            let testRes = tempEngine.move({ from: choice.from, to: choice.to, promotion: choice.promotion, duck_sq: duckSq });
+                            if (testRes) {
+                                // ✨ STRICT CHECK: Verify King cannot be captured
+                                let enemyCanCaptureKing = false;
+                                let enemyMoves = tempEngine.moves({ verbose: true });
+                                for (let em of enemyMoves) {
+                                    let target = tempEngine.get(em.to);
+                                    if (target && target.type === 'k') { enemyCanCaptureKing = true; break; }
+                                }
+                                tempEngine.undo();
+                                if (!enemyCanCaptureKing) {
+                                    validBlunderUci = testUci;
+                                    foundValidDuck = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (foundValidDuck) break;
+                    } else {
+                        let testRes = null;
+                        if (randomUCI.includes('@')) {
+                            testRes = tempEngine.move({ from: '@', to: choice.to, drop: choice.drop || choice.piece });
+                        } else {
+                            testRes = tempEngine.move({ from: choice.from, to: choice.to, promotion: choice.promotion });
+                        }
+                        
+                        if (testRes) {
+                            // ✨ STRICT CHECK: Ensure Crazyhouse/Classical moves don't leave King in check!
+                            let enemyCanCaptureKing = false;
+                            let enemyMoves = tempEngine.moves({ verbose: true });
+                            for (let em of enemyMoves) {
+                                let target = tempEngine.get(em.to);
+                                if (target && target.type === 'k') {
+                                    enemyCanCaptureKing = true;
+                                    break;
+                                }
+                            }
+                            tempEngine.undo();
+                            
+                            if (!enemyCanCaptureKing) {
+                                validBlunderUci = randomUCI;
+                                break;
+                            }
+                        }
+                    }
                 }
                 
-                if (typeof this.#executeBotMoveWithDelay === 'function') {
-                    this.#executeBotMoveWithDelay(randomUCI);
-                } else if (typeof this.executeBotMove === 'function') {
-                    this.executeBotMove(randomUCI);
+                if (validBlunderUci) {
+                    console.log(`%c[BOT] Level ${level} Validated Blunder: ${validBlunderUci}`, "color: #fca5a5");
+                    if (typeof this.#executeBotMoveWithDelay === 'function') {
+                        this.#executeBotMoveWithDelay(validBlunderUci, false);
+                    } else if (typeof this.executeBotMove === 'function') {
+                        this.executeBotMove(validBlunderUci, false);
+                    }
+                    return;
                 }
-                return;
             }
         }
 
-        // 2. OPENING BOOK (WITH ENGINE VALIDATION)
-        if (!ignoreBook) {
+        // 2. OPENING BOOK
+        if (!ignoreBook && this.gameMode === 'classical') {
             let bookCandidates = null;
             if (typeof this.getBookMove === 'function') bookCandidates = this.getBookMove(fen, level);
             else if (typeof this.#getBookMove === 'function') bookCandidates = this.#getBookMove(fen, level);
@@ -449,33 +548,17 @@ return FILES[f] + (8 - r);
             if (bookCandidates && bookCandidates.length > 0) {
                 const candidate = bookCandidates[Math.floor(Math.random() * bookCandidates.length)];
                 
-                // 🔥 THE BOOK VALIDATION FIX:
-                // Instead of blindly playing the move, we force the engine to check it first!
                 if (window.sfWorker && level >= 3) {
-                    console.log(`%c[BOT] Validating book move: ${candidate}...`, "color: #b369f2");
-                    
                     this.verifyingBookMove = candidate;
                     this.verifyingBookScore = null;
                     this.verifyingBookType = null;
-                    this.verifyingBookThreshold = -150; // Reject if it drops eval worse than -1.5 pawns
+                    this.verifyingBookThreshold = -150; 
                     
                     window.sfWorker.postMessage('stop');
-                    
-                    if (this.activeEngineType === 'fairy') {
-                        const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-                        window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-                    } else {
-                        window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
-                    }
-                    
                     window.sfWorker.postMessage('position fen ' + fen);
-                    
-                    // Force the engine to ONLY look at the book candidate move
-                    // We do a fast depth 8 check to make sure it doesn't instantly lose
                     window.sfWorker.postMessage(`go depth 8 searchmoves ${candidate}`);
                     return; 
                 } else {
-                    // If playing on level 1 or 2, just blindly play it (mistakes are fine)
                     if (typeof this.#executeBotMoveWithDelay === 'function') {
                         this.#executeBotMoveWithDelay(candidate, true);
                     } else if (typeof this.executeBotMove === 'function') {
@@ -486,12 +569,12 @@ return FILES[f] + (8 - r);
             }
         }
 
-        // 3. STANDARD ENGINE CALCULATION (If no book move, or book move was rejected)
+        // 3. STANDARD ENGINE CALCULATION
         if (window.sfWorker) {
             const difficultyMap = {
-                1: { uciElo: 1320 }, 2: { uciElo: 1320 },
-                3: { uciElo: 1600 }, 4: { uciElo: 1900 },
-                5: { uciElo: 2150 }, 6: { uciElo: 2400 },
+                1: { uciElo: 1000 }, 2: { uciElo: 1200 },
+                3: { uciElo: 1500 }, 4: { uciElo: 1800 },
+                5: { uciElo: 2100 }, 6: { uciElo: 2400 },
                 7: { uciElo: 2700 }, 8: { uciElo: 3200 }
             };
             const settings = difficultyMap[level] || difficultyMap[8];
@@ -509,7 +592,6 @@ return FILES[f] + (8 - r);
             window.sfWorker.postMessage('setoption name UCI_LimitStrength value true');
             window.sfWorker.postMessage(`setoption name UCI_Elo value ${settings.uciElo}`);
             window.sfWorker.postMessage('position fen ' + fen);
-            
             window.sfWorker.postMessage(`go movetime ${this.currentBotThinkTime}`); 
         }
     }
@@ -517,9 +599,7 @@ return FILES[f] + (8 - r);
         const now = Date.now();
         const start = this.botThinkStart || now;
         const elapsed = now - start;
-        
-        const expectedThinkTime = isBookMove ? Math.min(this.currentBotThinkTime || 1000, 800) : (this.currentBotThinkTime || 1500);
-
+        const expectedThinkTime = isBookMove ? 800 : (this.currentBotThinkTime || 1200);
         const delay = Math.max(0, expectedThinkTime - elapsed);
 
         setTimeout(() => {
@@ -527,20 +607,25 @@ return FILES[f] + (8 - r);
             let promo = undefined;
             let cleanUci = uciMove.trim();
 
-            if (cleanUci.includes('@')) {
-                // Drop move (Crazyhouse/Bughouse)
+            // CRAZYHOUSE DROP
+            if (cleanUci.includes('@') && cleanUci.length <= 5) {
                 let parts = cleanUci.split('@');
                 moveObj.from = '@';
                 moveObj.drop = parts[0].toLowerCase() || 'p';
-                moveObj.to = this.#squareToIndex(parts[1].replace(/[^a-h1-8]/g, ''));
+                moveObj.to = this.#squareToIndex(parts[1].slice(-2));
             } else {
+                // PIECE MOVE + DUCK PLACEMENT
                 let duck_sq = undefined;
-                if (cleanUci.includes(',')) {
-                    let parts = cleanUci.split(',');
+                let separator = cleanUci.includes(',') ? ',' : (cleanUci.includes('@') ? '@' : null);
+                
+                if (separator) {
+                    let parts = cleanUci.split(separator);
                     cleanUci = parts[0];
-                    duck_sq = this.#squareToIndex(parts[1].replace(/[^a-h1-8]/g, ''));
+                    let d_str = parts[1].replace(/[^a-h1-8]/g, '');
+                    // ✨ FIX: Always take the final destination (the last 2 chars)
+                    duck_sq = this.#squareToIndex(d_str.slice(-2));
                 } else {
-                    // Extract Duck Square if it exists cleanly
+                    // Handle concatenated UCI like e2e4g8
                     let fsMatch = cleanUci.match(/^([a-h][1-8][a-h][1-8][qrbn]?)([a-h][1-8])$/);
                     if (fsMatch) {
                         cleanUci = fsMatch[1];
@@ -550,22 +635,15 @@ return FILES[f] + (8 - r);
 
                 moveObj.from = this.#squareToIndex(cleanUci.substring(0, 2));
                 moveObj.to = this.#squareToIndex(cleanUci.substring(2, 4));
-                promo = cleanUci.length > 4 ? cleanUci.substring(4, 5) : undefined;
+                promo = cleanUci.length > 4 && !separator ? cleanUci.substring(4, 5) : undefined;
                 if (duck_sq !== undefined) moveObj.duck_sq = duck_sq;
-            }
-            
-            if (this.isPlayingLiveGame && typeof this.goToEnd === 'function') {
-                this.goToEnd();
             }
 
             const result = this.makeMove(moveObj, promo, false, null, false);
-            if (result && typeof window !== 'undefined' && window.ui) {
-                this.triggerMoveSound(result);
+            if (result && window.ui) {
+                if (typeof this.triggerMoveSound === 'function') this.triggerMoveSound(result);
                 window.ui.renderBoard(true); 
                 window.ui.updateHistory();
-                if (typeof window.ui.updateClocks === 'function') window.ui.updateClocks();
-            } else if (!result) {
-                console.error(`[BOT ERROR] Bot attempted invalid move: ${uciMove}`);
             }
         }, delay);
     }
@@ -867,7 +945,6 @@ return move.san;
         if (line.startsWith('bestmove')) {
             const liveTurn = this.currentLiveTurn || this.turn;
             if (this.mode === 'bot' && liveTurn === this.botColor) {
-                // 🔥 FIX: Match any continuous string to catch e2e4d5 (Duck) AND P@e4 (Crazyhouse)
                 const match = line.match(/bestmove\s+(\S+)/);
                 const isVerifying = !!this.verifyingBookMove;
                 const candidate = this.verifyingBookMove;
@@ -910,7 +987,22 @@ return move.san;
                                 fallbackUCI = (choice.drop || choice.piece).toUpperCase() + '@' + choice.to;
                             } else {
                                 fallbackUCI = choice.from + choice.to + (choice.promotion || '');
-                                if (choice.duck_sq) fallbackUCI += choice.duck_sq;
+                                
+                                // 🔥 DUCK CHESS FALLBACK FIX: Pick a random empty square!
+                                if (this.gameMode === 'duck') {
+                                    let emptySqs = [];
+                                    for (let i = 0; i < 64; i++) {
+                                        let sqStr = this.#indexToSquare(i);
+                                        if (sqStr === choice.from) {
+                                            emptySqs.push(sqStr);
+                                        } else if (sqStr !== choice.to && !this.#engine.get(sqStr)) {
+                                            emptySqs.push(sqStr);
+                                        }
+                                    }
+                                    if (emptySqs.length > 0) {
+                                        fallbackUCI += ',' + emptySqs[Math.floor(Math.random() * emptySqs.length)];
+                                    }
+                                }
                             }
                             this.#executeBotMoveWithDelay(fallbackUCI);
                         }
@@ -973,12 +1065,13 @@ return move.san;
                         targetNode.evalScore = rawEval;
                         targetNode.eval = evalString;
                         targetNode.depth = depth;
-                        targetNode.pv = pvMatch ? pvMatch[1] : '';
+                        // 🔥 SUBLINE LEAK FIX: We explicitly blank out the PV so it never gets saved to the PGN!
+                        targetNode.pv = ''; 
                     } else {
                         targetNode.localEvalScore = rawEval;
                         targetNode.localEval = evalString;
                         targetNode.depth = depth;
-                        targetNode.pv = pvMatch ? pvMatch[1] : '';
+                        targetNode.pv = ''; // Same fix here
                     }
 
                     if (window.engineAnalysing && window.ui && typeof window.ui.updateInlineEval === 'function') {
@@ -999,15 +1092,61 @@ return move.san;
                     }, 250);
 
                     const arrowRoot = document.getElementById('tempArrowRoot');
-                    if (arrowRoot && window.ui && typeof window.ui.drawArrow === 'function') {
+                    if (arrowRoot && window.ui) {
                         arrowRoot.innerHTML = '';
+                        document.querySelectorAll('.ghost-suggestion').forEach(el => el.remove());
+
                         if (rawMoves.length > 0) {
-                            const f = this.#squareToIndex(rawMoves[0].substring(0, 2));
-                            const t = this.#squareToIndex(rawMoves[0].substring(2, 4));
-                            window.ui.drawArrow(arrowRoot, f, t, 'blue', 0.8);
+                            let bestMove = rawMoves[0];
+                            let duckDrop = null;
+                            
+                            // ✨ DUCK CHESS FIX: Split Fairy-Stockfish's comma pair
+                            if (bestMove.includes(',')) {
+                                let parts = bestMove.split(',');
+                                bestMove = parts[0];     // The physical piece move (e.g., c2c4)
+                                duckDrop = parts[1];     // The duck placement (e.g., c4c6)
+                            }
+                            
+                            // 1. Draw the Main Move (Pocket Drop or Standard Arrow)
+                            if (bestMove.includes('@')) {
+                                let parts = bestMove.split('@');
+                                let pTypeStr = parts[0].toLowerCase(); 
+                                let targetSq = this.#squareToIndex(parts[1].substring(0, 2)); 
+                                
+                                let activeColor = 'w';
+                                if (this.#engine && typeof this.#engine.turn === 'function') {
+                                    activeColor = this.#engine.turn() === 1 ? 'b' : 'w'; 
+                                }
+                                
+                                if (typeof window.ui.drawGhostPiece === 'function') {
+                                    window.ui.drawGhostPiece(arrowRoot, targetSq, pTypeStr, activeColor);
+                                }
+                            } else {
+                                if (typeof window.ui.clearGhostPiece === 'function') {
+                                    window.ui.clearGhostPiece();
+                                }
+                                if (typeof window.ui.drawArrow === 'function') {
+                                    const f = this.#squareToIndex(bestMove.substring(0, 2));
+                                    const t = this.#squareToIndex(bestMove.substring(2, 4));
+                                    window.ui.drawArrow(arrowRoot, f, t, 'blue', 0.8);
+                                }
+                            }
+
+                            // ✨ 2. Draw the Duck Ghost!
+                            if (duckDrop) {
+                                // Extract the last 2 characters for the duck's target square
+                                let duckDestStr = duckDrop.length >= 4 ? duckDrop.substring(2, 4) : duckDrop.substring(0, 2);
+                                
+                                // The ghost renderer safely uses the native numeric index
+                                let duckTargetSq = this.#squareToIndex(duckDestStr);
+                                console.log(duckDestStr);console.log(duckTargetSq);
+                                if (typeof window.ui.drawGhostPiece === 'function') {
+                                    // 🦆 Pass '*' so getPieceHTML knows exactly what image to load!
+                                    window.ui.drawGhostPiece(arrowRoot, duckTargetSq, '*', 'w');
+                                }
+                            }
                         }
                     }
-
                     if (window.ui && typeof window.ui.renderCharts === 'function') {
                         if (!window.chartUpdatePending) {
                             window.chartUpdatePending = true;
@@ -2815,6 +2954,7 @@ updateStockfish() {
             if (box) box.innerHTML = ''; 
             const arrowRoot = document.getElementById('tempArrowRoot');
             if (arrowRoot) arrowRoot.innerHTML = '';
+            document.querySelectorAll('.ghost-suggestion').forEach(el => el.remove());
             const depthEl = document.getElementById('depth-display');
             if (depthEl) depthEl.innerText = '';
             
@@ -3507,44 +3647,78 @@ updateSettingsTime() {
         }
     }
 playEngineSequence(seqString, baseFen) {
-if (baseFen && this.generateFEN() !== baseFen) {
-let temp = this.currentNode;
-let found = false;
-while (temp) {
-if (temp.fen === baseFen) {
-this.currentNode = temp;
-this.#reconcileBoardIds(this.currentNode.fen, null);
-found = true;
-break;
-}
-temp = temp.parent;
-}
-if (!found) {
-this.loadFEN(baseFen);
-}
-}
-const moves = seqString.split(',');
-if (typeof window.sfWorker !=='undefined'&& window.sfWorker)
-window.sfWorker.postMessage('stop');
-for (let uci of moves) {
-if (!uci) continue;
-const from = this.#squareToIndex(uci.substring(0, 2));
-const to = this.#squareToIndex(uci.substring(2, 4));
-const promotion = uci.length > 4 ? uci.substring(4, 5) :'q';
-this.makeMove({
-from,
-to
-}, promotion, false, null, true);
-}
-if (typeof window.ui !=='undefined') {
-window.ui.renderBoard(true);
-window.ui.updateHistory();
-window.ui.renderArrows();
-}
-if (typeof window.engineAnalysing !=='undefined'&& window.engineAnalysing) {
-this.updateStockfish();
-}
-}
+        if (baseFen && this.generateFEN() !== baseFen) {
+            let temp = this.currentNode;
+            let found = false;
+            while (temp) {
+                if (temp.fen === baseFen) {
+                    this.currentNode = temp;
+                    this.#reconcileBoardIds(this.currentNode.fen, null);
+                    found = true;
+                    break;
+                }
+                temp = temp.parent;
+            }
+            if (!found) {
+                this.loadFEN(baseFen);
+            }
+        }
+        
+        if (typeof window.sfWorker !== 'undefined' && window.sfWorker)
+            window.sfWorker.postMessage('stop');
+            
+        let movesList = [];
+        // ✨ DUCK FIX 1: Split by spaces first to keep the duck comma-pairs together!
+        let turns = seqString.trim().split(/\s+/).filter(m => m.trim().length > 0);
+        
+        for (let turnStr of turns) {
+            let pMove = turnStr;
+            let dMove = null;
+            
+            // Separate the piece move from the duck drop (e.g. "c2c4,c4c6")
+            if (turnStr.includes(',')) {
+                let parts = turnStr.split(',');
+                pMove = parts[0];
+                dMove = parts[1];
+            }
+            
+            let moveObj = {};
+            
+            // Parse Piece Move
+            if (pMove.includes('@')) {
+                let parts = pMove.split('@');
+                moveObj.from = '@';
+                moveObj.drop = parts[0].toLowerCase() || 'p';
+                moveObj.to = parts[1].substring(0, 2); 
+            } else {
+                moveObj.from = this.#squareToIndex(pMove.substring(0, 2));
+                moveObj.to = this.#squareToIndex(pMove.substring(2, 4));
+                moveObj.promotion = pMove.length > 4 ? pMove.substring(4, 5) : 'q';
+            }
+            
+            // Parse Duck Drop
+            if (dMove) {
+                // ✨ DUCK FIX 2: We MUST keep this as a STRING ("c6")! 
+                // Passing a numeric index makes the engine map it to the wrong 0x88 square (c3)!
+                moveObj.duck_sq = dMove.length >= 4 ? dMove.substring(2, 4) : dMove.substring(0, 2);
+            }
+            
+            movesList.push(moveObj);
+        }
+        
+        for (let moveObj of movesList) {
+            this.makeMove(moveObj, moveObj.promotion || 'q', false, null, true);
+        }
+        
+        if (typeof window.ui !== 'undefined') {
+            window.ui.renderBoard(true);
+            window.ui.updateHistory();
+            window.ui.renderArrows();
+        }
+        if (typeof window.engineAnalysing !== 'undefined' && window.engineAnalysing) {
+            this.updateStockfish();
+        }
+    }
 syncEngineToBoard() {
         let pieceFen = "";
         for (let r = 0; r < 8; r++) {
@@ -4127,7 +4301,7 @@ loadPGN(pgn, isEditor = false, isInternalLoad = false) {
                     'antichess': 'antichess', 'giveaway': 'antichess', 'losers': 'antichess',
                     'atomic': 'atomic', 'horde': 'horde', 'kingofthehill': 'kingofthehill', 
                     'koth': 'kingofthehill', 'racingkings': 'racingkings', 'crazyhouse': 'crazyhouse',
-                    'bughouse': 'bughouse', 'duck': 'duck', 'duckchess': 'duck', 'chaturanga': 'chaturanga'
+                    'bughouse': 'bughouse', 'duck': 'duck', 'duckchess': 'duck', 'chaturanga': 'chaturanga','placement': 'placement'
                 };
                 if (modeMap[rawVariant]) detectedMode = modeMap[rawVariant];
             }
