@@ -20,12 +20,12 @@
     </head>
     <body class="">
         <div id="app-scaler">
-            <button onclick="window.ui.toggleSideMenu()" style="position: fixed; top: 15px; left: 15px; z-index: 1000; background: #1e1e1e; border: 1px solid #333; border-radius: 6px; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #ccc; padding: 0; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transform: scale(calc(1 / var(--app-scale, 1))); transform-origin: top left;" onmouseover="this.style.background='#2a2a2a'; this.style.color='#fff'" onmouseout="this.style.background='#1e1e1e'; this.style.color='#ccc'">
+            <button onclick="window.app.ui.toggleSideMenu()" style="position: fixed; top: 15px; left: 15px; z-index: 1000; background: #1e1e1e; border: 1px solid #333; border-radius: 6px; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #ccc; padding: 0; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transform: scale(calc(1 / var(--app-scale, 1))); transform-origin: top left;" onmouseover="this.style.background='#2a2a2a'; this.style.color='#fff'" onmouseout="this.style.background='#1e1e1e'; this.style.color='#ccc'">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 30px; height: 30px; display: block;">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 7h16M4 12h16M4 17h16"></path>
                 </svg>
             </button>
-            <div id="sideMenuOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1001; backdrop-filter: blur(2px);transform: scale(calc(1 / var(--app-scale, 1))); transform-origin: center center;" onclick="window.ui.toggleSideMenu(false)"></div>
+            <div id="sideMenuOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1001; backdrop-filter: blur(2px);transform: scale(calc(1 / var(--app-scale, 1))); transform-origin: center center;" onclick="window.app.ui.toggleSideMenu(false)"></div>
             <div id="sideMenuPanel" style="position: fixed; top: 0; left: -360px; width: 320px; height: 100%; background: #111; z-index: 1002; transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 4px 0 15px rgba(0,0,0,0.7); display: flex; flex-direction: column; overflow-y: auto; border-right: 1px solid #222; transform: scale(calc(1 / var(--app-scale, 1))); transform-origin: left top;">
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid #222;">
                     <h2 style="margin: 0; color: #fff; font-size: 20px; font-weight: bold; display: flex; align-items: center; gap: 10px;">
@@ -33,14 +33,20 @@
                     
                     
                     
+                    
+                    
+                    
                     </h2>
-                    <button onclick="window.ui.toggleSideMenu(false)" style="background: none; border: none; color: #888; font-size: 28px; cursor: pointer; padding: 0; line-height: 1; transition: 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#888'">&times;</button>
+                    <button onclick="window.app.ui.toggleSideMenu(false)" style="background: none; border: none; color: #888; font-size: 28px; cursor: pointer; padding: 0; line-height: 1; transition: 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#888'">&times;</button>
                 </div>
                 <div style="padding: 20px; display: flex; flex-direction: column; gap: 20px;">
                     <div style="display: flex; flex-direction: column; gap: 8px;">
                         <div class="menu-nav-item group" style="display: flex; flex-direction: column;" onmouseenter="document.getElementById('analysisSubmenu').style.display='flex'; if(!document.getElementById('menuBtn-analysis').classList.contains('active')) document.getElementById('menuBtn-analysis').style.background='#222';" onmouseleave="document.getElementById('analysisSubmenu').style.display='none'; if(!document.getElementById('menuBtn-analysis').classList.contains('active')){ document.getElementById('menuBtn-analysis').style.background='transparent'; }">
-                            <button id="menuBtn-analysis" class="menu-nav-btn active" onclick="window.ui.switchTab('analysis'); window.ui.toggleSideMenu(false);" style="text-align: left; padding: 12px 15px; background: #2872b5; border: none; border-radius: 6px; color: white; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s;" onmouseover="if(!this.classList.contains('active')){this.style.background='#222'; this.style.color='#fff'}" onmouseout="if(!this.classList.contains('active')){this.style.background='transparent'; this.style.color='#ccc'}">
+                            <button id="menuBtn-analysis" class="menu-nav-btn active" onclick="window.app.ui.switchTab('analysis'); window.app.ui.toggleSideMenu(false);" style="text-align: left; padding: 12px 15px; background: #2872b5; border: none; border-radius: 6px; color: white; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s;" onmouseover="if(!this.classList.contains('active')){this.style.background='#222'; this.style.color='#fff'}" onmouseout="if(!this.classList.contains('active')){this.style.background='transparent'; this.style.color='#ccc'}">
                                 <img src="./assets/tabs-icon/magnifier-analysis.svg" viewBox="0 0 24 24" width="18" height="18">Analysis
+                            
+                            
+                            
                             
                             
                             
@@ -51,7 +57,7 @@
                                         <img src="./assets/tabs-icon/variants.svg" width="16" height="16" style="opacity: 0.8;">
                                         <span>Variant</span>
                                     </div>
-                                    <select id="analysisVariantSelect" onchange="if(window.game) window.game.setGameMode(this.value);" style="background: #111; color: #e3e3e3; border: 1px solid #333; padding: 4px 8px; border-radius: 3px; font-size: 13px; cursor: pointer; outline: none; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);">
+                                    <select id="analysisVariantSelect" onchange="if(window.game) window.app.game.setGameMode(this.value);" style="background: #111; color: #e3e3e3; border: 1px solid #333; padding: 4px 8px; border-radius: 3px; font-size: 13px; cursor: pointer; outline: none; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);">
                                         <option value="classical">Standard</option>
                                         <option value="chess960">Chess960</option>
                                         <option value="3check">3-Check</option>
@@ -67,8 +73,11 @@
                                         <option value="racingkings">Racing Kings</option>
                                     </select>
                                 </div>
-                                <button onclick="const v = document.getElementById('analysisVariantSelect').value; window.game.setGameMode(v); if(v === 'chess960') window.game.startChess960Analysis(); else window.game.startAnalysisMode(); window.ui.switchTab('analysis'); window.ui.toggleSideMenu(false);" style="text-align: center; justify-content: center; padding: 8px 12px; background: transparent; border: none; border-radius: 4px; color: #aaa; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;" onmouseover="this.style.color='#fff'; this.style.background='#333'" onmouseout="this.style.color='#aaa'; this.style.background='transparent'">
+                                <button onclick="const v = document.getElementById('analysisVariantSelect').value; window.app.game.setGameMode(v); if(v === 'chess960') window.app.game.startChess960Analysis(); else window.app.game.startAnalysisMode(); window.app.ui.switchTab('analysis'); window.app.ui.toggleSideMenu(false);" style="text-align: center; justify-content: center; padding: 8px 12px; background: transparent; border: none; border-radius: 4px; color: #aaa; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;" onmouseover="this.style.color='#fff'; this.style.background='#333'" onmouseout="this.style.color='#aaa'; this.style.background='transparent'">
                                     <img src="./assets/tabs-icon/magnifier-analysis.svg" width="16" height="16" style="opacity: 0.8;">Start Analysis
+                                
+                                
+                                
                                 
                                 
                                 
@@ -81,6 +90,9 @@
                             
                             
                             
+                            
+                            
+                            
                             </button>
                             <div id="playSubmenu" style="display: none; flex-direction: column; padding-top: 5px; gap: 5px;">
                                 <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.05); border-radius: 4px; margin-bottom: 4px;">
@@ -88,7 +100,7 @@
                                         <img src="./assets/tabs-icon/variants.svg" width="16" height="16" style="opacity: 0.8;">
                                         <span>Variant</span>
                                     </div>
-                                    <select id="gameVariantSelect" onchange="if(window.game) window.game.setGameMode(this.value);" style="background: #111; color: #e3e3e3; border: 1px solid #333; padding: 4px 8px; border-radius: 3px; font-size: 13px; cursor: pointer; outline: none; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);">
+                                    <select id="gameVariantSelect" onchange="if(window.game) window.app.game.setGameMode(this.value);" style="background: #111; color: #e3e3e3; border: 1px solid #333; padding: 4px 8px; border-radius: 3px; font-size: 13px; cursor: pointer; outline: none; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);">
                                         <option value="classical">Standard</option>
                                         <option value="chess960">Chess960</option>
                                         <option value="3check">3-Check</option>
@@ -104,21 +116,24 @@
                                         <option value="racingkings">Racing Kings</option>
                                     </select>
                                 </div>
-                                <button onclick="const v = document.getElementById('gameVariantSelect').value; window.game.gameMode = v; if(v === 'chess960') window.game.startChess960Game('local'); else window.game.startLocalGame(); window.ui.switchTab('play'); window.ui.toggleSideMenu(false);" style="text-align: center; justify-content: center; padding: 8px 12px; background: transparent; border: none; border-radius: 4px; color: #aaa; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;" onmouseover="this.style.color='#fff'; this.style.background='#333'" onmouseout="this.style.color='#aaa'; this.style.background='transparent'">👤 Play vs Human</button>
-                                <button onclick="const v = document.getElementById('gameVariantSelect').value; window.game.setGameMode(v); window.ui.openBotMenu(); window.ui.switchTab('play'); window.ui.toggleSideMenu(false);" style="text-align: center; justify-content: center; padding: 8px 12px; background: transparent; border: none; border-radius: 4px; color: #aaa; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;" onmouseover="this.style.color='#fff'; this.style.background='#333'" onmouseout="this.style.color='#aaa'; this.style.background='transparent'">🤖 Play vs Computer</button>
+                                <button onclick="const v = document.getElementById('gameVariantSelect').value; window.app.game.gameMode = v; if(v === 'chess960') window.app.game.startChess960Game('local'); else window.app.game.startLocalGame(); window.app.ui.switchTab('play'); window.app.ui.toggleSideMenu(false);" style="text-align: center; justify-content: center; padding: 8px 12px; background: transparent; border: none; border-radius: 4px; color: #aaa; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;" onmouseover="this.style.color='#fff'; this.style.background='#333'" onmouseout="this.style.color='#aaa'; this.style.background='transparent'">👤 Play vs Human</button>
+                                <button onclick="const v = document.getElementById('gameVariantSelect').value; window.app.game.setGameMode(v); window.app.ui.openBotMenu(); window.app.ui.switchTab('play'); window.app.ui.toggleSideMenu(false);" style="text-align: center; justify-content: center; padding: 8px 12px; background: transparent; border: none; border-radius: 4px; color: #aaa; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;" onmouseover="this.style.color='#fff'; this.style.background='#333'" onmouseout="this.style.color='#aaa'; this.style.background='transparent'">🤖 Play vs Computer</button>
                             </div>
                         </div>
-                        <button id="menuBtn-puzzles" class="menu-nav-btn" onclick="window.ui.switchTab('puzzles'); window.ui.toggleSideMenu(false);" style="text-align: left; padding: 12px 15px; background: transparent; border: none; border-radius: 6px; color: #ccc; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s;" onmouseover="if(!this.classList.contains('active')){this.style.background='#222'; this.style.color='#fff'}" onmouseout="if(!this.classList.contains('active')){this.style.background='transparent'; this.style.color='#ccc'}">
+                        <button id="menuBtn-puzzles" class="menu-nav-btn" onclick="window.app.ui.switchTab('puzzles'); window.app.ui.toggleSideMenu(false);" style="text-align: left; padding: 12px 15px; background: transparent; border: none; border-radius: 6px; color: #ccc; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s;" onmouseover="if(!this.classList.contains('active')){this.style.background='#222'; this.style.color='#fff'}" onmouseout="if(!this.classList.contains('active')){this.style.background='transparent'; this.style.color='#ccc'}">
                             <img src="./assets/tabs-icon/puzzle-piece.svg" viewBox="0 0 24 24" width="18" height="18">Puzzles
                         
                         
                         
+                        
+                        
+                        
                         </button>
-                        <button id="menuBtn-study" class="menu-nav-btn" onclick="window.ui.switchTab('study'); window.ui.toggleSideMenu(false);" style="text-align: left; padding: 12px 15px; background: transparent; border: none; border-radius: 6px; color: #ccc; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s;" onmouseover="if(!this.classList.contains('active')){this.style.background='#222'; this.style.color='#fff'}" onmouseout="if(!this.classList.contains('active')){this.style.background='transparent'; this.style.color='#ccc'}">
+                        <button id="menuBtn-study" class="menu-nav-btn" onclick="window.app.ui.switchTab('study'); window.app.ui.toggleSideMenu(false);" style="text-align: left; padding: 12px 15px; background: transparent; border: none; border-radius: 6px; color: #ccc; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s;" onmouseover="if(!this.classList.contains('active')){this.style.background='#222'; this.style.color='#fff'}" onmouseout="if(!this.classList.contains('active')){this.style.background='transparent'; this.style.color='#ccc'}">
                             <img src="./assets/tabs-icon/book-mark-aqua.svg" width="16" height="16" style="opacity: 0.8;">
                             <span>Study</span>
                         </button>
-                        <button id="menuBtn-editor" class="menu-nav-btn" onclick="window.ui.switchTab('editor'); window.ui.toggleSideMenu(false);" style="text-align: left; padding: 12px 15px; background: transparent; border: none; border-radius: 6px; color: #ccc; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s;" onmouseover="if(!this.classList.contains('active')){this.style.background='#222'; this.style.color='#fff'}" onmouseout="if(!this.classList.contains('active')){this.style.background='transparent'; this.style.color='#ccc'}">
+                        <button id="menuBtn-editor" class="menu-nav-btn" onclick="window.app.ui.switchTab('editor'); window.app.ui.toggleSideMenu(false);" style="text-align: left; padding: 12px 15px; background: transparent; border: none; border-radius: 6px; color: #ccc; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s;" onmouseover="if(!this.classList.contains('active')){this.style.background='#222'; this.style.color='#fff'}" onmouseout="if(!this.classList.contains('active')){this.style.background='transparent'; this.style.color='#ccc'}">
                             <svg viewBox="0 0 100 100" width="38" height="38" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
                                 <rect x="10" y="10" width="80" height="80" rx="10" fill="#262421" stroke="#38bdf8" stroke-width="4"/>
                                 <path d="M10 36.6h80M10 63.3h80M36.6 10v80M63.3 10v80" stroke="#38bdf8" stroke-width="5" stroke-opacity="0.2"/>
@@ -130,6 +145,9 @@
                                 </g>
                             </svg>
                             Board Editor
+                        
+                        
+                        
                         
                         
                         
@@ -145,46 +163,49 @@
                     
                     
                     
+                    
+                    
+                    
                     </a>
                 </div>
             </div>
-            <div class="main-layout" style="display: flex; flex-direction: column; height: 100vh; overflow-y: auto;">
+            <div class="main-layout" style="display: flex; flex-direction: column; height: 100vh; overflow-y: auto; width: 0vh;">
                 <div id="annotationPopup" style="display:none; left:947px; top:288px;">
                     <div class="ctx-header">Annotation</div>
                     <div class="nag-grid">
-                        <div class="anno-btn nag-3" onclick="window.ui.setNag(3)" title="Brilliant">!!</div>
-                        <div class="anno-btn nag-1" onclick="window.ui.setNag(1)" title="Great">!</div>
-                        <div class="anno-btn nag-5" onclick="window.ui.setNag(5)" title="Interesting">!?</div>
-                        <div class="anno-btn nag-6" onclick="window.ui.setNag(6)" title="Inaccuracy">?!</div>
-                        <div class="anno-btn nag-2" onclick="window.ui.setNag(2)" title="Mistake">?</div>
-                        <div class="anno-btn nag-4" onclick="window.ui.setNag(4)" title="Blunder">??</div>
-                        <div class="anno-btn" onclick="window.ui.setNag(10)" title="Equal">=</div>
-                        <div class="anno-btn" onclick="window.ui.setNag(13)" title="Unclear">∞</div>
-                        <div class="anno-btn" onclick="window.ui.setNag(14)" title="White Slight">⩲</div>
-                        <div class="anno-btn" onclick="window.ui.setNag(15)" title="Black Slight">⩱</div>
-                        <div class="anno-btn" onclick="window.ui.setNag(16)" title="White Win">±</div>
-                        <div class="anno-btn" onclick="window.ui.setNag(17)" title="Black Win">∓</div>
-                        <div class="anno-btn" onclick="window.ui.setNag(18)" title="W Win">+−</div>
-                        <div class="anno-btn" onclick="window.ui.setNag(19)" title="B Win">−+</div>
-                        <div class="anno-btn" onclick="window.ui.setNag(0)" style="color:#d64f4f;" title="Clear">×</div>
+                        <div class="anno-btn nag-3" onclick="window.app.ui.setNag(3)" title="Brilliant">!!</div>
+                        <div class="anno-btn nag-1" onclick="window.app.ui.setNag(1)" title="Great">!</div>
+                        <div class="anno-btn nag-5" onclick="window.app.ui.setNag(5)" title="Interesting">!?</div>
+                        <div class="anno-btn nag-6" onclick="window.app.ui.setNag(6)" title="Inaccuracy">?!</div>
+                        <div class="anno-btn nag-2" onclick="window.app.ui.setNag(2)" title="Mistake">?</div>
+                        <div class="anno-btn nag-4" onclick="window.app.ui.setNag(4)" title="Blunder">??</div>
+                        <div class="anno-btn" onclick="window.app.ui.setNag(10)" title="Equal">=</div>
+                        <div class="anno-btn" onclick="window.app.ui.setNag(13)" title="Unclear">∞</div>
+                        <div class="anno-btn" onclick="window.app.ui.setNag(14)" title="White Slight">⩲</div>
+                        <div class="anno-btn" onclick="window.app.ui.setNag(15)" title="Black Slight">⩱</div>
+                        <div class="anno-btn" onclick="window.app.ui.setNag(16)" title="White Win">±</div>
+                        <div class="anno-btn" onclick="window.app.ui.setNag(17)" title="Black Win">∓</div>
+                        <div class="anno-btn" onclick="window.app.ui.setNag(18)" title="W Win">+−</div>
+                        <div class="anno-btn" onclick="window.app.ui.setNag(19)" title="B Win">−+</div>
+                        <div class="anno-btn" onclick="window.app.ui.setNag(0)" style="color:#d64f4f;" title="Clear">×</div>
                     </div>
                     <div style="border-top:1px solid #333; margin:5px 0;"></div>
-                    <div class="ctx-menu-item" onclick="window.ui.promoteVar()">Promote Variation</div>
-                    <div class="ctx-menu-item" onclick="window.ui.makeMainline()">Make Main Line</div>
+                    <div class="ctx-menu-item" onclick="window.app.ui.promoteVar()">Promote Variation</div>
+                    <div class="ctx-menu-item" onclick="window.app.ui.makeMainline()">Make Main Line</div>
                     <div style="border-top:1px solid #333; margin:5px 0;"></div>
-                    <div class="ctx-menu-item" onclick="window.ui.promptComment()">Add Comment</div>
-                    <div class="ctx-menu-item" onclick="window.ui.deleteNode()">Delete Move</div>
+                    <div class="ctx-menu-item" onclick="window.app.ui.promptComment()">Add Comment</div>
+                    <div class="ctx-menu-item" onclick="window.app.ui.deleteNode()">Delete Move</div>
                 </div>
                 <div id="settingsPanel" class="visible" style="transform: translate3d(535px, 78px, 0px);">
                     <div class="settings-header">
                         <span>SETTINGS</span>
-                        <span class="close-settings" onclick="window.ui.toggleSettings()">×</span>
+                        <span class="close-settings" onclick="window.app.ui.toggleSettings()">×</span>
                     </div>
                     <div class="settings-body">
                         <div class="setting-row" style="border-bottom:1px solid #444;padding-bottom:15px;">
                             <label class="control-label" style="margin-bottom: 8px; display: block;">Board Theme</label>
                             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; font-family: 'Segoe UI', Tahoma, sans-serif;">
-                                <div class="theme-preset active" onclick="window.ui.setPresetTheme('#2bb7ca', '#19579a', this,'#2bb7ca','transparent', 'merida', 'radial-gradient(circle at 50% 0%, #1e3a4c 0%, #0f172a 60%, #020617 100%)')" style="background: #111; border: 2px solid #38bdf8; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #38bdf8; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Default">
+                                <div class="theme-preset active" onclick="window.app.ui.setPresetTheme('#2bb7ca', '#19579a', this,'#2bb7ca','transparent', 'merida', 'radial-gradient(circle at 50% 0%, #1e3a4c 0%, #0f172a 60%, #020617 100%)')" style="background: #111; border: 2px solid #38bdf8; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #38bdf8; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Default">
                                     <span>Default</span>
                                     <div class="mini-board" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; border: 1px solid #333; border-radius: 4px; overflow: hidden; width: 100%; aspect-ratio: 1/1; max-width: 40px; margin-top: 5px;">
                                         <div style="background: #2bb7ca;"></div>
@@ -193,7 +214,7 @@
                                         <div style="background: #2bb7ca;"></div>
                                     </div>
                                 </div>
-                                <div class="theme-preset" onclick="window.ui.setPresetTheme('#e8e8e8', '#7d8796', this, '#7d8796', 'transparent', 'alpha', 'radial-gradient(circle at 50% 0%, #2a2a2a 0%, #111 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Marble">
+                                <div class="theme-preset" onclick="window.app.ui.setPresetTheme('#e8e8e8', '#7d8796', this, '#7d8796', 'transparent', 'alpha', 'radial-gradient(circle at 50% 0%, #2a2a2a 0%, #111 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Marble">
                                     <span>Marble</span>
                                     <div class="mini-board" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; border: 1px solid #333; width: 100%; aspect-ratio: 1/1; max-width: 40px; margin-top: 5px; box-sizing: border-box;">
                                         <div style="background: #e8e8e8;"></div>
@@ -202,7 +223,7 @@
                                         <div style="background: #e8e8e8;"></div>
                                     </div>
                                 </div>
-                                <div class="theme-preset" onclick="window.ui.setPresetTheme('#eeeed2', '#769656', this, '#769656', 'transparent', 'cburnett', 'radial-gradient(circle at 50% 0%, #1b3320 0%, #0c1a10 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Green">
+                                <div class="theme-preset" onclick="window.app.ui.setPresetTheme('#eeeed2', '#769656', this, '#769656', 'transparent', 'cburnett', 'radial-gradient(circle at 50% 0%, #1b3320 0%, #0c1a10 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Green">
                                     <span>Green</span>
                                     <div class="mini-board" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; border: 1px solid #333; width: 100%; aspect-ratio: 1/1; max-width: 40px; margin-top: 5px; box-sizing: border-box;">
                                         <div style="background: #eeeed2;"></div>
@@ -211,7 +232,7 @@
                                         <div style="background: #eeeed2;"></div>
                                     </div>
                                 </div>
-                                <div class="theme-preset" onclick="window.ui.setPresetTheme('#dee3e6', '#60b1d9', this, '#60b1d9', 'transparent', 'california', 'radial-gradient(circle at 50% 0%, #1e3a4c 0%, #0f172a 60%, #020617 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Blue">
+                                <div class="theme-preset" onclick="window.app.ui.setPresetTheme('#dee3e6', '#60b1d9', this, '#60b1d9', 'transparent', 'california', 'radial-gradient(circle at 50% 0%, #1e3a4c 0%, #0f172a 60%, #020617 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Blue">
                                     <span>Blue</span>
                                     <div class="mini-board" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; border: 1px solid #333; width: 100%; aspect-ratio: 1/1; max-width: 40px; margin-top: 5px; box-sizing: border-box;">
                                         <div style="background: #dee3e6;"></div>
@@ -220,7 +241,7 @@
                                         <div style="background: #dee3e6;"></div>
                                     </div>
                                 </div>
-                                <div class="theme-preset" onclick="window.ui.setPresetTheme('#f0e6f6', '#7a5c8d', this, '#7a5c8d', 'transparent', 'companion', 'radial-gradient(circle at 50% 0%, #311c42 0%, #160b24 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Purple">
+                                <div class="theme-preset" onclick="window.app.ui.setPresetTheme('#f0e6f6', '#7a5c8d', this, '#7a5c8d', 'transparent', 'companion', 'radial-gradient(circle at 50% 0%, #311c42 0%, #160b24 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Purple">
                                     <span>Purple</span>
                                     <div class="mini-board" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; border: 1px solid #333; width: 100%; aspect-ratio: 1/1; max-width: 40px; margin-top: 5px; box-sizing: border-box;">
                                         <div style="background: #f0e6f6;"></div>
@@ -229,7 +250,7 @@
                                         <div style="background: #f0e6f6;"></div>
                                     </div>
                                 </div>
-                                <div class="theme-preset" onclick="window.ui.setPresetTheme('#e6dee2', '#d960cb', this, '#d960cb', 'transparent', 'kosal', 'radial-gradient(circle at 50% 0%, #4a1936 0%, #240a18 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Pink">
+                                <div class="theme-preset" onclick="window.app.ui.setPresetTheme('#e6dee2', '#d960cb', this, '#d960cb', 'transparent', 'kosal', 'radial-gradient(circle at 50% 0%, #4a1936 0%, #240a18 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Pink">
                                     <span>Pink</span>
                                     <div class="mini-board" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; border: 1px solid #333; width: 100%; aspect-ratio: 1/1; max-width: 40px; margin-top: 5px; box-sizing: border-box;">
                                         <div style="background: #e6dee2;"></div>
@@ -238,7 +259,7 @@
                                         <div style="background: #e6dee2;"></div>
                                     </div>
                                 </div>
-                                <div class="theme-preset" onclick="window.ui.setPresetTheme('#e83a3a', '#404040', this, '#ffd700', '#ffd700', 'fantasy', 'radial-gradient(circle at 50% 0%, #4a1010 0%, #1a0505 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Fire">
+                                <div class="theme-preset" onclick="window.app.ui.setPresetTheme('#e83a3a', '#404040', this, '#ffd700', '#ffd700', 'fantasy', 'radial-gradient(circle at 50% 0%, #4a1010 0%, #1a0505 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Fire">
                                     <span>Fire</span>
                                     <div class="mini-board" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; border: 1px solid #ffd700; width: 100%; aspect-ratio: 1/1; max-width: 40px; margin-top: 5px; box-sizing: border-box;">
                                         <div style="background: #e83a3a; border: 1px solid #ffd700; box-sizing: border-box;"></div>
@@ -247,7 +268,7 @@
                                         <div style="background: #e83a3a; border: 1px solid #ffd700; box-sizing: border-box;"></div>
                                     </div>
                                 </div>
-                                <div class="theme-preset" onclick="window.ui.setPresetTheme('#0b3c5d', '#2a2a2a', this, '#00e5ff', '#00e5ff', 'cardinal', 'radial-gradient(circle at 50% 0%, #053140 0%, #02121a 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Neon">
+                                <div class="theme-preset" onclick="window.app.ui.setPresetTheme('#0b3c5d', '#2a2a2a', this, '#00e5ff', '#00e5ff', 'cardinal', 'radial-gradient(circle at 50% 0%, #053140 0%, #02121a 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Neon">
                                     <span>Neon</span>
                                     <div class="mini-board" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; border: 1px solid #00e5ff; width: 100%; aspect-ratio: 1/1; max-width: 40px; margin-top: 5px; box-sizing: border-box;">
                                         <div style="background: #0b3c5d; border: 1px solid #00e5ff; box-sizing: border-box;"></div>
@@ -256,7 +277,7 @@
                                         <div style="background: #0b3c5d; border: 1px solid #00e5ff; box-sizing: border-box;"></div>
                                     </div>
                                 </div>
-                                <div class="theme-preset" onclick="window.ui.setPresetTheme('#0f3460', '#2b213a', this, '#e94560', '#e94560', 'anarcandy', 'radial-gradient(circle at 50% 0%, #36021e 0%, #15001a 60%, #05000a 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Cyberpunk">
+                                <div class="theme-preset" onclick="window.app.ui.setPresetTheme('#0f3460', '#2b213a', this, '#e94560', '#e94560', 'anarcandy', 'radial-gradient(circle at 50% 0%, #36021e 0%, #15001a 60%, #05000a 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Cyberpunk">
                                     <span>Cyberpunk</span>
                                     <div class="mini-board" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; border: 1px solid #e94560; width: 100%; aspect-ratio: 1/1; max-width: 40px; margin-top: 5px; box-sizing: border-box;">
                                         <div style="background: #0f3460; border: 1px solid #e94560; box-sizing: border-box;"></div>
@@ -265,7 +286,7 @@
                                         <div style="background: #0f3460; border: 1px solid #e94560; box-sizing: border-box;"></div>
                                     </div>
                                 </div>
-                                <div class="theme-preset" onclick="window.ui.setPresetTheme('#2d1b4e', '#2b0f2a', this, '#8a2be2', '#8a2be2', 'maestro', 'radial-gradient(circle at 50% 0%, #1e1136 0%, #0b0517 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Galaxy">
+                                <div class="theme-preset" onclick="window.app.ui.setPresetTheme('#2d1b4e', '#2b0f2a', this, '#8a2be2', '#8a2be2', 'maestro', 'radial-gradient(circle at 50% 0%, #1e1136 0%, #0b0517 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Galaxy">
                                     <span>Galaxy</span>
                                     <div class="mini-board" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; border: 1px solid #8a2be2; width: 100%; aspect-ratio: 1/1; max-width: 40px; margin-top: 5px; box-sizing: border-box;">
                                         <div style="background: #2d1b4e; border: 1px solid #8a2be2; box-sizing: border-box;"></div>
@@ -274,7 +295,7 @@
                                         <div style="background: #2d1b4e; border: 1px solid #8a2be2; box-sizing: border-box;"></div>
                                     </div>
                                 </div>
-                                <div class="theme-preset" onclick="window.ui.setPresetTheme('#ff6b35', '#2b2222', this, '#ffd166', '#ffd166', 'firi', 'radial-gradient(circle at 50% 0%, #3b1b05 0%, #170902 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Pumpkin">
+                                <div class="theme-preset" onclick="window.app.ui.setPresetTheme('#ff6b35', '#2b2222', this, '#ffd166', '#ffd166', 'firi', 'radial-gradient(circle at 50% 0%, #3b1b05 0%, #170902 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Pumpkin">
                                     <span>Pumpkin</span>
                                     <div class="mini-board" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; border: 1px solid #ffd166; width: 100%; aspect-ratio: 1/1; max-width: 40px; margin-top: 5px; box-sizing: border-box;">
                                         <div style="background: #ff6b35; border: 1px solid #ffd166; box-sizing: border-box;"></div>
@@ -283,7 +304,7 @@
                                         <div style="background: #ff6b35; border: 1px solid #ffd166; box-sizing: border-box;"></div>
                                     </div>
                                 </div>
-                                <div class="theme-preset" onclick="window.ui.setPresetTheme('#e0f7fa', '#4dd0e1', this, '#0288d1', '#0288d1', 'icpieces', 'radial-gradient(circle at 50% 0%, #143540 0%, #07151c 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Ice">
+                                <div class="theme-preset" onclick="window.app.ui.setPresetTheme('#e0f7fa', '#4dd0e1', this, '#0288d1', '#0288d1', 'icpieces', 'radial-gradient(circle at 50% 0%, #143540 0%, #07151c 60%, #000 100%)')" style="background: #111; border: 2px solid #333; border-radius: 6px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; color: #bababa; font-size: 11px; font-weight: bold; transition: all 0.2s;" title="Ice">
                                     <span>Ice</span>
                                     <div class="mini-board" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; border: 1px solid #0288d1; width: 100%; aspect-ratio: 1/1; max-width: 40px; margin-top: 5px; box-sizing: border-box;">
                                         <div style="background: #e0f7fa; border: 1px solid #0288d1; box-sizing: border-box;"></div>
@@ -296,21 +317,21 @@
                             <div class="color-pickers">
                                 <div class="color-box" style="background-color:var(--board-light);">
                                     <label for="colorLight" style="position:absolute;width:100%;height:100%;cursor:pointer;"></label>
-                                    <input type="color" id="colorLight" value="#2bb7ca" onchange="window.ui.updateTheme()" aria-label="Light Square Color">
+                                    <input type="color" id="colorLight" value="#2bb7ca" onchange="window.app.ui.updateTheme()" aria-label="Light Square Color">
                                 </div>
                                 <div class="color-box" style="background-color:var(--board-dark);">
                                     <label for="colorDark" style="position:absolute;width:100%;height:100%;cursor:pointer;"></label>
-                                    <input type="color" id="colorDark" value="#19579a" onchange="window.ui.updateTheme()" aria-label="Dark Square Color">
+                                    <input type="color" id="colorDark" value="#19579a" onchange="window.app.ui.updateTheme()" aria-label="Dark Square Color">
                                 </div>
                             </div>
                         </div>
                         <div class="setting-row" style="border-bottom:1px solid #444; padding-bottom:10px;">
                             <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:5px;">
                                 <label class="control-label" style="margin:0;">Custom engine loading</label>
-                                <button class="btn-secondary" style="padding:2px 8px; font-size:10px; height:20px; min-height:0;" onclick="window.game.loadEngineFromFolder()">Select Folder📂</button>
+                                <button class="btn-secondary" style="padding:2px 8px; font-size:10px; height:20px; min-height:0;" onclick="window.app.game.loadEngineFromFolder()">Select Folder📂</button>
                             </div>
                             <input type="text" id="assetEngineFolder" class="text-input" style="display:block; width:100%; margin-bottom: 10px;" placeholder="C:/project_root/Stockfish18" aria-label="Local Folder Path">
-                            <button class="btn-secondary" style="padding:2px 8px; font-size:10px; height:20px; min-height:0;" onclick="window.game.resetEngineDefault()">Reset Default (Stockfish 18)</button>
+                            <button class="btn-secondary" style="padding:2px 8px; font-size:10px; height:20px; min-height:0;" onclick="window.app.game.resetEngineDefault()">Reset Default (Stockfish 18)</button>
                         </div>
                         <div class="setting-row" style="border-bottom:1px solid #444; padding-bottom:10px; ">
                             <label class="control-label">Engine Depth</label>
@@ -319,30 +340,30 @@
                         <div class="setting-row" style=" border-top:1px solid #444; padding-top:10px;">
                             <label class="control-label" style="color:#38bdf8;">White Time (H:M:S)</label>
                             <div style="display:flex; gap:5px;">
-                                <input type="number" id="wTimeH" class="text-input" placeholder="H" value="0" min="0" onchange="window.game.updateSettingsTime()" style="flex:1; text-align:center;">
-                                <input type="number" id="wTimeM" class="text-input" placeholder="M" value="10" min="0" onchange="window.game.updateSettingsTime()" style="flex:1; text-align:center;">
-                                <input type="number" id="wTimeS" class="text-input" placeholder="S" value="0" min="0" onchange="window.game.updateSettingsTime()" style="flex:1; text-align:center;">
+                                <input type="number" id="wTimeH" class="text-input" placeholder="H" value="0" min="0" onchange="window.app.game.updateSettingsTime()" style="flex:1; text-align:center;">
+                                <input type="number" id="wTimeM" class="text-input" placeholder="M" value="10" min="0" onchange="window.app.game.updateSettingsTime()" style="flex:1; text-align:center;">
+                                <input type="number" id="wTimeS" class="text-input" placeholder="S" value="0" min="0" onchange="window.app.game.updateSettingsTime()" style="flex:1; text-align:center;">
                             </div>
                         </div>
                         <div class="setting-row" style="border-bottom:1px solid #444; padding-bottom:10px;">
                             <label class="control-label">White Increment (Sec)</label>
-                            <input type="number" id="wInc" class="text-input" value="0" min="0" onchange="window.game.updateSettingsTime()">
+                            <input type="number" id="wInc" class="text-input" value="0" min="0" onchange="window.app.game.updateSettingsTime()">
                         </div>
                         <div class="setting-row" style=" border-bottom:1px solid #444; padding-bottom:10px;">
                             <label class="control-label" style="color:#e68f00;">Black Time (H:M:S)</label>
                             <div style="display:flex; gap:5px;">
-                                <input type="number" id="bTimeH" class="text-input" placeholder="H" value="0" min="0" onchange="window.game.updateSettingsTime()" style="flex:1; text-align:center;">
-                                <input type="number" id="bTimeM" class="text-input" placeholder="M" value="10" min="0" onchange="window.game.updateSettingsTime()" style="flex:1; text-align:center;">
-                                <input type="number" id="bTimeS" class="text-input" placeholder="S" value="0" min="0" onchange="window.game.updateSettingsTime()" style="flex:1; text-align:center;">
+                                <input type="number" id="bTimeH" class="text-input" placeholder="H" value="0" min="0" onchange="window.app.game.updateSettingsTime()" style="flex:1; text-align:center;">
+                                <input type="number" id="bTimeM" class="text-input" placeholder="M" value="10" min="0" onchange="window.app.game.updateSettingsTime()" style="flex:1; text-align:center;">
+                                <input type="number" id="bTimeS" class="text-input" placeholder="S" value="0" min="0" onchange="window.app.game.updateSettingsTime()" style="flex:1; text-align:center;">
                             </div>
                             <div class="setting-row">
                                 <label class="control-label">Black Increment (Sec)</label>
-                                <input type="number" id="bInc" class="text-input" value="0" min="0" onchange="window.game.updateSettingsTime()">
+                                <input type="number" id="bInc" class="text-input" value="0" min="0" onchange="window.app.game.updateSettingsTime()">
                             </div>
                         </div>
                         <div class="setting-row" style="border-bottom:1px solid #444; padding-bottom:10px;">
                             <label class="control-label">Premove Mode</label>
-                            <select id="premoveMode" class="select-input" onchange="window.game.setPremoveMode(this.value)">
+                            <select id="premoveMode" class="select-input" onchange="window.app.game.setPremoveMode(this.value)">
                                 <option value="multi">Multiple Premoves</option>
                                 <option value="single">Single Premove</option>
                                 <option value="none">No Premoves</option>
@@ -350,7 +371,7 @@
                         </div>
                         <div class="setting-row" style="border-bottom:1px solid #444; padding-bottom:10px;">
                             <label class="control-label">Move Method</label>
-                            <select id="moveMethod" class="select-input" onchange="window.ui.setMoveMethod(this.value)">
+                            <select id="moveMethod" class="select-input" onchange="window.app.ui.setMoveMethod(this.value)">
                                 <option value="both" selected="">Drag &amp;Click</option>
                                 <option value="drag">Drag Only</option>
                                 <option value="click">Click Only</option>
@@ -360,12 +381,12 @@
                             <label class="control-label" for="bgInput">Background</label>
                             <label class="file-upload-btn">
                                 <span>Choose Background Image</span>
-                                <input type="file" id="bgInput" accept="image/*" onchange="window.ui.setBackground(this)" aria-label="Background Image">
+                                <input type="file" id="bgInput" accept="image/*" onchange="window.app.ui.setBackground(this)" aria-label="Background Image">
                             </label>
                         </div>
                         <div class="setting-row" style="border-bottom:1px solid #444; padding-bottom:10px;">
                             <label class="control-label" for="pgnStyle">PGN View</label>
-                            <select id="pgnStyle" class="select-input" onchange="window.ui.updateHistory()">
+                            <select id="pgnStyle" class="select-input" onchange="window.app.ui.updateHistory()">
                                 <option value="standard">Standard (Grid)</option>
                                 <option value="tree">Branch (Tree)</option>
                                 <option value="none">None</option>
@@ -382,7 +403,7 @@
                         </div>
                         <div class="setting-row" style="border-bottom:1px solid #444; padding-bottom:10px;">
                             <label class="control-label" for="assetType">Pieces</label>
-                            <select id="assetType" class="select-input" onchange="window.ui.renderBoard();window.ui.initEditorBars();window.ui.updateBotMenuPreviews()">
+                            <select id="assetType" class="select-input" onchange="window.app.ui.renderBoard();window.app.ui.initEditorBars();window.app.ui.updateBotMenuPreviews()">
                                 <option value="cburnett">Cburnett (Default)</option>
                                 <option value="blindfold">Blindfold (Invisible)</option>
                                 <option value="local">Local Folder</option>
@@ -411,7 +432,7 @@
                         </div>
                         <div class="setting-row" style="border-bottom:1px solid #444; padding-bottom:10px;">
                             <label class="control-label">Coordinates Display</label>
-                            <select id="coordPosition" class="select-input" onchange="window.ui.renderBoard(false)">
+                            <select id="coordPosition" class="select-input" onchange="window.app.ui.renderBoard(false)">
                                 <option value="inside" selected>Inside</option>
                                 <option value="outside">Outside</option>
                             </select>
@@ -422,27 +443,27 @@
                                 <span id="volumeValue" style="color:var(--accent); font-family:monospace; font-size:12px; font-weight:bold;">70%</span>
                             </div>
                             <div class="slider-container">
-                                <input type="range" id="masterVolume" class="slider-input" min="0" max="100" value="70" oninput="window.ui.updateVolume(this.value)">
+                                <input type="range" id="masterVolume" class="slider-input" min="0" max="100" value="70" oninput="window.app.ui.updateVolume(this.value)">
                             </div>
                         </div>
                         <div class="setting-row" style="border-bottom:1px solid #444; padding-bottom:10px;">
                             <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:5px;">
                                 <label class="control-label" style="margin:0;">Player Avatars</label>
-                                <button class="btn-secondary" style="padding:2px 8px; font-size:10px; height:20px; min-height:0;" onclick="window.ui.resetAvatars()">Reset Default</button>
+                                <button class="btn-secondary" style="padding:2px 8px; font-size:10px; height:20px; min-height:0;" onclick="window.app.ui.resetAvatars()">Reset Default</button>
                             </div>
                             <div style="display:flex; gap:10px;">
                                 <div style="flex:1;">
                                     <label class="control-label" style="font-size:10px; margin-bottom:4px; display:block;">Opponent</label>
                                     <label class="file-upload-btn">
                                         <span>Choose Image</span>
-                                        <input type="file" id="avatarTopInput" accept="image/*" onchange="window.ui.setAvatar('top', this)">
+                                        <input type="file" id="avatarTopInput" accept="image/*" onchange="window.app.ui.setAvatar('top', this)">
                                     </label>
                                 </div>
                                 <div style="flex:1;">
                                     <label class="control-label" style="font-size:10px; margin-bottom:4px; display:block;">You</label>
                                     <label class="file-upload-btn">
                                         <span>Choose Image</span>
-                                        <input type="file" id="avatarBotInput" accept="image/*" onchange="window.ui.setAvatar('bot', this)">
+                                        <input type="file" id="avatarBotInput" accept="image/*" onchange="window.app.ui.setAvatar('bot', this)">
                                     </label>
                                 </div>
                             </div>
@@ -450,6 +471,9 @@
                         <div class="setting-row" style="border-bottom:1px solid #444; padding-bottom:10px;">
                             <label class="checkbox-label">
                                 <input type="checkbox" id="autoQueen">Auto-Queen 
+                            
+                            
+                            
                             
                             
                             
@@ -461,11 +485,17 @@
                             
                             
                             
+                            
+                            
+                            
                             </label>
                         </div>
                         <div class="setting-row" style="border-bottom:1px solid #444; padding-bottom:10px;">
                             <label class="checkbox-label">
-                                <input type="checkbox" id="enableAnimations" checked="" onchange="window.ui.toggleAnimations()">Enable Move Animations 
+                                <input type="checkbox" id="enableAnimations" checked="" onchange="window.app.ui.toggleAnimations()">Enable Move Animations 
+                            
+                            
+                            
                             
                             
                             
@@ -486,10 +516,10 @@
                             <h3 id="studyTitleDisplay" style="margin: 0; color: #d85000; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">My Study</h3>
                         </div>
                         <div style="display: flex; gap: 10px; align-items: center;">
-                            <button onclick="window.ui.openStudyManager()" style="background: none; border: none; color: #888; font-size: 16px; cursor: pointer; padding: 0; transition: 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#888'" title="Manage Studies">📚</button>
-                            <button onclick="window.ui.openExportStudyModal()" style="background: none; border: none; color: #888; font-size: 16px; cursor: pointer; padding: 0; transition: 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#888'" title="Download Study">⬇️</button>
-                            <button onclick="window.ui.openChapterModal(-1); setTimeout(()=>window.ui.switchChapterTab('pgn'), 100);" style="background: none; border: none; color: #888; font-size: 16px; cursor: pointer; padding: 0; transition: 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#888'" title="Import FEN/PGN">📥</button>
-                            <button onclick="window.ui.openChapterModal(-1)" style="background: none; border: none; color: #888; font-size: 22px; font-weight: bold; cursor: pointer; line-height: 1; transition: 0.2s; padding: 0;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#888'" title="Add Chapter">+</button>
+                            <button onclick="window.app.ui.openStudyManager()" style="background: none; border: none; color: #888; font-size: 16px; cursor: pointer; padding: 0; transition: 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#888'" title="Manage Studies">📚</button>
+                            <button onclick="window.app.ui.openExportStudyModal()" style="background: none; border: none; color: #888; font-size: 16px; cursor: pointer; padding: 0; transition: 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#888'" title="Download Study">⬇️</button>
+                            <button onclick="window.app.ui.openChapterModal(-1); setTimeout(()=>window.app.ui.switchChapterTab('pgn'), 100);" style="background: none; border: none; color: #888; font-size: 16px; cursor: pointer; padding: 0; transition: 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#888'" title="Import FEN/PGN">📥</button>
+                            <button onclick="window.app.ui.openChapterModal(-1)" style="background: none; border: none; color: #888; font-size: 22px; font-weight: bold; cursor: pointer; line-height: 1; transition: 0.2s; padding: 0;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#888'" title="Add Chapter">+</button>
                         </div>
                     </div>
                     <div style="display: flex; border-bottom: 1px solid #333; padding-top: 10px; background: #262421; flex-shrink: 0;">
@@ -497,11 +527,14 @@
                         <div style="flex: 1; text-align: center; color: #888; font-size: 12px; padding-bottom: 8px; cursor: default;">Members</div>
                     </div>
                     <div id="chapters-list-container" style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; padding: 5px 0;"></div>
-                    <div style="padding: 12px 15px; border-top: 1px solid #333; color: #3692e7; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; transition: background 0.1s; background: #201e1b; flex-shrink: 0;" onmouseover="this.style.background='#2b2926'" onmouseout="this.style.background='#201e1b'" onclick="window.ui.openChapterModal(-1)">
+                    <div style="padding: 12px 15px; border-top: 1px solid #333; color: #3692e7; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; transition: background 0.1s; background: #201e1b; flex-shrink: 0;" onmouseover="this.style.background='#2b2926'" onmouseout="this.style.background='#201e1b'" onclick="window.app.ui.openChapterModal(-1)">
                         <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 5v14M5 12h14"></path>
                         </svg>
                         Add a new chapter
+                    
+                    
+                    
                     
                     
                     
@@ -514,7 +547,7 @@
                     </div>
                     <div id="leftPanelReviewAnchor" style="display: flex; flex-direction: column; flex-shrink: 0; width: 100%;">
                         <div id="reviewContainer" style="display: flex; flex-direction: column; gap: 15px; width: 100%;">
-                            <button id="reviewGameBtn" class="action-btn" onclick="window.game.reviewGame(false)" style="display: none; background-color: #9253e6; color: white; font-weight: bold; width: 100%; padding: 12px; border-radius: 6px; font-size: 14px; border: none; cursor: pointer; transition: 0.2s;" onmouseover="this.style.backgroundColor='#a369eb'" onmouseout="this.style.backgroundColor='#9253e6'">🔍 Run Game Review</button>
+                            <button id="reviewGameBtn" class="action-btn" onclick="window.app.game.reviewGame(false)" style="display: none; background-color: #9253e6; color: white; font-weight: bold; width: 100%; padding: 12px; border-radius: 6px; font-size: 14px; border: none; cursor: pointer; transition: 0.2s;" onmouseover="this.style.backgroundColor='#a369eb'" onmouseout="this.style.backgroundColor='#9253e6'">🔍 Run Game Review</button>
                             <div id="reviewResultsPanel" style="display: none; flex-direction: row; gap: 20px; padding: 15px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px;">
                                 <div style="flex: 1; text-align: center;">
                                     <div style="font-size: 24px; font-weight: bold; color: #fff;" id="accWhite">100%</div>
@@ -569,23 +602,23 @@
                                     <option value="rapid">Rapid</option>
                                     <option value="classical">Classical / Daily</option>
                                 </select>
-                                <button class="btn-primary" onclick="window.ui.fetchPlayerStats()" style="padding: 10px 15px; background: #2872b5; font-size: 13px; border: none; border-radius: 4px; cursor: pointer;">Search</button>
+                                <button class="btn-primary" onclick="window.app.ui.fetchPlayerStats()" style="padding: 10px 15px; background: #2872b5; font-size: 13px; border: none; border-radius: 4px; cursor: pointer;">Search</button>
                             </div>
                         </div>
                         <div id="statResult" style="margin-top: 8px; font-size: 13px;"></div>
                     </div>
                 </div>
                 <div class="center-right-wrapper" style="display: flex; flex-direction: column; gap: 15px; width: fit-content;">
-                    <div class="board-row" style="display: flex; gap: 40px; flex-shrink: 0;">
+                    <div class="board-row">
                         <div class="board-section">
                             <div class="board-header-container">
-                                <button class="engine-toggle-btn" onclick="window.ui.toggleEngine()">
+                                <button class="engine-toggle-btn" onclick="window.app.ui.toggleEngine()">
                                     <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
                                         <path d="M7 2v11h3v9l7-12h-4l4-8z"></path>
                                     </svg>
                                     <span id="engine-btn-name"></span>
                                 </button>
-                                <button class="gear-btn" onclick="window.ui.toggleSettings()" title="Settings">
+                                <button class="gear-btn" onclick="window.app.ui.toggleSettings()" title="Settings">
                                     <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                         <path fill="currentColor" d="M12.01 2.25c.74 0 1.47.1 2.18.25.32.07.55.33.59.65l.17 1.53a1.38 1.38 0 001.92 1.11l1.4-.61c.3-.13.64-.06.85.17a9.8 9.8 0 012.2 3.8c.1.3 0 .63-.26.82l-1.24.92a1.38 1.38 0 000 2.22l1.24.92c.26.19.36.52.27.82a9.8 9.8 0 01-2.2 3.8.75.75 0 01-.85.17l-1.4-.62a1.38 1.38 0 00-1.93 1.12l-.17 1.52a.75.75 0 01-.58.65 9.52 9.52 0 01-4.4 0 .75.75 0 01-.57-.65l-.17-1.52a1.38 1.38 0 00-1.93-1.11l-1.4.62a.75.75 0 01-.85-.18 9.8 9.8 0 01-2.2-3.8c-.1-.3 0-.63.27-.82l1.24-.92a1.38 1.38 0 000-2.22l-1.24-.92a.75.75 0 01-.28-.82 9.8 9.8 0 012.2-3.8c.23-.23.57-.3.86-.17l1.4.62c.4.17.86.15 1.25-.08.38-.22.63-.6.68-1.04l.17-1.53a.75.75 0 01.58-.65c.72-.16 1.45-.24 2.2-.25zm0 1.5c-.45 0-.9.04-1.35.12l-.11.97a2.89 2.89 0 01-4.02 2.33l-.9-.4A8.3 8.3 0 004.28 9.1l.8.59a2.88 2.88 0 010 4.64l-.8.59a8.3 8.3 0 001.35 2.32l.9-.4a2.88 2.88 0 014.02 2.32l.1.99c.9.15 1.8.15 2.7 0l.1-.99a2.88 2.88 0 014.02-2.32l.9.4a8.3 8.3 0 001.36-2.32l-.8-.59a2.88 2.88 0 010-4.64l.8-.59a8.3 8.3 0 00-1.35-2.32l-.9.4a2.88 2.88 0 01-4.02-2.32l-.11-.98c-.45-.08-.9-.11-1.34-.12zM12 8.25a3.75 3.75 0 110 7.5 3.75 3.75 0 010-7.5zm0 1.5a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5z"></path>
                                     </svg>
@@ -607,26 +640,26 @@
                                 <div id="board-wrapper" class="board-wrapper" oncontextmenu="return false;" style="width: 650px;">
                                     <div class="editor-bar top" id="editorBarTop">
                                         <div class="tool-group">
-                                            <div class="tool-btn" onmousedown="window.ui.startSpareDrag(event,'b','P')">
+                                            <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'b','P')">
                                                 <img src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2045%2045%22%3E%3Cpath%20d%3D%22M%2022%2C9%20C%2019.79%2C9%2018%2C10.79%2018%2C13%20C%2018%2C13.89%2018.29%2C14.71%2018.78%2C15.38%20C%2016.83%2C16.5%2015.5%2C18.59%2015.5%2C21%20C%2015.5%2C23.03%2016.44%2C24.84%2017.91%2C26.03%20C%2014.91%2C27.09%2010.5%2C31.58%2010.5%2C39.5%20L%2033.5%2C39.5%20C%2033.5%2C31.58%2029.09%2C27.09%2026.09%2C26.03%20C%2027.56%2C24.84%2028.5%2C23.03%2028.5%2C21%20C%2028.5%2C18.59%2027.17%2C16.5%2025.22%2C15.38%20C%2025.71%2C14.71%2026%2C13.89%2026%2C13%20C%2026%2C10.79%2024.21%2C9%2022%2C9%20z%22%20style%3D%22fill%3A%23000000%3B%20stroke%3A%23000000%3B%22%2F%3E%3C%2Fsvg%3E" class="piece-img" style="width:100%;height:100%;display:block;pointer-events:none;">
                                             </div>
-                                            <div class="tool-btn" onmousedown="window.ui.startSpareDrag(event,'b','N')">
+                                            <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'b','N')">
                                                 <img src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2045%2045%22%3E%3Cg%20style%3D%22fill%3Anone%3B%20fill-rule%3Aevenodd%3B%20stroke%3A%23000000%3B%20stroke-width%3A1.5%3B%20stroke-linecap%3Around%3B%20stroke-linejoin%3Around%3B%20stroke-miterlimit%3A4%3B%20stroke-dasharray%3Anone%3B%20stroke-opacity%3A1%3B%22%3E%3Cpath%20d%3D%22M%2022%2C10%20C%2032.5%2C11%2038.5%2C18%2038%2C39%20L%2015%2C39%20C%2015%2C30%2025%2C32.5%2023%2C18%22%20style%3D%22fill%3A%23000000%3B%20stroke%3A%23000000%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2024%2C18%20C%2024.38%2C20.91%2018.45%2C25.37%2016%2C27%20C%2013%2C29%2013.18%2C31.34%2011%2C31%20C%209.958%2C30.06%2012.41%2C27.96%2011%2C28%20C%2010%2C28%2011.19%2C29.23%2010%2C30%20C%209%2C30%205.997%2C31%206%2C26%20C%206%2C24%2012%2C14%2012%2C14%20C%2012%2C14%2013.89%2C12.1%2014%2C10.5%20C%2013.27%2C9.506%2013.5%2C8.5%2013.5%2C7.5%20C%2014.5%2C6.5%2016.5%2C10%2016.5%2C10%20L%2018.5%2C10%20C%2018.5%2C10%2019.28%2C8.008%2021%2C7%20C%2022%2C7%2022%2C10%2022%2C10%22%20style%3D%22fill%3A%23000000%3B%20stroke%3A%23000000%3B%22%20%2F%3E%3Cpath%20d%3D%22M%209.5%2025.5%20A%200.5%200.5%200%201%201%208.5%2C25.5%20A%200.5%200.5%200%201%201%209.5%2025.5%20z%22%20style%3D%22fill%3A%23ffffff%3B%20stroke%3A%23ffffff%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2015%2015.5%20A%200.5%201.5%200%201%201%2014%2C15.5%20A%200.5%201.5%200%201%201%2015%2015.5%20z%22%20transform%3D%22%20matrix(0.866%2C0.5%2C-0.5%2C0.866%2C9.693%2C-5.173)%22%20style%3D%22fill%3A%23ffffff%3B%20stroke%3A%23ffffff%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2024.55%2C10.4%20L%2024.1%2C11.85%20L%2024.6%2C12%20C%2027.75%2C13%2030.25%2C14.49%2032.5%2C18.75%20C%2034.75%2C23.01%2035.75%2C29.06%2035.25%2C39%20L%2035.2%2C39.5%20L%2037.45%2C39.5%20L%2037.5%2C39%20C%2038%2C28.94%2036.62%2C22.15%2034.25%2C17.66%20C%2031.88%2C13.17%2028.46%2C11.02%2025.06%2C10.5%20L%2024.55%2C10.4%20z%22%20style%3D%22fill%3A%23ffffff%3B%20stroke%3Anone%3B%22%20%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" class="piece-img" style="width:100%;height:100%;display:block;pointer-events:none;">
                                             </div>
-                                            <div class="tool-btn" onmousedown="window.ui.startSpareDrag(event,'b','B')">
+                                            <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'b','B')">
                                                 <img src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2045%2045%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%20stroke%3D%22%23000%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M9%2036c3.39-.97%2010.11.43%2013.5-2%203.39%202.43%2010.11%201.03%2013.5%202%200%200%201.65.54%203%202-.68.97-1.65.99-3%20.5-3.39-.97-10.11.46-13.5-1-3.39%201.46-10.11.03-13.5%201-1.354.49-2.323.47-3-.5%201.354-1.94%203-2%203-2zm6-4c2.5%202.5%2012.5%202.5%2015%200%20.5-1.5%200-2%200-2%200-2.5-2.5-4-2.5-4%205.5-1.5%206-11.5-5-15.5-11%204-10.5%2014-5%2015.5%200%200-2.5%201.5-2.5%204%200%200-.5.5%200%202zM25%208a2.5%202.5%200%201%201-5%200%202.5%202.5%200%201%201%205%200z%22%20fill%3D%22%23000%22%20stroke-linecap%3D%22butt%22%20%2F%3E%3Cpath%20d%3D%22M17.5%2026h10M15%2030h15m-7.5-14.5v5M20%2018h5%22%20stroke%3D%22%23fff%22%20stroke-linejoin%3D%22miter%22%20%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" class="piece-img" style="width:100%;height:100%;display:block;pointer-events:none;">
                                             </div>
-                                            <div class="tool-btn" onmousedown="window.ui.startSpareDrag(event,'b','R')">
+                                            <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'b','R')">
                                                 <img src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2045%2045%22%3E%3Cg%20style%3D%22fill%3A%23000000%3B%20fill-opacity%3A1%3B%20fill-rule%3Aevenodd%3B%20stroke%3A%23000000%3B%20stroke-width%3A1.5%3B%20stroke-linecap%3Around%3Bstroke-linejoin%3Around%3Bstroke-miterlimit%3A4%3B%20stroke-dasharray%3Anone%3B%20stroke-opacity%3A1%3B%22%3E%3Cpath%20d%3D%22M%209%2C39%20L%2036%2C39%20L%2036%2C36%20L%209%2C36%20L%209%2C39%20z%22%20style%3D%22stroke-linecap%3Abutt%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2012.5%2C32%20L%2014%2C29.5%20L%2031%2C29.5%20L%2032.5%2C32%20L%2012.5%2C32%20z%22%20style%3D%22stroke-linecap%3Abutt%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2012%2C36%20L%2012%2C32%20L%2033%2C32%20L%2033%2C36%20L%2012%2C36%20z%22%20style%3D%22stroke-linecap%3Abutt%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2014%2C29.5%20L%2014%2C16.5%20L%2031%2C16.5%20L%2031%2C29.5%20L%2014%2C29.5%20z%22%20style%3D%22stroke-linecap%3Abutt%3Bstroke-linejoin%3Amiter%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2014%2C16.5%20L%2011%2C14%20L%2034%2C14%20L%2031%2C16.5%20L%2014%2C16.5%20z%22%20style%3D%22stroke-linecap%3Abutt%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2011%2C14%20L%2011%2C9%20L%2015%2C9%20L%2015%2C11%20L%2020%2C11%20L%2020%2C9%20L%2025%2C9%20L%2025%2C11%20L%2030%2C11%20L%2030%2C9%20L%2034%2C9%20L%2034%2C14%20L%2011%2C14%20z%22%20style%3D%22stroke-linecap%3Abutt%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2012%2C35.5%20L%2033%2C35.5%20L%2033%2C35.5%22%20style%3D%22fill%3Anone%3B%20stroke%3A%23ffffff%3B%20stroke-width%3A1%3B%20stroke-linejoin%3Amiter%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2013%2C31.5%20L%2032%2C31.5%22%20style%3D%22fill%3Anone%3B%20stroke%3A%23ffffff%3B%20stroke-width%3A1%3B%20stroke-linejoin%3Amiter%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2014%2C29.5%20L%2031%2C29.5%22%20style%3D%22fill%3Anone%3B%20stroke%3A%23ffffff%3B%20stroke-width%3A1%3B%20stroke-linejoin%3Amiter%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2014%2C16.5%20L%2031%2C16.5%22%20style%3D%22fill%3Anone%3B%20stroke%3A%23ffffff%3B%20stroke-width%3A1%3B%20stroke-linejoin%3Amiter%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2011%2C14%20L%2034%2C14%22%20style%3D%22fill%3Anone%3B%20stroke%3A%23ffffff%3B%20stroke-width%3A1%3B%20stroke-linejoin%3Amiter%3B%22%20%2F%3E%3C/g%3E%3C/svg%3E" class="piece-img" style="width:100%;height:100%;display:block;pointer-events:none;">
                                             </div>
-                                            <div class="tool-btn" onmousedown="window.ui.startSpareDrag(event,'b','Q')">
+                                            <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'b','Q')">
                                                 <img src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2045%2045%22%3E%3Cg%20style%3D%22fill%3A%23000000%3B%20fill-opacity%3A1%3B%20fill-rule%3Aevenodd%3B%20stroke%3A%23000000%3B%20stroke-width%3A1.5%3B%20stroke-linecap%3Around%3B%20stroke-linejoin%3Around%3B%20stroke-miterlimit%3A4%3B%20stroke-dasharray%3Anone%3B%20stroke-opacity%3A1%3B%22%3E%3Cg%20style%3D%22fill%3A%23000000%3B%20stroke%3Anone%3B%22%3E%3Ccircle%20cx%3D%226%22%20cy%3D%2212%22%20r%3D%222.75%22%20%2F%3E%3Ccircle%20cx%3D%2214%22%20cy%3D%229%22%20r%3D%222.75%22%20%2F%3E%3Ccircle%20cx%3D%2222.5%22%20cy%3D%228%22%20r%3D%222.75%22%20%2F%3E%3Ccircle%20cx%3D%2231%22%20cy%3D%229%22%20r%3D%222.75%22%20%2F%3E%3Ccircle%20cx%3D%2239%22%20cy%3D%2212%22%20r%3D%222.75%22%20%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M%209%2C26%20C%2017.5%2C24.5%2030%2C24.5%2036%2C26%20L%2038%2C14%20L%2031%2C25%20L%2031%2C11%20L%2025.5%2C24.5%20L%2022.5%2C9.5%20L%2019.5%2C24.5%20L%2014%2C11%20L%2014%2C25%20L%207%2C14%20L%209%2C26%20z%22%20style%3D%22stroke-linecap%3Abutt%3B%22%20%2F%3E%3Cpath%20d%3D%22M%209%2C26%20C%209%2C28%2010.5%2C28%2011.5%2C30%20C%2012.5%2C31.5%2012.5%2C31%2012%2C33.5%20C%2010.5%2C34.5%2010.5%2C36%2010.5%2C36%20C%209%2C37.5%2011%2C38.5%2011%2C38.5%20C%2017.5%2C39.5%2027.5%2C39.5%2034%2C38.5%20C%2034%2C38.5%2036%2C37.5%2034.5%2C36%20C%2034.5%2C36%2034.5%2C34.5%2033%2C33.5%20C%2032.5%2C31%2032.5%2C31.5%2033.5%2C30%20C%2034.5%2C28%2036%2C28%2036%2C26%20C%2027.5%2C24.5%2017.5%2C24.5%209%2C26%20z%22%20style%3D%22stroke-linecap%3Abutt%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2011%2C38.5%20A%2035%2C35%201%200%200%2034%2C38.5%22%20style%3D%22fill%3Anone%3B%20stroke%3A%23000000%3B%20stroke-linecap%3Abutt%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2011%2C29%20A%2035%2C35%201%200%201%2034%2C29%22%20style%3D%22fill%3Anone%3B%20stroke%3A%23ffffff%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2012.5%2C31.5%20L%2032.5%2C31.5%22%20style%3D%22fill%3Anone%3B%20stroke%3A%23ffffff%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2011.5%2C34.5%20A%2035%2C35%201%200%200%2033.5%2C34.5%22%20style%3D%22fill%3Anone%3B%20stroke%3A%23ffffff%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2010.5%2C37.5%20A%2035%2C35%201%200%200%2034.5%2C37.5%22%20style%3D%22fill%3Anone%3B%20stroke%3A%23ffffff%3B%22%20%2F%3E%3C/g%3E%3C/svg%3E" class="piece-img" style="width:100%;height:100%;display:block;pointer-events:none;">
                                             </div>
-                                            <div class="tool-btn" onmousedown="window.ui.startSpareDrag(event,'b','K')">
+                                            <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'b','K')">
                                                 <img src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2045%2045%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%20stroke%3D%22%23000%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M22.5%2011.63V6%22%20stroke-linejoin%3D%22miter%22%20%2F%3E%3Cpath%20d%3D%22M22.5%2025s4.5-7.5%203-10.5c0%200-1-2.5-3-2.5s-3%202.5-3%202.5c-1.5%203%203%2010.5%203%2010.5%22%20fill%3D%22%23000%22%20stroke-linecap%3D%22butt%22%20stroke-linejoin%3D%22miter%22%20%2F%3E%3Cpath%20d%3D%22M11.5%2037c5.5%203.5%2015.5%203.5%2021%200v-7s9-4.5%206-10.5c-4-6.5-13.5-3.5-16%204V27v-3.5c-3.5-7.5-13-10.5-16-4-3%206%205%2010%205%2010V37z%22%20fill%3D%22%23000%22%20%2F%3E%3Cpath%20d%3D%22M20%208h5%22%20stroke-linejoin%3D%22miter%22%20%2F%3E%3Cpath%20d%3D%22M32%2029.5s8.5-4%206.03-9.65C34.15%2014%2025%2018%2022.5%2024.5l.01%202.1-.01-2.1C20%2018%209.906%2014%206.997%2019.85c-2.497%205.65%204.853%209%204.853%209M11.5%2030c5.5-3%2015.5-3%2021%200m-21%203.5c5.5-3%2015.5-3%2021%200m-21%203.5c5.5-3%2015.5-3%2021%200%22%20stroke%3D%22%23fff%22%20%2F%3E%3C/g%3E%3C/svg%3E" class="piece-img" style="width:100%;height:100%;display:block;pointer-events:none;">
                                             </div>
                                         </div>
-                                        <div class="tool-btn trash-btn" onclick="window.ui.setEditorTool('trash', this)">
+                                        <div class="tool-btn trash-btn" onclick="window.app.ui.setEditorTool('trash', this)">
                                             <svg viewBox="0 0 24 24" fill="currentColor">
                                                 <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path>
                                             </svg>
@@ -659,36 +692,31 @@
                                     <div class="resize-handle" id="resizeHandle"></div>
                                     <div class="editor-bar bottom" id="editorBarBottom">
                                         <div class="tool-group">
-                                            <div class="tool-btn" onmousedown="window.ui.startSpareDrag(event,'w','P')">
+                                            <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'w','P')">
                                                 <img src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2045%2045%22%3E%3Cg%20style%3D%22fill%3Anone%3B%20fill-rule%3Aevenodd%3B%20stroke%3A%23000%22%20stroke-width%3A1.5%3B%20stroke-linecap%3Around%3B%20stroke-linejoin%3Around%3B%20stroke-miterlimit%3A4%3B%20stroke-dasharray%3Anone%3B%20stroke-opacity%3A1%3B%22%3E%3Cpath%20d%3D%22M%2022%2C9%20C%2019.79%2C9%2018%2C10.79%2018%2C13%20C%2018%2C13.89%2018.29%2C14.71%2018.78%2C15.38%20C%2016.83%2C16.5%2015.5%2C18.59%2015.5%2C21%20C%2015.5%2C23.03%2016.44%2C24.84%2017.91%2C26.03%20C%2014.91%2C27.09%2010.5%2C31.58%2010.5%2C39.5%20L%2033.5%2C39.5%20C%2033.5%2C31.58%2029.09%2C27.09%2026.09%2C26.03%20C%2027.56%2C24.84%2028.5%2C23.03%2028.5%2C21%20C%2028.5%2C18.59%2027.17%2C16.5%2025.22%2C15.38%20C%2025.71%2C14.71%2026%2C13.89%2026%2C13%20C%2026%2C10.79%2024.21%2C9%2022%2C9%20z%22%20style%3D%22fill%3A%23ffffff%3B%20stroke%3A%23000000%3B%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" class="piece-img " style="width:100%;height:100%;display:block;pointer-events:none;">
                                             </div>
-                                            <div class="tool-btn" onmousedown="window.ui.startSpareDrag(event,'w','N')">
+                                            <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'w','N')">
                                                 <img src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2045%2045%22%3E%3Cg%20style%3D%22fill%3Anone%3B%20fill-rule%3Aevenodd%3B%20stroke%3A%23000000%3B%20stroke-width%3A1.5%3B%20stroke-linecap%3Around%3B%20stroke-linejoin%3Around%3B%20stroke-miterlimit%3A4%3B%20stroke-dasharray%3Anone%3B%20stroke-opacity%3A1%3B%22%3E%3Cpath%20d%3D%22M%2022%2C10%20C%2032.5%2C11%2038.5%2C18%2038%2C39%20L%2015%2C39%20C%2015%2C30%2025%2C32.5%2023%2C18%22%20style%3D%22fill%3A%23ffffff%3B%20stroke%3A%23000000%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2024%2C18%20C%2024.38%2C20.91%2018.45%2C25.37%2016%2C27%20C%2013%2C29%2013.18%2C31.34%2011%2C31%20C%209.958%2C30.06%2012.41%2C27.96%2011%2C28%20C%2010%2C28%2011.19%2C29.23%2010%2C30%20C%209%2C30%205.997%2C31%206%2C26%20C%206%2C24%2012%2C14%2012%2C14%20C%2012%2C14%2013.89%2C12.1%2014%2C10.5%20C%2013.27%2C9.506%2013.5%2C8.5%2013.5%2C7.5%20C%2014.5%2C6.5%2016.5%2C10%2016.5%2C10%20L%2018.5%2C10%20C%2018.5%2C10%2019.28%2C8.008%2021%2C7%20C%2022%2C7%2022%2C10%2022%2C10%22%20style%3D%22fill%3A%23ffffff%3B%20stroke%3A%23000000%3B%22%20%2F%3E%3Cpath%20d%3D%22M%209.5%2025.5%20A%200.5%200.5%200%201%201%208.5%2C25.5%20A%200.5%200.5%200%201%201%209.5%2025.5%20z%22%20style%3D%22fill%3A%23000000%3B%20stroke%3A%23000000%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2015%2015.5%20A%200.5%201.5%200%201%201%2014%2C15.5%20A%200.5%201.5%200%201%201%2015%2015.5%20z%22%20transform%3D%22%20matrix(0.866%2C0.5%2C-0.5%2C0.866%2C9.693%2C-5.173)%22%20style%3D%22fill%3A%23000000%3B%20stroke%3A%23000000%3B%22%20%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" class="piece-img " style="width:100%;height:100%;display:block;pointer-events:none;">
                                             </div>
-                                            <div class="tool-btn" onmousedown="window.ui.startSpareDrag(event,'w','B')">
+                                            <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'w','B')">
                                                 <img src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2045%2045%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%20stroke%3D%22%23000%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cg%20fill%3D%22%23fff%22%20stroke-linecap%3D%22butt%22%3E%3Cpath%20d%3D%22M9%2036c3.39-.97%2010.11.43%2013.5-2%203.39%202.43%2010.11%201.03%2013.5%202%200%200%201.65.54%203%202-.68.97-1.65.99-3%20.5-3.39-.97-10.11.46-13.5-1-3.39%201.46-10.11.03-13.5%201-1.354.49-2.323.47-3-.5%201.354-1.94%203-2%203-2zM15%2032c2.5%202.5%2012.5%202.5%2015%200%20.5-1.5%200-2%200-2%200-2.5-2.5-4-2.5-4%205.5-1.5%206-11.5-5-15.5-11%204-10.5%2014-5%2015.5%200%200-2.5%201.5-2.5%204%200%200-.5.5%200%202zM25%208a2.5%202.5%200%201%201-5%200%202.5%202.5%200%201%201%205%200z%22%20%2F%3E%3C%2Fg%3E%3Cpath%20d%3D%22M17.5%2026h10M15%2030h15m-7.5-14.5v5M20%2018h5%22%20stroke-linejoin%3D%22miter%22%20%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" class="piece-img " style="width:100%;height:100%;display:block;pointer-events:none;">
                                             </div>
-                                            <div class="tool-btn" onmousedown="window.ui.startSpareDrag(event,'w','R')">
+                                            <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'w','R')">
                                                 <img src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2045%2045%22%3E%3Cg%20style%3D%22fill%3A%23ffffff%3B%20fill-opacity%3A1%3B%20fill-rule%3Aevenodd%3B%20stroke%3A%23000000%3B%20stroke-width%3A1.5%3B%20stroke-linecap%3Around%3Bstroke-linejoin%3Around%3Bstroke-miterlimit%3A4%3B%20stroke-dasharray%3Anone%3B%20stroke-opacity%3A1%3B%22%3E%3Cpath%20d%3D%22M%209%2C39%20L%2036%2C39%20L%2036%2C36%20L%209%2C36%20L%209%2C39%20z%22%20style%3D%22stroke-linecap%3Abutt%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2012%2C36%20L%2012%2C32%20L%2033%2C32%20L%2033%2C36%20L%2012%2C36%20z%22%20style%3D%22stroke-linecap%3Abutt%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2011%2C14%20L%2011%2C9%20L%2015%2C9%20L%2015%2C11%20L%2020%2C11%20L%2020%2C9%20L%2025%2C9%20L%2025%2C11%20L%2030%2C11%20L%2030%2C9%20L%2034%2C9%20L%2034%2C14%22%20style%3D%22stroke-linecap%3Abutt%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2034%2C14%20L%2031%2C17%20L%2014%2C17%20L%2011%2C14%22%20%2F%3E%3Cpath%20d%3D%22M%2031%2C17%20L%2031%2C29.5%20L%2014%2C29.5%20L%2014%2C17%22%20style%3D%22stroke-linecap%3Abutt%3B%20stroke-linejoin%3Amiter%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2031%2C29.5%20L%2032.5%2C32%20L%2012.5%2C32%20L%2014%2C29.5%22%20%2F%3E%3Cpath%20d%3D%22M%2011%2C14%20L%2034%2C14%22%20style%3D%22fill%3Anone%3B%20stroke%3A%23000000%3B%20stroke-linejoin%3Amiter%3B%22%20%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" class="piece-img " style="width:100%;height:100%;display:block;pointer-events:none;">
                                             </div>
-                                            <div class="tool-btn" onmousedown="window.ui.startSpareDrag(event,'w','Q')">
+                                            <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'w','Q')">
                                                 <img src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2045%2045%22%3E%3Cg%20fill%3D%22%23fff%22%20fill-rule%3D%22evenodd%22%20stroke%3D%22%23000%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M8%2012a2%202%200%201%201-4%200%202%202%200%201%201%204%200zM24.5%207.5a2%202%200%201%201-4%200%202%202%200%201%201%204%200zM41%2012a2%202%200%201%201-4%200%202%202%200%201%201%204%200zM16%208.5a2%202%200%201%201-4%200%202%202%200%201%201%204%200zM33%209a2%202%200%201%201-4%200%202%202%200%201%201%204%200z%22%20%2F%3E%3Cpath%20d%3D%22M9%2026c8.5-1.5%2021-1.5%2027%200l2-12-7%2011V11l-5.5%2013.5-3-15-3%2015-5.5-14V25L7%2014l2%2012zM9%2026c0%202%201.5%202%202.5%204%201%201.5%201%201%20.5%203.5-1.5%201-1.5%202.5-1.5%202.5-1.5%201.5.5%202.5.5%202.5%206.5%201%2016.5%201%2023%200%200%200%201.5-1%200-2.5%200%200%20.5-1.5-1-2.5-.5-2.5-.5-2%20.5-3.5%201-2%202.5-2%202.5-4-8.5-1.5-18.5-1.5-27%200z%22%20stroke-linecap%3D%22butt%22%20%2F%3E%3Cpath%20d%3D%22M11.5%2030c3.5-1%2018.5-1%2022%200M12%2033.5c6-1%2015-1%2021%200%22%20fill%3D%22none%22%20%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" class="piece-img " style="width:100%;height:100%;display:block;pointer-events:none;">
                                             </div>
-                                            <div class="tool-btn" onmousedown="window.ui.startSpareDrag(event,'w','K')">
+                                            <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'w','K')">
                                                 <img src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2045%2045%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%20stroke%3D%22%23000%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M22.5%2011.63%20L%2022.5%2C6%22%20style%3D%22fill%3Anone%3B%20stroke%3A%23000000%3B%20stroke-linejoin%3Amiter%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2020%2C8%20L%2025%2C8%22%20style%3D%22fill%3Anone%3B%20stroke%3A%23000000%3B%20stroke-linejoin%3Amiter%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2022.5%2C25%20C%2022.5%2C25%2027%2C17.5%2025.5%2C14.5%20C%2025.5%2C14.5%2024.5%2C12%2022.5%2C12%20C%2020.5%2C12%2019.5%2C14.5%2019.5%2C14.5%20C%2018%2C17.5%2022.5%2C25%2022.5%2C25%22%20style%3D%22fill%3A%23ffffff%3B%20stroke%3A%23000000%3B%20stroke-linecap%3Abutt%3B%20stroke-linejoin%3Amiter%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2011.5%2C37%20C%2017%2C40.5%2027%2C40.5%2032.5%2C37%20L%2032.5%2C30%20C%2032.5%2C30%2041.5%2C25.5%2038.5%2C19.5%20C%2034.5%2C13%2025%2C16%2022.5%2C23.5%20L%2022.5%2C27%20L%2022.5%2C23.5%20C%2019%2C16%209.5%2C13%206.5%2C19.5%20C%203.5%2C25.5%2011.5%2C30%2011.5%2C30%20L%2011.5%2C37%22%20style%3D%22fill%3A%23ffffff%3B%20stroke%3A%23000000%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2011.5%2C30%20C%2017%2C27%2027%2C27%2032.5%2C30%22%20style%3D%22fill%3Anone%3B%20stroke%3A%23000000%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2011.5%2C33.5%20C%2017%2C30.5%2027%2C30.5%2032.5%2C33.5%22%20style%3D%22fill%3Anone%3B%20stroke%3A%23000000%3B%22%20%2F%3E%3Cpath%20d%3D%22M%2011.5%2C37%20C%2017%2C34%2027%2C34%2032.5%2C37%22%20style%3D%22fill%3Anone%3B%20stroke%3A%23000000%3B%22%20%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E" class="piece-img " style="width:100%;height:100%;display:block;pointer-events:none;">
                                             </div>
                                         </div>
-                                        <div class="tool-btn trash-btn" onclick="window.ui.setEditorTool('trash', this)">
+                                        <div class="tool-btn trash-btn" onclick="window.app.ui.setEditorTool('trash', this)">
                                             <svg viewBox="0 0 24 24" fill="currentColor">
                                                 <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path>
                                             </svg>
                                         </div>
                                     </div>
-                                </div>
-                                
-                                <div id="pocket-container" style="display: none; width: 130px; flex-direction: column; justify-content: space-between; margin-left: 5px; margin-right: 5px; z-index: 10;">
-                                    <div id="top-pocket" style="display: flex; flex-wrap: wrap; gap: 4px; width: 100%; align-content: flex-start; justify-content: flex-start;"></div>
-                                    <div id="bottom-pocket" style="display: flex; flex-wrap: wrap; gap: 4px; width: 100%; align-content: flex-end; justify-content: flex-start;"></div>
                                 </div>
                                 <div id="enginePanel" class="eval-bar-container">
                                     <div class="eval-score-text" id="evalScore">+0.31</div>
@@ -707,15 +735,19 @@
                                 </div>
                                 <div id="timer-white" class="clock">10:00</div>
                             </div>
-                            <div class="commentary-box" id="commentaryBox" contenteditable="true" spellcheck="false" oninput="if(window.game && window.game.currentNode) { window.game.currentNode.comment = this.innerText; window.ui.updateHistory(); }" onkeydown="event.stopPropagation()" title="Type here to add analysis" style="width: 640px;"></div>
+                            <div class="commentary-box" id="commentaryBox" contenteditable="true" spellcheck="false" oninput="if(window.game && window.app.game.currentNode) { window.app.game.currentNode.comment = this.innerText; window.app.ui.updateHistory(); }" onkeydown="event.stopPropagation()" title="Type here to add analysis" style="width: 640px;"></div>
                             <div class="bottom-bar">
-                                <div class="fen-display" id="fenDisplay" onclick="window.ui.copyFEN()" title="Copy FEN">rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 </div>
-                                <button class="flip-btn" onclick="window.ui.flipBoard()" title="Flip Board">
+                                <div class="fen-display" id="fenDisplay" onclick="window.app.ui.copyFEN()" title="Copy FEN">rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 </div>
+                                <button class="flip-btn" onclick="window.app.ui.flipBoard()" title="Flip Board">
                                     <svg viewBox="0 0 24 24 " stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
                                     </svg>
                                 </button>
                             </div>
+                        </div>
+                        <div id="pocket-container" style="display: none;flex-direction: column; justify-content: space-between; margin-left: 5px; margin-right: 5px; z-index: 10;margin-top: 125px;margin-bottom: 225px;">
+                            <div id="top-pocket" style="display: flex; flex-wrap: wrap; gap: 4px; width: 100%; align-content: flex-start; justify-content: flex-start;"></div>
+                            <div id="bottom-pocket" style="display: flex; flex-wrap: wrap; gap: 4px; width: 100%; align-content: flex-end; justify-content: flex-start;"></div>
                         </div>
                         <div class="sidebar" id="mainSidebar" style="width: 500px; height: 1200px; align-self: flex-start; flex-shrink: 0; display: flex; flex-direction: column;">
                             <div class="resize-handle-side right" id="resizeSidebarW"></div>
@@ -733,21 +765,21 @@
                                 <div class="history-list pgn-standard" id="moveHistory" style="flex: 1; overflow-y: auto; min-height: 0;"></div>
                                 <div style="padding:15px; border-top:1px solid #333; background:#222; flex-shrink:0;">
                                     <div style="display:flex; justify-content:center; gap:5px; margin-bottom:10px;">
-                                        <button class="btn-secondary" onclick="window.game.goToStart()">⏮</button>
-                                        <button class="btn-secondary" onclick="window.game.stepBack()">◀</button>
-                                        <button id="pauseBtn" class="btn-secondary" onclick="window.game.togglePause()">⏸</button>
-                                        <button class="btn-secondary" onclick="window.game.stepForward()">▶</button>
-                                        <button class="btn-secondary" onclick="window.game.goToEnd()">⏭</button>
+                                        <button class="btn-secondary" onclick="window.app.game.goToStart()">⏮</button>
+                                        <button class="btn-secondary" onclick="window.app.game.stepBack()">◀</button>
+                                        <button id="pauseBtn" class="btn-secondary" onclick="window.app.game.togglePause()">⏸</button>
+                                        <button class="btn-secondary" onclick="window.app.game.stepForward()">▶</button>
+                                        <button class="btn-secondary" onclick="window.app.game.goToEnd()">⏭</button>
                                     </div>
                                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; margin-bottom:10px;">
-                                        <button class="btn-primary" id="resignBtn" onclick="window.game.resign()" style="width: 100%; padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; cursor: pointer; font-weight: bold; background:#fa412d;">🏳️ Resign</button>
-                                        <button class="btn-primary" id="drawBtn" onclick="window.game.offerDraw()" style="width: 100%; padding: 10px; border-radius: 4px; font-size: 13px; background:#5c8bb0; color: #fff; border: 1px solid #444; cursor: pointer; font-weight: bold;">🤝 Draw</button>
-                                        <button class="btn-secondary" onclick="window.game.startAnalysisMode()" style="grid-column: span 2; background:#2872b5; color:white; border:none;">🔬 Analysis Board</button>
+                                        <button class="btn-primary" id="resignBtn" onclick="window.app.game.resign()" style="width: 100%; padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; cursor: pointer; font-weight: bold; background:#fa412d;">🏳️ Resign</button>
+                                        <button class="btn-primary" id="drawBtn" onclick="window.app.game.offerDraw()" style="width: 100%; padding: 10px; border-radius: 4px; font-size: 13px; background:#5c8bb0; color: #fff; border: 1px solid #444; cursor: pointer; font-weight: bold;">🤝 Draw</button>
+                                        <button class="btn-secondary" onclick="window.app.game.startAnalysisMode()" style="grid-column: span 2; background:#2872b5; color:white; border:none;">🔬 Analysis Board</button>
                                     </div>
-                                    <button class="btn-secondary" onclick="window.ui.copyPGN()" style="width: 100%; padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; cursor: pointer; font-weight: bold;">📄 Copy PGN</button>
+                                    <button class="btn-secondary" onclick="window.app.ui.copyPGN()" style="width: 100%; padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; cursor: pointer; font-weight: bold;">📄 Copy PGN</button>
                                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px;">
                                         <button class="btn-secondary" onclick="alert('Importing a GIF requires an image-to-chess OCR AI. This button is reserved for future updates!')" style="width: 100%; padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; cursor: pointer; font-weight: bold;">📥 Import GIF</button>
-                                        <button class="btn-secondary" onclick="window.ui.generateGIF()" style="width: 100%; padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; cursor: pointer; font-weight: bold;">🎞️Export GIF</button>
+                                        <button class="btn-secondary" onclick="window.app.ui.generateGIF()" style="width: 100%; padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; cursor: pointer; font-weight: bold;">🎞️Export GIF</button>
                                     </div>
                                 </div>
                             </div>
@@ -758,9 +790,9 @@
                                         <img src="./assets/tabs-icon/puzzle-rush.svg" viewBox="0 0 512 512" width="50" height="50">
                                     </div>
                                     <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:20px;margin-top:20px;">
-                                        <button class="btn-primary" style="background:#e68f00;" onclick="window.game.startPuzzleRun('3min')">3 Min</button>
-                                        <button class="btn-primary" style="background:#e68f00;" onclick="window.game.startPuzzleRun('5min')">5 Min</button>
-                                        <button class="btn-primary" style="background:#fa412d;" onclick="window.game.startPuzzleRun('survival')">Survival</button>
+                                        <button class="btn-primary" style="background:#e68f00;" onclick="window.app.game.startPuzzleRun('3min')">3 Min</button>
+                                        <button class="btn-primary" style="background:#e68f00;" onclick="window.app.game.startPuzzleRun('5min')">5 Min</button>
+                                        <button class="btn-primary" style="background:#fa412d;" onclick="window.app.game.startPuzzleRun('survival')">Survival</button>
                                     </div>
                                     <div style="border-top:1px solid #333; padding-top:15px; text-align:left;">
                                         <small style="color:#888; display:block; margin-bottom:8px; font-weight:bold; text-transform:uppercase; letter-spacing:0.5px;">Custom Training</small>
@@ -774,7 +806,7 @@
                                                 <input type="number" id="puzMax" class="text-input" value="1500" placeholder="Max">
                                             </div>
                                         </div>
-                                        <button class="btn-secondary" style="width:100%; margin-top:5px; height:38px;" onclick="window.game.startPuzzleSession()">Find Puzzles</button>
+                                        <button class="btn-secondary" style="width:100%; margin-top:5px; height:38px;" onclick="window.app.game.startPuzzleSession()">Find Puzzles</button>
                                     </div>
                                 </div>
                                 <div id="puzzleActive" style="display:none; flex-direction:column; gap:10px;">
@@ -786,7 +818,7 @@
                                     <div id="puzzleStatus" style="font-size:18px; font-weight:bold; color:#fff; min-height:24px;">Your Turn</div>
                                     <div id="puzzleInfo" style="color:#888; font-size:11px; margin-bottom:5px;"></div>
                                     <div id="puzzleTopControls" style="display: flex; gap: 8px; margin-bottom: 5px; width: 100%;">
-                                        <button id="hintBtn" onclick="if(window.ui) window.ui.showPuzzleHint();" class="btn-secondary" style="flex: 1; min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; padding: 0;">
+                                        <button id="hintBtn" onclick="if(window.ui) window.app.ui.showPuzzleHint();" class="btn-secondary" style="flex: 1; min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; padding: 0;">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #facc15;">
                                                 <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"></path>
                                                 <path d="M9 18h6"></path>
@@ -796,8 +828,11 @@
                                         
                                         
                                         
+                                        
+                                        
+                                        
                                         </button>
-                                        <button id="resetPuzzleBtn" onclick="if(window.game) window.game.retryPuzzle();" class="btn-secondary" style="flex: 1; min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; padding: 0;">
+                                        <button id="resetPuzzleBtn" onclick="if(window.game) window.app.game.retryPuzzle();" class="btn-secondary" style="flex: 1; min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; padding: 0;">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                                                 <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
                                             </svg>
@@ -805,11 +840,14 @@
                                         
                                         
                                         
+                                        
+                                        
+                                        
                                         </button>
-                                        <button id="nextPuzzleBtn" class="btn-primary" style="display:none; background:#26c2a3; min-height:40px; width:100%; font-size:14px; margin-bottom:5px;" onclick="window.game.nextPuzzle()">Next Puzzle ➡</button>
-                                        <button id="showSolBtn" class="btn-secondary" style="display:inline-block; min-height:40px; width:100%; font-size:14px; margin-bottom:5px;" onclick="window.game.showSolution()">Show Solution</button>
+                                        <button id="nextPuzzleBtn" class="btn-primary" style="display:none; background:#26c2a3; min-height:40px; width:100%; font-size:14px; margin-bottom:5px;" onclick="window.app.game.nextPuzzle()">Next Puzzle ➡</button>
+                                        <button id="showSolBtn" class="btn-secondary" style="display:inline-block; min-height:40px; width:100%; font-size:14px; margin-bottom:5px;" onclick="window.app.game.showSolution()">Show Solution</button>
                                     </div>
-                                    <button class="btn-secondary" style="min-height:40px; width:100%; font-size:14px;" onclick="window.game.endPuzzleRun('quit')">Exit / Finish</button>
+                                    <button class="btn-secondary" style="min-height:40px; width:100%; font-size:14px;" onclick="window.app.game.endPuzzleRun('quit')">Exit / Finish</button>
                                 </div>
                             </div>
                             <div id="tabContent-Editor" class="tab-content">
@@ -817,7 +855,7 @@
                                 <div class="editor-controls">
                                     <div class="control-group">
                                         <label class="control-label">Side to Play</label>
-                                        <select id="editorTurn" class="select-input" onchange="window.ui.updateEditorState()">
+                                        <select id="editorTurn" class="select-input" onchange="window.app.ui.updateEditorState()">
                                             <option value="w">White to play</option>
                                             <option value="b">Black to play</option>
                                         </select>
@@ -826,25 +864,37 @@
                                         <label class="control-label">Castling</label>
                                         <div class="checkbox-grid">
                                             <label class="checkbox-label">
-                                                <input type="checkbox" id="castling-wK" onchange="window.ui.updateEditorState()">White O-O
+                                                <input type="checkbox" id="castling-wK" onchange="window.app.ui.updateEditorState()">White O-O
+                                            
+                                            
+                                            
                                             
                                             
                                             
                                             </label>
                                             <label class="checkbox-label">
-                                                <input type="checkbox" id="castling-bK" onchange="window.ui.updateEditorState()">Black O-O
+                                                <input type="checkbox" id="castling-bK" onchange="window.app.ui.updateEditorState()">Black O-O
+                                            
+                                            
+                                            
                                             
                                             
                                             
                                             </label>
                                             <label class="checkbox-label">
-                                                <input type="checkbox" id="castling-wQ" onchange="window.ui.updateEditorState()">White O-O-O
+                                                <input type="checkbox" id="castling-wQ" onchange="window.app.ui.updateEditorState()">White O-O-O
+                                            
+                                            
+                                            
                                             
                                             
                                             
                                             </label>
                                             <label class="checkbox-label">
-                                                <input type="checkbox" id="castling-bQ" onchange="window.ui.updateEditorState()">Black O-O-O
+                                                <input type="checkbox" id="castling-bQ" onchange="window.app.ui.updateEditorState()">Black O-O-O
+                                            
+                                            
+                                            
                                             
                                             
                                             
@@ -853,37 +903,37 @@
                                     </div>
                                     <div class="control-group">
                                         <label class="control-label">En Passant Target</label>
-                                        <input type="text" id="epInput" class="text-input" placeholder="e.g. e3" onchange="window.ui.updateEditorState()">
+                                        <input type="text" id="epInput" class="text-input" placeholder="e.g. e3" onchange="window.app.ui.updateEditorState()">
                                     </div>
                                     <div class="control-group">
                                         <label class="control-label">FEN</label>
                                         <input type="text" id="fenInput" class="text-input" value="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1">
                                         <div style="margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 4px; display: flex; align-items: center; justify-content: space-between;">
                                             <label style="color: #e2e8f0; font-size: 14px; font-weight: bold;">Game Variant</label>
-                                            <select id="editorVariantSelect" style="background: #111; color: #e3e3e3; border: 1px solid #333; padding: 6px 10px; border-radius: 3px; font-size: 13px; cursor: pointer; outline: none; width: 60%;" onchange="if(window.game) { window.game.setGameMode(this.value); if(window.ui) window.ui.editorReset(); }">
+                                            <select id="editorVariantSelect" style="background: #111; color: #e3e3e3; border: 1px solid #333; padding: 6px 10px; border-radius: 3px; font-size: 13px; cursor: pointer; outline: none; width: 60%;" onchange="if(window.game) { window.app.game.setGameMode(this.value); if(window.ui) window.app.ui.editorReset(); }">
                                                 <option value="classical">Standard</option>
-                                                    <option value="chess960">Chess960</option>
-                                                    <option value="3check">3-Check</option>
-                                                    <option value="antichess">Antichess</option>
-                                                    <option value="atomic">Atomic</option>
-                                                    <option value="bughouse">Bughouse</option>
-                                                    <option value="chaturanga">Chaturanga</option>
-                                                    <option value="crazyhouse">Crazyhouse</option>
-                                                    <option value="duck">Duck Chess</option>
-                                                    <option value="horde">Horde</option>
-                                                    <option value="kingofthehill">King of the Hill</option>
-                                                    <option value="placement">Placement</option>
-                                                    <option value="racingkings">Racing Kings</option>
+                                                <option value="chess960">Chess960</option>
+                                                <option value="3check">3-Check</option>
+                                                <option value="antichess">Antichess</option>
+                                                <option value="atomic">Atomic</option>
+                                                <option value="bughouse">Bughouse</option>
+                                                <option value="chaturanga">Chaturanga</option>
+                                                <option value="crazyhouse">Crazyhouse</option>
+                                                <option value="duck">Duck Chess</option>
+                                                <option value="horde">Horde</option>
+                                                <option value="kingofthehill">King of the Hill</option>
+                                                <option value="placement">Placement</option>
+                                                <option value="racingkings">Racing Kings</option>
                                             </select>
                                         </div>
                                         <button class="btn-primary" style="min-height:40px; margin-top:5px;color: var(--accent); border-color: var(--accent);" onclick="document.getElementById('scan-upload-input').click()">📷 / 📄 Scan Image or PDF</button>
                                         <input type="file" id="scan-upload-input" accept="image/*,application/pdf" style="display: none;" onchange="window.boardScanner.handleUpload(event)">
-                                        <button class="btn-secondary" style="min-height:40px; margin-top:5px;" onclick="window.game.loadNewPosition(document.getElementById('fenInput').value, document.getElementById('editorVariantSelect').value);">Load FEN
+                                        <button class="btn-secondary" style="min-height:40px; margin-top:5px;" onclick="window.app.game.loadNewPosition(document.getElementById('fenInput').value, document.getElementById('editorVariantSelect').value);window.app.ui.switchTab('analysis');">Load FEN
                                     </button>
                                         <div class="control-group">
                                             <label class="control-label">Import / Export Tools</label>
                                             <div style="display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
-                                                <input type="file" id="pgnInput" accept=".pgn,.txt" style="display:none;" onchange="window.game.loadPGNFile(this)">
+                                                <input type="file" id="pgnInput" accept=".pgn,.txt" style="display:none;" onchange="window.app.game.loadPGNFile(this)">
                                                 <button class="tool-btn" onclick="document.getElementById('pgnInput').click();" title="Import PGN" style="display: inline-flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 6px; cursor: pointer; width: 36px; height: 36px; padding: 0;">
                                                     <svg viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px;">
                                                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -892,7 +942,7 @@
                                                         <polyline points="9 15 12 12 15 15"></polyline>
                                                     </svg>
                                                 </button>
-                                                <button class="tool-btn" onclick="window.game.exportPGN()" title="Export PGN" style="display: inline-flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 6px; cursor: pointer; width: 36px; height: 36px; padding: 0;">
+                                                <button class="tool-btn" onclick="window.app.game.exportPGN()" title="Export PGN" style="display: inline-flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 6px; cursor: pointer; width: 36px; height: 36px; padding: 0;">
                                                     <svg viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px;">
                                                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                                         <polyline points="14 2 14 8 20 8"></polyline>
@@ -900,7 +950,7 @@
                                                         <polyline points="9 15 12 18 15 15"></polyline>
                                                     </svg>
                                                 </button>
-                                                <button class="tool-btn" onclick="window.ui.openEmbedImporter()" title="Import Embed Code (iframe)" style="display: inline-flex; align-items: center; justify-content: center; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 6px; cursor: pointer; width: 36px; height: 36px; padding: 0;">
+                                                <button class="tool-btn" onclick="window.app.ui.openEmbedImporter()" title="Import Embed Code (iframe)" style="display: inline-flex; align-items: center; justify-content: center; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 6px; cursor: pointer; width: 36px; height: 36px; padding: 0;">
                                                     <svg viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px;">
                                                         <polyline points="16 18 22 12 16 6"></polyline>
                                                         <polyline points="8 6 2 12 8 18"></polyline>
@@ -908,7 +958,7 @@
                                                         <polyline points="9 13 12 16 15 13"></polyline>
                                                     </svg>
                                                 </button>
-                                                <button class="tool-btn" onclick="window.ui.exportEmbed()" title="Export Embed HTML" style="display: inline-flex; align-items: center; justify-content: center; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 6px; cursor: pointer; width: 36px; height: 36px; padding: 0;">
+                                                <button class="tool-btn" onclick="window.app.ui.exportEmbed()" title="Export Embed HTML" style="display: inline-flex; align-items: center; justify-content: center; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 6px; cursor: pointer; width: 36px; height: 36px; padding: 0;">
                                                     <svg viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px;">
                                                         <polyline points="16 18 22 12 16 6"></polyline>
                                                         <polyline points="8 6 2 12 8 18"></polyline>
@@ -919,13 +969,13 @@
                                             </div>
                                         </div>
                                         <textarea id="editorPgnInput" class="text-input" rows="6" placeholder="Paste PGN..."></textarea>
-                                        <button class="btn-primary" style="min-height:40px;" onclick="window.ui.loadPgnAndAnalyze();window.ui.switchTab('analysis');">Load PGN to Analysis</button>
+                                        <button class="btn-primary" style="min-height:40px;" onclick="window.app.ui.loadPgnAndAnalyze();window.app.ui.switchTab('analysis');">Load PGN to Analysis</button>
                                     </div>
                                     <div class="action-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-                                        <button class="btn-secondary" onclick="window.ui.editorReset()">Start Pos</button>
-                                        <button class="btn-secondary" onclick="window.ui.editorClear()">Clear Board</button>
+                                        <button class="btn-secondary" onclick="window.app.ui.editorReset()">Start Pos</button>
+                                        <button class="btn-secondary" onclick="window.app.ui.editorClear()">Clear Board</button>
                                     </div>
-                                    <button class="btn-primary" style="min-height:40px;background:#1baca6; margin-top:10px;" onclick="window.ui.finishEditor()">Continue From Here</button>
+                                    <button class="btn-primary" style="min-height:40px;background:#1baca6; margin-top:10px;" onclick="window.app.ui.finishEditor()">Continue From Here</button>
                                 </div>
                             </div>
                         </div>
@@ -943,28 +993,28 @@
                             <div id="bContent-review" style="display: none; width: 100%;"></div>
                             <div id="bContent-export" style="display: none; width: 100%; flex-direction: column; gap: 20px;">
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                                    <button class="btn-secondary" onclick="window.ui.openChapterManager()" style="padding: 10px; border-radius: 4px; font-size: 13px; background: #2a2a2a; color: #fff; border: 1px solid #444; cursor: pointer; font-weight: bold;">📑 Manage Chapter</button>
-                                    <button class="btn-secondary" onclick="window.ui.openStudyManager()" style="padding: 10px; border-radius: 4px; font-size: 13px; background: #2a2a2a; color: #fff; border: 1px solid #444; cursor: pointer; font-weight: bold;">📚 Manage Study</button>
+                                    <button class="btn-secondary" onclick="window.app.ui.openChapterManager()" style="padding: 10px; border-radius: 4px; font-size: 13px; background: #2a2a2a; color: #fff; border: 1px solid #444; cursor: pointer; font-weight: bold;">📑 Manage Chapter</button>
+                                    <button class="btn-secondary" onclick="window.app.ui.openStudyManager()" style="padding: 10px; border-radius: 4px; font-size: 13px; background: #2a2a2a; color: #fff; border: 1px solid #444; cursor: pointer; font-weight: bold;">📚 Manage Study</button>
                                 </div>
                                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
                                     <div style="background: #111; border: 1px solid #333; padding: 20px; border-radius: 4px; display: flex; flex-direction: column;">
                                         <h4 style="margin: 0 0 15px 0; color: #bababa; font-size: 14px; text-transform: uppercase;">FEN (Position)</h4>
                                         <textarea id="exportFenText" style="width: 100%; height: 100px; background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 8px; border-radius: 4px; resize: none; font-family: monospace; margin-bottom: 10px;" placeholder="Paste starting FEN here..."></textarea>
                                         <div style="display: flex; gap: 10px; margin-top: auto;">
-                                            <button class="btn-primary" style="flex: 1; padding: 8px;" onclick="window.ui.copyFEN()">Copy</button>
-                                            <button class="btn-success" style="flex: 1; background: #38803a; color: white; border: none; border-radius: 3px; cursor: pointer; padding: 8px;" onclick="window.ui.importFEN()">Load</button>
+                                            <button class="btn-primary" style="flex: 1; padding: 8px;" onclick="window.app.ui.copyFEN()">Copy</button>
+                                            <button class="btn-success" style="flex: 1; background: #38803a; color: white; border: none; border-radius: 3px; cursor: pointer; padding: 8px;" onclick="window.app.ui.importFEN()">Load</button>
                                         </div>
                                     </div>
                                     <div style="background: #111; border: 1px solid #333; padding: 20px; border-radius: 4px; display: flex; flex-direction: column;">
                                         <h4 style="margin: 0 0 15px 0; color: #bababa; font-size: 14px; text-transform: uppercase;">PGN (Game)</h4>
                                         <textarea id="exportPgnText" style="width: 100%; height: 60px; background: #2a2a2a; border: 1px solid #444; color: #fff; padding: 8px; border-radius: 4px; resize: none; font-family: monospace; margin-bottom: 10px;" placeholder="Paste PGN game data here..."></textarea>
                                         <div style="display: flex; gap: 5px; margin-bottom: 5px;">
-                                            <button class="btn-primary" style="flex: 1; padding: 8px; font-size: 12px;" onclick="window.ui.copyPGN()">Copy</button>
-                                            <button class="btn-success" style="flex: 1; padding: 8px; font-size: 12px;" onclick="window.ui.importPGN()">Load</button>
+                                            <button class="btn-primary" style="flex: 1; padding: 8px; font-size: 12px;" onclick="window.app.ui.copyPGN()">Copy</button>
+                                            <button class="btn-success" style="flex: 1; padding: 8px; font-size: 12px;" onclick="window.app.ui.importPGN()">Load</button>
                                         </div>
                                         <div style="display: flex; gap: 5px; margin-top: auto;">
-                                            <button class="btn-secondary" style="flex: 1; padding: 8px; font-size: 12px;" onclick="window.game.exportPGN()">Export</button>
-                                            <button class="btn-secondary" style="flex: 1; padding: 8px; font-size: 12px;" onclick="window.game.loadPGNFile()">Import</button>
+                                            <button class="btn-secondary" style="flex: 1; padding: 8px; font-size: 12px;" onclick="window.app.game.exportPGN()">Export</button>
+                                            <button class="btn-secondary" style="flex: 1; padding: 8px; font-size: 12px;" onclick="window.app.game.loadPGNFile()">Import</button>
                                         </div>
                                     </div>
                                     <div style="background: #111; border: 1px solid #333; padding: 20px; border-radius: 4px; display: flex; flex-direction: column;">
@@ -972,13 +1022,13 @@
                                         <textarea id="embedCodeText" readonly style="width: 100%; height: 100px; background: #2a2a2a; border: 1px solid #444; color: #38bdf8; padding: 8px; border-radius: 4px; resize: none; font-family: monospace; margin-bottom: 10px;"></textarea>
                                         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; margin-top: auto;">
                                             <button class="btn-primary" style="width: 100%; padding: 8px; font-size: 12px;" onclick="navigator.clipboard.writeText(document.getElementById('embedCodeText').value); this.innerText='Copied!'; setTimeout(()=>this.innerText='Copy HTML', 2000);">Copy Embedded</button>
-                                            <button class="btn-primary" style="width: 100%; padding: 8px; font-size: 12px;" onclick="window.ui.importEmbed()">Import Embedded</button>
+                                            <button class="btn-primary" style="width: 100%; padding: 8px; font-size: 12px;" onclick="window.app.ui.importEmbed()">Import Embedded</button>
                                         </div>
                                     </div>
                                     <div style="background: #111; border: 1px solid #333; padding: 20px; border-radius: 4px; text-align: center; display: flex; flex-direction: column;">
                                         <h4 style="margin: 0 0 15px 0; color: #bababa; font-size: 14px; text-transform: uppercase;">Export as GIF</h4>
                                         <div id="gifPreviewArea" style="width: 100%; height: 100px; background: #2a2a2a; border: 1px dashed #444; margin: 0 auto 10px auto; display: flex; align-items: center; justify-content: center; color: #888; font-size: 12px; border-radius: 4px; overflow: hidden; box-sizing: border-box;">Preview</div>
-                                        <button class="btn-primary" style="width: 100%; padding: 8px; margin-top: auto;" onclick="window.ui.generateGIF()">Generate GIF</button>
+                                        <button class="btn-primary" style="width: 100%; padding: 8px; margin-top: auto;" onclick="window.app.ui.generateGIF()">Generate GIF</button>
                                     </div>
                                 </div>
                             </div>
@@ -1081,13 +1131,13 @@
                     <div style="padding: 20px; box-sizing: border-box;">
                         <textarea id="embedTextInput" placeholder="Paste <iframe> code here..." style="width: 100%; height: 120px; background: #161512; color: #bababa; border: 1px solid #403d39; border-radius: 4px; padding: 12px; margin-bottom: 15px; font-family: monospace; resize: none; box-sizing: border-box;"></textarea>
                         <div style="text-align: center; margin-bottom: 15px; color: #666; font-size: 14px;">— OR —</div>
-                        <label id="embedDropZone" ondragover="window.ui.handleEmbedDragOver(event)" ondragleave="window.ui.handleEmbedDragLeave(event)" ondrop="window.ui.handleEmbedDrop(event)" style="display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(56, 189, 248, 0.1); border: 1px dashed rgba(56, 189, 248, 0.5); color: #38bdf8; padding: 20px; border-radius: 4px; cursor: pointer; transition: background 0.2s;">
+                        <label id="embedDropZone" ondragover="window.app.ui.handleEmbedDragOver(event)" ondragleave="window.app.ui.handleEmbedDragLeave(event)" ondrop="window.app.ui.handleEmbedDrop(event)" style="display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(56, 189, 248, 0.1); border: 1px dashed rgba(56, 189, 248, 0.5); color: #38bdf8; padding: 20px; border-radius: 4px; cursor: pointer; transition: background 0.2s;">
                             <span style="font-weight: 500;">Click or Drag HTML/Text file here</span>
                             <span style="font-size: 12px; color: #888; margin-top: 5px;">(Reads the file and pastes it above)</span>
-                            <input type="file" id="embedFileInput" accept=".html,.htm,.txt" style="display: none;" onchange="window.ui.handleEmbedFileUpload(event)">
+                            <input type="file" id="embedFileInput" accept=".html,.htm,.txt" style="display: none;" onchange="window.app.ui.handleEmbedFileUpload(event)">
                         </label>
                         <div style="margin-top: 25px; display: flex; justify-content: flex-end;">
-                            <button onclick="window.ui.submitEmbedText()" style="background: #629924; color: white; border: none; padding: 10px 24px; border-radius: 3px; cursor: pointer; font-size: 16px; font-weight: bold; text-shadow: 0 1px 0 rgba(0,0,0,0.2);">Import</button>
+                            <button onclick="window.app.ui.submitEmbedText()" style="background: #629924; color: white; border: none; padding: 10px 24px; border-radius: 3px; cursor: pointer; font-size: 16px; font-weight: bold; text-shadow: 0 1px 0 rgba(0,0,0,0.2);">Import</button>
                         </div>
                     </div>
                 </div>
@@ -1102,21 +1152,21 @@
                         <div class="setup-group">
                             <label class="setup-label">Strength</label>
                             <div class="strength-selector" id="strengthGroup">
-                                <button class="str-btn" onclick="window.ui.setBotLevel(1, this)">1</button>
-                                <button class="str-btn" onclick="window.ui.setBotLevel(2, this)">2</button>
-                                <button class="str-btn" onclick="window.ui.setBotLevel(3, this)">3</button>
-                                <button class="str-btn" onclick="window.ui.setBotLevel(4, this)">4</button>
-                                <button class="str-btn active" onclick="window.ui.setBotLevel(5, this)">5</button>
-                                <button class="str-btn" onclick="window.ui.setBotLevel(6, this)">6</button>
-                                <button class="str-btn" onclick="window.ui.setBotLevel(7, this)">7</button>
-                                <button class="str-btn" onclick="window.ui.setBotLevel(8, this)">8</button>
+                                <button class="str-btn" onclick="window.app.ui.setBotLevel(1, this)">1</button>
+                                <button class="str-btn" onclick="window.app.ui.setBotLevel(2, this)">2</button>
+                                <button class="str-btn" onclick="window.app.ui.setBotLevel(3, this)">3</button>
+                                <button class="str-btn" onclick="window.app.ui.setBotLevel(4, this)">4</button>
+                                <button class="str-btn active" onclick="window.app.ui.setBotLevel(5, this)">5</button>
+                                <button class="str-btn" onclick="window.app.ui.setBotLevel(6, this)">6</button>
+                                <button class="str-btn" onclick="window.app.ui.setBotLevel(7, this)">7</button>
+                                <button class="str-btn" onclick="window.app.ui.setBotLevel(8, this)">8</button>
                             </div>
                             <input type="hidden" id="botLevelInput" value="5">
                         </div>
                         <div class="setup-group">
                             <label class="setup-label">Side</label>
                             <div class="side-selector">
-                                <button class="side-btn" id="sideBtn-b" onclick="window.ui.selectSideOption('b')">
+                                <button class="side-btn" id="sideBtn-b" onclick="window.app.ui.selectSideOption('b')">
                                     <svg viewBox="0 0 45 45" class="side-icon">
                                         <g fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M22.5 11.63V6M20 8h5" stroke="#999"/>
@@ -1127,7 +1177,7 @@
                                     </svg>
                                     <span class="side-text">Black</span>
                                 </button>
-                                <button class="side-btn active" id="sideBtn-random" onclick="window.ui.selectSideOption('random')">
+                                <button class="side-btn active" id="sideBtn-random" onclick="window.app.ui.selectSideOption('random')">
                                     <svg viewBox="0 0 45 45" class="side-icon">
                                         <defs>
                                             <clipPath id="l">
@@ -1146,7 +1196,7 @@
                                     </svg>
                                     <span class="side-text">Random</span>
                                 </button>
-                                <button class="side-btn" id="sideBtn-w" onclick="window.ui.selectSideOption('w')">
+                                <button class="side-btn" id="sideBtn-w" onclick="window.app.ui.selectSideOption('w')">
                                     <svg viewBox="0 0 45 45" class="side-icon">
                                         <g fill="none" fill-rule="evenodd" stroke="#000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M22.5 11.63V6M20 8h5"/>
@@ -1160,11 +1210,14 @@
                                 <input type="hidden" id="botColorInput" value="random">
                             </div>
                         </div>
-                        <button class="play-computer-btn" onclick="window.ui.confirmBotStart()">
+                        <button class="play-computer-btn" onclick="window.app.ui.confirmBotStart()">
                             <svg viewBox="0 0 24 24" width="24" height="24" style="margin-right:8px; opacity:0.6">
                                 <path fill="currentColor" d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/>
                             </svg>
                             Play against computer
+                        
+                        
+                        
                         
                         
                         
@@ -1191,7 +1244,7 @@
                                 <span style="font-size: 12px; color: #888; font-weight: normal; margin-top: 4px;">Practice your moves against Stockfish</span>
                             </div>
                         </button>
-                        <button onclick="document.getElementById('continueSetupModal').style.display='none'; window.game.startLocalGame(window.game.engine.fen());" style="display: flex; align-items: center; width: 100%; padding: 15px 20px; background: #201e1b; border: 1px solid #3c3a37; border-radius: 6px; color: #e2e8f0; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; text-align: left;" onmouseover="this.style.background='#2b2926'; this.style.borderColor='#5c5a57'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='#201e1b'; this.style.borderColor='#3c3a37'; this.style.transform='none';">
+                        <button onclick="document.getElementById('continueSetupModal').style.display='none'; window.app.game.startLocalGame(window.app.game.engine.fen());" style="display: flex; align-items: center; width: 100%; padding: 15px 20px; background: #201e1b; border: 1px solid #3c3a37; border-radius: 6px; color: #e2e8f0; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; text-align: left;" onmouseover="this.style.background='#2b2926'; this.style.borderColor='#5c5a57'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='#201e1b'; this.style.borderColor='#3c3a37'; this.style.transform='none';">
                             <div style="background: #161512; padding: 12px; border-radius: 50%; margin-right: 15px; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);">
                                 <svg viewBox="0 0 24 24" width="24" height="24" style="color: #96bc4b;">
                                     <path fill="currentColor" d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
@@ -1207,29 +1260,29 @@
             </div>
             <div id="gameOverModal" class="modal-overlay" style="display:none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 99999; align-items: center; justify-content: center;transform: scale(calc(1 / var(--app-scale, 1))); transform-origin: center center;">
                 <div class="modal-content">
-                    <span class="close-modal" onclick="window.ui.hideGameOver()">×</span>
+                    <span class="close-modal" onclick="window.app.ui.hideGameOver()">×</span>
                     <div class="winner-icon-container">
                         <div id="winnerIcon" class="winner-king"></div>
                     </div>
                     <h2 id="winnerText">White Won</h2>
                     <p id="winReason">by Checkmate</p>
                     <div class="modal-buttons">
-                        <button class="btn-primary" onclick="window.game.rematch()">Rematch</button>
-                        <button class="btn-primary" onclick="window.game.startAnalysisMode()">Analyze</button>
+                        <button class="btn-primary" onclick="window.app.game.rematch()">Rematch</button>
+                        <button class="btn-primary" onclick="window.app.game.startAnalysisMode()">Analyze</button>
                     </div>
                 </div>
             </div>
-            <div id="notificationModal" class="modal-overlay" style="display:none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 99999; align-items: center; justify-content: center;transform: scale(calc(1 / var(--app-scale, 1))); transform-origin: center center;" onclick="window.ui.hideNotification()">
+            <div id="notificationModal" class="modal-overlay" style="display:none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 99999; align-items: center; justify-content: center;transform: scale(calc(1 / var(--app-scale, 1))); transform-origin: center center;" onclick="window.app.ui.hideNotification()">
                 <div class="scale-wrapper" style="display: flex; justify-content: center; align-items: center;">
                     <div class="modal-content" onclick="event.stopPropagation()">
-                        <span class="close-modal" onclick="window.ui.hideNotification()">×</span>
+                        <span class="close-modal" onclick="window.app.ui.hideNotification()">×</span>
                         <div class="winner-icon-container" style="background:none; height:auto; margin-bottom:10px;">
                             <div id="notifIcon" style="font-size:32px;">ℹ️</div>
                         </div>
                         <h2 id="notifTitle" style="color:#fff; margin-bottom:10px;">Notice</h2>
                         <p id="notifMessage" style="color:#bababa; font-size:14px; margin-bottom:20px; line-height:1.5;"></p>
                         <div class="modal-buttons">
-                            <button class="btn-primary" onclick="window.ui.hideNotification()">OK</button>
+                            <button class="btn-primary" onclick="window.app.ui.hideNotification()">OK</button>
                         </div>
                     </div>
                 </div>
@@ -1246,14 +1299,14 @@
                         <div style="padding: 20px;">
                             <div style="margin-bottom: 20px;">
                                 <label style="display: block; color: #bababa; font-size: 13px; margin-bottom: 5px;">Name</label>
-                                <input type="text" id="chapterNameInput" style="width: 100%; padding: 8px 10px; background: #161512; border: 1px solid #404040; color: #fff; border-radius: 3px; outline: none; box-sizing: border-box; font-size: 14px;" onkeydown="if(event.key==='Enter') window.game.saveChapterDetails()">
+                                <input type="text" id="chapterNameInput" style="width: 100%; padding: 8px 10px; background: #161512; border: 1px solid #404040; color: #fff; border-radius: 3px; outline: none; box-sizing: border-box; font-size: 14px;" onkeydown="if(event.key==='Enter') window.app.game.saveChapterDetails()">
                             </div>
                             <div id="chapterModalTabs" style="display: flex; gap: 20px; border-bottom: 1px solid #404040; margin-bottom: 20px; color: #888; font-size: 14px;">
-                                <span id="cTab-empty" onclick="window.ui.switchChapterTab('empty')" style="color: #d85000; border-bottom: 2px solid #d85000; padding-bottom: 8px; cursor: pointer;">Empty</span>
-                                <span id="cTab-editor" onclick="window.ui.switchChapterTab('editor')" style="cursor: pointer; padding-bottom: 8px; transition: color 0.2s;">Editor</span>
-                                <span id="cTab-url" onclick="window.ui.switchChapterTab('url')" style="cursor: pointer; padding-bottom: 8px; transition: color 0.2s;">URL</span>
-                                <span id="cTab-fen" onclick="window.ui.switchChapterTab('fen')" style="cursor: pointer; padding-bottom: 8px; transition: color 0.2s;">FEN</span>
-                                <span id="cTab-pgn" onclick="window.ui.switchChapterTab('pgn')" style="cursor: pointer; padding-bottom: 8px; transition: color 0.2s;">PGN</span>
+                                <span id="cTab-empty" onclick="window.app.ui.switchChapterTab('empty')" style="color: #d85000; border-bottom: 2px solid #d85000; padding-bottom: 8px; cursor: pointer;">Empty</span>
+                                <span id="cTab-editor" onclick="window.app.ui.switchChapterTab('editor')" style="cursor: pointer; padding-bottom: 8px; transition: color 0.2s;">Editor</span>
+                                <span id="cTab-url" onclick="window.app.ui.switchChapterTab('url')" style="cursor: pointer; padding-bottom: 8px; transition: color 0.2s;">URL</span>
+                                <span id="cTab-fen" onclick="window.app.ui.switchChapterTab('fen')" style="cursor: pointer; padding-bottom: 8px; transition: color 0.2s;">FEN</span>
+                                <span id="cTab-pgn" onclick="window.app.ui.switchChapterTab('pgn')" style="cursor: pointer; padding-bottom: 8px; transition: color 0.2s;">PGN</span>
                             </div>
                             <div id="chapterModalDynamicArea" style="display: none; margin-bottom: 20px;">
                                 <textarea id="chapterDataInput" rows="4" style="width: 100%; padding: 8px 10px; background: #111; border: 1px solid #404040; color: #fff; border-radius: 3px; outline: none; box-sizing: border-box; font-size: 13px; font-family: monospace; resize: vertical;" placeholder=""></textarea>
@@ -1297,9 +1350,9 @@
                                 <span style="cursor: pointer;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">CLEAR VARIATIONS</span>
                             </div>
                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <button id="deleteChapterBtn" onclick="window.game.deleteCurrentChapter()" style="display: none; background: none; border: none; color: #fa412d; cursor: pointer; font-size: 13px; font-weight: bold; padding: 0;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">DELETE CHAPTER</button>
+                                <button id="deleteChapterBtn" onclick="window.app.game.deleteCurrentChapter()" style="display: none; background: none; border: none; color: #fa412d; cursor: pointer; font-size: 13px; font-weight: bold; padding: 0;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">DELETE CHAPTER</button>
                                 <div style="flex-grow: 1;"></div>
-                                <button id="saveChapterBtn" onclick="window.game.saveChapterDetails()" style="background: #3692e7; color: #fff; border: none; padding: 10px 15px; border-radius: 3px; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.1s;" onmouseover="this.style.background='#267bc9'" onmouseout="this.style.background='#3692e7'">CREATE CHAPTER</button>
+                                <button id="saveChapterBtn" onclick="window.app.game.saveChapterDetails()" style="background: #3692e7; color: #fff; border: none; padding: 10px 15px; border-radius: 3px; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.1s;" onmouseover="this.style.background='#267bc9'" onmouseout="this.style.background='#3692e7'">CREATE CHAPTER</button>
                             </div>
                         </div>
                     </div>
@@ -1314,7 +1367,7 @@
                         </div>
                         <div style="padding: 20px;">
                             <textarea id="quickImportText" rows="6" style="width: 100%; padding: 10px; background: #111; border: 1px solid #404040; color: #fff; border-radius: 3px; font-family: monospace; resize: vertical; margin-bottom: 15px;" placeholder="Paste FEN or PGN string here..."></textarea>
-                            <button class="btn-primary" style="width: 100%; padding: 10px; font-weight: bold; background: #38803a; border: none; color: white; border-radius: 3px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='#2b662d'" onmouseout="this.style.background='#38803a'" onclick="window.ui.quickImport()">Load Position / Game</button>
+                            <button class="btn-primary" style="width: 100%; padding: 10px; font-weight: bold; background: #38803a; border: none; color: white; border-radius: 3px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='#2b662d'" onmouseout="this.style.background='#38803a'" onclick="window.app.ui.quickImport()">Load Position / Game</button>
                         </div>
                     </div>
                 </div>
@@ -1328,16 +1381,16 @@
                         </div>
                         <div style="padding: 20px;">
                             <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                                <button class="btn-secondary" style="flex: 1; padding: 6px; border-radius: 3px; cursor: pointer; background: #333; color: white; border: none;" onclick="window.ui.toggleCheckboxes('chapter-cb', true)">Select All</button>
-                                <button class="btn-secondary" style="flex: 1; padding: 6px; border-radius: 3px; cursor: pointer; background: #333; color: white; border: none;" onclick="window.ui.toggleCheckboxes('chapter-cb', false)">Deselect All</button>
+                                <button class="btn-secondary" style="flex: 1; padding: 6px; border-radius: 3px; cursor: pointer; background: #333; color: white; border: none;" onclick="window.app.ui.toggleCheckboxes('chapter-cb', true)">Select All</button>
+                                <button class="btn-secondary" style="flex: 1; padding: 6px; border-radius: 3px; cursor: pointer; background: #333; color: white; border: none;" onclick="window.app.ui.toggleCheckboxes('chapter-cb', false)">Deselect All</button>
                             </div>
                             <div id="chapterManagerList" style="max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; padding-right: 5px;"></div>
-                            <input type="file" id="importChapterInput" accept=".pgn,.txt" style="display: none;" onchange="window.game.importChaptersFromFile(this)">
+                            <input type="file" id="importChapterInput" accept=".pgn,.txt" style="display: none;" onchange="window.app.game.importChaptersFromFile(this)">
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                                <button class="btn-danger" style="padding: 10px;" onclick="window.game.deleteSelectedChapters()">🗑️ Delete</button>
-                                <button class="btn-primary" style="padding: 10px;" onclick="window.game.downloadSelectedChapters()">⬇️ Export</button>
+                                <button class="btn-danger" style="padding: 10px;" onclick="window.app.game.deleteSelectedChapters()">🗑️ Delete</button>
+                                <button class="btn-primary" style="padding: 10px;" onclick="window.app.game.downloadSelectedChapters()">⬇️ Export</button>
                                 <button class="btn-info" style="padding: 10px;" onclick="document.getElementById('importChapterInput').click()">📥 Import PGN(s)</button>
-                                <button class="btn-success" style="padding: 10px;" onclick="document.getElementById('chapterManagerModal').style.display='none'; window.ui.openChapterModal(-1)">➕ Add New</button>
+                                <button class="btn-success" style="padding: 10px;" onclick="document.getElementById('chapterManagerModal').style.display='none'; window.app.ui.openChapterModal(-1)">➕ Add New</button>
                             </div>
                         </div>
                     </div>
@@ -1352,18 +1405,18 @@
                         </div>
                         <div style="padding: 20px;">
                             <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                                <button class="btn-secondary" style="flex: 1; padding: 6px; border-radius: 3px; cursor: pointer; background: #333; color: white; border: none;" onclick="window.ui.toggleCheckboxes('study-cb', true)">Select All</button>
-                                <button class="btn-secondary" style="flex: 1; padding: 6px; border-radius: 3px; cursor: pointer; background: #333; color: white; border: none;" onclick="window.ui.toggleCheckboxes('study-cb', false)">Deselect All</button>
+                                <button class="btn-secondary" style="flex: 1; padding: 6px; border-radius: 3px; cursor: pointer; background: #333; color: white; border: none;" onclick="window.app.ui.toggleCheckboxes('study-cb', true)">Select All</button>
+                                <button class="btn-secondary" style="flex: 1; padding: 6px; border-radius: 3px; cursor: pointer; background: #333; color: white; border: none;" onclick="window.app.ui.toggleCheckboxes('study-cb', false)">Deselect All</button>
                             </div>
                             <div id="studyListContainer" style="max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; padding-right: 5px;"></div>
                             <div style="display: flex; gap: 10px; margin-bottom: 15px;">
                                 <input type="text" id="newStudyName" placeholder="Name for new study..." style="flex:1; padding: 8px; border-radius: 3px; border: 1px solid #404040; background: #111; color: white; outline: none;">
-                                <button class="btn-success" style="padding: 8px 15px;" onclick="window.game.createNewStudy()">➕ Create</button>
+                                <button class="btn-success" style="padding: 8px 15px;" onclick="window.app.game.createNewStudy()">➕ Create</button>
                             </div>
-                            <input type="file" id="importStudyInput" accept=".pgn,.txt" style="display: none;" onchange="window.game.importStudyFromFile(this)">
+                            <input type="file" id="importStudyInput" accept=".pgn,.txt" style="display: none;" onchange="window.app.game.importStudyFromFile(this)">
                             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
-                                <button class="btn-danger" style="padding: 10px;" onclick="window.game.deleteSelectedStudies()">🗑️ Delete</button>
-                                <button class="btn-primary" style="padding: 10px;" onclick="window.game.downloadSelectedStudies()">⬇️ Export</button>
+                                <button class="btn-danger" style="padding: 10px;" onclick="window.app.game.deleteSelectedStudies()">🗑️ Delete</button>
+                                <button class="btn-primary" style="padding: 10px;" onclick="window.app.game.downloadSelectedStudies()">⬇️ Export</button>
                                 <button class="btn-info" style="padding: 10px;" onclick="document.getElementById('importStudyInput').click()">📥 Import Study</button>
                             </div>
                         </div>
@@ -1437,8 +1490,8 @@
                 }
 
                 // 🚀 Instantly trigger the smart resizer so the chart fits the newly opened tab!
-                if (window.ui && typeof window.ui.safeResizeCharts === 'function') {
-                    window.ui.safeResizeCharts();
+                if (window.ui && typeof window.app.ui.safeResizeCharts === 'function') {
+                    window.app.ui.safeResizeCharts();
                 }
 
                 // 🔥 Auto-fill the text areas when the Export tab is opened!
@@ -1452,11 +1505,11 @@
                     const exportFormat = formatMenu ? formatMenu.value : 'both';
 
                     if (fenTxt && window.game)
-                        fenTxt.value = window.game.generateFEN();
+                        fenTxt.value = window.app.game.generateFEN();
 
                     if (pgnTxt && window.game) {
                         // Pass the format to the generator
-                        const pgnData = window.game.generatePGN(exportFormat);
+                        const pgnData = window.app.game.generatePGN(exportFormat);
                         pgnTxt.value = pgnData;
 
                         // Generate the secure embed iframe URL
@@ -1498,7 +1551,7 @@
                     setTimeout( () => {
                         const pgnData = urlParams.get('pgn');
                         if (pgnData && window.game) {
-                            window.game.loadPGN(decodeURIComponent(pgnData));
+                            window.app.game.loadPGN(decodeURIComponent(pgnData));
                         }
 
                         const embedId = urlParams.get('embedId');
@@ -1580,10 +1633,10 @@
                         }
 
                         setTimeout( () => {
-                            if (window.ui && window.ui.evalChart)
-                                window.ui.evalChart.resize();
-                            if (window.ui && window.ui.timeChart)
-                                window.ui.timeChart.resize();
+                            if (window.ui && window.app.ui.evalChart)
+                                window.app.ui.evalChart.resize();
+                            if (window.ui && window.app.ui.timeChart)
+                                window.app.ui.timeChart.resize();
                         }
                         , 50);
                     }
@@ -1597,5 +1650,7 @@
             }
             );
         </script>
+        
+        <script src="qa-checklist.js"></script>
     </body>
 </html>

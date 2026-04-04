@@ -7,9 +7,7 @@ export class ChessGame {
     #timerInterval;
     #_isBooting;
     #ui;
-    #callbacks;
 constructor() {
-        this.#callbacks = {};
         this.#ui = null;
         this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
         this.#pieceIdCounter = 0;
@@ -83,14 +81,6 @@ constructor() {
         
         this.loadFEN(startingFen);
     }
-on(eventName, callback) {
-        this.#callbacks[eventName] = callback;
-    }
-#emit(eventName, data) {
-        if (this.#callbacks[eventName]) {
-            this.#callbacks[eventName](data);
-        }
-    }
 setUI(uiInstance) {
         this.#ui = uiInstance;
     }
@@ -130,10 +120,11 @@ get currentLiveFen() {
         return this.generateFEN();
     }
 getReader() {
-        // ✨ FIX: Correctly read the duck square directly from the engine memory!
-        let engineDuck = (this.#engine && typeof this.#engine.get_duck_sq === 'function') ? this.#engine.get_duck_sq() : -1;
+        // 🔥 FIX: Restore the vital UI coordinate mapping! 
+        // The engine natively uses 0=a1 (bottom-up), but the UI renders 0=a8 (top-down).
+        let engineDuck = (this.#engine && this.#engine.get_duck_sq) ? this.#engine.get_duck_sq() : -1;
         let uiDuckSq = -1;
-        if (engineDuck !== -1 && engineDuck !== undefined && engineDuck !== null) {
+        if (engineDuck !== -1) {
             let file = engineDuck % 8;
             let rank = Math.floor(engineDuck / 8);
             uiDuckSq = (7 - rank) * 8 + file;
@@ -148,17 +139,21 @@ getReader() {
             gameMode: this.gameMode,
             turn: this.currentLiveTurn,
             botColor: this.botColor,
+            
             currentFen: this.currentNode ? this.currentNode.fen : '',
             startingFen: this.rootNode ? this.rootNode.fen : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
             activeNodeId: this.currentNode ? this.currentNode.id : null,
             lastMove: this.currentNode ? this.currentNode.lastMove : null,
             headers: Object.freeze({ ...this.pgnHeaders }),
+            
             whiteTime: this.whiteTime,
             blackTime: this.blackTime,
+            
             board: this.#board.map(p => p ? Object.freeze({...p}) : null),
             premoves: [...this.premoveQueue],
             arrows: this.currentNode && this.currentNode.arrows ? [...this.currentNode.arrows] : [],
             circles: this.currentNode && this.currentNode.circles ? [...this.currentNode.circles] : [],
+            
             puzzle: Object.freeze({
                 active: this.puzzleActive,
                 mode: this.puzzleMode,
@@ -168,7 +163,10 @@ getReader() {
                 solution: this.puzzleSolution,
                 cursor: this.puzzleCursor
             }),
+            
+            // 🔥 The UI will now perfectly sync with the engine's logic!
             duck_sq: uiDuckSq, 
+            
             studyTitle: this.studyTitle,
             activeChapterIndex: this.activeChapterIndex,
             chapters: this.chapters.map(c => Object.freeze({ 
@@ -1072,25 +1070,73 @@ return move.san;
                         targetNode.evalScore = rawEval;
                         targetNode.eval = evalString;
                         targetNode.depth = depth;
+                        // 🔥 SUBLINE LEAK FIX: We explicitly blank out the PV so it never gets saved to the PGN!
                         targetNode.pv = ''; 
                     } else {
                         targetNode.localEvalScore = rawEval;
                         targetNode.localEval = evalString;
                         targetNode.depth = depth;
-                        targetNode.pv = '';
+                        targetNode.pv = ''; // Same fix here
                     }
-                
+
+                    if (window.engineAnalysing && this.#ui && typeof this.#ui.updateInlineEval === 'function') {
+                        this.#ui.updateInlineEval(targetNode);
+                    }
+                }
                 
                 if (window.engineAnalysing && targetNode === this.currentNode) {
-                    const nps = line.match(/nps (\d+)/);
-                    // ✨ UPGRADE: Broadcast all engine visual data out to the Controller
-                    this.#emit('engineEval', {
-                        type, score, depth,
-                        nps: nps ? nps[1] : '-',
-                        node: targetNode,
-                        bestMove: rawMoves.length > 0 ? rawMoves[0] : null
-                    });
-                }
+                    const depthEl = document.getElementById('depth-display');
+                    const npsMatch = line.match(/nps (\d+)/);
+                    if (depthEl) depthEl.innerText = `Depth: ${depth} | Nps: ${npsMatch ? npsMatch[1] : '-'}`;
+                    
+                    if (this._evalBarStabilizer) clearTimeout(this._evalBarStabilizer);
+                    this._evalBarStabilizer = setTimeout(() => {
+                        if (this.#ui && typeof this.#ui.updateEvalBar === 'function') {
+                            this.#ui.updateEvalBar(type, score);
+                        }
+                    }, 250);
+
+                    const arrowRoot = document.getElementById('tempArrowRoot');
+                    if (arrowRoot && this.#ui) {
+                        arrowRoot.innerHTML = '';
+                        document.querySelectorAll('.ghost-suggestion').forEach(el => el.remove());
+                        if (rawMoves.length > 0) {
+                            let bestMove = rawMoves[0];
+                            
+                            if (bestMove.includes('@')) {
+                                let parts = bestMove.split('@');
+                                let pTypeStr = parts[0].toLowerCase(); // e.g., 'k' for King
+                                let targetSq = this.#squareToIndex(parts[1].substring(0, 2)); // e.g., 'b1'
+                                
+                                if (typeof this.#ui.drawGhostPiece === 'function') {
+                                    // Use the current turn color to colorize the ghost correctly!
+                                    this.#ui.drawGhostPiece(arrowRoot, targetSq, pTypeStr, this.turn);
+                                }
+                            } else {
+                                if (typeof this.#ui.clearGhostPiece === 'function') {
+                                    this.#ui.clearGhostPiece();
+                                }
+                                // Standard Moves still get arrows
+                                if (typeof this.#ui.drawArrow === 'function') {
+                                    const f = this.#squareToIndex(bestMove.substring(0, 2));
+                                    const t = this.#squareToIndex(bestMove.substring(2, 4));
+                                    this.#ui.drawArrow(arrowRoot, f, t, 'blue', 0.8);
+                                }
+                            }
+                        }
+                    }
+
+                    if (this.#ui && typeof this.#ui.renderCharts === 'function') {
+                        if (!window.chartUpdatePending) {
+                            window.chartUpdatePending = true;
+                            this.#ui._lastChartedFen = null; 
+                            requestAnimationFrame(() => { 
+                                try { this.#ui.renderCharts(); } 
+                                catch (e) { console.error("Chart Render Error:", e); } 
+                                finally { window.chartUpdatePending = false; }
+                            });
+                        }
+                    }
                 }
             }
         }
@@ -1612,9 +1658,12 @@ return move.san;
         }
     }
 #endGame(resultStr, statusMsg) {
-        if (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'editor') return; 
+        if (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'editor') {
+            return; 
+        }
 
         const finishedLiveGame = (this.mode === 'local' || this.mode === 'bot');
+
         this.gameOver = true;
         this.isPaused = false; 
         
@@ -1623,25 +1672,48 @@ return move.san;
             this.#timerInterval = null;
         }
 
+        // Lock in the final result for the PGN string
         this.pgnHeaders['Result'] = resultStr;
 
         if (finishedLiveGame && typeof this.#saveState === 'function') {
             const originalMode = this.mode;
-            this.mode = 'analysis';     
-            this.#saveState('analysis'); 
-            this.mode = originalMode;   
+            this.mode = 'analysis';     // Briefly pretend we are in analysis mode
+            this.#saveState('analysis'); // Save the completed PGN to the analysis cache
+            this.mode = originalMode;   // Revert back so the modal shows up properly
         }
 
-        let winner = "Draw";
-        if (resultStr === "1-0") winner = "White";
-        else if (resultStr === "0-1") winner = "Black";
-        
-        let reason = statusMsg;
-        if (statusMsg.includes(' wins ')) reason = statusMsg.split(' wins ')[1]; 
-        else if (statusMsg.startsWith('Draw ')) reason = statusMsg.substring(5); 
+        if (typeof this.#ui !== 'undefined') {
+            this.#ui.updateStatus(statusMsg);
+            
+            const pauseBtn = document.getElementById('pauseBtn');
+            if (pauseBtn) pauseBtn.innerText = "⏸";
+            
+            const pauseOverlay = document.getElementById('pauseOverlay');
+            if (pauseOverlay) pauseOverlay.style.display = 'none';
 
-        // ✨ UPGRADE: Pure Event Emission. No DOM elements. No UI calls!
-        this.#emit('gameOver', { winner, reason, statusMsg });
+            if (this.#ui.toggleReviewButton) this.#ui.toggleReviewButton(true);
+            
+            const resignBtn = document.getElementById('resignBtn');
+            const drawBtn = document.getElementById('drawBtn');
+            if (resignBtn) resignBtn.style.display = 'none';
+            if (drawBtn) drawBtn.style.display = 'none';
+            
+            if (typeof this.#ui.showGameOver === 'function') {
+                let winner = "Draw";
+                if (resultStr === "1-0") winner = "White";
+                else if (resultStr === "0-1") winner = "Black";
+                
+                let reason = statusMsg;
+                if (statusMsg.includes(' wins ')) {
+                    reason = statusMsg.split(' wins ')[1]; 
+                } else if (statusMsg.startsWith('Draw ')) {
+                    reason = statusMsg.substring(5); 
+                }
+
+                this.#ui.showGameOver(winner, reason);
+            }
+            
+        }
     }
 #stopTimer() {
         if (this.#timerInterval) {
@@ -1677,13 +1749,13 @@ return move.san;
 #loadCurrentPuzzle() {
         if (this.puzzleIndex >= this.puzzleQueue.length) {
             if (this.isFetchingPuzzles) {
-                if (this.#ui && typeof this.#ui.showNotification === 'function') this.#ui.showNotification("Fetching more puzzles...", "Please Wait", "⏳");
+                if (this.#ui) this.#ui.showNotification("Fetching more puzzles...", "Please Wait", "⏳");
                 setTimeout(() => this.#loadCurrentPuzzle(), 500); // Try again in half a second
                 return;
             } else {
-                if (this.#ui && typeof this.#ui.showNotification === 'function') {
+                if (this.#ui) {
                     this.#ui.showNotification("You have completed all puzzles in this set!", "Session Complete", "🎉");
-                    if (typeof this.#ui.updatePuzzleUI === 'function') this.#ui.updatePuzzleUI("controls");
+                    this.#ui.updatePuzzleUI("controls");
                 }
                 return;
             }
@@ -1694,10 +1766,7 @@ return move.san;
         
         this.history = [];  
         this.pgn = "";  
-        
-        // ✨ FIX 1: Use proper MoveNode class so the UI can read it!
-        this.rootNode = new MoveNode(p.fen, null);
-        this.currentNode = this.rootNode;
+        this.currentNode = { fen: p.fen, children: [], parent: null, lastMove: null };
         
         const pgnBox = document.getElementById('pgnDisplay');
         if (pgnBox) {
@@ -1728,36 +1797,38 @@ return move.san;
         this.initialPuzzleFEN = p.fen;
         this.loadFEN(p.fen);
         
-        // ✨ FIX 2: Safely trigger UI board flip & state via Event!
         const opponentColor = this.#engine.turn();
         const wantFlipped = (opponentColor === 'w');
-        this.#emit('puzzleLoaded', { wantFlipped, puzzle: p });
+        if (this.#ui && this.#ui.flipped !== wantFlipped) this.#ui.flipBoard();
         
         this.puzzleSolution = (typeof p.moves === 'string') ? p.moves.trim().split(' ') : p.moves;
         this.puzzleCursor = 0;
         
+        if (this.#ui) {
+            this.#ui.updatePuzzleUI("active", p);
+            if (this.#ui.flipped === wantFlipped) this.#ui.renderBoard(false);
+            this.#ui.updateHistory();
+        }
+        
         setTimeout(() => {
             const setupMove = this.puzzleSolution[0];
             if (setupMove) {
+                console.log(`[SETUP] Playing first move: ${setupMove}`);
                 const from = this.#squareToIndex(setupMove.substring(0, 2));
                 const to = this.#squareToIndex(setupMove.substring(2, 4));
                 const promo = setupMove.length > 4 ? setupMove.substring(4, 5) : 'q';
-                
                 this.makeMove({ from, to }, promo, true, null, true);
-                
-                // ✨ FIX: Pass the perfectly formatted 'lastMove' from the game state!
-                this.#emit('boardUpdated', { 
-                    animate: true, 
-                    overrideMove: this.currentNode.lastMove 
-                });
-                this.#emit('soundTriggered', { type: 'move' });
-                
+                if (this.#ui) {
+                    this.#ui.renderBoard(true);
+                    this.#ui.updateHistory();
+                }
                 this.puzzleCursor++;
             }
         }, 500);
 
         const remainingPuzzles = this.puzzleQueue.length - this.puzzleIndex;
         if (remainingPuzzles <= 5 && !this.isFetchingPuzzles) {
+            
             const prefetchTask = () => {
                 console.log("🧩 Queue running low! Pre-fetching more puzzles in background...");
                 const isRush = ['3min', '5min', 'survival'].includes(this.puzzleMode);
@@ -1767,8 +1838,14 @@ return move.san;
                     this.fetchPuzzles(this.sessionMinRating, this.sessionMaxRating, 10); 
                 }
             };
-            if ('requestIdleCallback' in window) requestIdleCallback(prefetchTask);
-            else setTimeout(prefetchTask, 100);
+
+            // Only run the fetch when the browser's main thread is completely idle!
+            if ('requestIdleCallback' in window) {
+                requestIdleCallback(prefetchTask);
+            } else {
+                // Fallback for older browsers like Safari
+                setTimeout(prefetchTask, 100);
+            }
         }
     }
 #playPuzzleSolution() {
@@ -1784,6 +1861,7 @@ return move.san;
         
         let i = 0;
         const playNext = () => {
+            // Abort immediately if the user changed puzzles mid-animation
             if (!this._isPlayingSolution || this.mode !== 'puzzle') {
                 this._isPlayingSolution = false;
                 return;
@@ -1791,7 +1869,7 @@ return move.san;
 
             if (i >= movesToPlay.length) {
                 this.#puzzleSuccess();
-                this._isPlayingSolution = false; 
+                this._isPlayingSolution = false; // Release the lock
                 return;
             }
             
@@ -1800,17 +1878,17 @@ return move.san;
             const to = this.#squareToIndex(uci.substring(2, 4));
             const promo = uci.length > 4 ? uci.substring(4, 5) : 'q';
             
-            const res = this.makeMove({ from, to }, promo, true, null, true);
+            this.makeMove({ from, to }, promo, true, null, true);
             
-            this.#emit('boardUpdated', { 
-                animate: true, 
-                overrideMove: this.currentNode.lastMove 
-            });
-            this.#emit('soundTriggered', { type: 'move' });
+            if (typeof this.#ui !== 'undefined') {
+                this.#ui.renderBoard(true);
+                this.#ui.updateHistory();
+            }
             
             this.puzzleCursor++;
             i++;
             
+            // Save the timeout ID so we can kill it later if needed
             this._solutionTimeout = setTimeout(playNext, 800);
         };
         
@@ -1895,13 +1973,17 @@ return move.san;
             }, skipDelay);
         }
     }
-#triggerDownload(text, filename) {
-        const blob = new Blob([text], { type: 'text/plain' });
+#triggerDownload(content, filename) {
+        const blob = new Blob([content.trim()], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = `${filename}.pgn`;
-        document.body.appendChild(a); a.click();
-        document.body.removeChild(a); URL.revokeObjectURL(url);
+        a.href = url;
+        const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+        a.download = `${filename.replace(/[^a-z0-9]/gi, '_')}_${dateStr}.pgn`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 #parseMultiPGN(pgnString) {
         // Slices a massive text file into individual PGN game strings!
@@ -2327,15 +2409,9 @@ return move.san;
             // Trust the node's saved FEN instead of recalculating the whole game
             this.history.push(node.fen);
         });
-    }
+    }   
     
 //Public API calling
-squareToIndex(sq) { return this.#squareToIndex(sq); }
-indexToSquare(idx) { return this.#indexToSquare(idx); }
-validateFen(fen) {
-        if (!this.#engine) return { valid: false, error: 'Engine not loaded' };
-        return this.#engine.validate_fen(fen);
-    }
 handleTabSwitch(lowerTab) {
         // 1. SAVE CURRENT STATE BEFORE LEAVING
         if (['analysis', 'local', 'bot', 'study'].includes(this.mode)) {
@@ -2391,6 +2467,16 @@ handleTabSwitch(lowerTab) {
         // 4. SYNC INTERNAL ARRAYS
         this.#syncMoveHistory();
     }
+goToNodeId(nodeId) {
+        const targetNode = this.#findNodeById(this.rootNode, nodeId);
+        if (targetNode) {
+            this.currentNode = targetNode;
+            this.loadFEN(targetNode.fen);
+            if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
+            return true;
+        }
+        return false;
+    }
 switchMode(targetMode) {
         this.#changeMode(targetMode);
     }
@@ -2406,38 +2492,46 @@ editBoard(idx, piece) {
             if (fenInput) fenInput.value = newFen;
         }
     }
-toggleArrow(from, to, color) { 
-        if (!this.currentNode) return; 
-        if (!this.currentNode.arrows) this.currentNode.arrows = []; 
-        const fromStr = typeof from === 'number' ? this.#indexToSquare(from) : from; 
-        const toStr = typeof to === 'number' ? this.#indexToSquare(to) : to; 
-        const idx = this.currentNode.arrows.findIndex(a => { 
-            const aFromStr = typeof a.from === 'number' ? this.#indexToSquare(a.from) : a.from; 
-            const aToStr = typeof a.to === 'number' ? this.#indexToSquare(a.to) : a.to; 
-            return aFromStr === fromStr && aToStr === toStr; 
-        }); 
-        if (idx >= 0) { 
-            if (this.currentNode.arrows[idx].color === color) this.currentNode.arrows.splice(idx, 1); 
-            else this.currentNode.arrows[idx].color = color; 
-        } else { 
-            this.currentNode.arrows.push({ from: fromStr, to: toStr, color }); 
-        } 
+toggleArrow(from, to, color) {
+        if (!this.currentNode) return;
+        if (!this.currentNode.arrows) this.currentNode.arrows = [];
         
-        if (this.mode === 'study') this.saveActiveChapter(); 
-        else if (this.mode === 'analysis') this.#saveState('analysis'); 
+        const fromStr = typeof from === 'number' ? this.#indexToSquare(from) : from;
+        const toStr = typeof to === 'number' ? this.#indexToSquare(to) : to;
         
-        // ✨ FIX: Safely emit the event so main.js routes it to the UI!
-        this.#emit('boardUpdated');
+        const idx = this.currentNode.arrows.findIndex(a => {
+            const aFromStr = typeof a.from === 'number' ? this.#indexToSquare(a.from) : a.from;
+            const aToStr = typeof a.to === 'number' ? this.#indexToSquare(a.to) : a.to;
+            return aFromStr === fromStr && aToStr === toStr;
+        });
+        
+        if (idx >= 0) {
+            if (this.currentNode.arrows[idx].color === color) this.currentNode.arrows.splice(idx, 1);
+            else this.currentNode.arrows[idx].color = color;
+        } else {
+            this.currentNode.arrows.push({ from: fromStr, to: toStr, color });
+        }
+        
+        if (this.mode === 'study') this.saveActiveChapter();
+        else if (this.mode === 'analysis') this.#saveState('analysis');
+
+        if (typeof window !== 'undefined' && this.#ui) {
+            if (typeof this.#ui.refreshLiveDot === 'function') this.#ui.refreshLiveDot(this.currentNode);
+            if (typeof this.#ui.renderArrows === 'function') this.#ui.renderArrows(); 
+        }
     }
 toggleCircle(sq, color) {
         if (!this.currentNode) return;
         if (!this.currentNode.circles) this.currentNode.circles = [];
+        
         const sqStr = typeof sq === 'number' ? this.#indexToSquare(sq) : sq;
+
         const idx = this.currentNode.circles.findIndex(c => {
             const cSq = c.index !== undefined ? c.index : (c.sq !== undefined ? c.sq : c.square);
             const cSqStr = typeof cSq === 'number' ? this.#indexToSquare(cSq) : cSq;
             return cSqStr === sqStr;
         });
+        
         if (idx >= 0) {
             if (this.currentNode.circles[idx].color === color) this.currentNode.circles.splice(idx, 1);
             else this.currentNode.circles[idx].color = color;
@@ -2447,20 +2541,24 @@ toggleCircle(sq, color) {
         
         if (this.mode === 'study') this.saveActiveChapter();
         else if (this.mode === 'analysis') this.#saveState('analysis');
-        
-        // ✨ FIX: Safely emit the event!
-        this.#emit('boardUpdated');
+
+        if (typeof window !== 'undefined' && this.#ui) {
+            if (typeof this.#ui.refreshLiveDot === 'function') this.#ui.refreshLiveDot(this.currentNode);
+            if (typeof this.#ui.renderArrows === 'function') this.#ui.renderArrows(); 
+        }
     }
 clearAnnotations() {
         if (!this.currentNode) return;
-        if (this.currentNode.arrows) this.currentNode.arrows = [];
-        if (this.currentNode.circles) this.currentNode.circles = [];
+        this.currentNode.arrows = [];
+        this.currentNode.circles = [];
         
         if (this.mode === 'study') this.saveActiveChapter();
         else if (this.mode === 'analysis') this.#saveState('analysis');
-        
-        // ✨ FIX: Safely emit the event!
-        this.#emit('boardUpdated');
+
+        if (typeof window !== 'undefined' && this.#ui) {
+            if (typeof this.#ui.refreshLiveDot === 'function') this.#ui.refreshLiveDot(this.currentNode);
+            if (typeof this.#ui.renderArrows === 'function') this.#ui.renderArrows(); 
+        }
     }
 updateComment(nodeId, text) {
         const node = this.#findNodeById(this.rootNode, nodeId);
@@ -3330,112 +3428,173 @@ resetEngineDefault() {
         this.initEngine(null, null);
         this.#ui.showNotification("Restored Default Latest Stockfish", "System", "🔄");
 }
-stepBack() {
-        if (!this.currentNode || !this.currentNode.parent) return false;
-        
-        // Store the node we are undoing BEFORE we go back
-        const undoneNode = this.currentNode;
-        this.currentNode = this.currentNode.parent;
-        
-        // ✨ FIX: Load engine, but gently reconcile pieces so IDs don't get wiped!
-        this.#engine.load(this.currentNode.fen);
-        this.turn = this.#engine.turn();
-        
-        if (typeof this.#reconcileBoardIdsReverse === 'function') {
-            this.#reconcileBoardIdsReverse(this.currentNode.fen, undoneNode.lastMove);
-        }
-        
-        // Create a 'reverse move' so the UI knows exactly how to slide backward
-        let reverseMove = null;
-        if (undoneNode.lastMove && undoneNode.lastMove.from !== '@') {
-            reverseMove = {
-                from: undoneNode.lastMove.to,
-                to: undoneNode.lastMove.from,
-                color: undoneNode.lastMove.color,
-                flags: undoneNode.lastMove.flags
-            };
-        }
-
-        // Send the reverse move directly to the UI
-        this.#emit('boardUpdated', { animate: true, overrideMove: reverseMove });
-        this.#emit('soundTriggered', { type: 'move' });
-        return true;
-    }
 stepForward() {
-        if (!this.currentNode || this.currentNode.children.length === 0) return false;
-        const nextNode = this.currentNode.children[this.currentNode.selectedChildIndex || 0];
-        
-        this.currentNode = nextNode;
-        
-        // ✨ FIX: Preserve IDs going forward!
-        this.#engine.load(nextNode.fen);
-        this.turn = this.#engine.turn();
-        
-        if (typeof this.#reconcileBoardIds === 'function') {
-            this.#reconcileBoardIds(nextNode.fen, nextNode.lastMove);
+        if (this.currentNode && this.currentNode.children.length > 0) {
+            const idx = this.currentNode.selectedChildIndex || 0;
+            let nextNode = this.currentNode.children[idx];
+            this.currentNode = nextNode;
+            
+            this.moveList.push(this.currentNode.lastMove || this.currentNode.moveSan);
+            this.history.push(this.currentNode.fen);
+            
+            this.#reconcileBoardIds(this.currentNode.fen, this.currentNode.lastMove);
+            
+            if (this.#engine) {
+                this.#engine.load(this.currentNode.fen);
+                this.turn = this.#engine.turn(); 
+            }
+            
+            if (this.currentNode.lastMove) {
+                this.triggerMoveSound(this.currentNode.lastMove);
+            }
+
+            if (typeof this.#ui !== 'undefined') {
+                this.#ui.selectedSq = null;
+                this.#ui.legalMoves = []; 
+
+                let visualMove = null;
+                const move = this.currentNode.lastMove;
+                
+                if (move) {
+                    const currentPiece = this.#board[move.to];
+                    visualMove = {
+                        from: move.from, to: move.to, flags: move.flags,
+                        color: move.color || (currentPiece ? currentPiece.color : (this.turn === 'w' ? 'b' : 'w')),
+                        piece: move.piece || (currentPiece ? currentPiece.type : '')
+                    };
+                }
+
+                // Forward move ALWAYS animates and shows tail
+                this.#ui.renderBoard(true, true, visualMove);
+
+                if (this._spamTimeout) clearTimeout(this._spamTimeout);
+                this._spamTimeout = setTimeout(() => {
+                    requestAnimationFrame(() => {
+                        this.#ui.updateHistory();
+                        this.#ui.renderArrows();
+                        this.#ui.updateClocks();
+                        if (this.#ui.highlightLastMove) this.#ui.highlightLastMove(this.currentNode.lastMove);
+                        if (typeof this.#ui.updateStatus === 'function') this.#ui.updateStatus();
+                        if (!this.isPlayingLiveGame) this.updateStockfish(); 
+                    });
+                }, 40);
+            } else {
+                this.updateStockfish();
+            }
         }
-        
-        // Send the exact move that was played
-        this.#emit('boardUpdated', { animate: true, overrideMove: nextNode.lastMove });
-        this.#emit('soundTriggered', { type: 'move' });
-        return true;
+    }
+stepBack() {
+        if (this.currentNode.parent) {
+            let undoMove = this.currentNode.lastMove;
+            this.currentNode = this.currentNode.parent;
+            
+            this.moveList.pop();
+            this.history.pop();
+
+            if (undoMove) this.#reconcileBoardIdsReverse(this.currentNode.fen, undoMove);
+            else this.#reconcileBoardIds(this.currentNode.fen, null);
+
+            if (this.#engine) {
+                this.#engine.load(this.currentNode.fen);
+                this.turn = this.#engine.turn();
+            }
+
+            if (this.mode === 'puzzle') {
+                this.mode = 'analysis';
+                this.gameOver = false;
+                this.puzzleActive = false;
+                const status = document.getElementById('puzzleStatus');
+                if (status) { status.innerText = "Analysis Mode"; status.style.color = "#ccc"; }
+            }
+
+            if (typeof this.#ui !== 'undefined') {
+                this.#ui.selectedSq = null;
+                this.#ui.legalMoves = [];
+                let visualMove = null;
+                
+                if (undoMove) {
+                    const restoredPiece = this.#board[undoMove.from];
+                    visualMove = {
+                        from: undoMove.to, to: undoMove.from, flags: undoMove.flags,
+                        color: restoredPiece ? restoredPiece.color : this.turn,
+                        piece: restoredPiece ? restoredPiece.type : '' 
+                    };
+                }
+                
+                if (visualMove) this.triggerMoveSound(visualMove);
+                
+                // Backward move ALWAYS animates and shows tail!
+                this.#ui.renderBoard(true, true, visualMove);
+
+                if (this._spamTimeout) clearTimeout(this._spamTimeout);
+                this._spamTimeout = setTimeout(() => {
+                    requestAnimationFrame(() => {
+                        this.#ui.updateHistory();
+                        this.#ui.renderArrows();
+                        this.#ui.updateClocks();
+                        if (typeof this.#ui.updateStatus === 'function') this.#ui.updateStatus();
+                        if (this.#ui.highlightLastMove) this.#ui.highlightLastMove(this.currentNode.lastMove);
+                        if (!this.isPlayingLiveGame) this.updateStockfish();
+                    });
+                }, 40);
+            } else {
+                this.updateStockfish();
+            }
+        }
     }
 goToStart() {
-        if (!this.rootNode) return false;
-        
-        // ✨ THE FIX: Capture the exact pieces on the board BEFORE we reset!
-        const snapshot = typeof this.getReader === 'function' ? this.getReader() : null;
-        const oldBoard = snapshot ? snapshot.board : [];
-        
-        this.currentNode = this.rootNode;
-        this.#engine.load(this.currentNode.fen);
-        this.turn = this.#engine.turn();
-        
-        if (typeof this.#reconcileBoardIdsReverse === 'function') {
-            this.#reconcileBoardIdsReverse(this.currentNode.fen, null);
+        if (this.#ui && typeof this.#ui.animateToStartPosition === 'function') {
+            this.#ui.animateToStartPosition(this.rootNode.fen, () => {
+                this.currentNode = this.rootNode;
+                this.#syncMoveHistory();
+                
+                if (this.rootNode.fen === 'start') this.#engine.reset();
+                else this.#engine.load(this.currentNode.fen);
+
+                this.turn = this.#engine.turn();
+                this.#reconcileBoardIds(this.currentNode.fen, null);
+                
+                this.#ui.renderBoard(false);
+                this.#ui.updateHistory();
+                this.#ui.renderArrows();
+                if (!this.isPlayingLiveGame) this.updateStockfish();
+            });
+        } else {
+            this.currentNode = this.rootNode;
+            this.#syncMoveHistory();
+            
+            if (this.rootNode.fen === 'start') this.#engine.reset();
+            else this.#engine.load(this.currentNode.fen);
+
+            this.turn = this.#engine.turn();
+            this.#reconcileBoardIds(this.currentNode.fen, null);
+            
+            this.#ui.renderBoard(false);
+            this.#ui.updateHistory();
+            this.#ui.renderArrows();
+            if (!this.isPlayingLiveGame) this.updateStockfish();
         }
-        
-        // Pass the snapshot to main.js so the UI knows exactly what pieces are on the screen!
-        this.#emit('boardUpdated', { 
-            isGoToStart: true, 
-            targetFen: this.currentNode.fen,
-            previousBoard: oldBoard
-        });
-        
-        this.#emit('soundTriggered', { type: 'move' });
-        return true;
     }
 goToEnd() {
-        if (!this.rootNode) return false;
-        let curr = this.rootNode;
-        while (curr.children.length > 0) curr = curr.children[curr.selectedChildIndex || 0];
-        this.currentNode = curr;
-        this.loadFEN(this.currentNode.fen);
-        this.#emit('boardUpdated', { animate: false }); // Teleport, do not animate
-        this.#emit('soundTriggered', { type: 'move' });
-        return true;
-    }
-goToNodeId(id) {
-        let target = null;
-        const search = (node) => {
-            if (node.id === id) { target = node; return; }
-            for (let c of node.children) search(c);
-        };
-        if (this.rootNode) search(this.rootNode);
-        if (target) {
-            this.currentNode = target;
-            this.loadFEN(target.fen);
-            let curr = target;
-            while (curr.parent) {
-                const idx = curr.parent.children.indexOf(curr);
-                if (idx !== -1) curr.parent.selectedChildIndex = idx;
-                curr = curr.parent;
-            }
-            this.#emit('boardUpdated', { animate: false });
-            this.#emit('soundTriggered', { type: 'move' });
-            return true;
+        while (this.currentNode && this.currentNode.children.length > 0) {
+            this.currentNode = this.currentNode.children[this.currentNode.selectedChildIndex || 0];
         }
-        return false;
+        
+        this.loadFEN(this.currentNode.fen);
+        this.#syncMoveHistory();
+        
+        this.turn = this.#engine.turn();
+        this.#reconcileBoardIds(this.currentNode.fen, null);
+        
+        if (this.#ui) {
+            this.#ui.renderBoard(false);
+            this.#ui.updateHistory();
+            if (typeof this.#ui.renderArrows === 'function') this.#ui.renderArrows();
+        }
+        
+        if (typeof this.updateStockfish === 'function' && !this.isPlayingLiveGame) {
+            this.updateStockfish();
+        }
     }
 updateSettingsTime() {
         const bh = parseInt(document.getElementById('bTimeH').value) || 0;
@@ -4081,7 +4240,7 @@ parseArrowsAndCircles(node, comment) {
             this.#ui.renderArrows();
         }
     }
-loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
+loadPGN(pgn, isEditor = false, isInternalLoad = false) {
         if (typeof pgn === 'string' && !isInternalLoad) {
             let detectedMode = 'classical';
             const variantMatch = pgn.match(/\[Variant\s+"([^"]+)"\]/i);
@@ -5266,63 +5425,6 @@ updateEngineLevel() {
         window.sfWorker.postMessage('setoption name UCI_LimitStrength value true');
         window.sfWorker.postMessage(`setoption name UCI_Elo value ${settings.uciElo}`);
     }
-importStudy(pgnText) {
-        const extractedGames = pgnText.split(/(?=\[Event\s+")/g).filter(chapter => chapter.trim().length > 10);
-        if (extractedGames.length === 0) return false;
-
-        this.mode = 'study';
-        if (extractedGames.length > 1) {
-            // MULTI-GAME IMPORT
-            const newChapters = extractedGames.map((gameStr, idx) => {
-                const chapterMatch = gameStr.match(/\[ChapterName\s+"([^"]+)"\]/);
-                const eventMatch = gameStr.match(/\[Event\s+"([^"]+)"\]/);
-                const title = chapterMatch ? chapterMatch[1] : (eventMatch ? eventMatch[1] : `Chapter ${idx + 1}`);
-                return { title: title, pgn: gameStr.trim(), analysisMode: 'Normal analysis' };
-            });
-
-            const newStudyId = 'study_' + Date.now();
-            this.allStudies.push({
-                id: newStudyId,
-                title: newChapters[0].title || "Imported Study",
-                chapters: newChapters,
-                activeChapterIndex: 0
-            });
-            this.loadStudy(newStudyId);
-        } else {
-            // SINGLE-GAME IMPORT
-            const gameStr = extractedGames[0];
-            const chapterMatch = gameStr.match(/\[ChapterName\s+"([^"]+)"\]/);
-            const eventMatch = gameStr.match(/\[Event\s+"([^"]+)"\]/);
-            const title = chapterMatch ? chapterMatch[1] : (eventMatch ? eventMatch[1] : `Chapter ${this.chapters.length + 1}`);
-            
-            this.chapters.push({ title: title, pgn: gameStr.trim(), analysisMode: 'Normal analysis' });
-            this.loadChapter(this.chapters.length - 1);
-        }
-        return true;
-    }
-exportAllStudies() {
-        let combinedPgn = "";
-        let count = 0;
-
-        this.allStudies.forEach(study => {
-            if (study.chapters && study.chapters.length > 0) {
-                study.chapters.forEach(ch => {
-                    let chPgn = ch.pgn || "";
-                    if (!chPgn.includes('[StudyName "')) chPgn = `[StudyName "${study.title}"]\n` + chPgn;
-                    if (!chPgn.includes('[Event "')) chPgn = `[Event "${study.title} - ${ch.title}"]\n` + chPgn;
-                    combinedPgn += chPgn + "\n\n";
-                });
-                count++;
-            }
-        });
-
-        if (count > 0) {
-            this.#triggerDownload(combinedPgn, `chess_studies_export`);
-            this.#emit('notification', { message: `Successfully exported ${count} studies!`, title: "Export Complete", icon: "📥" });
-        } else {
-            this.#emit('notification', { message: "No studies selected.", title: "Export Failed", icon: "⚠️" });
-        }
-    }
 async saveChapterDetails() {
         const idx = window._editingChapterIdx;
         const nameInput = document.getElementById('chapterNameInput');
@@ -5812,8 +5914,11 @@ importChaptersFromFile(input) {
             
             this.loadChapter(jumpToIdx);
             
-            this.#emit('chaptersImported', games.length);
-        return true;
+            if (this.#ui) {
+                this.#ui.showNotification(`Successfully imported ${games.length} chapters!`, "Import Complete", "📥");
+                this.#ui.openChapterManager();
+                if (typeof this.#ui.renderChapters === 'function') this.#ui.renderChapters();
+            }
         };
         reader.readAsText(file);
     }
@@ -5911,11 +6016,23 @@ downloadSelectedChapters() {
         });
         
         if (exportedCount === 0) {
-            this.#emit('notification', { message: "No chapters selected.", title: "Export Failed", icon: "⚠️" });
+            if (this.#ui) this.#ui.showNotification("No chapters selected.", "Export Failed", "⚠️");
             return;
         }
-        this.#triggerDownload(combinedPgn, `chess_study_${this.studyTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`);
-        this.#emit('notification', { message: `Successfully exported ${exportedCount} chapters!`, title: "Export Complete", icon: "📥" });
+        
+        const blob = new Blob([combinedPgn.trim()], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+        a.download = `${this.studyTitle.replace(/[^a-z0-9]/gi, '_')}_${dateStr}.pgn`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        document.getElementById('exportStudyModal').style.display = 'none';
+        if (this.#ui) this.#ui.showNotification(`Successfully exported ${exportedCount} chapters.`, "Export Complete", "📥");
     }
 downloadSelectedStudies() {
         const checkboxes = document.querySelectorAll('.study-cb:checked');
@@ -5962,16 +6079,21 @@ downloadSelectedStudies() {
         }
     }
 triggerMoveSound(move) {
-        const flags = move.flags || '';
-        let type = 'move';
+if (typeof SoundManager === 'undefined') return;
 
-        if (this.#engine.game_over()) type = 'victory'; 
-        else if (this.#engine.in_check()) type = 'check';
-        else if (flags.includes('c') || flags.includes('e')) type = 'capture';
-        else if (flags.includes('k') || flags.includes('q')) type = 'castle';
-        else if (flags.includes('p')) type = 'promote';
+const flags = move.flags || '';
+let type = 'move';
 
-        // ✨ UPGRADE: Don't read UI volume. Just broadcast the sound intent!
-        this.#emit('soundTriggered', { type, destSquare: move.to });
-    }
+if (this.#engine.game_over()) type = 'victory'; // Changed to standard key 'victory'
+else if (this.#engine.in_check()) type = 'check';
+else if (flags.includes('c') || flags.includes('e')) type = 'capture';
+else if (flags.includes('k') || flags.includes('q')) type = 'castle';
+else if (flags.includes('p')) type = 'promote';
+
+let destSquare = move.to;
+const vol = (typeof this.#ui !== 'undefined' && typeof this.#ui.volume === 'number') ? this.#ui.volume : 0.7;
+
+SoundManager.play(type, vol, destSquare);
+console.log("flags: "+ flags + " | Sound: " + type + " | Theme: " + SoundManager.currentSet + " | Square: " + (destSquare || 'N/A') + " | Vol: " + vol);
+}
 }
