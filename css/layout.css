@@ -121,8 +121,36 @@ html, body {
     color: var(--accent) !important; border-bottom: 2px solid var(--accent) !important; border-radius: 0 !important;
 }
 
-.tab-content { display: none; }
-.tab-content.active { display: flex; flex-direction: column; flex: 1; padding: 0; overflow-y: auto;height: 100%; }
+.tab-content { 
+    display: none; 
+}
+
+.tab-content.active { 
+    display: flex; 
+    flex-direction: column; 
+    flex: 1; 
+    padding: 0; 
+    overflow-y: auto;
+    height: 100%; 
+    /* ✨ THE MAGIC FIX: Forces Flexbox to respect boundaries and scroll! */
+    min-height: 0 !important; 
+}
+
+/* ✨ Secondary Safety: Make sure the insights box itself can scroll independently if needed */
+#statResult {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 5px;
+    margin-bottom: 10px;
+}
+#analysisPanel > div {
+    flex-shrink: 0 !important;
+}
+
+#statResult {
+    flex-shrink: 0 !important;
+}
 
 .bottom-bar { display: flex; gap: 10px; margin-top: 10px; width: 600px; align-items: center; }
 .board-header-container { width: 600px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; height: 32px; }
@@ -250,18 +278,26 @@ html, body {
     color: #ff5555;
 }
 /* Board Theme Preset Buttons */
-.theme-preset {
+.theme-preset, .theme-box, .board-theme-box {
     transition: all 0.2s ease;
     box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    border: 2px solid transparent; /* ✨ Prevents the button from jumping/resizing when the border appears */
+    cursor: pointer;
 }
 
-.theme-preset:hover {
+.theme-preset:hover, .theme-box:hover, .board-theme-box:hover {
     transform: translateY(-3px);
     border-color: #38bdf8 !important; /* Glows blue on hover */
     box-shadow: 0 5px 10px rgba(0,0,0,0.7);
 }
 
-.theme-preset:active {
+.theme-preset:active, .theme-box:active, .board-theme-box:active {
     transform: translateY(0px);
     box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+/* ✨ THE FIX: Dynamically highlight whichever theme currently has the .active class */
+.theme-preset.active, .theme-box.active, .board-theme-box.active {
+    border: 2px solid #38bdf8 !important;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.6) !important;
 }

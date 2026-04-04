@@ -71,7 +71,7 @@ init() {
         this.initVolume();
         this.initResizer();
         this.initSidebarResizers();
-        
+        this.initThemeButtons();
         this.boardWrapper = document.getElementById('board-wrapper');
         if (this.boardWrapper) this.boardWrapper.style.width = '632px';
         
@@ -421,6 +421,40 @@ init() {
         const enginePanel = document.getElementById('enginePanel');
         if (enginePanel) enginePanel.style.display = isEditor ? 'none' : '';
     }
+initThemeButtons() {
+        // 1. Find all preset theme buttons in the HTML
+        // (Add your specific class name here if it's different, e.g., '.theme-card')
+        const themeButtons = document.querySelectorAll('.theme-btn, .preset-btn, .theme-box, .preset-theme, .theme-preset');
+        
+        if (themeButtons.length === 0) return;
+
+        // 2. Restore the active border on page reload
+        const activeThemeId = localStorage.getItem('chess_active_preset');
+        if (activeThemeId) {
+            themeButtons.forEach(btn => btn.classList.remove('active'));
+            // Try to find the button by its ID or a data-theme attribute
+            const activeBtn = document.getElementById(activeThemeId) || document.querySelector(`[data-theme="${activeThemeId}"]`);
+            if (activeBtn) activeBtn.classList.add('active');
+        }
+
+        // 3. Listen for clicks to save the active button to memory
+        themeButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                // Remove .active from all buttons
+                themeButtons.forEach(b => b.classList.remove('active'));
+                
+                // Add .active to the clicked button
+                const clickedBtn = e.currentTarget;
+                clickedBtn.classList.add('active');
+                
+                // Save its ID or data-theme so we remember it on the next refresh!
+                const identifier = clickedBtn.id || clickedBtn.getAttribute('data-theme');
+                if (identifier) {
+                    localStorage.setItem('chess_active_preset', identifier);
+                }
+            });
+        });
+    }
 switchTab(tabName) {
         if (!tabName) return;
         const lowerTab = tabName.toLowerCase();
@@ -558,34 +592,57 @@ async fetchPlayerStats() {
             return;
         }
 
-        resultDiv.innerHTML = `<div style="color:#38bdf8; text-align:center; padding:20px;">Fetching ${timeControl} games... ⏳<br><small>(This may take a few seconds)</small></div>`;
+        // ✨ LAYOUT FIX: Prevent the container from expanding infinitely and breaking the Chart panel
+        resultDiv.style.overflowY = 'auto';
+        resultDiv.style.maxHeight = '350px'; 
+        resultDiv.style.paddingRight = '5px';
+
+        resultDiv.innerHTML = `<div style="color:#38bdf8; text-align:center; padding:20px;">Fetching ${timeControl} games... ⏳<br><small>(This may take a few seconds to fetch 200 games)</small></div>`;
 
         try {
             let games = [];
 
             if (platform === 'lichess') {
-                const res = await fetch(`https://lichess.org/api/games/user/${username}?max=50&perfType=${timeControl}`);
+                // ✨ FETCH FIX: Request 200 games instead of 50
+                const res = await fetch(`https://lichess.org/api/games/user/${username}?max=200&perfType=${timeControl}`);
                 if (!res.ok) throw new Error("User not found or API limited.");
                 const pgnData = await res.text();
                 games = pgnData.split('\n\n\n').filter(g => g.trim().length > 0);
             } else {
                 const date = new Date();
-                const year = date.getFullYear();
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-
-                const archiveRes = await fetch(`https://api.chess.com/pub/player/${username}/games/${year}/${month}`);
-                if (!archiveRes.ok) throw new Error("User not found or no games this month.");
-                const archiveData = await archiveRes.json();
+                let year = date.getFullYear();
+                let month = date.getMonth() + 1;
 
                 let chessComTimeClass = timeControl;
                 if (timeControl === 'classical') chessComTimeClass = 'daily';
 
-                games = archiveData.games
-                    .filter(g => g.time_class === chessComTimeClass)
-                    .map(g => g.pgn)
-                    .filter(pgn => pgn);
+                // ✨ FETCH FIX: Chess.com only gives 1 month per API call. 
+                // We will loop backwards up to 4 months until we hit exactly 200 games!
+                for (let i = 0; i < 4; i++) {
+                    const monthStr = String(month).padStart(2, '0');
+                    try {
+                        const archiveRes = await fetch(`https://api.chess.com/pub/player/${username}/games/${year}/${monthStr}`);
+                        if (archiveRes.ok) {
+                            const archiveData = await archiveRes.json();
+                            const monthGames = archiveData.games
+                                .filter(g => g.time_class === chessComTimeClass)
+                                .map(g => g.pgn)
+                                .filter(pgn => pgn);
+                            // Prepend older games so the newest ones remain at the end of the array
+                            games = monthGames.concat(games);
+                        }
+                    } catch(e) {}
+                    
+                    if (games.length >= 200) break;
+                    
+                    month--;
+                    if (month === 0) { 
+                        month = 12; 
+                        year--; 
+                    }
+                }
 
-                if (games.length > 50) games = games.slice(-50);
+                if (games.length > 200) games = games.slice(-200);
             }
 
             if (games.length === 0) {
@@ -607,7 +664,7 @@ async fetchPlayerStats() {
                 const whiteMatch = pgn.match(/\[White\s+"([^"]+)"\]/i);
                 const blackMatch = pgn.match(/\[Black\s+"([^"]+)"\]/i);
                 const resultMatch = pgn.match(/\[Result\s+"([^"]+)"\]/i);
-                const ecoMatch = pgn.match(/\[ECOUrl\s+".*?\/([^"]+)"\]/i) || pgn.match(/\[ECO\s+"([^"]+)"\]/i);
+                const ecoMatch = pgn.match(/\[ECOUrl\s+".*?\/([^"]+)"\]/i) || pgn.match(/\[ECO\s+"([^"]+)"\]/i) || pgn.match(/\[Opening\s+"([^"]+)"\]/i);
                 const termMatch = pgn.match(/\[Termination\s+"([^"]+)"\]/i);
 
                 const isWhite = whiteMatch && whiteMatch[1].toLowerCase() === un;
@@ -763,7 +820,15 @@ resizeApp() {
                 el.style.height = safeSidebarHeight + 'px';
                 el.style.maxHeight = safeSidebarHeight + 'px';
                 el.style.minHeight = '0px';
-                el.style.overflow = '';
+                
+                // ✨ FIX: Permanently enforce scrolling on the left panels!
+                if (el.id === 'analysisPanel' || el.id === 'study-sidebar') {
+                    el.style.overflowY = 'auto';
+                    el.style.overflowX = 'hidden';
+                } else {
+                    el.style.overflow = '';
+                }
+                
                 el.style.display = (el.id === 'study-sidebar' && !isStudy) || (el.id === 'analysisPanel' && !isAnalysis) ? 'none' : 'flex';
                 el.style.flexDirection = 'column';
             }
@@ -2438,10 +2503,13 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         
         const state = this.#game ? this.#game.getReader() : null;
         if (!state) return;
+
+        // ✨ FAST PUZZLE MODE: Disable sliding, preserve tails!
         if (state.mode === 'puzzle' && (state.puzzle.mode === '3min' || state.puzzle.mode === '5min')) {
             animate = false;
             showMangaTail = true;
         }
+
         const theme = document.getElementById('assetType') ? document.getElementById('assetType').value : 'merida';
         const boardContainer = document.getElementById('chessBoard');
         if (boardContainer) {
@@ -2542,14 +2610,12 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
 
             if (state.isCheck && logical_i === kIdx) sq.classList.add('in-check');
             
-            // ✨ COLOR AWARE: Selected piece (Blue/Red ring)
             if (state.mode !== 'editor' && this.selectedSq != null && this.selectedSq == logical_i) {
                 sq.classList.add('selected');
                 const p = state.board[logical_i];
                 if (p) sq.classList.add(p.color === 'w' ? 'selected-w' : 'selected-b');
             }
 
-            // ✨ COLOR AWARE: Last move highlights (Blue/Red background)
             if (activeMove && (activeMove.from === logical_i || activeMove.to === logical_i)) {
                 sq.classList.add('last-move');
                 let moveColor = activeMove.color;
@@ -2599,7 +2665,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 if (move) {
                     sq.classList.add('valid-move');
                     
-                    // ✨ COLOR AWARE: Drag hover overlay (Blue/Red tint)
                     const selPiece = state.board[this.selectedSq];
                     if (selPiece) {
                         sq.classList.add(selPiece.color === 'w' ? 'dest-w' : 'dest-b');
@@ -2665,8 +2730,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             let el = this.piecesLayer.querySelector(`[data-id="${id}"]`);
             let isNew = false;
             
-            // ✨ COLOR AWARE: Assigns .piece-w or .piece-b to the DOM element
-            // This is strictly required for .manga-tail to pick up the color gradient!
             const colorClass = p.color === 'w' ? 'piece-w' : 'piece-b';
             
             const rawSVG = this.getPieceHTML(p);
@@ -2753,48 +2816,48 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             let isMovedPiece = !!(targetMove && p.idx === targetMove.to);
             let forceAnimate = isMovedPiece || isCastlingMove;
 
-            if (animate && (positionChanged || forceAnimate) && (!isNew || forceAnimate)) {
-                let startTransform = currentTransform;
-                let startC = c, startR = r;
+            // ✨ 1. EXTRACTED COORDINATE LOGIC (Required for Tails, even when snapping)
+            let startTransform = currentTransform;
+            let startC = c, startR = r;
 
-                if (startTransform && startTransform.includes('translate')) {
-                    const match = startTransform.match(/translate\(([-\d.]+)%,\s*([-\d.]+)%\)/);
-                    if (match) {
-                        startC = parseFloat(match[1]) / 100;
-                        startR = parseFloat(match[2]) / 100;
+            if (startTransform && startTransform.includes('translate')) {
+                const match = startTransform.match(/translate\(([-\d.]+)%,\s*([-\d.]+)%\)/);
+                if (match) {
+                    startC = parseFloat(match[1]) / 100;
+                    startR = parseFloat(match[2]) / 100;
+                }
+            }
+            
+            if (isNew || !startTransform || startTransform === 'none' || startTransform === '') {
+                const getSafeIndex = (val) => {
+                    if (val === '@') return p.idx; 
+                    if (typeof val === 'number') return val;
+                    if (typeof val === 'string' && val.length === 2) {
+                        let f = val.charCodeAt(0) - 97; let rv = 8 - parseInt(val[1], 10); return rv * 8 + f;
                     }
-                }
-                
-                if (isNew || !startTransform || startTransform === 'none' || startTransform === '') {
-                    const getSafeIndex = (val) => {
-                        if (val === '@') return p.idx; 
-                        if (typeof val === 'number') return val;
-                        if (typeof val === 'string' && val.length === 2) {
-                            let f = val.charCodeAt(0) - 97; let rv = 8 - parseInt(val[1], 10); return rv * 8 + f;
-                        }
-                        return val;
-                    };
-                    const fromGridSq = isCastlingMove ? p._castleStartIdx : (isMovedPiece ? getSafeIndex(targetMove.from) : p.idx);
-                    startR = Math.floor(fromGridSq / 8); 
-                    startC = fromGridSq % 8;
-                    if (this.flipped) { startR = 7 - startR; startC = 7 - startC; }
-                    startTransform = `translate(${startC * 100}%, ${startR * 100}%)`;
+                    return val;
+                };
+                const fromGridSq = isCastlingMove ? p._castleStartIdx : (isMovedPiece ? getSafeIndex(targetMove.from) : p.idx);
+                startR = Math.floor(fromGridSq / 8); 
+                startC = fromGridSq % 8;
+                if (this.flipped) { startR = 7 - startR; startC = 7 - startC; }
+                startTransform = `translate(${startC * 100}%, ${startR * 100}%)`;
 
-                    if (targetMove && targetMove.from === '@' && isMovedPiece) startTransform += ' scale(1.5)';
-                }
+                if (targetMove && targetMove.from === '@' && isMovedPiece) startTransform += ' scale(1.5)';
+            }
 
+            // ✨ 2. HANDLE SLIDING VS SNAPPING
+            if (animate && (positionChanged || forceAnimate) && (!isNew || forceAnimate)) {
                 el.style.transition = 'none';
                 el.style.transform = startTransform;
                 
-                // ✨ CRITICAL REFLOW: Triggers physical browser animation frame
-                el.getBoundingClientRect(); 
+                el.getBoundingClientRect(); // Trigger reflow for animation
 
                 el.style.transition = `transform ${isCastlingMove ? castleDuration : moveDuration}ms ${isCastleRook ? 'ease-in-out' : 'ease-out'}`;
                 el.style.transform = targetTransform;
                 el.classList.add('animating');
                 if (isCastlingMove) el.classList.add('castling-jump');
 
-                // ✨ COLOR AWARE: Shockwave Blast matches Piece Color (Cyan or Red)
                 const sqEl = this.squaresLayer.querySelector(`[data-index="${p.idx}"]`);
                 if (isMovedPiece && sqEl) {
                     let wave = document.createElement('div');
@@ -2810,36 +2873,41 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     setTimeout(() => wave.remove(), 400);
                 }
 
-                // ✨ COLOR AWARE: Manga Tail. Since el.className already has 'piece-w' or 'piece-b', 
-                // adding 'manga-tail' naturally hooks into board.css gradients!
-                if (showMangaTail && (isMovedPiece || isCastlingMove) && targetMove && targetMove.from !== '@') {
-                    const dx = (c - startC); const dy = (r - startR);
-                    const dist = Math.sqrt(dx*dx + dy*dy);
-                    if (dist > 0.5) {
-                        const activeDuration = isCastlingMove ? castleDuration : moveDuration;
-                        el.style.setProperty('--tail-length-scale', dist);
-                        el.style.setProperty('--move-angle', `${Math.atan2(dy, dx)}rad`);
-                        el.style.setProperty('--anim-duration', `${activeDuration}ms`);
-                        
-                        el.classList.add('manga-tail'); 
-                        
-                        el.dataset.tailTimeout = setTimeout(() => {
-                            el.classList.remove('manga-tail');
-                            el.style.removeProperty('--tail-length-scale');
-                            el.style.removeProperty('--move-angle');
-                            el.style.removeProperty('--anim-duration');
-                        }, activeDuration + 50);
-                    }
-                }
-                
                 el.dataset.animTimeout = setTimeout(() => {
                     el.classList.remove('animating', 'castling-jump');
                     el.style.transition = 'none';
                 }, isCastlingMove ? castleDuration + 50 : moveDuration + 50);
 
             } else {
+                // Instantly snap (Used in 3min/5min modes)
                 el.style.transition = 'none';
                 el.style.transform = targetTransform;
+            }
+
+            // ✨ 3. DECOUPLED MANGA TAIL LOGIC (Executes for both Slided and Snapped pieces!)
+            if (showMangaTail && (isMovedPiece || isCastlingMove) && targetMove && targetMove.from !== '@') {
+                const dx = (c - startC); const dy = (r - startR);
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                
+                if (dist > 0.5) {
+                    // Provide a 250ms fallback duration for tails when pieces are snapped instantly
+                    const activeDuration = animate ? (isCastlingMove ? castleDuration : moveDuration) : 250;
+                    
+                    el.style.setProperty('--tail-length-scale', dist);
+                    el.style.setProperty('--move-angle', `${Math.atan2(dy, dx)}rad`);
+                    el.style.setProperty('--anim-duration', `${activeDuration}ms`);
+                    
+                    el.getBoundingClientRect(); // Trigger physical reflow
+                    
+                    el.classList.add('manga-tail'); 
+                    
+                    el.dataset.tailTimeout = setTimeout(() => {
+                        el.classList.remove('manga-tail');
+                        el.style.removeProperty('--tail-length-scale');
+                        el.style.removeProperty('--move-angle');
+                        el.style.removeProperty('--anim-duration');
+                    }, activeDuration + 50);
+                }
             }
         });
     
@@ -4625,9 +4693,6 @@ clearArrows() {
         if (this.arrowLayer) this.arrowLayer.innerHTML = '';
         if (this.tempArrowLayer) this.tempArrowLayer.innerHTML = '';
     }
-updateTheme() {
-        // Put any dynamic theme updates here if necessary
-    }
 importEmbed(text) {
         if (this.#game && typeof this.#game.loadPGN === 'function') {
             this.#game.loadPGN(text);
@@ -6060,18 +6125,34 @@ setPresetTheme(lightHex, darkHex, callerElement, accentColor = null, gridColor =
         this.updateTheme();
         if (typeof this.updatePieceImagesSafe === 'function') this.updatePieceImagesSafe();
 
-        document.querySelectorAll('.theme-preset').forEach(el => {
+        // ✨ FIX 1: Target EVERY possible class name you might have used for the theme buttons
+        const themeButtons = document.querySelectorAll('.theme-preset, .theme-box, .theme-btn, .preset-btn, .theme-card, .board-theme-box');
+        
+        themeButtons.forEach(el => {
             el.classList.remove('active');
-            // ✨ FIX: If no element was clicked (e.g. Page Reload), detect the correct button by its onclick string!
-            if (!callerElement) {
-                const onclickStr = el.getAttribute('onclick') || "";
-                if (onclickStr.includes(lightHex) && onclickStr.includes(darkHex)) {
-                    el.classList.add('active');
-                }
+            
+            // ✨ FIX 2: Auto-detect the right button by reading its onclick attribute.
+            // This prevents bugs where clicking an inner <span> applies the border to the wrong element!
+            const onclickStr = el.getAttribute('onclick') || "";
+            const cleanClick = onclickStr.replace(/\s+/g, '').toLowerCase();
+            const cleanLight = lightHex.toLowerCase();
+            const cleanDark = darkHex.toLowerCase();
+            
+            if (cleanClick.includes(cleanLight) && cleanClick.includes(cleanDark)) {
+                el.classList.add('active');
             }
         });
         
-        if (callerElement && callerElement.classList) callerElement.classList.add('active');
+        // ✨ FIX 3: Safe fallback for custom caller elements
+        if (callerElement && callerElement.classList) {
+            // If the clicked element is inside a theme button, highlight the parent button, not the child
+            const parentThemeBox = callerElement.closest('.theme-preset, .theme-box, .theme-btn, .preset-btn, .theme-card');
+            if (parentThemeBox) {
+                parentThemeBox.classList.add('active');
+            } else {
+                callerElement.classList.add('active');
+            }
+        }
 
         try {
             localStorage.setItem('chessThemeCache', JSON.stringify({
@@ -6101,7 +6182,7 @@ updateTheme() {
 
         root.style.setProperty('--board-light', light);
         root.style.setProperty('--board-dark', dark);
-        
+
         const accent = this.currentAccentColor || '#38bdf8';
         root.style.setProperty('--theme-accent', accent);
 
@@ -6121,15 +6202,43 @@ updateTheme() {
         const bgStyle = this.currentAppBg || `radial-gradient(circle at 50% 0%, #1e3a4c 0%, #0f172a 60%, #020617 100%)`;
         
         if (bgStyle.includes('url(') && !bgStyle.includes('data:image/svg+xml')) {
+            // It's a custom uploaded image. Turn off noise and apply image!
             root.style.setProperty('--bg-gradient', bgStyle);
-            root.style.setProperty('--noise-filter', 'none');
+            root.style.setProperty('--noise-filter', 'none'); 
         } else {
+            // It's a preset color theme. Restore noise and apply calculated gradient!
             root.style.setProperty('--bg-gradient', bgStyle);
-            root.style.setProperty('--noise-filter', `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E")`);
+            root.style.setProperty('--noise-filter', `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E")`);
         }
-        
+
+        // Redraw charts to match the new colors if they exist
         if (this.evalChart) this.evalChart.update('none');
         if (this.timeChart) this.timeChart.update('none');
+    }
+setBackground(input) {
+        if (input.files && input.files[0]) {
+            const btnSpan = input.parentElement.querySelector('span');
+            if (btnSpan) btnSpan.innerText = input.files[0].name;
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                const bgUrl = `url('${e.target.result}')`;
+                
+                // 1. Save it to memory
+                this.currentAppBg = bgUrl;
+                
+                // 2. Save it to LocalStorage so it survives page reloads
+                try {
+                    let savedTheme = JSON.parse(localStorage.getItem('chessThemeCache')) || {};
+                    savedTheme.appBg = bgUrl;
+                    localStorage.setItem('chessThemeCache', JSON.stringify(savedTheme));
+                } catch(err) {}
+                
+                // 3. Apply it
+                this.updateTheme();
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
     }
 updatePieceImagesSafe() {
         const selector = document.getElementById('assetType');
