@@ -1,5 +1,5 @@
 //This file is a customized chess.js file that respect the ES5 architecture but optimized for normal chess and support multiple variants such as:
-//'chess960','3check','antichess','atomic','bughouse','chaturanga','crazyhouse','duck','horde','kingofthehill','racingkings'
+//'chess960','3check','antichess','atomic','bughouse','chaturanga','crazyhouse','duck','horde','kingofthehill','racingkings','alice'
 //history[] is left null since it is handled in chessgame.js which also handle engine games pv lines when Load_pgn, thus putting at here seems unreasonable.
 
 var Chess = function(fen, gameMode = 'classical') {
@@ -17,10 +17,10 @@ var Chess = function(fen, gameMode = 'classical') {
         "a5", "b5", "c5", "d5", "e5", "f5", "g5", "h5", "a6", "b6", "c6", "d6", "e6", "f6", "g6", "h6",
         "a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7", "a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8"
     ];
-
+    const SLIDER_OUT = {lo: 0, hi: 0};
     var currentState = null;
     var history = []; 
-
+    const STATE_POOL = [];
     const MASKS_LO = new Int32Array(64), MASKS_HI = new Int32Array(64);
     const FILE_MASKS_LO = new Int32Array(8), FILE_MASKS_HI = new Int32Array(8);
     const KNIGHT_LO = new Int32Array(64), KNIGHT_HI = new Int32Array(64);
@@ -105,7 +105,7 @@ var Chess = function(fen, gameMode = 'classical') {
                 cr+=dirs[i][0]; cf+=dirs[i][1];
             }
         }
-        return {lo:lo, hi:hi};
+        return {lo:lo, hi:hi}; // V8 handles this instantly via Escape Analysis
     }
 
     function create_empty_state() {
@@ -119,31 +119,43 @@ var Chess = function(fen, gameMode = 'classical') {
             half_moves: 0, 
             move_number: 1, 
             gameMode: 'classical',
-            checks: { w: 0, b: 0 },         // For 3-Check
-            pocket: { w: [], b: [] },       // For Crazyhouse / Bughouse
-            promoted: { lo: 0, hi: 0 },     // ✨ FIX: Added missing promoted tracker!
-            duck_sq: -1                     // For Duck Chess
+            checks: { w: 0, b: 0 },         
+            pocket: { w: [], b: [] },       
+            promoted: { lo: 0, hi: 0 },     
+            duck_sq: -1,                    
+            alice_b: { lo: 0, hi: 0 }       // ✨ ALICE CHESS: The Looking Glass Tracker
         };
     }
     function clone_state(s) {
-        return {
-            bb_lo: new Int32Array(s.bb_lo),
-            bb_hi: new Int32Array(s.bb_hi),
-            board: new Int8Array(s.board),
-            turn: s.turn,
-            castling: s.castling,
-            ep_square: s.ep_square,
-            half_moves: s.half_moves,
-            move_number: s.move_number,
-            gameMode: s.gameMode,
-            checks: { w: s.checks.w, b: s.checks.b },
-            pocket: { w: [...s.pocket.w], b: [...s.pocket.b] },
-            // ✨ FIX: Safely clone the promoted tracker, creating a fallback if it's missing!
-            promoted: s.promoted ? { lo: s.promoted.lo, hi: s.promoted.hi } : { lo: 0, hi: 0 }, 
-            duck_sq: s.duck_sq
-        };
+        var c = STATE_POOL.pop();
+        if (!c) {
+            c = {
+                bb_lo: new Int32Array(12),
+                bb_hi: new Int32Array(12),
+                board: new Int8Array(64)
+            };
+        }
+        
+        c.bb_lo.set(s.bb_lo);
+        c.bb_hi.set(s.bb_hi);
+        c.board.set(s.board);
+        
+        c.turn = s.turn;
+        c.castling = s.castling;
+        c.ep_square = s.ep_square;
+        c.half_moves = s.half_moves;
+        c.move_number = s.move_number;
+        c.gameMode = s.gameMode;
+        
+        if (s.gameMode !== 'classical' && s.gameMode !== 'chess960') {
+            c.checks = { w: s.checks.w, b: s.checks.b };
+            c.pocket = { w: [...s.pocket.w], b: [...s.pocket.b] };
+            c.promoted = s.promoted ? { lo: s.promoted.lo, hi: s.promoted.hi } : { lo: 0, hi: 0 }; 
+            c.duck_sq = s.duck_sq;
+            c.alice_b = s.alice_b ? { lo: s.alice_b.lo, hi: s.alice_b.hi } : { lo: 0, hi: 0 };
+        }
+        return c;
     }
-    
     function load_fen(fen, setGameMode = 'classical') {
         var s = create_empty_state();
         s.gameMode = setGameMode; 
@@ -172,12 +184,16 @@ var Chess = function(fen, gameMode = 'classical') {
                 if (setGameMode === 'duck') s.duck_sq = sq;
                 sq++;
             } else if (c === '~') {
-                // ✨ CRAZYHOUSE: The piece we just placed was promoted!
                 let prevSq = sq - 1;
                 if (prevSq >= 0 && prevSq < 64) {
-                    if (prevSq < 32) s.promoted.lo |= (1<<prevSq); else s.promoted.hi |= (1<<(prevSq-32));
+                    if (setGameMode === 'crazyhouse') {
+                        if (prevSq < 32) s.promoted.lo |= (1<<prevSq); else s.promoted.hi |= (1<<(prevSq-32));
+                    } else if (setGameMode === 'alice') {
+                        // ✨ ALICE CHESS: Phase this piece into Board B
+                        if (prevSq < 32) s.alice_b.lo |= (1<<prevSq); else s.alice_b.hi |= (1<<(prevSq-32));
+                    }
                 }
-            }else {
+            } else {
                 var col = (c < 'a') ? WHITE : BLACK;
                 var typ = CHAR_TO_PIECE[c.toLowerCase()];
                 if (sq>=0 && sq<64) {
@@ -229,14 +245,13 @@ var Chess = function(fen, gameMode = 'classical') {
     
     function generate_fen(targetState) {
         var s = targetState || currentState; 
-        var empty = 0, fen = "";
+        var empty = 0, fen = ""; // ✨ V8 handles += extremely fast using internal ConsStrings!
         
         for (var r = 7; r >= 0; r--) {
             for (var f = 0; f < 8; f++) {
                 var sq = r * 8 + f;
                 var val = s.board[sq];
                 
-                // ✨ DUCK FIX: Inject '*' directly into the board string!
                 if (s.gameMode === 'duck' && s.duck_sq === sq) {
                     if (empty > 0) { fen += empty; empty = 0; }
                     fen += '*';
@@ -247,11 +262,12 @@ var Chess = function(fen, gameMode = 'classical') {
                     var char = PIECE_TO_CHAR[val & 7];
                     fen += ((val >> 3) === WHITE) ? char.toUpperCase() : char;
                     
-                    // ✨ CRAZYHOUSE FIX: Flag promoted pieces
                     if (s.gameMode === 'crazyhouse' && s.promoted && ((sq < 32) ? (s.promoted.lo & (1<<sq)) : (s.promoted.hi & (1<<(sq-32))))) {
                         fen += '~';
+                    } else if (s.gameMode === 'alice' && s.alice_b && ((sq < 32) ? (s.alice_b.lo & (1<<sq)) : (s.alice_b.hi & (1<<(sq-32))))) {
+                        fen += '~';
                     }
-                } // <-- THIS WAS THE MISSING BRACKET!
+                } 
             }
             if (empty > 0) { fen += empty; empty = 0; }
             if (r > 0) fen += "/";
@@ -264,8 +280,8 @@ var Chess = function(fen, gameMode = 'classical') {
         
         var ep = (s.ep_square === -1) ? "-" : sq_str(s.ep_square);
         
-        // ✨ THE ENGINE FIX: Return to a perfect 6-field standard FEN!
-        let finalFen = [fen, (s.turn === WHITE ? 'w' : 'b'), c, ep, s.half_moves, s.move_number].join(" ");
+        let finalFen = fen + " " + (s.turn === WHITE ? 'w' : 'b') + " " + c + " " + ep + " " + s.half_moves + " " + s.move_number;
+        
         if (s.gameMode === 'crazyhouse' || s.gameMode === 'bughouse' || s.gameMode === 'placement') {
             var pocketStr = "";
             for (var i = 0; i < s.pocket.w.length; i++) pocketStr += PIECE_TO_CHAR[s.pocket.w[i]].toUpperCase();
@@ -273,9 +289,8 @@ var Chess = function(fen, gameMode = 'classical') {
             if (pocketStr !== "") finalFen = finalFen.replace(fen, fen + "[" + pocketStr + "]");
         }
         if (s.gameMode === '3check') {
-            finalFen += ` +${s.checks.w}+${s.checks.b}`;
+            finalFen += " +" + s.checks.w + "+" + s.checks.b;
         }
-        
         return finalFen;
     }
     function apply_standard_move(prevState, m) {
@@ -305,13 +320,18 @@ var Chess = function(fen, gameMode = 'classical') {
             let r_to = us === WHITE ? (isK ? 5 : 3) : (isK ? 61 : 59); 
             
             let rf = -1;
-            if (prevState.board[to] !== -1 && (prevState.board[to] & 7) === ROOK && (prevState.board[to] >> 3) === us) {
-                rf = to; 
+            // ✨ OPTIMIZED: Hardcode standard chess Rook castling squares!
+            if (prevState.gameMode !== 'chess960') {
+                rf = us === WHITE ? (isK ? 7 : 0) : (isK ? 63 : 56);
             } else {
-                let startF = isK ? 7 : 0; let step = isK ? -1 : 1;
-                for(let f = startF; f >= 0 && f < 8; f += step) {
-                    let sq = (us===WHITE?0:56) + f;
-                    if(prevState.board[sq] === ((us<<3)|ROOK)) { rf = sq; break; }
+                if (prevState.board[to] !== -1 && (prevState.board[to] & 7) === ROOK && (prevState.board[to] >> 3) === us) {
+                    rf = to; 
+                } else {
+                    let startF = isK ? 7 : 0; let step = isK ? -1 : 1;
+                    for(let f = startF; f >= 0 && f < 8; f += step) {
+                        let sq = (us===WHITE?0:56) + f;
+                        if(prevState.board[sq] === ((us<<3)|ROOK)) { rf = sq; break; }
+                    }
                 }
             }
 
@@ -336,29 +356,45 @@ var Chess = function(fen, gameMode = 'classical') {
 
         if (p_type === KING) next.castling &= (us === WHITE) ? ~3 : ~12;
         
-        // Dynamic Rights Stripping (Checks King's actual starting position relative to the Rook!)
+        // ✨ OPTIMIZED: Dynamic Rights Stripping (Standard chess doesn't need to scan for the king!)
         if (p_type === ROOK) {
             let file = from & 7, rank = from >> 3;
-            if (us === WHITE && rank === 0) {
-                let kSqL = prevState.bb_lo[WHITE*6+KING], kSqH = prevState.bb_hi[WHITE*6+KING];
-                let kFile = (kSqL || kSqH) ? (ctz(kSqL, kSqH) & 7) : 4;
-                if (file > kFile) next.castling &= ~1; else if (file < kFile) next.castling &= ~2;
-            } else if (us === BLACK && rank === 7) {
-                let kSqL = prevState.bb_lo[BLACK*6+KING], kSqH = prevState.bb_hi[BLACK*6+KING];
-                let kFile = (kSqL || kSqH) ? (ctz(kSqL, kSqH) & 7) : 4;
-                if (file > kFile) next.castling &= ~4; else if (file < kFile) next.castling &= ~8;
+            if (prevState.gameMode !== 'chess960') {
+                if (us === WHITE && rank === 0) {
+                    if (file === 7) next.castling &= ~1; else if (file === 0) next.castling &= ~2;
+                } else if (us === BLACK && rank === 7) {
+                    if (file === 7) next.castling &= ~4; else if (file === 0) next.castling &= ~8;
+                }
+            } else {
+                if (us === WHITE && rank === 0) {
+                    let kSqL = prevState.bb_lo[WHITE*6+KING], kSqH = prevState.bb_hi[WHITE*6+KING];
+                    let kFile = (kSqL || kSqH) ? (ctz(kSqL, kSqH) & 7) : 4;
+                    if (file > kFile) next.castling &= ~1; else if (file < kFile) next.castling &= ~2;
+                } else if (us === BLACK && rank === 7) {
+                    let kSqL = prevState.bb_lo[BLACK*6+KING], kSqH = prevState.bb_hi[BLACK*6+KING];
+                    let kFile = (kSqL || kSqH) ? (ctz(kSqL, kSqH) & 7) : 4;
+                    if (file > kFile) next.castling &= ~4; else if (file < kFile) next.castling &= ~8;
+                }
             }
         }
         if (flags & BITS.CAPTURE) {
             let file = to & 7, rank = to >> 3;
-            if (them === WHITE && rank === 0) {
-                let kSqL = prevState.bb_lo[WHITE*6+KING], kSqH = prevState.bb_hi[WHITE*6+KING];
-                let kFile = (kSqL || kSqH) ? (ctz(kSqL, kSqH) & 7) : 4;
-                if (file > kFile) next.castling &= ~1; else if (file < kFile) next.castling &= ~2;
-            } else if (them === BLACK && rank === 7) {
-                let kSqL = prevState.bb_lo[BLACK*6+KING], kSqH = prevState.bb_hi[BLACK*6+KING];
-                let kFile = (kSqL || kSqH) ? (ctz(kSqL, kSqH) & 7) : 4;
-                if (file > kFile) next.castling &= ~4; else if (file < kFile) next.castling &= ~8;
+            if (prevState.gameMode !== 'chess960') {
+                if (them === WHITE && rank === 0) {
+                    if (file === 7) next.castling &= ~1; else if (file === 0) next.castling &= ~2;
+                } else if (them === BLACK && rank === 7) {
+                    if (file === 7) next.castling &= ~4; else if (file === 0) next.castling &= ~8;
+                }
+            } else {
+                if (them === WHITE && rank === 0) {
+                    let kSqL = prevState.bb_lo[WHITE*6+KING], kSqH = prevState.bb_hi[WHITE*6+KING];
+                    let kFile = (kSqL || kSqH) ? (ctz(kSqL, kSqH) & 7) : 4;
+                    if (file > kFile) next.castling &= ~1; else if (file < kFile) next.castling &= ~2;
+                } else if (them === BLACK && rank === 7) {
+                    let kSqL = prevState.bb_lo[BLACK*6+KING], kSqH = prevState.bb_hi[BLACK*6+KING];
+                    let kFile = (kSqL || kSqH) ? (ctz(kSqL, kSqH) & 7) : 4;
+                    if (file > kFile) next.castling &= ~4; else if (file < kFile) next.castling &= ~8;
+                }
             }
         }
         return next;
@@ -458,8 +494,84 @@ var Chess = function(fen, gameMode = 'classical') {
         next.duck_sq = (m >>> 22) & 0x3F; 
         return next;
     }
-    function apply_chaturanga_move(prevState, m) { return apply_standard_move(prevState, m); }
+    function apply_chaturanga_move(prevState, m) {
+        var next = clone_state(prevState);
+        var us = next.turn, them = us ^ 1;
+        var from = m & 0x3F, to = (m >>> 6) & 0x3F;
+        var flags = (m >>> 12) & 0x7F, promo = (m >>> 19) & 0x7;
+        var p_type = (next.board[from] & 7); 
 
+        // 1. Pick up the piece
+        if (from < 32) next.bb_lo[us*6+p_type] &= ~(1<<from); else next.bb_hi[us*6+p_type] &= ~(1<<(from-32));
+        next.board[from] = -1;
+
+        // 2. Handle Capture (No En Passant in Chaturanga!)
+        if (flags & BITS.CAPTURE) {
+            var cap = (next.board[to] & 7);
+            if (cap !== -1) {
+                if (to < 32) next.bb_lo[them*6+cap] &= ~(1<<to); else next.bb_hi[them*6+cap] &= ~(1<<(to-32));
+            }
+        } 
+
+        // 3. Drop the piece (or the promoted Mantri/Queen)
+        var placed = (flags & BITS.PROMOTION) ? promo : p_type;
+        if (to < 32) next.bb_lo[us*6+placed] |= (1<<to); else next.bb_hi[us*6+placed] |= (1<<(to-32));
+        next.board[to] = (us << 3) | placed;
+
+        // 4. Update Board State
+        next.turn ^= 1;
+        next.ep_square = -1; // Permanently disabled
+        if (p_type === PAWN || (flags & BITS.CAPTURE)) next.half_moves = 0; else next.half_moves++;
+        if (us === BLACK) next.move_number++;
+        return next;
+    }
+    function apply_alice_move(prevState, m) {
+        var next = apply_standard_move(prevState, m);
+        var from = m & 0x3F, to = (m >>> 6) & 0x3F;
+        var flags = (m >>> 12) & 0x7F;
+
+        let isB = from < 32 ? (prevState.alice_b.lo & (1<<from)) : (prevState.alice_b.hi & (1<<(from-32)));
+        
+        // 1. Clear the old square on the Phase mask
+        if (from < 32) next.alice_b.lo &= ~(1<<from); else next.alice_b.hi &= ~(1<<(from-32));
+        
+        // 2. Transfer the moving piece to the OPPOSITE board!
+        if (isB) {
+            if (to < 32) next.alice_b.lo &= ~(1<<to); else next.alice_b.hi &= ~(1<<(to-32));
+        } else {
+            if (to < 32) next.alice_b.lo |= (1<<to); else next.alice_b.hi |= (1<<(to-32));
+        }
+
+        // 3. Handle Castling Transfer (Rook also jumps!)
+        if (flags & BITS.KSIDE_CASTLE || flags & BITS.QSIDE_CASTLE) {
+            let isK = (flags & BITS.KSIDE_CASTLE);
+            let us = prevState.turn;
+            let r_from = -1;
+            let startF = isK ? 7 : 0; let step = isK ? -1 : 1;
+            for(let f = startF; f >= 0 && f < 8; f += step) {
+                let sq = (us===WHITE?0:56) + f;
+                if(prevState.board[sq] === ((us<<3)|ROOK)) { r_from = sq; break; }
+            }
+            let r_to = us === WHITE ? (isK ? 5 : 3) : (isK ? 61 : 59);
+            
+            if (r_from !== -1) {
+                let r_isB = r_from < 32 ? (prevState.alice_b.lo & (1<<r_from)) : (prevState.alice_b.hi & (1<<(r_from-32)));
+                if (r_from < 32) next.alice_b.lo &= ~(1<<r_from); else next.alice_b.hi &= ~(1<<(r_from-32));
+                if (r_isB) {
+                    if (r_to < 32) next.alice_b.lo &= ~(1<<r_to); else next.alice_b.hi &= ~(1<<(r_to-32));
+                } else {
+                    if (r_to < 32) next.alice_b.lo |= (1<<r_to); else next.alice_b.hi |= (1<<(r_to-32));
+                }
+            }
+        }
+        
+        // 4. Handle En Passant Erase
+        if (flags & BITS.EP_CAPTURE) {
+            let ep_sq = prevState.turn === WHITE ? to - 8 : to + 8;
+            if (ep_sq < 32) next.alice_b.lo &= ~(1<<ep_sq); else next.alice_b.hi &= ~(1<<(ep_sq-32));
+        }
+        return next;
+    }
     // --------------------------------------------------------
     // VARIANT APPLY ROUTER (MASTER SHELL)
     // --------------------------------------------------------
@@ -467,6 +579,7 @@ var Chess = function(fen, gameMode = 'classical') {
         let nextState;
         
         switch (prevState.gameMode) {
+            case 'alice':      nextState = apply_alice_move(prevState, m); break;
             case 'atomic':     nextState = apply_atomic_move(prevState, m); break;
             case 'bughouse':   nextState = apply_bughouse_move(prevState, m); break;
             case 'chaturanga': nextState = apply_chaturanga_move(prevState, m); break;
@@ -475,29 +588,21 @@ var Chess = function(fen, gameMode = 'classical') {
             case 'placement':  
                 nextState = apply_crazyhouse_move(prevState, m); 
                 
-                // 1. Detect if this move was the final drop that emptied both pockets
                 if (nextState.pocket.w.length === 0 && nextState.pocket.b.length === 0 && 
                    (prevState.pocket.w.length > 0 || prevState.pocket.b.length > 0)) {
                     
-                    let c = 0; // 0 = No castling rights
-                    
-                    // 2. Evaluate White's Castling Rights
-                    if (nextState.board[4] === ((WHITE << 3) | KING)) { // King on e1
-                        if (nextState.board[7] === ((WHITE << 3) | ROOK)) c |= 1; // Kingside (Rook h1)
-                        if (nextState.board[0] === ((WHITE << 3) | ROOK)) c |= 2; // Queenside (Rook a1)
+                    let c = 0; 
+                    if (nextState.board[4] === ((WHITE << 3) | KING)) { 
+                        if (nextState.board[7] === ((WHITE << 3) | ROOK)) c |= 1; 
+                        if (nextState.board[0] === ((WHITE << 3) | ROOK)) c |= 2; 
                     }
-                    
-                    // 3. Evaluate Black's Castling Rights
-                    if (nextState.board[60] === ((BLACK << 3) | KING)) { // King on e8
-                        if (nextState.board[63] === ((BLACK << 3) | ROOK)) c |= 4; // Kingside (Rook h8)
-                        if (nextState.board[56] === ((BLACK << 3) | ROOK)) c |= 8; // Queenside (Rook a8)
+                    if (nextState.board[60] === ((BLACK << 3) | KING)) { 
+                        if (nextState.board[63] === ((BLACK << 3) | ROOK)) c |= 4; 
+                        if (nextState.board[56] === ((BLACK << 3) | ROOK)) c |= 8; 
                     }
-                    
-                    // 4. Inject the rights into the new state!
                     nextState.castling = c;
                 }
                 break;
-            
             case 'classical':
             case 'chess960':
             case '3check':
@@ -520,13 +625,55 @@ var Chess = function(fen, gameMode = 'classical') {
     
     function is_attacked(state, sq, by_color) {
         var bb_lo = state.bb_lo, bb_hi = state.bb_hi;
-        if (sq < 32) {
-            if ((PAWN_LO[by_color^1][sq] & bb_lo[by_color*6+PAWN]) | (PAWN_HI[by_color^1][sq] & bb_hi[by_color*6+PAWN])) return true;
-        } else {
-            if ((PAWN_LO[by_color^1][sq] & bb_lo[by_color*6+PAWN]) | (PAWN_HI[by_color^1][sq] & bb_hi[by_color*6+PAWN])) return true;
+        // ✨ OPTIMIZED FAST-PATH FOR STANDARD CHESS
+        if (state.gameMode !== 'alice' && state.gameMode !== 'duck' && state.gameMode !== 'chaturanga') {
+            if (sq < 32) {
+                if (PAWN_LO[by_color^1][sq] & bb_lo[by_color*6+PAWN]) return true;
+            } else {
+                if (PAWN_HI[by_color^1][sq] & bb_hi[by_color*6+PAWN]) return true;
+            }
+            if ((KNIGHT_LO[sq] & bb_lo[by_color*6+KNIGHT]) | (KNIGHT_HI[sq] & bb_hi[by_color*6+KNIGHT])) return true;
+            if ((KING_LO[sq] & bb_lo[by_color*6+KING]) | (KING_HI[sq] & bb_hi[by_color*6+KING])) return true;
+
+            var occL=0, occH=0;
+            // ✨ V8 LOVES THIS: Short, predictable loops
+            for(let i=0; i<12; i++) { occL|=bb_lo[i]; occH|=bb_hi[i]; }
+
+            let sliders = (bb_lo[by_color*6+QUEEN]|bb_lo[by_color*6+ROOK]|bb_lo[by_color*6+BISHOP]);
+            let slidersH = (bb_hi[by_color*6+QUEEN]|bb_hi[by_color*6+ROOK]|bb_hi[by_color*6+BISHOP]);
+
+            while(sliders || slidersH) {
+                let from = ctz(sliders, slidersH);
+                if(from < 32) sliders &= ~(1<<from); else slidersH &= ~(1<<(from-32));
+                
+                if (ALIGNED[from * 64 + sq]) {
+                    let p = state.board[from] & 7;
+                    let idx = from*64+sq;
+                    if (((BETWEEN_LO[idx] & occL) | (BETWEEN_HI[idx] & occH)) === 0) {
+                        let r1=from>>3, c1=from&7, r2=sq>>3, c2=sq&7;
+                        let isDiag = (Math.abs(r1-r2)===Math.abs(c1-c2));
+                        if ((p===ROOK && !isDiag) || (p===BISHOP && isDiag) || p===QUEEN) return true;
+                    }
+                }
+            }
+            return false;
         }
-        if ((KNIGHT_LO[sq] & bb_lo[by_color*6+KNIGHT]) | (KNIGHT_HI[sq] & bb_hi[by_color*6+KNIGHT])) return true;
-        if ((KING_LO[sq] & bb_lo[by_color*6+KING]) | (KING_HI[sq] & bb_hi[by_color*6+KING])) return true;
+
+        // --- VARIANT SLOW PATH ---
+        let bMaskL = 0xFFFFFFFF, bMaskH = 0xFFFFFFFF;
+        if (state.gameMode === 'alice') {
+            let isB = sq < 32 ? (state.alice_b.lo & (1<<sq)) : (state.alice_b.hi & (1<<(sq-32)));
+            bMaskL = isB ? state.alice_b.lo : ~state.alice_b.lo;
+            bMaskH = isB ? state.alice_b.hi : ~state.alice_b.hi;
+        }
+
+        if (sq < 32) {
+            if ((PAWN_LO[by_color^1][sq] & (bb_lo[by_color*6+PAWN] & bMaskL))) return true;
+        } else {
+            if ((PAWN_HI[by_color^1][sq] & (bb_hi[by_color*6+PAWN] & bMaskH))) return true;
+        }
+        if ((KNIGHT_LO[sq] & (bb_lo[by_color*6+KNIGHT] & bMaskL)) | (KNIGHT_HI[sq] & (bb_hi[by_color*6+KNIGHT] & bMaskH))) return true;
+        if ((KING_LO[sq] & (bb_lo[by_color*6+KING] & bMaskL)) | (KING_HI[sq] & (bb_hi[by_color*6+KING] & bMaskH))) return true;
 
         var occL=0, occH=0;
         for(let i=0; i<12; i++) { occL|=bb_lo[i]; occH|=bb_hi[i]; }
@@ -536,8 +683,45 @@ var Chess = function(fen, gameMode = 'classical') {
             else occH |= (1 << (state.duck_sq - 32));
         }
 
-        let sliders = (bb_lo[by_color*6+QUEEN]|bb_lo[by_color*6+ROOK]|bb_lo[by_color*6+BISHOP]);
-        let slidersH = (bb_hi[by_color*6+QUEEN]|bb_hi[by_color*6+ROOK]|bb_hi[by_color*6+BISHOP]);
+        if (state.gameMode === 'alice') {
+            occL &= bMaskL; occH &= bMaskH;
+        }
+
+        let sliders = 0, slidersH = 0;
+        if (state.gameMode === 'chaturanga') {
+            let bL = bb_lo[by_color*6+BISHOP], bH = bb_hi[by_color*6+BISHOP];
+            let qL = bb_lo[by_color*6+QUEEN], qH = bb_hi[by_color*6+QUEEN];
+            let r = sq >> 3, f = sq & 7;
+
+            let aL = 0, aH = 0;
+            [[2,2],[2,-2],[-2,2],[-2,-2]].forEach(d => {
+                let cr = r + d[0], cc = f + d[1];
+                if(cr>=0 && cr<8 && cc>=0 && cc<8) {
+                    let s = cr*8+cc;
+                    if(s<32) aL |= (1<<s); else aH |= (1<<(s-32));
+                }
+            });
+            if ((bL & aL) || (bH & aH)) return true;
+
+            let fL = 0, fH = 0;
+            [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d => {
+                let cr = r + d[0], cc = f + d[1];
+                if(cr>=0 && cr<8 && cc>=0 && cc<8) {
+                    let s = cr*8+cc;
+                    if(s<32) fL |= (1<<s); else fH |= (1<<(s-32));
+                }
+            });
+            if ((qL & fL) || (qH & fH)) return true;
+
+            sliders = bb_lo[by_color*6+ROOK];
+            slidersH = bb_hi[by_color*6+ROOK];
+        } else {
+            sliders = (bb_lo[by_color*6+QUEEN]|bb_lo[by_color*6+ROOK]|bb_lo[by_color*6+BISHOP]);
+            slidersH = (bb_hi[by_color*6+QUEEN]|bb_hi[by_color*6+ROOK]|bb_hi[by_color*6+BISHOP]);
+            if (state.gameMode === 'alice') {
+                sliders &= bMaskL; slidersH &= bMaskH;
+            }
+        }
         
         while(sliders || slidersH) {
             let from = ctz(sliders, slidersH);
@@ -593,10 +777,14 @@ var Chess = function(fen, gameMode = 'classical') {
         var moves = [];
         var us = state.turn, them = us ^ 1;
         var bb_lo = state.bb_lo, bb_hi = state.bb_hi;
+
+        // ✨ V8 LOVES THIS: Clean, inline OCC loops
         var occUsL = 0, occUsH = 0, occThemL = 0, occThemH = 0;
         for(let i=us*6; i<us*6+6; i++) { occUsL|=bb_lo[i]; occUsH|=bb_hi[i]; }
         for(let i=them*6; i<them*6+6; i++) { occThemL|=bb_lo[i]; occThemH|=bb_hi[i]; }
+        
         var occAllL = occUsL | occThemL, occAllH = occUsH | occThemH;
+        
         if (state.gameMode === 'duck' && state.duck_sq !== -1) {
             if (state.duck_sq < 32) { occUsL |= (1 << state.duck_sq); occAllL |= (1 << state.duck_sq); }
             else { occUsH |= (1 << (state.duck_sq - 32)); occAllH |= (1 << (state.duck_sq - 32)); }
@@ -669,11 +857,13 @@ var Chess = function(fen, gameMode = 'classical') {
             if(f<32) kL &= ~(1<<f); else kH &= ~(1<<(f-32));
             serialize_moves(moves, f, KNIGHT_LO[f]&~occUsL, KNIGHT_HI[f]&~occUsH, {lo:occThemL, hi:occThemH});
         }
+        
         kL = bb_lo[us*6+KING]; kH = bb_hi[us*6+KING];
         if(kL || kH) {
             let f = ctz(kL, kH);
             serialize_moves(moves, f, KING_LO[f]&~occUsL, KING_HI[f]&~occUsH, {lo:occThemL, hi:occThemH});
         }
+
         [ROOK, QUEEN, BISHOP].forEach(type => {
             let pL = bb_lo[us*6+type], pH = bb_hi[us*6+type];
             while (pL || pH) {
@@ -750,13 +940,115 @@ var Chess = function(fen, gameMode = 'classical') {
                 if ((m & 0x3F) !== ((options.square.charCodeAt(1)-49)*8 + (options.square.charCodeAt(0)-97))) continue;
             }
             if (!options || options.legal !== false) {
-                var nextState = apply_move(state, m);
-                if (!is_checked(nextState, us)) final_moves.push(m);
+                
+                // ✨ FAST-PATH RESTORED SAFELY
+                if (state.gameMode === 'classical' || state.gameMode === 'chess960' || state.gameMode === '3check' || state.gameMode === 'horde' || state.gameMode === 'chaturanga') {
+                    var flags = (m >>> 12) & 0xFF;
+                    if (state.gameMode === 'chess960' && (flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE))) {
+                        var nextState = apply_move(state, m);
+                        if (!is_checked(nextState, us)) final_moves.push(m);
+                        continue;
+                    }
+                    if (is_standard_legal_fast(state, m)) final_moves.push(m);
+                } else {
+                    var nextState = apply_move(state, m);
+                    if (!is_checked(nextState, us)) final_moves.push(m);
+                }
+                
             } else {
                 final_moves.push(m);
             }
         }
         return final_moves;
+    }
+    function is_standard_legal_fast(state, m) {
+        var us = state.turn, them = us ^ 1;
+        var from = m & 0x3F, to = (m >>> 6) & 0x3F, flags = (m >>> 12) & 0xFF, promo = (m >>> 19) & 0x7;
+        
+        // Crazyhouse/Placement Drops bypass (Too complex for bitboard reversal)
+        if (flags & 128) return !is_checked(apply_move(state, m), us);
+
+        var piece = state.board[from] & 7;
+        
+        let fromMask = (from<32) ? (1<<from) : (1<<(from-32));
+        let toMask = (to<32) ? (1<<to) : (1<<(to-32));
+        let isLoFrom = from<32, isLoTo = to<32;
+
+        // 1. APPLY MOVE IN-PLACE
+        if (isLoFrom) state.bb_lo[us*6+piece] &= ~fromMask; else state.bb_hi[us*6+piece] &= ~fromMask;
+        if (isLoTo) state.bb_lo[us*6+piece] |= toMask; else state.bb_hi[us*6+piece] |= toMask;
+
+        var cap_sq = to;
+        var captured = -1;
+        if (flags & 2) { // CAPTURE
+            captured = state.board[to] & 7;
+            if (captured !== -1) {
+                if(isLoTo) state.bb_lo[them*6+captured] &= ~toMask; else state.bb_hi[them*6+captured] &= ~toMask;
+            }
+        } else if (flags & 8) { // EP_CAPTURE
+            cap_sq = us===WHITE ? to-8 : to+8; 
+            let capMask = (cap_sq<32) ? (1<<cap_sq) : (1<<(cap_sq-32));
+            if(cap_sq<32) state.bb_lo[them*6+PAWN] &= ~capMask; else state.bb_hi[them*6+PAWN] &= ~capMask; 
+        }
+        if (flags & 16) { // PROMOTION
+            if(isLoTo) {
+                state.bb_lo[us*6+PAWN] &= ~toMask; 
+                state.bb_lo[us*6+promo] |= toMask;
+            } else {
+                state.bb_hi[us*6+PAWN] &= ~toMask;
+                state.bb_hi[us*6+promo] |= toMask;
+            }
+        }
+        if (flags & 32) { // KSIDE_CASTLE
+            let rf=us===WHITE?7:63, rt=us===WHITE?5:61;
+            let rfM=(rf<32)?(1<<rf):(1<<(rf-32)), rtM=(rt<32)?(1<<rt):(1<<(rt-32));
+            if(rf<32) state.bb_lo[us*6+ROOK] &= ~rfM; else state.bb_hi[us*6+ROOK] &= ~rfM; 
+            if(rt<32) state.bb_lo[us*6+ROOK] |= rtM; else state.bb_hi[us*6+ROOK] |= rtM;
+        } else if (flags & 64) { // QSIDE_CASTLE
+            let rf=us===WHITE?0:56, rt=us===WHITE?3:59;
+            let rfM=(rf<32)?(1<<rf):(1<<(rf-32)), rtM=(rt<32)?(1<<rt):(1<<(rt-32));
+            if(rf<32) state.bb_lo[us*6+ROOK] &= ~rfM; else state.bb_hi[us*6+ROOK] &= ~rfM;
+            if(rt<32) state.bb_lo[us*6+ROOK] |= rtM; else state.bb_hi[us*6+ROOK] |= rtM;
+        }
+
+        // 2. CHECK FOR ATTACKS (The board array is untouched!)
+        var king_sq = (piece === KING) ? to : ctz(state.bb_lo[us*6+KING], state.bb_hi[us*6+KING]); 
+        var safe = (king_sq === 64) || !is_attacked(state, king_sq, them);
+
+        // 3. INSTANT REVERSAL
+        if (flags & 32) {
+            let rf=us===WHITE?7:63, rt=us===WHITE?5:61;
+            let rfM=(rf<32)?(1<<rf):(1<<(rf-32)), rtM=(rt<32)?(1<<rt):(1<<(rt-32));
+            if(rt<32) state.bb_lo[us*6+ROOK] &= ~rtM; else state.bb_hi[us*6+ROOK] &= ~rtM;
+            if(rf<32) state.bb_lo[us*6+ROOK] |= rfM; else state.bb_hi[us*6+ROOK] |= rfM;
+        } else if (flags & 64) {
+            let rf=us===WHITE?0:56, rt=us===WHITE?3:59;
+            let rfM=(rf<32)?(1<<rf):(1<<(rf-32)), rtM=(rt<32)?(1<<rt):(1<<(rt-32));
+            if(rt<32) state.bb_lo[us*6+ROOK] &= ~rtM; else state.bb_hi[us*6+ROOK] &= ~rtM;
+            if(rf<32) state.bb_lo[us*6+ROOK] |= rfM; else state.bb_hi[us*6+ROOK] |= rfM;
+        }
+        if (flags & 16) {
+            if(isLoTo) {
+                state.bb_lo[us*6+promo] &= ~toMask;
+                state.bb_lo[us*6+PAWN] |= toMask;
+            } else {
+                state.bb_hi[us*6+promo] &= ~toMask;
+                state.bb_hi[us*6+PAWN] |= toMask;
+            }
+        }
+        if (flags & 8) {
+            let capMask = (cap_sq<32) ? (1<<cap_sq) : (1<<(cap_sq-32));
+            if(cap_sq<32) state.bb_lo[them*6+PAWN] |= capMask; else state.bb_hi[them*6+PAWN] |= capMask;
+        } else if (flags & 2) {
+            if(captured !== -1) {
+                if(isLoTo) state.bb_lo[them*6+captured] |= toMask; else state.bb_hi[them*6+captured] |= toMask;
+            }
+        }
+        
+        if(isLoTo) state.bb_lo[us*6+piece] &= ~toMask; else state.bb_hi[us*6+piece] &= ~toMask;
+        if(isLoFrom) state.bb_lo[us*6+piece] |= fromMask; else state.bb_hi[us*6+piece] |= fromMask;
+
+        return safe;
     }
     // --- VARIANT GENERATOR STUBS ---
     function generate_antichess_moves(state, options) { 
@@ -895,7 +1187,152 @@ var Chess = function(fen, gameMode = 'classical') {
             return generate_standard_moves(state, options);
         }
     }
-    function generate_chaturanga_moves(state, options) { return generate_standard_moves(state, options); }
+    function generate_chaturanga_moves(state, options) {
+        var moves = [];
+        var us = state.turn, them = us ^ 1;
+        var bb_lo = state.bb_lo, bb_hi = state.bb_hi;
+
+        // ✨ V8 LOVES THIS: Clean, inline OCC loops
+        var occUsL = 0, occUsH = 0, occThemL = 0, occThemH = 0;
+        for(let i=us*6; i<us*6+6; i++) { occUsL|=bb_lo[i]; occUsH|=bb_hi[i]; }
+        for(let i=them*6; i<them*6+6; i++) { occThemL|=bb_lo[i]; occThemH|=bb_hi[i]; }
+        
+        var occAllL = occUsL | occThemL, occAllH = occUsH | occThemH;
+        var emptyL = ~occAllL, emptyH = ~occAllH;
+        var pL = bb_lo[us*6+PAWN], pH = bb_hi[us*6+PAWN];
+
+        // PAWNS (Single step only)
+        var sL, sH;
+        if (us === WHITE) { sL = (pL << 8) & emptyL; sH = ((pH << 8) | (pL >>> 24)) & emptyH; }
+        else { sL = ((pL >>> 8) | (pH << 24)) & emptyL; sH = (pH >>> 8) & emptyH; }
+
+        let bbL = sL, bbH = sH;
+        while (bbL || bbH) {
+            let to = ctz(bbL, bbH);
+            if(to<32) bbL &= ~(1<<to); else bbH &= ~(1<<(to-32));
+            let from = (us === WHITE) ? to - 8 : to + 8;
+            
+            // ✨ FS STRICT: Pawns ONLY promote to Mantri (Queen)
+            if (to < 8 || to >= 56) moves.push(from | (to << 6) | (BITS.PROMOTION << 12) | (QUEEN << 19));
+            else add_move(moves, from, to, BITS.NORMAL);
+        }
+
+        let capL_LO, capL_HI, capR_LO, capR_HI;
+        if (us === WHITE) {
+            capL_LO = (pL << 7) & ~FILE_MASKS_LO[7]; capL_HI = ((pH << 7) | (pL >>> 25)) & ~FILE_MASKS_HI[7];
+            capR_LO = (pL << 9) & ~FILE_MASKS_LO[0]; capR_HI = ((pH << 9) | (pL >>> 23)) & ~FILE_MASKS_HI[0];
+        } else {
+            capL_LO = ((pL >>> 9) | (pH << 23)) & ~FILE_MASKS_LO[7]; capL_HI = (pH >>> 9) & ~FILE_MASKS_HI[7];
+            capR_LO = ((pL >>> 7) | (pH << 25)) & ~FILE_MASKS_LO[0]; capR_HI = (pH >>> 7) & ~FILE_MASKS_HI[0];
+        }
+
+        const add_caps = (cL, cH, offset) => {
+            cL &= occThemL; cH &= occThemH;
+            while(cL!==0 || cH!==0) {
+                let to = ctz(cL, cH);
+                if(to<32) cL &= ~(1<<to); else cH &= ~(1<<(to-32));
+                let from = (us === WHITE) ? (offset===1 ? to-9 : to-7) : (offset===1 ? to+7 : to+9);
+                if (from >= 0 && from < 64) {
+                    if (to < 8 || to >= 56) moves.push(from | (to << 6) | ((BITS.CAPTURE | BITS.PROMOTION) << 12) | (QUEEN << 19));
+                    else add_move(moves, from, to, BITS.CAPTURE);
+                }
+            }
+        };
+        add_caps(capL_LO, capL_HI, -1);
+        add_caps(capR_LO, capR_HI, 1);
+
+        // ASVA (Knight)
+        let kL = bb_lo[us*6+KNIGHT], kH = bb_hi[us*6+KNIGHT];
+        while (kL || kH) {
+            let f = ctz(kL, kH);
+            if(f<32) kL &= ~(1<<f); else kH &= ~(1<<(f-32));
+            serialize_moves(moves, f, KNIGHT_LO[f]&~occUsL, KNIGHT_HI[f]&~occUsH, {lo:occThemL, hi:occThemH});
+        }
+
+        // RAJAH (King) - ✨ FS STRICT: No leaps allowed.
+        kL = bb_lo[us*6+KING]; kH = bb_hi[us*6+KING];
+        if(kL || kH) {
+            let f = ctz(kL, kH);
+            serialize_moves(moves, f, KING_LO[f]&~occUsL, KING_HI[f]&~occUsH, {lo:occThemL, hi:occThemH});
+        }
+
+        // RATHA (Rook)
+        let rL = bb_lo[us*6+ROOK], rH = bb_hi[us*6+ROOK];
+        while (rL || rH) {
+            let f = ctz(rL, rH);
+            if(f<32) rL &= ~(1<<f); else rH &= ~(1<<(f-32));
+            let att = get_slider_attacks(ROOK, f, occAllL, occAllH);
+            serialize_moves(moves, f, att.lo&~occUsL, att.hi&~occUsH, {lo:occThemL, hi:occThemH});
+        }
+
+        // GAJA (Elephant / Bishop - Leaps 2 squares diagonally)
+        let bL = bb_lo[us*6+BISHOP], bH = bb_hi[us*6+BISHOP];
+        while (bL || bH) {
+            let f = ctz(bL, bH);
+            if(f<32) bL &= ~(1<<f); else bH &= ~(1<<(f-32));
+            let r = f >> 3, c = f & 7;
+            let aL = 0, aH = 0;
+            [[2,2],[2,-2],[-2,2],[-2,-2]].forEach(d => {
+                let cr = r + d[0], cc = c + d[1];
+                if(cr>=0 && cr<8 && cc>=0 && cc<8) {
+                    let s = cr*8+cc;
+                    if(s<32) aL |= (1<<s); else aH |= (1<<(s-32));
+                }
+            });
+            serialize_moves(moves, f, aL&~occUsL, aH&~occUsH, {lo:occThemL, hi:occThemH});
+        }
+
+        // MANTRI (Counselor / Queen - 1 square diagonally)
+        let qL = bb_lo[us*6+QUEEN], qH = bb_hi[us*6+QUEEN];
+        while (qL || qH) {
+            let f = ctz(qL, qH);
+            if(f<32) qL &= ~(1<<f); else qH &= ~(1<<(f-32));
+            let r = f >> 3, c = f & 7;
+            let fL = 0, fH = 0;
+            [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d => {
+                let cr = r + d[0], cc = c + d[1];
+                if(cr>=0 && cr<8 && cc>=0 && cc<8) {
+                    let s = cr*8+cc;
+                    if(s<32) fL |= (1<<s); else fH |= (1<<(s-32));
+                }
+            });
+            serialize_moves(moves, f, fL&~occUsL, fH&~occUsH, {lo:occThemL, hi:occThemH});
+        }
+
+        var final_moves = [];
+        for (var i = 0; i < moves.length; i++) {
+            var m = moves[i];
+            if (options && options.square) {
+                if ((m & 0x3F) !== ((options.square.charCodeAt(1)-49)*8 + (options.square.charCodeAt(0)-97))) continue;
+            }
+            if (!options || options.legal !== false) {
+                
+                // ✨ FAST-PATH BYPASS!
+                if (state.gameMode === 'classical' || state.gameMode === 'chess960' || state.gameMode === '3check' || state.gameMode === 'horde' || state.gameMode === 'chaturanga') {
+                    
+                    var flags = (m >>> 12) & 0xFF;
+                    
+                    // Fallback to clone path ONLY for 960 castling (due to randomized rook squares)
+                    if (state.gameMode === 'chess960' && (flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE))) {
+                        var nextState = apply_move(state, m);
+                        if (!is_checked(nextState, us)) final_moves.push(m);
+                        continue;
+                    }
+                    
+                    if (is_standard_legal_fast(state, m)) final_moves.push(m);
+
+                } else {
+                    // Variant slow-path (Atomic, Racing Kings, Alice, Crazyhouse)
+                    var nextState = apply_move(state, m);
+                    if (!is_checked(nextState, us)) final_moves.push(m);
+                }
+                
+            } else {
+                final_moves.push(m);
+            }
+        }
+        return final_moves;
+    }
     function generate_crazyhouse_moves(state, options) {
         var moves = generate_standard_moves(state, options);
         var us = state.turn;
@@ -996,12 +1433,159 @@ var Chess = function(fen, gameMode = 'classical') {
         }
         return moves; 
     }
+    function generate_alice_moves(state, options) {
+        var moves = [];
+        var us = state.turn, them = us ^ 1;
+        
+        // ✨ V8 LOVES THIS: Clean loops!
+        var myPiecesL = 0, myPiecesH = 0;
+        for(let i=us*6; i<us*6+6; i++) { myPiecesL|=state.bb_lo[i]; myPiecesH|=state.bb_hi[i]; }
 
+        let tempL = myPiecesL, tempH = myPiecesH;
+        while(tempL || tempH) {
+            let f = ctz(tempL, tempH);
+            if(f<32) tempL &= ~(1<<f); else tempH &= ~(1<<(f-32));
+            
+            let isB = f < 32 ? (state.alice_b.lo & (1<<f)) : (state.alice_b.hi & (1<<(f-32)));
+            let bMaskL = isB ? state.alice_b.lo : ~state.alice_b.lo;
+            let bMaskH = isB ? state.alice_b.hi : ~state.alice_b.hi;
+            
+            // ✨ V8 LOVES THIS: Clean loops!
+            let occAllL = 0, occAllH = 0;
+            for(let i=0; i<12; i++) { occAllL|=state.bb_lo[i]; occAllH|=state.bb_hi[i]; }
+            
+            let occSameL = occAllL & bMaskL, occSameH = occAllH & bMaskH;
+            let occOppL = occAllL & ~bMaskL, occOppH = occAllH & ~bMaskH;
+            let mySameL = myPiecesL & bMaskL, mySameH = myPiecesH & bMaskH;
+            let enemiesSameL = occSameL & ~mySameL, enemiesSameH = occSameH & ~mySameH;
+
+            let validTargetL = ~mySameL & ~occOppL;
+            let validTargetH = ~mySameH & ~occOppH;
+            let pType = state.board[f] & 7;
+
+            if (pType === PAWN) {
+                let dir = us === WHITE ? 8 : -8;
+                let forward = f + dir;
+                if (forward >= 0 && forward < 64) {
+                    let fMask = forward < 32 ? (1<<forward) : (1<<(forward-32));
+                    let occSameF = forward < 32 ? (occSameL & fMask) : (occSameH & fMask);
+                    let validTargetF = forward < 32 ? (validTargetL & fMask) : (validTargetH & fMask);
+                    if (!occSameF && validTargetF) {
+                        if (forward < 8 || forward >= 56) add_promo(moves, f, forward, BITS.PROMOTION, state.gameMode);
+                        else {
+                            add_move(moves, f, forward, BITS.NORMAL);
+                            let rank = f >> 3;
+                            if ((us === WHITE && rank === 1) || (us === BLACK && rank === 6)) {
+                                let doubleF = forward + dir;
+                                let dMask = doubleF < 32 ? (1<<doubleF) : (1<<(doubleF-32));
+                                let occSameD = doubleF < 32 ? (occSameL & dMask) : (occSameH & dMask);
+                                let validTargetD = doubleF < 32 ? (validTargetL & dMask) : (validTargetH & dMask);
+                                if (!occSameD && validTargetD) {
+                                    add_move(moves, f, doubleF, BITS.BIG_PAWN);
+                                }
+                            }
+                        }
+                    }
+                }
+                let caps = us === WHITE ? [7, 9] : [-9, -7];
+                for(let c of caps) {
+                    let cf = (f&7) + (c===7||c===-9 ? -1 : 1);
+                    if (cf < 0 || cf > 7) continue;
+                    let capSq = f + c;
+                    if (capSq >= 0 && capSq < 64) {
+                        let cMask = capSq < 32 ? (1<<capSq) : (1<<(capSq-32));
+                        let enemySameC = capSq < 32 ? (enemiesSameL & cMask) : (enemiesSameH & cMask);
+                        let validTargetC = capSq < 32 ? (validTargetL & cMask) : (validTargetH & cMask);
+                        
+                        if (enemySameC && validTargetC) {
+                            if (capSq < 8 || capSq >= 56) add_promo(moves, f, capSq, BITS.CAPTURE | BITS.PROMOTION, state.gameMode);
+                            else add_move(moves, f, capSq, BITS.CAPTURE);
+                        } 
+                    }
+                }
+            } else if (pType === KNIGHT) {
+                serialize_moves(moves, f, KNIGHT_LO[f] & validTargetL, KNIGHT_HI[f] & validTargetH, {lo: enemiesSameL, hi: enemiesSameH});
+            } else if (pType === KING) {
+                serialize_moves(moves, f, KING_LO[f] & validTargetL, KING_HI[f] & validTargetH, {lo: enemiesSameL, hi: enemiesSameH});
+                if (state.castling) {
+                    let cMask = us === WHITE ? (state.castling & 3) : (state.castling & 12);
+                    if (cMask) {
+                        let rank = us === WHITE ? 0 : 7;
+                        let kSq = rank * 8 + 4;
+                        if (f === kSq && !(is_attacked(state, kSq, them))) {
+                            if (cMask & (us === WHITE ? 1 : 4)) {
+                                let rSq = rank * 8 + 7;
+                                let rMask = rSq < 32 ? (1<<rSq) : (1<<(rSq-32));
+                                if (mySameL & rMask || mySameH & rMask) {
+                                    let emptyPath = true;
+                                    for(let i=5; i<=6; i++) {
+                                        let sMask = i < 32 ? (1<<(rank*8+i)) : (1<<((rank*8+i)-32));
+                                        let occSameS = i < 32 ? (occSameL & sMask) : (occSameH & sMask);
+                                        if (occSameS) emptyPath = false;
+                                    }
+                                    if (emptyPath && !is_attacked(state, rank*8+5, them) && !is_attacked(state, rank*8+6, them)) {
+                                        let kdMask = (rank*8+6) < 32 ? (1<<(rank*8+6)) : (1<<((rank*8+6)-32));
+                                        let rdMask = (rank*8+5) < 32 ? (1<<(rank*8+5)) : (1<<((rank*8+5)-32));
+                                        let kOpp = (rank*8+6) < 32 ? (occOppL & kdMask) : (occOppH & kdMask);
+                                        let rOpp = (rank*8+5) < 32 ? (occOppL & rdMask) : (occOppH & rdMask);
+                                        if (!kOpp && !rOpp) {
+                                            add_move(moves, f, rank*8+6, BITS.KSIDE_CASTLE);
+                                        }
+                                    }
+                                }
+                            }
+                            if (cMask & (us === WHITE ? 2 : 8)) {
+                                let rSq = rank * 8 + 0;
+                                let rMask = rSq < 32 ? (1<<rSq) : (1<<(rSq-32));
+                                if (mySameL & rMask || mySameH & rMask) {
+                                    let emptyPath = true;
+                                    for(let i=1; i<=3; i++) {
+                                        let sq = rank*8+i;
+                                        let sMask = sq < 32 ? (1<<sq) : (1<<(sq-32));
+                                        let occSameS = sq < 32 ? (occSameL & sMask) : (occSameH & sMask);
+                                        if (occSameS) emptyPath = false;
+                                    }
+                                    if (emptyPath && !is_attacked(state, rank*8+3, them) && !is_attacked(state, rank*8+2, them)) {
+                                        let kdMask = (rank*8+2) < 32 ? (1<<(rank*8+2)) : (1<<((rank*8+2)-32));
+                                        let rdMask = (rank*8+3) < 32 ? (1<<(rank*8+3)) : (1<<((rank*8+3)-32));
+                                        let kOpp = (rank*8+2) < 32 ? (occOppL & kdMask) : (occOppH & kdMask);
+                                        let rOpp = (rank*8+3) < 32 ? (occOppL & rdMask) : (occOppH & rdMask);
+                                        if (!kOpp && !rOpp) {
+                                            add_move(moves, f, rank*8+2, BITS.QSIDE_CASTLE);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                let att = get_slider_attacks(pType, f, occSameL, occSameH);
+                serialize_moves(moves, f, att.lo & validTargetL, att.hi & validTargetH, {lo: enemiesSameL, hi: enemiesSameH});
+            }
+        }
+
+        var final_moves = [];
+        for (var i = 0; i < moves.length; i++) {
+            var m = moves[i];
+            if (options && options.square) {
+                if ((m & 0x3F) !== ((options.square.charCodeAt(1)-49)*8 + (options.square.charCodeAt(0)-97))) continue;
+            }
+            if (!options || options.legal !== false) {
+                var nextState = apply_move(state, m);
+                if (!is_checked(nextState, us)) final_moves.push(m);
+            } else {
+                final_moves.push(m);
+            }
+        }
+        return final_moves;
+    }
     // --------------------------------------------------------
     // VARIANT MOVE GENERATOR ROUTER (MASTER SHELL)
     // --------------------------------------------------------
-function generate_moves(state, options) {
+    function generate_moves(state, options) {
         switch(state.gameMode) {
+            case 'alice':       return generate_alice_moves(state, options);
             case 'antichess':   return generate_antichess_moves(state, options);
             case 'atomic':      return generate_atomic_moves(state, options);
             case 'bughouse':    return generate_bughouse_moves(state, options);
@@ -1039,6 +1623,19 @@ function generate_moves(state, options) {
     }
 
     function build_move_direct(state, from, to, promo) {
+        if (state.gameMode === 'alice') {
+            let legals = generate_alice_moves(state, {square: SQ_STR[from]});
+            let promoInt = promo ? (typeof promo === 'string' ? CHAR_TO_PIECE[promo.toLowerCase()] : promo) : QUEEN;
+            for(let i=0; i<legals.length; i++) {
+                let m = legals[i];
+                if (((m>>>6)&0x3F) === to) {
+                    if (m & (BITS.PROMOTION << 12)) { if (((m>>>19)&7) === promoInt) return m; } 
+                    else return m;
+                }
+            }
+            return null;
+        }
+        
         var us = state.turn, piece = (state.board[from]&7);
         if (state.board[from] === -1 || (state.board[from]>>3) !== us) return null;
         if (state.gameMode === 'duck' && state.duck_sq !== -1) {
@@ -1076,12 +1673,19 @@ function generate_moves(state, options) {
                 flags = (to === state.ep_square) ? BITS.EP_CAPTURE : BITS.CAPTURE;
             } else {
                 if (captured) return null;
-                if (diff === 16) flags = BITS.BIG_PAWN;
+                if (diff === 16) {
+                    if (state.gameMode === 'chaturanga') return null; // No double push!
+                    flags = BITS.BIG_PAWN;
+                }
             }
             var rank = Math.floor(to / 8);
             if (rank === 0 || rank === 7) {
                 flags |= BITS.PROMOTION;
-                if (!promoInt) promoInt = QUEEN;
+                if (state.gameMode === 'chaturanga') {
+                    promoInt = QUEEN; 
+                } else {
+                    if (!promoInt) promoInt = QUEEN;
+                }
             }
         } else if (piece === KING) {
             let isKDrop = (to === (us===WHITE ? 6 : 62));
@@ -1113,6 +1717,18 @@ function generate_moves(state, options) {
         } else if (captured) flags = BITS.CAPTURE;
         
         var m = from | (to << 6) | (flags << 12) | (promoInt << 19);
+        
+        if (state.gameMode === 'classical' || state.gameMode === 'chess960' || state.gameMode === '3check' || state.gameMode === 'horde' || state.gameMode === 'chaturanga') {
+            if (state.gameMode === 'chess960' && (flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE))) {
+                var next = apply_move(state, m);
+                if (!is_checked(next, us)) return m;
+                return null;
+            }
+            if (is_standard_legal_fast(state, m)) return m;
+            return null;
+        }
+
+        // Original variant slow path
         var next = apply_move(state, m);
         
         if (state.gameMode === 'racingkings') {
@@ -1200,6 +1816,22 @@ function generate_moves(state, options) {
         } else {
             if (type === KNIGHT) { candL=KNIGHT_LO[to]; candH=KNIGHT_HI[to]; }
             else if (type === KING) { candL=KING_LO[to]; candH=KING_HI[to]; }
+            else if (state.gameMode === 'chaturanga' && type === BISHOP) {
+                // ✨ Alfil SAN parsing
+                let r = to >> 3, c = to & 7;
+                [[2,2],[2,-2],[-2,2],[-2,-2]].forEach(d => {
+                    let cr = r + d[0], cc = c + d[1];
+                    if(cr>=0 && cr<8 && cc>=0 && cc<8) { let s=cr*8+cc; if(s<32) candL|=(1<<s); else candH|=(1<<(s-32)); }
+                });
+            }
+            else if (state.gameMode === 'chaturanga' && type === QUEEN) {
+                // ✨ Ferz SAN parsing
+                let r = to >> 3, c = to & 7;
+                [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d => {
+                    let cr = r + d[0], cc = c + d[1];
+                    if(cr>=0 && cr<8 && cc>=0 && cc<8) { let s=cr*8+cc; if(s<32) candL|=(1<<s); else candH|=(1<<(s-32)); }
+                });
+            }
             else {
                 let pL = bb_lo[us*6+type], pH = bb_hi[us*6+type];
                 let occL=0, occH=0; 
@@ -1286,7 +1918,7 @@ function generate_moves(state, options) {
     }
     
     function get_san(state, m) {
-        var flags = (m >>> 12) & 0xFF; // ✨ Must be 0xFF to catch BITS.DROP (128)
+        var flags = (m >>> 12) & 0xFF;
         
         // Handle Drop SAN string generation
         if (flags & BITS.DROP) {
@@ -1328,17 +1960,19 @@ function generate_moves(state, options) {
              if (count > 1) break; 
         }
 
-        if (count > 1) {
-            var ms = generate_moves(state, {legal:true}); 
-            for (var i = 0; i < ms.length; i++) {
-                var o = ms[i];
-                var o_f = o & 0x3F, o_t = (o >>> 6) & 0x3F;
-                var o_flags = (o >>> 12) & 0xFF;
-                // Exclude drops when checking for ambiguities
-                if (!(o_flags & BITS.DROP) && o_f !== from && o_t === to && state.board[o_f] !== -1 && (state.board[o_f]&7) === pType) {
-                    var mStr = SQ_STR[from], oStr = SQ_STR[o_f];
-                    if (mStr && oStr) {
-                        if (mStr[0] === oStr[0]) ambigRank = true; else ambigFile = true;
+        if (count > 1 && pType !== 0) { 
+            var tempL2 = pL, tempH2 = pH;
+            while (tempL2 || tempH2) {
+                let _sq = ctz(tempL2, tempH2);
+                if(_sq<32) tempL2 &= ~(1<<_sq); else tempH2 &= ~(1<<(_sq-32));
+                
+                if (_sq !== from) {
+                    let mTest = build_move_direct(state, _sq, to, promo);
+                    if (mTest !== null) {
+                        var mStr = SQ_STR[from], oStr = SQ_STR[_sq];
+                        if (mStr && oStr) {
+                            if (mStr[0] === oStr[0]) ambigRank = true; else ambigFile = true;
+                        }
                     }
                 }
             }
@@ -1439,12 +2073,28 @@ function generate_moves(state, options) {
                     // (Note: If both are >= 56, the in_draw() function successfully catches it as a Draw)
                 }
                 return null;
-            
+            case 'chaturanga':
+                let c_wK = state.bb_lo[WHITE*6+KING] | state.bb_hi[WHITE*6+KING];
+                let c_bK = state.bb_lo[BLACK*6+KING] | state.bb_hi[BLACK*6+KING];
+                if (!c_wK) return BLACK;
+                if (!c_bK) return WHITE;
+                
+                // ✨ Bare King Rule: If you strip the enemy of everything but their king, you win immediately!
+                let w_pieces = 0, b_pieces = 0;
+                for(let i=0; i<64; i++){
+                    let p = state.board[i];
+                    if(p !== -1) {
+                        if((p>>3) === WHITE) w_pieces++;
+                        else b_pieces++;
+                    }
+                }
+                if (w_pieces === 1 && b_pieces > 1) return BLACK;
+                if (b_pieces === 1 && w_pieces > 1) return WHITE;
+                return null;
             // These variants rely on standard checkmate/draw rules
             case 'classical':
             case 'chess960':
             case 'bughouse':
-            case 'chaturanga':
             case 'crazyhouse':
                 let std_wK = state.bb_lo[WHITE*6+KING] | state.bb_hi[WHITE*6+KING];
                 let std_bK = state.bb_lo[BLACK*6+KING] | state.bb_hi[BLACK*6+KING];
@@ -1598,14 +2248,14 @@ return {
                 m = (m & 0x3FFFFF) | (duckToUse << 22);
             }
             
-            var ret = to_obj(currentState, m, nag, null); 
+            // ✨ LEAK 1 FIXED: Pass clean_san instead of null so it stops regenerating SAN dynamically!
+            var ret = to_obj(currentState, m, nag, clean_san); 
             
             if (currentState.gameMode === 'duck') {
                 let duckSqStr = SQ_STR[(m >>> 22) & 0x3F];
                 let baseUci = ret.from + ret.to + (ret.promotion ? ret.promotion : '');
                 ret.uci = baseUci + ',' + ret.to + duckSqStr;
             } else if ((currentState.gameMode === 'crazyhouse' || currentState.gameMode === 'bughouse'|| currentState.gameMode === 'placement') && (((m >>> 12) & 0xFF) & BITS.DROP)) {
-                // ✨ Tell Fairy-Stockfish we dropped a piece!
                 let pType = m & 0x3F;
                 ret.uci = PIECE_TO_CHAR[pType].toUpperCase() + '@' + ret.to;
             } else {
@@ -1613,12 +2263,17 @@ return {
             }
             
             var nextState = apply_move(currentState, m);
+            
             var isVariantWin = check_variant_win(nextState) !== null;
             var isCheck = is_checked(nextState, nextState.turn);
-            var noMoves = generate_moves(nextState, {legal:true}).length === 0;
 
-            if (isVariantWin || (isCheck && noMoves)) ret.san += "#"; 
-            else if (isCheck) ret.san += "+";
+            // ✨ LEAK 2 FIXED: Only generate legal moves if the King is actually in check!
+            if (isVariantWin) {
+                ret.san += "#";
+            } else if (isCheck) {
+                if (generate_moves(nextState, {legal:true}).length === 0) ret.san += "#"; 
+                else ret.san += "+";
+            }
             
             if (nag) { ret.san += nag; ret.nag = nag; }
             history.push(nextState);
@@ -1626,10 +2281,16 @@ return {
             return ret;
         },
         undo: function() {
-            if (history.length > 1) {
-                history.pop();
+            if (history.length > 1) { // Keep history[0] as the permanent root
+                var undone = history.pop();
+                
+                // ✨ RECYCLE: Push the memory back into the pool!
+                if (STATE_POOL.length < 5000) STATE_POOL.push(undone);
+                
                 currentState = history[history.length - 1];
+                return undone;
             }
+            return null;
         },
         get: function(sq) { 
             var idx = str_to_sq(sq); if (idx === -1) return null;
@@ -1648,19 +2309,34 @@ return {
                 for (var f = 0; f < 8; f++) {
                     var sq = (7 - r) * 8 + f;
                     var val = currentState.board[sq];
-                    if (val !== -1) row.push({ type: PIECE_TO_CHAR[val&7], color: (val>>3)===WHITE?'w':'b' });
-                    else row.push(null);
+                    if (val !== -1) {
+                        let obj = { type: PIECE_TO_CHAR[val&7], color: (val>>3)===WHITE?'w':'b' };
+                        // ✨ Export Alice Board B state!
+                        if (currentState.gameMode === 'alice') {
+                            if (sq < 32 ? (currentState.alice_b.lo & (1<<sq)) : (currentState.alice_b.hi & (1<<(sq-32)))) {
+                                obj.isBoardB = true;
+                            }
+                        }
+                        row.push(obj);
+                    } else {
+                        row.push(null);
+                    }
                 }
                 b.push(row);
             }
             return b;
         },
         turn: function() { return currentState.turn===WHITE?'w':'b'; },
-
         variant_winner: function() { 
             let res = check_variant_win(currentState);
             if (res === WHITE) return 'w';
             if (res === BLACK) return 'b';
+
+            if (currentState.gameMode === 'chaturanga') {
+                if (!is_checked(currentState, currentState.turn) && generate_chaturanga_moves(currentState, {legal:true}).length === 0) {
+                    return currentState.turn === WHITE ? 'b' : 'w';
+                }
+            }
             return null;
         },
         get_duck_sq: function() { return currentState.duck_sq; },
@@ -1711,7 +2387,10 @@ return {
             // A lone Knight or Bishop can easily deliver checks, 
             // so they are NOT insufficient! The game must go on!(Although with a knight it's a theoritical draw)
             if (s.gameMode === '3check' || s.gameMode === 'antichess'||s.gameMode === 'atomic') return false;
-
+            if (s.gameMode === 'chaturanga') {
+                if (num_pieces === 2) return true; // Only K vs K is a draw
+                return false; 
+            }
             if (num_pieces === 3 && (num_knights === 1 || num_bishops === 1)) return true;
             if (num_pieces === num_bishops + 2) {
                 if (sum_bishop_colors === 0 || sum_bishop_colors === num_bishops) return true;

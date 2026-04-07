@@ -29,7 +29,7 @@ constructor() {
         this.arrowDragStart = null;
         this.isRightClick = false;
         this.moveInputMode = 'both';
-
+        this.hideNextMoves = false;
         this.initDraggableSettings();
         this.avatars = { w: ``, b: `` };
         this.playerInfo = { w: {}, b: {} };
@@ -58,6 +58,9 @@ constructor() {
                 }
             }
         }, 50);
+        setTimeout(() => {
+            this.injectVariantRuleButtons();
+        }, 1000);
     }
 setGame(gameInstance) {
         this.#game = gameInstance;
@@ -420,6 +423,76 @@ init() {
         }
         const enginePanel = document.getElementById('enginePanel');
         if (enginePanel) enginePanel.style.display = isEditor ? 'none' : '';
+    }
+showVariantRules(variantMode) {
+        const mode = variantMode || (this.#game ? this.#game.gameMode : 'classical');
+        const rules = {
+            'classical': 'Standard rules of chess. Checkmate the opponent to win.',
+            'chess960': 'Fischer Random Chess. Pieces on the home rank are randomized. Castling rules adapt to the starting position.',
+            '3check': 'First player to check the opponent\'s King 3 times wins.',
+            'antichess': 'Capturing is strictly forced if available. Kings have no royal power and can be captured. First to lose all pieces wins.',
+            'atomic': 'Capturing causes an explosion, destroying the capturing piece and all surrounding pieces (except pawns). Kings cannot capture. Explode the enemy king to win.',
+            'bughouse': 'Captured enemy pieces change color and go into your shared team pocket. Drop them on empty squares instead of moving.(Not supported yet)',
+            'chaturanga': 'Ancient chess. Queens move 1 square diagonally. Bishops jump exactly 2 squares diagonally. Pawns strictly promote to a Queen (Ferz). No castling. Stalemate or Bare King is a win.',            
+            'crazyhouse': 'Captured enemy pieces change to your color and go into your pocket. Drop them on empty squares instead of moving.',
+            'duck': 'A neutral duck blocks one square. After moving a piece, you MUST move the duck to a new empty square. No checks or checkmates; capture the enemy king to win.',
+            'horde': 'Black has a standard army. White has 36 pawns. White wins by checkmating Black. Black wins by destroying all White pawns.',
+            'kingofthehill': 'First player to move their king to one of the 4 center squares (d4, d5, e4, e5) wins.',
+            'racingkings': 'First player to move their king to the 8th rank wins. Checks are completely illegal.',
+            'placement': 'Start with an empty board. Players take turns placing their pieces on their half of the board. Once all pieces are placed, a standard game begins.',
+            'alice': 'Played across two dimensions (Board A and B). Moving a piece transfers it to the opposite board. A move is only legal if the destination square on the opposite board is empty. Note: En Passant is disabled.'
+        };
+
+        const icons = {
+            'classical': './assets/tabs-icon/setup_chess.svg',
+            'chess960': './assets/tabs-icon/live_960_green.svg',
+            '3check': './assets/tabs-icon/3check.svg',
+            'antichess': './assets/tabs-icon/giveaway.svg',
+            'atomic': './assets/tabs-icon/variant-atomic.svg',
+            'bughouse': './assets/tabs-icon/bughouse.svg',
+            'chaturanga': './assets/tabs-icon/chaturanga.svg',
+            'crazyhouse': './assets/tabs-icon/crazyhouse.svg',
+            'duck': './assets/tabs-icon/variant-duckchess.svg',
+            'horde': './assets/tabs-icon/horde.svg',
+            'kingofthehill': './assets/tabs-icon/koth.svg',
+            'racingkings': './assets/tabs-icon/racing_kings.svg',
+            'placement': './assets/tabs-icon/setup_chess.svg',
+            'alice': '📖'
+        };
+
+        const ruleText = rules[mode] || rules['classical'];
+        const formattedTitle = mode.charAt(0).toUpperCase() + mode.slice(1) + ' Rules';
+        
+        const iconSrc = icons[mode] || '📖';
+        const iconHtml = iconSrc.endsWith('.svg') ? `<img src="${iconSrc}" style="width:40px; height:40px; vertical-align:middle; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">` : iconSrc;
+
+        if (typeof this.showNotification === 'function') {
+            this.showNotification(ruleText, formattedTitle, iconHtml);
+        } else {
+            alert(`${formattedTitle}\n\n${ruleText}`);
+        }
+    }
+injectVariantRuleButtons() {
+        const selectors = document.querySelectorAll('select');
+        selectors.forEach(select => {
+            if (select.id && select.id.toLowerCase().includes('variant')) {
+                // Check if button already exists to prevent duplicates
+                if (select.nextElementSibling && select.nextElementSibling.classList.contains('variant-rule-btn')) return;
+                
+                const btn = document.createElement('button');
+                btn.innerText = '❓';
+                btn.className = 'variant-rule-btn';
+                btn.title = "Variant Rules";
+                btn.style.cssText = "background:none; border:none; color:#38bdf8; cursor:pointer; font-size:16px; transition: 0.2s;";
+                btn.onmouseover = () => btn.style.transform = "scale(1.2)";
+                btn.onmouseout = () => btn.style.transform = "scale(1)";
+                btn.onclick = () => this.showVariantRules(select.value);
+                
+                select.parentNode.insertBefore(btn, select.nextSibling);
+                select.parentNode.style.display = 'flex';
+                select.parentNode.style.alignItems = 'center';
+            }
+        });
     }
 initThemeButtons() {
         // 1. Find all preset theme buttons in the HTML
@@ -1059,6 +1132,96 @@ populatePieceSets() {
         localOpt.value = 'local';
         localOpt.innerText = 'Local Folder';
         selector.appendChild(localOpt);
+    }
+toggleHideNextMoves(forceState = null) {
+        // ✨ THE FIX: Allow the engine to explicitly command the state!
+        if (forceState !== null) {
+            this.hideNextMoves = forceState;
+        } else {
+            this.hideNextMoves = !this.hideNextMoves;
+        }
+        
+        const btns = document.querySelectorAll('.hide-moves-btn');
+        btns.forEach(btn => {
+            btn.innerText = this.hideNextMoves ? '🙈' : '👁️';
+            btn.title = this.hideNextMoves ? 'Show Next Moves' : 'Hide Next Moves';
+            btn.style.filter = this.hideNextMoves ? 'none' : 'grayscale(100%)';
+        });
+        
+        this.applyHideNextMoves();
+
+        if (!this._hideMovesObserver) {
+            const pgnBox = document.getElementById('moveHistory');
+            if (pgnBox) {
+                this._hideMovesObserver = new MutationObserver(() => {
+                    if (this.hideNextMoves) {
+                        this._hideMovesObserver.disconnect();
+                        this.applyHideNextMoves();
+                        this._hideMovesObserver.observe(pgnBox, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+                    }
+                });
+                this._hideMovesObserver.observe(pgnBox, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+            }
+        }
+    }
+applyHideNextMoves() {
+        const pgnBox = document.getElementById('moveHistory');
+        if (!pgnBox) return;
+
+        // ✨ TRUE TREE MATH: Get the EXACT path of the current variation from the engine memory!
+        // This guarantees that alternate sublines stay blurred out.
+        const activePathIds = new Set();
+        if (this.#game) {
+            let curr = this.#game.currentNode;
+            while (curr) {
+                if (curr.id) activePathIds.add(curr.id);
+                curr = curr.parent;
+            }
+        }
+
+        const allMoves = pgnBox.querySelectorAll('.move-ply, .tree-move, .var-move');
+        const activeMove = pgnBox.querySelector('.active');
+        
+        let isAtStart = (this.#game && this.#game.currentNode === this.#game.rootNode);
+        let passedActive = isAtStart;
+
+        allMoves.forEach(moveEl => {
+            let isVisible = true;
+
+            // Attempt to read the Engine Node ID from the DOM element
+            let nodeId = moveEl.dataset.id || moveEl.id;
+            if (!nodeId && moveEl.getAttribute('onclick')) {
+                const match = moveEl.getAttribute('onclick').match(/['"](p-\d+)['"]/);
+                if (match) nodeId = match[1];
+            }
+
+            // STRATEGY A (Tree Math): If we found an ID, check if it belongs to our exact active variation
+            if (nodeId) {
+                isVisible = activePathIds.has(nodeId);
+            } 
+            // STRATEGY B (Linear Math): Fallback just in case the UI couldn't find the Node ID
+            else {
+                if (moveEl === activeMove) {
+                    passedActive = true;
+                    isVisible = true; 
+                } else {
+                    isVisible = !passedActive;
+                }
+            }
+
+            // Apply the visual styles
+            if (!isVisible && this.hideNextMoves) {
+                moveEl.style.filter = 'blur(4px)';
+                moveEl.style.opacity = '0.3';
+                moveEl.style.pointerEvents = 'none';
+                moveEl.style.userSelect = 'none';
+            } else {
+                moveEl.style.filter = '';
+                moveEl.style.opacity = '1';
+                moveEl.style.pointerEvents = 'auto';
+                moveEl.style.userSelect = 'auto';
+            }
+        });
     }
 toggleAnimations() {
         const checkbox = document.getElementById('enableAnimations');
@@ -2197,6 +2360,7 @@ startDrag(e, idx, piece) {
                 } else {
                     const sq = document.querySelector(`.piece[data-id='${piece.id}']`);
                     if (sq) sq.classList.add('dragging-source');
+                    this.#emit('soundTriggered', { type: 'click' });
                 }
             } else {
                 this.duckPlacementMoves = null;
@@ -2379,6 +2543,9 @@ finishDrag(e) {
                             this.executeMove(move, false);
                             moveMade = true;
                         }
+                        else {
+                            this.#emit('soundTriggered', { type: 'illegal' });
+                        }
                     }
                 }
             }
@@ -2429,9 +2596,123 @@ syncEditorHTMLWithGame() {
             }
         }
     }
-executeMove(move, animate = true, promoOverride = null) {
+updateLessonUI() {
+        if (!this.#game || this.#game.mode !== 'lesson') return;
+        const totalSteps = this.#game.lessonData.steps.length;
+        const currentStepIdx = this.#game.lessonStep;
+        const step = this.#game.lessonData.steps[currentStepIdx];
+        
+        const progBar = document.getElementById('lesson-progress-bar');
+        if (progBar) progBar.style.width = `${(currentStepIdx / totalSteps) * 100}%`;
+
+        if (step) {
+            document.getElementById('lesson-instruction').innerText = step.instruction;
+        } else {
+            document.getElementById('lesson-instruction').innerText = "🎉 Lesson Complete! You've mastered this concept.";
+            document.getElementById('lesson-feedback').innerText = "";
+            if (progBar) progBar.style.width = "100%";
+        }
+}
+executeMove(move, animate = true) {
         const state = this.#game ? this.#game.getReader() : null;
-        if (!state) return;
+        
+        const chapter = (state && state.chapters) ? state.chapters[state.activeChapterIndex] : null;
+        const isLichessInteractive = state && state.mode === 'study' && chapter && chapter.analysisMode && chapter.analysisMode.toLowerCase().includes('interactive');
+        
+        if (state && (state.mode === 'lesson' || isLichessInteractive)) {
+            let isCorrect = false;
+            let successTxt = "Correct!";
+            let failTxt = "Inaccuracy! Try finding a better move.";
+            let botResponseMove = null;
+
+            // Safely parse the user's attempted move into a UCI string (e.g. e2e4)
+            let attemptFrom = typeof move.from === 'number' ? this.#game.indexToSquare(move.from) : move.from;
+            let attemptTo = typeof move.to === 'number' ? this.#game.indexToSquare(move.to) : move.to;
+            const attemptedUci = move.uci || (attemptFrom + attemptTo + (move.promotion || ''));
+
+            // ==========================================
+            // 1. Custom Lesson Mode
+            // ==========================================
+            if (state.mode === 'lesson') {
+                const step = this.#game.lessonData.steps[this.#game.lessonStep];
+                if (!step) return; // Lesson over
+                
+                const expected = step.expectedMove;
+                isCorrect = Array.isArray(expected) ? expected.includes(attemptedUci) : attemptedUci === expected;
+                successTxt = step.successText || "Correct!";
+                failTxt = "❌ Incorrect move. Read the instructions and try again!";
+                
+                if (isCorrect) {
+                    this.#game.lessonStep++;
+                    botResponseMove = step.opponentResponse; 
+                }
+            } 
+            // ==========================================
+            // 2. Lichess Study Interactive Mode
+            // ==========================================
+            else {
+                const expectedNode = this.#game.currentNode.children[0];
+                if (expectedNode && expectedNode.lastMove) {
+                    const lm = expectedNode.lastMove;
+                    const fromStr = typeof lm.from === 'number' ? this.#game.indexToSquare(lm.from) : lm.from;
+                    const toStr = typeof lm.to === 'number' ? this.#game.indexToSquare(lm.to) : lm.to;
+                    const expectedUci = fromStr + toStr + (lm.promotion || '');
+                    
+                    isCorrect = (attemptedUci === expectedUci);
+                    
+                    if (isCorrect) {
+                        const botNode = expectedNode.children[0];
+                        if (botNode && botNode.lastMove) {
+                            const bm = botNode.lastMove;
+                            const bFrom = typeof bm.from === 'number' ? this.#game.indexToSquare(bm.from) : bm.from;
+                            const bTo = typeof bm.to === 'number' ? this.#game.indexToSquare(bm.to) : bm.to;
+                            botResponseMove = bFrom + bTo + (bm.promotion || '');
+                        }
+                    }
+                } else {
+                    isCorrect = true; // No more moves in the study tree
+                }
+            }
+
+            // --- Apply Validation ---
+            if (!isCorrect) {
+                const feedbackEl = document.getElementById('lesson-feedback');
+                if (feedbackEl) {
+                    feedbackEl.innerText = failTxt;
+                    feedbackEl.style.color = "#fa412d";
+                } else {
+                    this.showNotification(failTxt, "Incorrect", "❌");
+                }
+                this.renderBoard(false); // Snap piece back
+                return; // 🛑 BLOCK EXECUTION
+            }
+
+            // CORRECT MOVE!
+            const feedbackEl = document.getElementById('lesson-feedback');
+            if (feedbackEl) {
+                feedbackEl.innerText = "✅ " + successTxt;
+                feedbackEl.style.color = "#26c2a3";
+            } else {
+                this.showNotification("Good move!", "Correct", "✅");
+            }
+            
+            // Queue Opponent Response
+            if (botResponseMove) {
+                setTimeout(() => {
+                    // Hijack the playUCI command to seamlessly bypass the interceptor
+                    if (this.#game && typeof this.#game.playUCI === 'function') {
+                        this.#game.playUCI(botResponseMove);
+                    }
+                    if (typeof this.updateLessonUI === 'function') this.updateLessonUI();
+                }, 600);
+            } else {
+                setTimeout(() => {
+                    if (typeof this.updateLessonUI === 'function') this.updateLessonUI();
+                    else this.showNotification("Lesson Complete!", "Success", "🏆");
+                }, 100);
+            }
+            // By NOT returning here, we allow the user's correct move to slide down into the engine!
+        }
         
         const isDrop = move.from === '@';
         let destIdx = move.to;
@@ -2459,7 +2740,7 @@ executeMove(move, animate = true, promoOverride = null) {
         const isPawn = (piece.type.toLowerCase() === 'p');
         const destRank = Math.floor(destIdx / 8);
         const isRank8 = (destRank === 0 || destRank === 7);
-        let promoChar = promoOverride;
+        let promoChar = null; 
         
         if (!isDrop && isPawn && isRank8 && !promoChar) {
             const autoQueen = document.getElementById('autoQueen')?.checked;
@@ -2489,7 +2770,7 @@ executeMove(move, animate = true, promoOverride = null) {
         
         this.selectedSq = null;
         this.legalMoves = [];
-        this.renderBoard(animate, animate); // This will now securely animate!
+        this.renderBoard(animate, animate); 
         this.updateHistory();
         this.updateClocks();
         this.renderArrows();
@@ -2766,7 +3047,19 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 el.onmousedown = (e) => { if (e.button === 0) this.startDrag(e, p.idx, p); };
             }
 
-            el.style.opacity = '1';
+            // ✨ ALICE CHESS VISUALS: Dim and shift color for pieces on Board B!
+            if (p.isBoardB) {
+                el.style.filter = 'hue-rotate(180deg) drop-shadow(0 0 5px cyan)';
+                el.style.opacity = '0.6';
+                const innerImg = el.querySelector('img');
+                if (innerImg) innerImg.style.transform = 'scale(0.80)'; // Safely shrink the child element!
+            } else {
+                el.style.filter = 'none';
+                el.style.opacity = '1';
+                const innerImg = el.querySelector('img');
+                if (innerImg) innerImg.style.transform = 'none';
+            }
+
             let r = Math.floor(p.idx / 8); let c = p.idx % 8;
             if (this.flipped) { r = 7 - r; c = 7 - c; }
             const targetTransform = `translate(${c * 100}%, ${r * 100}%)`;
@@ -3101,6 +3394,9 @@ updateHistory(force = false) {
                 this.isHistoryUpdatePending = false;
             }
         });
+        if (typeof this.applyHideNextMoves === 'function') {
+            this.applyHideNextMoves();
+        }
     }
 renderHistoryImmediate() {
         const list = document.getElementById('moveHistory');
@@ -3969,6 +4265,7 @@ showNotification(message, title ="System Message", icon ="ℹ️") {
             content.style.animation ='none'; content.offsetHeight;
             content.style.animation ='modalPop 0.2s ease-out forwards';
             modal.style.display ='flex';
+            this.#emit('soundTriggered', { type: 'notification' });
         } else { alert(message); }
     }
 hideNotification() {
@@ -4443,6 +4740,7 @@ processTrashAction(e) {
                 this.#game.editBoard(idx, null);
                 this.renderBoard(false);       
                 if (window.engineAnalysing) this.#game.updateStockfish();
+                this.#emit('soundTriggered', { type: 'scatter' });
             }
         }
     }
@@ -4452,6 +4750,7 @@ editorClear() {
             if (typeof this.#game.syncEngineToBoard === 'function') this.#game.syncEngineToBoard(); 
             this.renderBoard(false);
             this.updateEditorInputs();
+            this.#emit('soundTriggered', { type: 'scatter' });
         }
     }
 editorReset() {
@@ -5418,10 +5717,24 @@ exportEmbed() {
         if (!this.#game) return;
         const modal = document.getElementById('exportEmbededModal');
         if (modal) {
-            const mainPieceSelect = document.getElementById('assetType'); const embedPieceSelect = document.getElementById('embedPieceTheme');
-            if (!this._embedSelectsPopulated && mainPieceSelect && embedPieceSelect) { embedPieceSelect.innerHTML = mainPieceSelect.innerHTML; this._embedSelectsPopulated = true; }
-            if (mainPieceSelect && embedPieceSelect) embedPieceSelect.value = mainPieceSelect.value;
-            const activeThemeDiv = document.querySelector('.theme-preset.active span'); const embedThemeSelect = document.getElementById('embedBoardTheme');
+            // ✨ AUTO-DETECT PIECES FIX
+            const mainPieceSelect = document.getElementById('assetType'); 
+            const embedPieceSelect = document.getElementById('embedPieceTheme');
+            if (!this._embedSelectsPopulated && mainPieceSelect && embedPieceSelect) { 
+                embedPieceSelect.innerHTML = mainPieceSelect.innerHTML; 
+                // Remove local option (iframes can't load local PC files)
+                Array.from(embedPieceSelect.options).forEach(opt => {
+                    if (opt.value === 'local') opt.remove();
+                });
+                this._embedSelectsPopulated = true; 
+            }
+            if (mainPieceSelect && embedPieceSelect) {
+                const currentPiece = mainPieceSelect.value;
+                embedPieceSelect.value = currentPiece !== 'local' ? currentPiece : 'cburnett';
+            }
+
+            const activeThemeDiv = document.querySelector('.theme-preset.active span'); 
+            const embedThemeSelect = document.getElementById('embedBoardTheme');
             if (activeThemeDiv && embedThemeSelect) embedThemeSelect.value = activeThemeDiv.innerText.trim().toLowerCase();
 
             if (!this._embedListenersSetup) {
@@ -5433,41 +5746,85 @@ exportEmbed() {
                 const sliderEl = document.getElementById('embedSizeSlider');
                 if (sliderEl) {
                     sliderEl.addEventListener('input', (e) => {
-                        const val = e.target.value; const heightEl = document.getElementById('embedHeight'); if (heightEl) heightEl.value = val + 'px';
-                        const previewBoard = document.getElementById('embedPreviewBoard'); if (previewBoard) previewBoard.style.transform = `scale(${val / 480})`;
+                        const val = e.target.value; 
+                        const heightEl = document.getElementById('embedHeight'); 
+                        if (heightEl) heightEl.value = val + 'px';
+                        // ✨ Removed the static scale transform. The live iframe handles itself!
                         this.generateEmbedCodes();
                     });
                 }
                 this._embedListenersSetup = true;
             }
-            this.generateEmbedCodes(); modal.style.display = 'flex';
+            this.generateEmbedCodes(); 
+            modal.style.display = 'flex';
             if (typeof this.resizeApp === 'function') this.resizeApp();
-        } else { this.generateEmbedCodes(true); }
+        } else { 
+            this.generateEmbedCodes(true); 
+        }
     }
 generateEmbedCodes(copyToClipboard = false) { 
         if (!this.#game) return;
-        const pgn = typeof this.#game.generatePGN === 'function' ? this.#game.generatePGN() : '';
-        const baseUrl = window.location.origin + window.location.pathname; const gameId = this.#game.id || Math.floor(Math.random() * 10000000); const embedId = 'embed-' + gameId;
-        const boardEl = document.getElementById('embedBoardTheme'); const pieceEl = document.getElementById('embedPieceTheme');
-        const coordsEl = document.getElementById('embedShowCoords'); const puzzleEl = document.getElementById('embedPuzzleMode');
-        const widthEl = document.getElementById('embedWidth'); const heightEl = document.getElementById('embedHeight');
-        const theme = boardEl ? boardEl.value : 'default'; const pieces = pieceEl ? pieceEl.value : 'cburnett';
-        const coords = coordsEl ? coordsEl.checked : true; const puzzle = puzzleEl ? puzzleEl.checked : false;
-        const width = widthEl && widthEl.value.trim() !== '' ? widthEl.value : '100%'; const height = heightEl && heightEl.value.trim() !== '' ? heightEl.value : '480px';
-        const themeColors = { 'default': '#2bb7ca', 'marble': '#7d8796', 'green': '#769656', 'blue': '#60b1d9', 'purple': '#7a5c8d', 'pink': '#d960cb', 'fire': '#e83a3a', 'neon': '#0b3c5d', 'cyberpunk': '#0f3460', 'galaxy': '#2d1b4e', 'pumpkin': '#ff6b35', 'ice': '#e0f7fa' };
-        const previewBoard = document.getElementById('embedPreviewBoard'); if (previewBoard && themeColors[theme]) previewBoard.style.background = themeColors[theme];
+        const pgn = typeof this.#game.generatePGN === 'function' ? this.#game.generatePGN('both') : '';
+        const baseUrl = window.location.origin + window.location.pathname; 
+        const gameId = this.#game.id || Math.floor(Math.random() * 10000000); 
+        const embedId = 'embed-' + gameId;
+        
+        const boardEl = document.getElementById('embedBoardTheme'); 
+        const pieceEl = document.getElementById('embedPieceTheme');
+        const coordsEl = document.getElementById('embedShowCoords'); 
+        const puzzleEl = document.getElementById('embedPuzzleMode');
+        const widthEl = document.getElementById('embedWidth'); 
+        const heightEl = document.getElementById('embedHeight');
+        
+        const theme = boardEl ? boardEl.value : 'default'; 
+        const pieces = pieceEl ? pieceEl.value : 'cburnett';
+        const coords = coordsEl ? coordsEl.checked : true; 
+        const puzzle = puzzleEl ? puzzleEl.checked : false;
+        const width = widthEl && widthEl.value.trim() !== '' ? widthEl.value : '100%'; 
+        const height = heightEl && heightEl.value.trim() !== '' ? heightEl.value : '480px';
 
         let params = new URLSearchParams();
-        if (pgn) params.append('pgn', pgn); params.append('theme', theme); params.append('pieces', pieces); params.append('coords', coords); if (puzzle) params.append('puzzle', 'true');
-        const directUrl = `${baseUrl}?${params.toString()}`; params.append('embed', 'true'); params.append('embedId', embedId); const embedUrl = `${baseUrl}?${params.toString()}`;
-        const embedHtml = `<iframe id="${embedId}" allowtransparency="true" frameborder="0" style="width:${width}; border:none; min-height:${height};" src="${embedUrl}"></iframe><script nonce="chess-diagram">window.addEventListener("message",e=>{e['data']&&"${embedId}"===e['data']['id']&&document.getElementById(e['data']['id'])&&(document.getElementById(e['data']['id']).style.height=\`\${e['data']['frameHeight']+37}px\`)});<\/script>`;
+        if (pgn) params.append('pgn', encodeURIComponent(pgn)); // ✨ MUST BE ENCODED for iframe URL
+        params.append('theme', theme); 
+        params.append('pieces', pieces); 
+        params.append('coords', coords); 
+        if (puzzle) params.append('puzzle', 'true');
         
-        if (copyToClipboard) { navigator.clipboard.writeText(embedHtml).then(() => { if(typeof this.showNotification === 'function') this.showNotification("Embed Copied", "✅ Embed HTML copied!"); }); return; }
-        const iframeBox = document.getElementById('embedIframeCode'); const linkBox = document.getElementById('shareGameLink'); const gidBox = document.getElementById('embedGidCode');
-        if (iframeBox) iframeBox.value = embedHtml; if (linkBox) linkBox.value = directUrl; if (gidBox) gidBox.value = `[gid=${gameId}]`;
+        const directUrl = `${baseUrl}?${params.toString()}`; 
+        params.append('embed', 'true'); 
+        params.append('embedId', embedId); 
+        const embedUrl = `${baseUrl}?${params.toString()}`;
+        
+        const embedHtml = `<iframe id="${embedId}" allowtransparency="true" frameborder="0" style="width:${width}; border:none; min-height:${height};" src="${embedUrl}"></iframe>\n<script nonce="chess-diagram">window.addEventListener("message", function(e) { if(e.data && e.data.id === "${embedId}") { var el = document.getElementById(e.data.id); if(el) el.style.height = (e.data.frameHeight + 37) + 'px'; } });<\/script>`;
+        
+        if (copyToClipboard) { 
+            navigator.clipboard.writeText(embedHtml).then(() => { 
+                if(typeof this.showNotification === 'function') this.showNotification("Embed HTML copied!", "Success", "✅"); 
+            }); 
+            return; 
+        }
+        
+        const iframeBox = document.getElementById('embedIframeCode'); 
+        const linkBox = document.getElementById('shareGameLink'); 
+        const gidBox = document.getElementById('embedGidCode');
+        
+        if (iframeBox) iframeBox.value = embedHtml; 
+        if (linkBox) linkBox.value = directUrl; 
+        if (gidBox) gidBox.value = `[gid=${gameId}]`;
+
+        // ✨ THE FIX: Render the LIVE Iframe into the new Preview Box!
+        const previewContainer = document.getElementById('liveEmbedPreview');
+        if (previewContainer) {
+            previewContainer.innerHTML = `<iframe src="${embedUrl}" style="width: 100%; height: 100%; border: none; position: relative; z-index: 1;"></iframe>`;
+        }
     }
 readEmbedFile(file) { 
-        const reader = new FileReader(); reader.onload = (e) => { document.getElementById('embedTextInput').value = e.target.result; if (typeof this.showNotification === 'function') this.showNotification(`File "${file.name}" read successfully!`, 'success'); }; reader.readAsText(file);
+        const reader = new FileReader(); 
+        reader.onload = (e) => { 
+            document.getElementById('embedTextInput').value = e.target.result; 
+            if (typeof this.showNotification === 'function') this.showNotification(`File "${file.name}" read successfully!`, 'success', '📄'); 
+        }; 
+        reader.readAsText(file);
     }
 handleEmbedFileUpload(event) { const file = event.target.files[0]; this.readEmbedFile(file); event.target.value = ''; }
 handleEmbedDragOver(event) { event.preventDefault(); event.stopPropagation(); event.currentTarget.style.background = 'rgba(56, 189, 248, 0.3)'; }
@@ -5477,12 +5834,21 @@ submitEmbedText() {
         const text = document.getElementById('embedTextInput').value.trim();
         if (text) {
             if (this.#game && typeof this.#game.loadPGN === 'function') {
-                this.#game.loadPGN(text); this.renderBoard(false); this.updateHistory(true);
+                // If it's an iframe, extract the PGN from the URL
+                let pgnToLoad = text;
+                const urlMatch = text.match(/src="([^"]+)"/);
+                if (urlMatch && urlMatch[1]) {
+                    const urlParams = new URL(urlMatch[1].replace(/&amp;/g, '&'), window.location.origin).searchParams;
+                    if (urlParams.has('pgn')) pgnToLoad = decodeURIComponent(urlParams.get('pgn'));
+                }
+                this.#game.loadPGN(pgnToLoad); 
+                this.renderBoard(false); 
+                this.updateHistory(true);
             }
             document.getElementById('embedImporterModal').style.display = 'none';
-            if (typeof this.showNotification === 'function') this.showNotification("Embed imported successfully!", "success");
+            if (typeof this.showNotification === 'function') this.showNotification("Embed imported successfully!", "Success", "✅");
         } else {
-            if (typeof this.showNotification === 'function') this.showNotification("Please paste code or upload a file first.", "error");
+            if (typeof this.showNotification === 'function') this.showNotification("Please paste code or upload a file first.", "Error", "❌");
         }
     }
 toggleCheckboxes(className, state) { document.querySelectorAll('.' + className).forEach(cb => cb.checked = state); }

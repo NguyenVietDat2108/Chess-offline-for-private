@@ -15,21 +15,32 @@ class ChessApp {
         this.game.setUI(this.ui);
         this.ui.setGame(this.game);
 
-        // 2. 🔥 THE MISSING SWITCHBOARD: Catch the encapsulated Game events!
+        // 2. THE SWITCHBOARD: Catch the encapsulated Game events!
         this.bindEvents();
 
         this.ui.init();
         
+        // ✨ INSTANT PRELOAD FIX: Optimistically render the engine name!
         const lastVariant = localStorage.getItem('chess_last_variant') || 'classical';
+        const isFairy = !['classical', 'chess960'].includes(lastVariant);
+        const cachedName = isFairy ? "Fairy-Stockfish 14 NNUE" : (localStorage.getItem('chess_cached_engine_name') || "Stockfish 18");
+        
+        if (typeof this.ui.updateEngineName === 'function') {
+            this.ui.updateEngineName(cachedName);
+        }
+        window.currentEngineShortName = cachedName;
+
         const variantSelect = document.getElementById('analysisVariantSelect');
         if (variantSelect) variantSelect.value = lastVariant;
         
+        // Boot the game rules and workers
         requestAnimationFrame(() => {
             setTimeout(() => {
                 if (this.game) this.game.setGameMode(lastVariant, true);
             }, 200);
         });
     }
+        
 
     bindEvents() {
         // 1. Core Board Synchronization
@@ -63,9 +74,11 @@ class ChessApp {
 
         // 2. Route Sounds cleanly to the SoundManager
         this.game.on('soundTriggered', (data) => {
-            if (typeof SoundManager !== 'undefined') {
-                const vol = this.ui.volume !== undefined ? this.ui.volume : 0.7;
-                SoundManager.play(data.type, vol, data.destSquare);
+            if (typeof window.SoundManager !== 'undefined') {
+                const volEl = document.getElementById('soundVolume');
+                const vol = volEl ? parseFloat(volEl.value) : 0.7;
+                
+                window.SoundManager.play(data.type, vol, data.destSquare);
             }
         });
 
@@ -178,6 +191,22 @@ class ChessApp {
             if (typeof this.ui.updateHistory === 'function') {
                 this.ui.updateHistory();
             }
+        });
+        this.game.on('lessonStarted', (data) => {
+            const panel = document.getElementById('lesson-panel');
+            if (panel) panel.style.display = 'block';
+            const titleEl = document.getElementById('lesson-title');
+            if (titleEl) titleEl.innerText = data.title;
+            
+            const feedbackEl = document.getElementById('lesson-feedback');
+            if (feedbackEl) feedbackEl.innerText = "";
+            
+            if (typeof this.ui.updateLessonUI === 'function') this.ui.updateLessonUI();
+        });
+
+        this.game.on('lessonEnded', () => {
+            const panel = document.getElementById('lesson-panel');
+            if (panel) panel.style.display = 'none';
         });
     }
 }

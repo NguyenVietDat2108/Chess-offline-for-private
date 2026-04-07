@@ -25,7 +25,6 @@ constructor() {
         if (typeof localStorage !== 'undefined') {
             const savedPgn = localStorage.getItem(`chess_variant_pgn_${this.gameMode}`);
             if (savedPgn) {
-                // Extract the exact FEN from the saved PGN headers
                 const fenMatch = savedPgn.match(/\[FEN\s+"([^"]+)"\]/i);
                 if (fenMatch && fenMatch[1]) {
                     startingFen = fenMatch[1];
@@ -36,8 +35,7 @@ constructor() {
         this.rootNode = new MoveNode(startingFen, null);
         this.currentNode = this.rootNode;
         this.pgnHeaders = {};
-        this.availableModes = ['classical', 'chess960', '3check', 'antichess', 'atomic', 'bughouse', 'chaturanga', 'crazyhouse', 'duck', 'horde', 'kingofthehill', 'racingkings', 'placement'];
-        
+        this.availableModes = ['classical', 'chess960', '3check', 'antichess', 'atomic', 'bughouse', 'chaturanga', 'crazyhouse', 'duck', 'horde', 'kingofthehill', 'racingkings', 'placement', 'alice'];        
         this.whiteStartSeconds = 600;
         this.blackStartSeconds = 600;
         this.whiteIncrement = 0;
@@ -75,6 +73,14 @@ constructor() {
         this.isPaused = false;
         this.botColor = null;
         this.puzzleActive = false;
+
+        // ✨ THE FIX: Initialize all puzzle tracking variables here so the QA scanner sees them instantly!
+        this.isFetchingPuzzles = false;
+        this.puzzleQueue = [];
+        this.puzzleCursor = 0;
+        this.puzzleScore = 0;
+        this.puzzleStrikes = 0;
+
         this.castling = { wK:true, wQ:true, bK:true, bQ:true };
         this.enPassant = null;
         this.premoveQueue = [];
@@ -208,24 +214,18 @@ getReader() {
                 if (/\d/.test(char)) {
                     idx += parseInt(char);
                 } else if (char === '~') {
-                    // ✨ CRAZYHOUSE FIX: '~' means the previous piece was promoted. Do NOT increment idx!
+                    // ✨ CRAZYHOUSE / ALICE FIX: '~' means promoted OR phased to Board B!
                     if (newPieces.length > 0) {
-                        newPieces[newPieces.length - 1].promoted = true;
+                        if (this.gameMode === 'alice') newPieces[newPieces.length - 1].isBoardB = true;
+                        else newPieces[newPieces.length - 1].promoted = true;
                     }
                 } else if (char === '*') {
-                    // ✨ DUCK CHESS FIX: Format the duck correctly so it keeps its ID and animates!
-                    newPieces.push({ 
-                        type: 'duck', color: 'none', idx, 
-                        r: Math.floor(idx / 8), c: idx % 8, id: null 
-                    });
+                    newPieces.push({ type: 'duck', color: 'none', idx, r: Math.floor(idx / 8), c: idx % 8, id: null });
                     idx++;
                 } else {
                     const color = (char === char.toUpperCase()) ? 'w' : 'b';
                     const type = char.toLowerCase();
-                    newPieces.push({ 
-                        type, color, idx, 
-                        r: Math.floor(idx / 8), c: idx % 8, id: null 
-                    });
+                    newPieces.push({ type, color, idx, r: Math.floor(idx / 8), c: idx % 8, id: null });
                     idx++;
                 }
             }
@@ -237,31 +237,21 @@ getReader() {
             if (p) oldPieces.push({ ...p, idx: i, assigned: false });
         });
 
-        // 3. MATCHING ALGORITHM (The "Chessboard.js" Behavior)
-
-        // A. Move Priority: If we have a specific move, lock those pieces first
+        // 3. MATCHING ALGORITHM
         if (move && move.from !== '@') {
-            // Safely parse indices just in case 'move.from' is a string like 'e2'
             const srcIdx = typeof move.from === 'number' ? move.from : this.#squareToIndex(move.from);
             const dstIdx = typeof move.to === 'number' ? move.to : this.#squareToIndex(move.to);
             
             const src = oldPieces.find(p => p.idx === srcIdx);
             const dst = newPieces.find(p => p.idx === dstIdx);
             
-            // Only lock if the piece type matches (ignores promotions so they get a fresh ID)
             if (src && dst && src.color === dst.color && src.type === dst.type) {
                 dst.id = src.id;
                 src.assigned = true;
                 dst.idAssigned = true;
             }
-            
-            // ✨ CHESS960 CASTLING FIX: 
-            // We removed the hardcoded Rook castling logic (62, 58, 6, 2). 
-            // Why? Because Step C (Closest Match) will automatically detect the displaced 
-            // rook and slide it to its new square organically, perfectly supporting Chess960!
         }
 
-        // B. Exact Match: Lock pieces that haven't moved (Distance 0)
         newPieces.forEach(np => {
             if (np.idAssigned) return;
             const match = oldPieces.find(op => !op.assigned && op.type === np.type && op.color === np.color && op.idx === np.idx);
@@ -272,19 +262,14 @@ getReader() {
             }
         });
 
-        // C. Closest Match: Find nearest neighbor for scrubbing/reset & Castling
         newPieces.forEach(np => {
             if (np.idAssigned) return;
-            
             let bestMatch = null;
             let minDistance = Infinity;
 
             oldPieces.forEach(op => {
                 if (op.assigned || op.type !== np.type || op.color !== np.color) return;
-                
-                // Calculate Manhattan Distance (Grid steps)
                 const dist = Math.abs((op.idx % 8) - np.c) + Math.abs(Math.floor(op.idx / 8) - np.r);
-                
                 if (dist < minDistance) {
                     minDistance = dist;
                     bestMatch = op;
@@ -296,7 +281,6 @@ getReader() {
                 bestMatch.assigned = true;
                 np.idAssigned = true;
             } else {
-                // New Piece (e.g. Promotion, Pocket Drop, or Edit mode)
                 np.id = (typeof this.getUID === 'function') ? this.getUID() : ('p' + Math.random().toString(36).substr(2, 9)); 
             }
         });
@@ -305,8 +289,8 @@ getReader() {
         const finalBoard = new Array(64).fill(null);
         newPieces.forEach(p => {
             finalBoard[p.idx] = { type: p.type, color: p.color, id: p.id };
-            // Preserve the crazyhouse promotion flag if it exists
             if (p.promoted) finalBoard[p.idx].promoted = true; 
+            if (p.isBoardB) finalBoard[p.idx].isBoardB = true; // ✨ ALICE CHESS: Expose the mirror dimension to UI.js!
         });
         
         this.#board = finalBoard;
@@ -330,7 +314,6 @@ getReader() {
         const newPieces = [];
         let idx = 0;
 
-        // 1. Parse the past FEN
         for (let r = 0; r < 8; r++) {
             const row = fenRows[r];
             if (!row) { idx += 8; continue; }
@@ -340,10 +323,12 @@ getReader() {
                 if (/\d/.test(char)) {
                     idx += parseInt(char, 10);
                 } else if (char === '~') {
-                    // Crazyhouse Promoted marker
-                    if (newPieces.length > 0) newPieces[newPieces.length - 1].promoted = true;
+                    // ✨ CRAZYHOUSE / ALICE FIX
+                    if (newPieces.length > 0) {
+                        if (this.gameMode === 'alice') newPieces[newPieces.length - 1].isBoardB = true;
+                        else newPieces[newPieces.length - 1].promoted = true;
+                    }
                 } else if (char === '*') {
-                    // Duck Chess marker
                     newPieces.push({ type: 'duck', color: 'none', idx, r: Math.floor(idx / 8), c: idx % 8, id: null });
                     idx++;
                 } else {
@@ -360,14 +345,10 @@ getReader() {
             if (p) oldPieces.push({ ...p, idx: i, assigned: false });
         });
 
-        // 3. MATCHING ALGORITHM (Reverse Direction)
-
-        // A. Move Priority: Track the moved piece backwards
         if (move && move.from !== '@') {
             const srcIdx = typeof move.from === 'number' ? move.from : this.#squareToIndex(move.from);
             const dstIdx = typeof move.to === 'number' ? move.to : this.#squareToIndex(move.to);
 
-            // In reverse, the piece is currently at the destination and going back to the source
             const currentlyAt = oldPieces.find(p => p.idx === dstIdx);
             const goingBackTo = newPieces.find(p => p.idx === srcIdx);
 
@@ -378,7 +359,6 @@ getReader() {
             }
         }
 
-        // B. Exact Match: Lock pieces that didn't move
         newPieces.forEach(np => {
             if (np.idAssigned) return;
             const match = oldPieces.find(op => !op.assigned && op.type === np.type && op.color === np.color && op.idx === np.idx);
@@ -389,7 +369,6 @@ getReader() {
             }
         });
 
-        // C. Closest Match (Handles Castling Rooks reverting in standard & Chess960 natively)
         newPieces.forEach(np => {
             if (np.idAssigned) return;
             let bestMatch = null;
@@ -409,16 +388,15 @@ getReader() {
                 bestMatch.assigned = true;
                 np.idAssigned = true;
             } else {
-                // If it's a piece coming back from the dead (Undo a capture)
                 np.id = (typeof this.getUID === 'function') ? this.getUID() : ('p' + Math.random().toString(36).substr(2, 9)); 
             }
         });
 
-        // 4. Rebuild Board
         const finalBoard = new Array(64).fill(null);
         newPieces.forEach(p => {
             finalBoard[p.idx] = { type: p.type, color: p.color, id: p.id };
             if (p.promoted) finalBoard[p.idx].promoted = true; 
+            if (p.isBoardB) finalBoard[p.idx].isBoardB = true; // ✨ ALICE CHESS: Expose the mirror dimension to UI.js!
         });
 
         this.#board = finalBoard;
@@ -724,10 +702,10 @@ return possibleMoves;
         switch (targetMode) {
             case 'study':
                 this.gameOver = true;
-                if (!this.#restoreState('study')) {
-                    let targetIdx = this.activeChapterIndex !== -1 ? this.activeChapterIndex : 0;
-                    this.loadChapter(targetIdx, true, true); 
-                }
+                // ✨ FIX: Same here. Never restore volatile state for studies.
+                let targetIdx = this.activeChapterIndex !== -1 ? this.activeChapterIndex : 0;
+                this.activeChapterIndex = -1; // Bypass guard
+                this.loadChapter(targetIdx, true, true); 
                 break;
             case 'analysis':
                 if (this.isPlayingLiveGame) {
@@ -750,7 +728,6 @@ return possibleMoves;
         }
 
         if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
-        else if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
     }
 #checkAndSwitchEngine() {
         const needsFairy = !['classical', 'chess960'].includes(this.gameMode);
@@ -1025,8 +1002,20 @@ return move.san;
             const depthMatch = line.match(/depth (\d+)/);
             const depth = depthMatch ? parseInt(depthMatch[1]) : 0;
             const pvMatch = line.match(/ pv (.+)/);
-            const rawMoves = pvMatch ? pvMatch[1].split(' ') : [];
+            let rawMoves = pvMatch ? pvMatch[1].split(' ') : [];
+            const targetNode = this.analyzingNode || this.currentNode;
+            const currentFen = targetNode ? targetNode.fen : this.generateFEN();
 
+            if (rawMoves.length > 0) {
+                const tempValidator = new (typeof Chess === 'function' ? Chess : window.Chess)(currentFen, this.gameMode);
+                const validMoves = [];
+                for (let m of rawMoves) {
+                    let res = tempValidator.move(m);
+                    if (!res) break; // Instantly abort the PV line at the first illegal hallucination
+                    validMoves.push(m);
+                }
+                rawMoves = validMoves; // Now this assignment works perfectly!
+            }
             if (rawMoves.length === 0) return;
 
             let score = 0; let type = 'cp'; let rawEval = 0; 
@@ -1041,9 +1030,6 @@ return move.san;
                 this.verifyingBookType = type;
                 return; 
             }
-
-            const targetNode = this.analyzingNode || this.currentNode;
-            const currentFen = targetNode ? targetNode.fen : this.generateFEN();
             
             let isBlackTurn = currentFen.split(' ')[1] === 'b';
             if (isBlackTurn) score *= -1; 
@@ -1545,11 +1531,6 @@ return move.san;
 
             this.currentNode = newNode;
         }
-
-        // 🔥 THE FIX: Remove the hardcoded manual `.push()` to the flat arrays!
-        // Blindly pushing flat arrays destroys the branch structure in memory and forces the UI
-        // to treat the newly played sub-move as part of a flat, linear "mainline".
-        // Instead, we force the engine to dynamically recalculate the exact path from the root.
         if (!isPVMove) {
             if (typeof this.#syncMoveHistory === 'function') {
                 this.#syncMoveHistory();
@@ -1558,6 +1539,8 @@ return move.san;
 
         if (this.mode === 'analysis' && !this._isParsingPV) {
             this.#saveState('analysis');
+        } else if (this.mode === 'study' && !this._isParsingPV) {
+            if (typeof this.saveActiveChapter === 'function') this.saveActiveChapter();
         }
         
         if (this.isLoadingPGN || isPVMove) return; 
@@ -1654,6 +1637,8 @@ return move.san;
 
         this.whiteTime = Number(this.whiteTime) || 0;
         this.blackTime = Number(this.blackTime) || 0;
+        let wWarningPlayed = false;
+        let bWarningPlayed = false;
 
         this.#timerInterval = setInterval(() => {
             if (this.gameOver || this.isEditing || this.isAnalysisMode || this.isPaused || !this.isPlayingLiveGame) {
@@ -1663,9 +1648,17 @@ return move.san;
 
             if (liveTurn === 'w') {
                 this.whiteTime = Math.max(0, this.whiteTime - 1);
+                if (this.whiteTime === 10 && !wWarningPlayed) {
+                    this.#emit('soundTriggered', { type: 'lowtime' });
+                    wWarningPlayed = true;
+                }
                 if (this.whiteTime <= 0) this.#endGame('timeout', 'b'); 
             } else { 
                 this.blackTime = Math.max(0, this.blackTime - 1);
+                if (this.blackTime === 10 && !bWarningPlayed) {
+                    this.#emit('soundTriggered', { type: 'lowtime' });
+                    bWarningPlayed = true;
+                }
                 if (this.blackTime <= 0) this.#endGame('timeout', 'w'); 
             }
             
@@ -1743,14 +1736,16 @@ return move.san;
                 const to = this.#squareToIndex(setupMove.substring(2, 4));
                 const promo = setupMove.length > 4 ? setupMove.substring(4, 5) : 'q';
                 
-                this.makeMove({ from, to }, promo, true, null, true);
+                // ✨ Capture the result
+                const res = this.makeMove({ from, to }, promo, true, null, true);
                 
-                // ✨ FIX: Pass the perfectly formatted 'lastMove' from the game state!
                 this.#emit('boardUpdated', { 
                     animate: true, 
                     overrideMove: this.currentNode.lastMove 
                 });
-                this.#emit('soundTriggered', { type: 'move' });
+                
+                // ✨ Replace the hardcoded emit with the smart sound trigger!
+                if (res) this.triggerMoveSound(res);
                 
                 this.puzzleCursor++;
             }
@@ -1806,7 +1801,9 @@ return move.san;
                 animate: true, 
                 overrideMove: this.currentNode.lastMove 
             });
-            this.#emit('soundTriggered', { type: 'move' });
+            
+            // ✨ Replace the hardcoded emit with the smart sound trigger!
+            if (res) this.triggerMoveSound(res);
             
             this.puzzleCursor++;
             i++;
@@ -2340,6 +2337,10 @@ handleTabSwitch(lowerTab) {
         // 1. SAVE CURRENT STATE BEFORE LEAVING
         if (['analysis', 'local', 'bot', 'study'].includes(this.mode)) {
             this.#saveState(this.mode);
+            // ✨ FIX: Guarantee the study saves to the library before we switch tabs!
+            if (this.mode === 'study' && typeof this.saveActiveChapter === 'function') {
+                this.saveActiveChapter();
+            }
         } else if (this.mode === 'puzzle') {
             this.#saveState('puzzle');
         }
@@ -2347,7 +2348,7 @@ handleTabSwitch(lowerTab) {
         // 2. STOP BACKGROUND ENGINES
         if (window.sfWorker && window.engineAnalysing && lowerTab !== 'analysis' && lowerTab !== 'study') {
             window.sfWorker.postMessage('stop');
-            if (window.sfWorker && this.mode === 'puzzle') window.sfWorker.postMessage('stop'); // Hard stop for puzzles
+            if (window.sfWorker && this.mode === 'puzzle') window.sfWorker.postMessage('stop'); 
         }
 
         // 3. SECURE STATE TRANSITIONS
@@ -2355,12 +2356,10 @@ handleTabSwitch(lowerTab) {
             case 'study':
                 this.mode = 'study';
                 this.gameOver = true;
-                if (!this.#restoreState('study')) {
-                    // Fallback if no memory exists: load the active chapter
-                    let targetIdx = this.activeChapterIndex !== -1 ? this.activeChapterIndex : 0;
-                    this.activeChapterIndex = -1; // Bypass the guard
-                    this.loadChapter(targetIdx, true);
-                }
+                // ✨ FIX: NEVER use volatile restoreState for studies. ALWAYS load fresh from the truth library!
+                let targetIdx = this.activeChapterIndex !== -1 ? this.activeChapterIndex : 0;
+                this.activeChapterIndex = -1; // Bypass the guard to force a clean render
+                this.loadChapter(targetIdx, true);
                 break;
                 
             case 'editor':
@@ -2382,6 +2381,7 @@ handleTabSwitch(lowerTab) {
                 break;
                 
             case 'puzzles':
+            case 'puzzle':
                 this.mode = 'puzzle';
                 this.gameOver = true;
                 this.#restoreState('puzzle');
@@ -2512,6 +2512,25 @@ restoreAnalysisState() {
         return restored;
     }
 setGameMode(mode, isInitialLoad = false, skipStorage = false) {
+        if (!mode || this.gameMode === mode) return;
+
+        const oldMode = this.gameMode;
+
+        // ONLY trigger this warning if the user manually changed the dropdown (!skipStorage)
+        // and there is actual move history on the board.
+        if (!isInitialLoad && !skipStorage && this.currentNode && this.currentNode !== this.rootNode) {
+            const confirmReset = confirm(`Changing the variant to ${mode.toUpperCase()} will reset the current board and clear the move history.\n\nContinue?`);
+            
+            if (!confirmReset) {
+                // User cancelled: Revert the dropdown UI back to safety
+                if (typeof document !== 'undefined') {
+                    const select = document.getElementById('analysisVariantSelect');
+                    if (select) select.value = oldMode;
+                }
+                return; 
+            }
+        }
+
         // 1. Save the CURRENT variant's state before switching
         if (!isInitialLoad && !skipStorage && this.gameMode) {
             this.saveVariantState(this.gameMode);
@@ -2519,7 +2538,7 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
 
         this.gameMode = mode;
         if (!skipStorage) {
-            localStorage.setItem('chess_last_variant', mode); 
+            if (typeof localStorage !== 'undefined') localStorage.setItem('chess_last_variant', mode); 
         }
         
         // 2. Tell the internal ruleset to switch
@@ -2529,16 +2548,17 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
         
         // 3. Restore the saved PGN for the NEW variant (or Reset to correct starting position)
         if (!skipStorage) {
-            const savedPgn = localStorage.getItem(`chess_variant_pgn_${mode}`);
+            const savedPgn = typeof localStorage !== 'undefined' ? localStorage.getItem(`chess_variant_pgn_${mode}`) : null;
             
             if (savedPgn) {
                 this.loadPGN(savedPgn, false, true);
                 
-                const fenBox = document.getElementById('fenInput');
-                if (fenBox && this.currentNode) fenBox.value = this.currentNode.fen;
-                
+                if (typeof document !== 'undefined') {
+                    const fenBox = document.getElementById('fenInput');
+                    if (fenBox && this.currentNode) fenBox.value = this.currentNode.fen;
+                }
             } else {
-                let startFen = VARIANT_STARTING_FENS[mode] || INITIAL_FEN;
+                let startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[mode]) ? VARIANT_STARTING_FENS[mode] : INITIAL_FEN;
                 
                 // Chess960 override (Dynamically shuffles the classical FEN)
                 if (mode === 'chess960' && typeof this.generateChess960FEN === 'function') {
@@ -2783,21 +2803,26 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                 const blob = new Blob([workerScript], { type: 'application/javascript' });
                 window.sfWorker = new Worker(URL.createObjectURL(blob));
             }
-            // ==========================================
-            // 🔥 DEFAULT ENGINE (DYNAMIC AUTO-UPDATER)
-            // ==========================================
             else {
+                // ✨ INSTANT LOAD FIX: Push the cached name to the UI instantly before the network fetch begins!
+                let cachedName = typeof localStorage !== 'undefined' ? localStorage.getItem('chess_cached_engine_name') : "Stockfish 18";
+                if (this.#ui && typeof this.#ui.updateEngineName === 'function') {
+                    this.#ui.updateEngineName(cachedName);
+                }
+                window.currentEngineShortName = cachedName;
+
                 try {
                     const response = await fetch('/api/latest-engine');
                     if (response.ok) {
                         const data = await response.json();
                         engineDisplayName = data.name; 
+                        if (typeof localStorage !== 'undefined') localStorage.setItem('chess_cached_engine_name', engineDisplayName);
                         window.sfWorker = new Worker(data.path);
                     } else {
                         throw new Error("Server API failed");
                     }
                 } catch(e) {
-                    engineDisplayName = "Stockfish 18";
+                    engineDisplayName = cachedName || "Stockfish 18";
                     window.sfWorker = new Worker('/engine/stockfish 18/stockfish-18.js');
                 }
             }
@@ -3302,21 +3327,27 @@ retryPuzzle() {
             this.#ui.renderBoard(true);
             this.#ui.updateHistory();
             
-            // Trigger the opponent's initial setup move again
             setTimeout(() => {
-                const setupMove = this.puzzleSolution[0];
-                if (setupMove) {
-                    const from = this.#squareToIndex(setupMove.substring(0, 2));
-                    const to = this.#squareToIndex(setupMove.substring(2, 4));
-                    const promo = setupMove.length > 4 ? setupMove.substring(4, 5) : 'q';
-                    
-                    this.makeMove({ from, to }, promo, true, null, true);
-                    
-                    this.#ui.renderBoard(true);
-                    this.#ui.updateHistory();
-                    this.puzzleCursor++;
-                }
-            }, 500);
+            const setupMove = this.puzzleSolution[0];
+            if (setupMove) {
+                const from = this.#squareToIndex(setupMove.substring(0, 2));
+                const to = this.#squareToIndex(setupMove.substring(2, 4));
+                const promo = setupMove.length > 4 ? setupMove.substring(4, 5) : 'q';
+                
+                // ✨ Capture the result
+                const res = this.makeMove({ from, to }, promo, true, null, true);
+                
+                this.#emit('boardUpdated', { 
+                    animate: true, 
+                    overrideMove: this.currentNode.lastMove 
+                });
+                
+                // ✨ Replace the hardcoded emit with the smart sound trigger!
+                if (res) this.triggerMoveSound(res);
+                
+                this.puzzleCursor++;
+            }
+        }, 500);
         }
     }
 getUID() {
@@ -3333,11 +3364,9 @@ resetEngineDefault() {
 stepBack() {
         if (!this.currentNode || !this.currentNode.parent) return false;
         
-        // Store the node we are undoing BEFORE we go back
         const undoneNode = this.currentNode;
         this.currentNode = this.currentNode.parent;
         
-        // ✨ FIX: Load engine, but gently reconcile pieces so IDs don't get wiped!
         this.#engine.load(this.currentNode.fen);
         this.turn = this.#engine.turn();
         
@@ -3345,7 +3374,6 @@ stepBack() {
             this.#reconcileBoardIdsReverse(this.currentNode.fen, undoneNode.lastMove);
         }
         
-        // Create a 'reverse move' so the UI knows exactly how to slide backward
         let reverseMove = null;
         if (undoneNode.lastMove && undoneNode.lastMove.from !== '@') {
             reverseMove = {
@@ -3356,9 +3384,10 @@ stepBack() {
             };
         }
 
-        // Send the reverse move directly to the UI
         this.#emit('boardUpdated', { animate: true, overrideMove: reverseMove });
-        this.#emit('soundTriggered', { type: 'move' });
+        
+        // ✨ FIX: Play a standard click when stepping backward
+        this.#emit('soundTriggered', { type: 'move-self' });
         return true;
     }
 stepForward() {
@@ -3367,7 +3396,6 @@ stepForward() {
         
         this.currentNode = nextNode;
         
-        // ✨ FIX: Preserve IDs going forward!
         this.#engine.load(nextNode.fen);
         this.turn = this.#engine.turn();
         
@@ -3375,44 +3403,41 @@ stepForward() {
             this.#reconcileBoardIds(nextNode.fen, nextNode.lastMove);
         }
         
-        // Send the exact move that was played
         this.#emit('boardUpdated', { animate: true, overrideMove: nextNode.lastMove });
-        this.#emit('soundTriggered', { type: 'move' });
+        
+        // ✨ FIX: Analyze the move we just stepped into for Captures/Checks!
+        if (nextNode.lastMove) {
+            this.triggerMoveSound(nextNode.lastMove);
+        }
         return true;
     }
 goToStart() {
         if (!this.rootNode) return false;
-        
-        // ✨ THE FIX: Capture the exact pieces on the board BEFORE we reset!
-        const snapshot = typeof this.getReader === 'function' ? this.getReader() : null;
-        const oldBoard = snapshot ? snapshot.board : [];
-        
         this.currentNode = this.rootNode;
-        this.#engine.load(this.currentNode.fen);
-        this.turn = this.#engine.turn();
         
-        if (typeof this.#reconcileBoardIdsReverse === 'function') {
-            this.#reconcileBoardIdsReverse(this.currentNode.fen, null);
-        }
+        // ✨ FIX: A complete wipe & load prevents Piece IDs from corrupting on large jumps!
+        this.loadFEN(this.currentNode.fen, this.gameMode, true);
         
-        // Pass the snapshot to main.js so the UI knows exactly what pieces are on the screen!
-        this.#emit('boardUpdated', { 
-            isGoToStart: true, 
-            targetFen: this.currentNode.fen,
-            previousBoard: oldBoard
-        });
-        
-        this.#emit('soundTriggered', { type: 'move' });
+        this.#emit('boardUpdated', { animate: false });
+        this.#emit('soundTriggered', { type: 'move-self' });
         return true;
     }
 goToEnd() {
         if (!this.rootNode) return false;
         let curr = this.rootNode;
         while (curr.children.length > 0) curr = curr.children[curr.selectedChildIndex || 0];
+        
         this.currentNode = curr;
-        this.loadFEN(this.currentNode.fen);
-        this.#emit('boardUpdated', { animate: false }); // Teleport, do not animate
-        this.#emit('soundTriggered', { type: 'move' });
+        
+        // ✨ FIX: Complete wipe & load for safety
+        this.loadFEN(this.currentNode.fen, this.gameMode, true);
+        
+        this.#emit('boardUpdated', { animate: false });
+        
+        // ✨ FIX: Play sound of the final move
+        if (this.currentNode.lastMove) this.triggerMoveSound(this.currentNode.lastMove);
+        else this.#emit('soundTriggered', { type: 'move-self' });
+        
         return true;
     }
 goToNodeId(id) {
@@ -3422,17 +3447,26 @@ goToNodeId(id) {
             for (let c of node.children) search(c);
         };
         if (this.rootNode) search(this.rootNode);
+        
         if (target) {
             this.currentNode = target;
-            this.loadFEN(target.fen);
+            
+            // ✨ FIX: Complete wipe & load for safety
+            this.loadFEN(this.currentNode.fen, this.gameMode, true);
+            
             let curr = target;
             while (curr.parent) {
                 const idx = curr.parent.children.indexOf(curr);
                 if (idx !== -1) curr.parent.selectedChildIndex = idx;
                 curr = curr.parent;
             }
+            
             this.#emit('boardUpdated', { animate: false });
-            this.#emit('soundTriggered', { type: 'move' });
+            
+            // ✨ FIX: Play sound of the clicked move
+            if (this.currentNode.lastMove) this.triggerMoveSound(this.currentNode.lastMove);
+            else this.#emit('soundTriggered', { type: 'move-self' });
+            
             return true;
         }
         return false;
@@ -3687,6 +3721,7 @@ loadNewPosition(fen, explicitMode = null) {
         const validation = this.#engine.validate_fen(fen);
         if (!validation.valid) {
             if (this.#ui) this.#ui.showNotification("Invalid FEN for " + targetMode + ": " + validation.error, "Error", "⚠️");
+            this.#emit('soundTriggered', { type: 'error' });
             return; 
         }
 
@@ -3839,8 +3874,11 @@ startAnalysisMode() {
             this.pgnHeaders['Result'] = '*';
         }
 
+        if (typeof this.#saveState === 'function') {
+            this.#saveState('analysis');
+        }
+
         // 3. Switch to the Analysis Tab
-        // (Thanks to your fix, this now automatically SAVES the live game into Analysis memory!)
         if (this.#ui && typeof this.#ui.switchTab === 'function') {
             this.#ui.switchTab('analysis');
         }
@@ -3852,7 +3890,7 @@ startAnalysisMode() {
         if (this.#ui) {
             const modal = document.getElementById('gameOverModal');
             if (modal) modal.style.display = 'none';
-            
+
             // Force one final UI refresh to guarantee the PGN box populates
             if (typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory(true);
             if (typeof this.#ui.renderBoard === 'function') this.#ui.renderBoard(true);
@@ -3893,6 +3931,7 @@ newGame(startFen = null) {
             
             if (this.#ui.toggleReviewButton) this.#ui.toggleReviewButton(false);
         }
+    this.#emit('soundTriggered', { type: 'start' });
     }
 togglePause() {
         this.isPaused = !this.isPaused;
@@ -4096,7 +4135,8 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                     'antichess': 'antichess', 'giveaway': 'antichess', 'losers': 'antichess',
                     'atomic': 'atomic', 'horde': 'horde', 'kingofthehill': 'kingofthehill', 
                     'koth': 'kingofthehill', 'racingkings': 'racingkings', 'crazyhouse': 'crazyhouse',
-                    'bughouse': 'bughouse', 'duck': 'duck', 'duckchess': 'duck', 'chaturanga': 'chaturanga','placement': 'placement'
+                    'bughouse': 'bughouse', 'duck': 'duck', 'duckchess': 'duck', 'chaturanga': 'chaturanga',
+                    'placement': 'placement', 'alice': 'alice', 'alicechess': 'alice'
                 };
                 if (modeMap[rawVariant]) detectedMode = modeMap[rawVariant];
             }
@@ -4248,12 +4288,21 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 } else i++;
             }
 
-            if (typeof this.parsePGNTokens === 'function') this.parsePGNTokens(tokens, 0);
-            else this.#parsePGNTokens(tokens, 0);
+            const originalMakeMove = this.makeMove.bind(this);
+            this.makeMove = (move, promo, batchMode, pgnText, muteEngine, isAutoReply) => {
+                // Ignore whatever the token parser requests, force Batch = true, Mute = true!
+                return originalMakeMove(move, promo, true, pgnText, true, true);
+            };
+
+            // Run the heavy parser
+            if (typeof this.#parsePGNTokens === 'function') this.#parsePGNTokens(tokens, 0);
+
+            // ✨ Restore normal functionality immediately after it finishes
+            this.makeMove = originalMakeMove;
             
         } catch (e) {
             backups.console.error("PGN Parsing Error:", e);
-        } 
+        }
         finally {
             this.isLoadingPGN = false;
             this.clearPremoves();
@@ -4474,6 +4523,7 @@ addPremove(move) {
             this.premoveQueue.push(move);
         }
         if (typeof this.#ui !== 'undefined') this.#ui.renderBoard(false);
+        this.#emit('soundTriggered', { type: 'premove' });
     }
 clearPremoves() {
 this.premoveQueue = [];
@@ -4581,6 +4631,7 @@ offerDraw() {
                 if (this.#ui) this.#ui.showNotification("Draw Accepted", "Engine accepted your draw offer.", "🤝");
             } else {
                 if (this.#ui) this.#ui.showNotification("Draw Declined", "Engine declined your draw offer.", "❌");
+                this.#emit('soundTriggered', { type: 'decline' });
             }
         } else if (this.mode === 'local') {
             this.#endGame("½-½", "Draw by Agreement");
@@ -4667,7 +4718,6 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             this.#startTimer();
         }
 
-        // 🔥 FIX: Build the move object natively for variant support!
         const moveObj = {};
         if (move.from === '@' || move.drop) {
             moveObj.from = '@';
@@ -4682,52 +4732,19 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             moveObj.duck_sq = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
         }
         
-        // ============================================================
-        // INTERACTIVE LESSON INTERCEPTOR 
-        // ============================================================
-        if (this.mode === 'study' && !isAutoReply && this.chapters && this.chapters[this.activeChapterIndex]) {
-            const currentMode = this.chapters[this.activeChapterIndex].analysisMode;
-            
-            if (currentMode === 'interactive' || currentMode === 'Interactive lesson') {
-                let isCorrectMove = false;
-                
-                if (this.currentNode && this.currentNode.children.length > 0) {
-                    const expected = this.currentNode.children[0].move;
-                    if (expected && expected.from === move.from && expected.to === move.to) {
-                        isCorrectMove = true;
-                    }
-                }
-
-                if (!isCorrectMove) {
-                    if (this.#ui) {
-                        this.#ui.showNotification("Inaccuracy! Try finding a better move.", "Incorrect", "❌");
-                        this.#ui.renderBoard(false); // Snap the piece back
-                    }
-                    return null; // Cancel move execution
-                } else {
-                    if (this.#ui) this.#ui.showNotification("Good move!", "Correct", "✅");
-                    
-                    setTimeout(() => {
-                        if (this.currentNode && this.currentNode.children.length > 0) {
-                            const nextNode = this.currentNode.children[0];
-                            const botRes = this.makeMove(nextNode.move, undefined, false, undefined, muteEngine, true);
-                            
-                            if (this.#ui && botRes) {
-                                if (typeof this.triggerMoveSound === 'function') this.triggerMoveSound(botRes);
-                                this.#ui.renderBoard(true); 
-                                this.#ui.updateHistory(true);
-                            }
-                        } else {
-                            if (this.#ui) this.#ui.showNotification("Lesson Complete!", "Success", "🏆");
-                        }
-                    }, 500);
-                }
-            }
-        }
-        // ============================================================
 
         const result = this.#engine.move(moveObj);
         if (!result) return null;
+
+        // ✨ THE FIX: We create a closure to guarantee the sound fires exactly once,
+        // BEFORE any early returns swallow it!
+        let soundFired = false;
+        const fireSound = () => {
+            if (!soundFired && !muteEngine && !isAutoReply) {
+                this.triggerMoveSound(result);
+                soundFired = true;
+            }
+        };
 
         const newFen = this.#engine.fen();
         const nextTurn = this.#engine.turn(); 
@@ -4738,6 +4755,9 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             const solStr = (this.puzzleSolution[this.puzzleCursor] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
             
             if (userStr !== solStr && !this.#engine.in_checkmate()) {
+                result.puzzleStatus = 'wrong'; // Inject status so triggerMoveSound sees it!
+                fireSound(); // 🔊 Play Buzzer!
+                
                 this.#engine.undo();
                 this.#reconcileBoardIds(this.#engine.fen());
                 if (this.#ui) ui.renderBoard(false);
@@ -4746,9 +4766,11 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             }
             
             if (this.#engine.in_checkmate() || (this.puzzleCursor >= this.puzzleSolution.length - 1)) {
+                result.puzzleStatus = 'solved';
                 if (window.sfWorker) window.sfWorker.postMessage('stop');
                 this.#puzzleSuccess();
             } else {
+                result.puzzleStatus = 'correct';
                 this.puzzleCursor++;
             }
         }
@@ -4773,15 +4795,12 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         
         if (this.isPlayingLiveGame && this.currentNode) {
             const clkSeconds = nextTurn === 'b' ? this.whiteTime : this.blackTime;
-            
             const h = Math.floor(clkSeconds / 3600);
             const m = Math.floor((clkSeconds % 3600) / 60);
             const s = Math.floor(clkSeconds % 60);
             const clkStr = `[%clk ${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}]`;
             
-            this.currentNode.comment = this.currentNode.comment 
-                ? this.currentNode.comment + ` ${clkStr}` 
-                : clkStr;
+            this.currentNode.comment = this.currentNode.comment ? this.currentNode.comment + ` ${clkStr}` : clkStr;
         }
 
         if (!this.gameOver && !this.isAnalysisMode) {
@@ -4793,7 +4812,6 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             let resultStr = "1/2-1/2";
             let statusMsg = "Draw by agreement";
 
-            // 1. Check if a VARIANT specifically ended the game
             let variantWinner = typeof this.#engine.variant_winner === 'function' ? this.#engine.variant_winner() : null;
 
             if (variantWinner !== null) {
@@ -4824,6 +4842,8 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
                 if (this._engineRebootTimeout) clearTimeout(this._engineRebootTimeout);
                 this._engineRebootTimeout = setTimeout(() => this.updateStockfish(), 200);
             }
+
+            fireSound(); // 🔊 Play Checkmate / Draw sound!
             return result;
         }
         
@@ -4848,7 +4868,6 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
                         const botRes = this.makeMove({ from, to }, promo);
                         
                         if (this.#ui && botRes) {
-                            if (typeof this.triggerMoveSound === 'function') this.triggerMoveSound(botRes);
                             this.#ui.renderBoard(true); 
                             if (!this.isAnalysisMode) setTimeout(() => this.attemptPremove(), 100);
                         }
@@ -4857,12 +4876,12 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             }
         }
 
-        // Analysis Engine will only start thinking if it is the human player's turn!
         if (!muteEngine && window.engineAnalysing && window.sfWorker && !isBotTurn) {
             if (this._engineRebootTimeout) clearTimeout(this._engineRebootTimeout);
             this._engineRebootTimeout = setTimeout(() => this.updateStockfish(), 200);
         }
 
+        fireSound(); // 🔊 Play normal move / capture / check sound!
         return result;
     }
 generateChess960FEN() {
@@ -5266,62 +5285,74 @@ updateEngineLevel() {
         window.sfWorker.postMessage('setoption name UCI_LimitStrength value true');
         window.sfWorker.postMessage(`setoption name UCI_Elo value ${settings.uciElo}`);
     }
-importStudy(pgnText) {
-        const extractedGames = pgnText.split(/(?=\[Event\s+")/g).filter(chapter => chapter.trim().length > 10);
-        if (extractedGames.length === 0) return false;
+loadAllStudies() {
+        try {
+            const stored = localStorage.getItem('chess_studies_library');
+            const lastStudyId = localStorage.getItem('chess_last_study_id'); 
 
-        this.mode = 'study';
-        if (extractedGames.length > 1) {
-            // MULTI-GAME IMPORT
-            const newChapters = extractedGames.map((gameStr, idx) => {
-                const chapterMatch = gameStr.match(/\[ChapterName\s+"([^"]+)"\]/);
-                const eventMatch = gameStr.match(/\[Event\s+"([^"]+)"\]/);
-                const title = chapterMatch ? chapterMatch[1] : (eventMatch ? eventMatch[1] : `Chapter ${idx + 1}`);
-                return { title: title, pgn: gameStr.trim(), analysisMode: 'Normal analysis' };
-            });
-
-            const newStudyId = 'study_' + Date.now();
-            this.allStudies.push({
-                id: newStudyId,
-                title: newChapters[0].title || "Imported Study",
-                chapters: newChapters,
-                activeChapterIndex: 0
-            });
-            this.loadStudy(newStudyId);
-        } else {
-            // SINGLE-GAME IMPORT
-            const gameStr = extractedGames[0];
-            const chapterMatch = gameStr.match(/\[ChapterName\s+"([^"]+)"\]/);
-            const eventMatch = gameStr.match(/\[Event\s+"([^"]+)"\]/);
-            const title = chapterMatch ? chapterMatch[1] : (eventMatch ? eventMatch[1] : `Chapter ${this.chapters.length + 1}`);
-            
-            this.chapters.push({ title: title, pgn: gameStr.trim(), analysisMode: 'Normal analysis' });
-            this.loadChapter(this.chapters.length - 1);
-        }
-        return true;
-    }
-exportAllStudies() {
-        let combinedPgn = "";
-        let count = 0;
-
-        this.allStudies.forEach(study => {
-            if (study.chapters && study.chapters.length > 0) {
-                study.chapters.forEach(ch => {
-                    let chPgn = ch.pgn || "";
-                    if (!chPgn.includes('[StudyName "')) chPgn = `[StudyName "${study.title}"]\n` + chPgn;
-                    if (!chPgn.includes('[Event "')) chPgn = `[Event "${study.title} - ${ch.title}"]\n` + chPgn;
-                    combinedPgn += chPgn + "\n\n";
-                });
-                count++;
+            // ✨ FIX 1: Do not treat empty arrays "[]" as valid data that forces a placeholder
+            if (stored && stored !== "[]") {
+                this.allStudies = JSON.parse(stored);
+                
+                if (lastStudyId && this.allStudies.find(s => s.id === lastStudyId)) {
+                    this.currentStudyId = lastStudyId;
+                } else if (this.allStudies.length > 0) {
+                    this.currentStudyId = this.allStudies[0].id;
+                } else {
+                    this.currentStudyId = null;
+                }
+                
+                const target = this.allStudies.find(s => s.id === this.currentStudyId);
+                if (target) {
+                    this.studyTitle = target.title;
+                    this.chapters = target.chapters;
+                    this.activeChapterIndex = target.activeChapterIndex !== undefined ? target.activeChapterIndex : 0;
+                } else {
+                    this.allStudies = [];
+                    this.chapters = [];
+                    this.currentStudyId = null;
+                    this.activeChapterIndex = -1;
+                }
+            } else {
+                // ✨ FIX 2: If the library is empty, LEAVE IT EMPTY. Do not generate a placeholder!
+                this.allStudies = [];
+                this.chapters = [];
+                this.studyTitle = "My Study";
+                this.currentStudyId = null;
+                this.activeChapterIndex = -1;
             }
-        });
-
-        if (count > 0) {
-            this.#triggerDownload(combinedPgn, `chess_studies_export`);
-            this.#emit('notification', { message: `Successfully exported ${count} studies!`, title: "Export Complete", icon: "📥" });
-        } else {
-            this.#emit('notification', { message: "No studies selected.", title: "Export Failed", icon: "⚠️" });
+        } catch(e) {
+            console.error("Failed to load studies", e);
+            this.allStudies = [];
+            this.chapters = [];
+            this.studyTitle = "My Study";
+            this.currentStudyId = null;
+            this.activeChapterIndex = -1;
         }
+    }
+createNewStudy() {
+        const nameInput = document.getElementById('newStudyName');
+        const title = nameInput ? nameInput.value.trim() : "";
+        if (!title) return;
+        
+        const newId = 'study_' + Date.now();
+        
+        // ✨ THE FIX: Inject the Variant Tag!
+        let variantTag = this.gameMode !== 'classical' ? `[Variant "${this.gameMode}"]\n` : '';
+        let startFen = typeof this.generateFEN === 'function' ? this.generateFEN() : INITIAL_FEN;
+        let initPgn = `${variantTag}[FEN "${startFen}"]\n\n*`;
+
+        this.allStudies.push({
+            id: newId,
+            title: title,
+            chapters: [{ title: "Chapter 1", pgn: initPgn }],
+            activeChapterIndex: 0
+        });
+        
+        this.loadStudy(newId, true);
+        this.saveAllStudies(); 
+        
+        if (nameInput) nameInput.value = "";
     }
 async saveChapterDetails() {
         const idx = window._editingChapterIdx;
@@ -5341,10 +5372,11 @@ async saveChapterDetails() {
             const tab = window._activeChapterTab || 'empty';
             const dataInput = document.getElementById('chapterDataInput');
             const dataVal = dataInput ? dataInput.value.trim() : "";
+            
+            let variantTag = this.gameMode !== 'classical' ? `[Variant "${this.gameMode}"]\n` : '';
+            let startFen = typeof this.generateFEN === 'function' ? this.generateFEN() : INITIAL_FEN;
+            let pgn = `${variantTag}[FEN "${startFen}"]\n\n*`; // Fallback Empty
 
-            let pgn = '[FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]\n\n*';
-
-            // 1. Magical URL Fetcher
             if (tab === 'url' && dataVal) {
                 if (saveBtn) {
                     saveBtn.innerText = "FETCHING...";
@@ -5442,15 +5474,17 @@ async saveChapterDetails() {
                     }
                     return; 
                 }
-            } 
-            // 2. Handle FEN, PGN, and Editor
+            }
             else if (tab === 'fen' && dataVal) {
-                pgn = `[FEN "${dataVal}"]\n\n*`;
+                pgn = `${variantTag}[FEN "${dataVal}"]\n\n*`;
             } else if (tab === 'pgn' && dataVal) {
                 pgn = dataVal;
+                if (this.gameMode !== 'classical' && !pgn.includes('[Variant')) {
+                    pgn = `${variantTag}` + pgn;
+                }
             } else if (tab === 'editor') {
                 const curFen = this.generateFEN();
-                pgn = `[FEN "${curFen}"]\n\n*`;
+                pgn = `${variantTag}[FEN "${curFen}"]\n\n*`;
             }
 
             this.saveActiveChapter();
@@ -5481,6 +5515,167 @@ async saveChapterDetails() {
         const modal = document.getElementById('chapterModal');
         if (modal) modal.style.display = 'none';
     }
+importStudy(pgnText) {
+        const extractedGames = pgnText.split(/(?=\[Event\s+")/g).filter(chapter => chapter.trim().length > 10);
+        if (extractedGames.length === 0) return false;
+
+        this.mode = 'study';
+        if (extractedGames.length > 1) {
+            const newChapters = extractedGames.map((gameStr, idx) => {
+                const chapterMatch = gameStr.match(/\[ChapterName\s+"([^"]+)"\]/);
+                const eventMatch = gameStr.match(/\[Event\s+"([^"]+)"\]/);
+                const title = chapterMatch ? chapterMatch[1] : (eventMatch ? eventMatch[1] : `Chapter ${idx + 1}`);
+                return { title: title, pgn: gameStr.trim(), analysisMode: 'Normal analysis' };
+            });
+
+            const newStudyId = 'study_' + Date.now();
+            this.allStudies.push({
+                id: newStudyId,
+                title: newChapters[0].title || "Imported Study",
+                chapters: newChapters,
+                activeChapterIndex: 0
+            });
+            
+            // ✨ FIX: Load the study FIRST, then save it so the correct ID writes to memory!
+            this.loadStudy(newStudyId, true);
+            this.saveAllStudies();
+            
+        } else {
+            const gameStr = extractedGames[0];
+            const chapterMatch = gameStr.match(/\[ChapterName\s+"([^"]+)"\]/);
+            const eventMatch = gameStr.match(/\[Event\s+"([^"]+)"\]/);
+            const title = chapterMatch ? chapterMatch[1] : (eventMatch ? eventMatch[1] : `Chapter ${this.chapters.length + 1}`);
+            
+            this.chapters.push({ title: title, pgn: gameStr.trim(), analysisMode: 'Normal analysis' });
+            
+            // ✨ FIX: Complete the save cycle for Text-box imports!
+            this.loadChapter(this.chapters.length - 1, true);
+            this.saveAllStudies();
+        }
+        return true;
+    }
+importStudyFromFile(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        
+        reader.onload = (e) => {
+            const content = e.target.result;
+            const games = this.#parseMultiPGN(content);
+            
+            if (games.length === 0) {
+                if (this.#ui) this.#ui.showNotification("No valid PGN games found in file.", "Import Failed", "⚠️");
+                return;
+            }
+
+            let studyName = file.name.replace(/\.[^/.]+$/, "") || "Imported Study";
+            const studyMatch = games[0].match(/\[StudyName\s+"([^"]+)"\]/);
+            if (studyMatch && studyMatch[1] && studyMatch[1].trim() !== "") {
+                studyName = studyMatch[1];
+            }
+
+            const newId = 'study_' + Date.now();
+            const newChapters = [];
+            
+            games.forEach((gamePgn, index) => {
+                let title = `Chapter ${index + 1}`;
+                
+                const chapterMatch = gamePgn.match(/\[ChapterName\s+"([^"]+)"\]/);
+                const eventMatch = gamePgn.match(/\[Event\s+"([^"]+)"\]/);
+                
+                if (chapterMatch && chapterMatch[1] && chapterMatch[1].trim() !== "") {
+                    title = chapterMatch[1];
+                } else if (eventMatch && eventMatch[1] && eventMatch[1] !== "?" && eventMatch[1] !== "Casual Game") {
+                    title = eventMatch[1];
+                }
+                
+                newChapters.push({ title: title, pgn: gamePgn, analysisMode: 'Normal analysis' });
+            });
+
+            this.allStudies.push({
+                id: newId,
+                title: studyName,
+                chapters: newChapters,
+                activeChapterIndex: 0
+            });
+            
+            // ✨ FIX: Ensure memory locks onto the new ID before saving!
+            this.loadStudy(newId, true);
+            this.saveAllStudies();
+            
+            input.value = ''; 
+            
+            if (this.#ui) {
+                this.#ui.showNotification(`Successfully imported study with ${games.length} chapters!`, "Import Complete", "📥");
+                this.#ui.renderStudyList();
+            }
+        };
+        reader.readAsText(file);
+    }
+importChaptersFromFile(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        
+        reader.onload = (e) => {
+            const content = e.target.result;
+            const games = this.#parseMultiPGN(content);
+            
+            if (games.length === 0) {
+                if (this.#ui) this.#ui.showNotification("No valid PGN games found.", "Import Failed", "⚠️");
+                return;
+            }
+            
+            const jumpToIdx = this.chapters.length; 
+            
+            games.forEach((gamePgn) => {
+                let title = `Imported Chapter ${this.chapters.length + 1}`;
+                
+                const chapterMatch = gamePgn.match(/\[ChapterName\s+"([^"]+)"\]/);
+                const eventMatch = gamePgn.match(/\[Event\s+"([^"]+)"\]/);
+                
+                if (chapterMatch && chapterMatch[1] && chapterMatch[1].trim() !== "") {
+                    title = chapterMatch[1];
+                } else if (eventMatch && eventMatch[1] && eventMatch[1] !== "?" && eventMatch[1] !== "Casual Game") {
+                    title = eventMatch[1];
+                }
+                
+                this.chapters.push({ title: title, pgn: gamePgn, analysisMode: 'Normal analysis' });
+            });
+            
+            // ✨ FIX: Load the newly appended chapter FIRST, then save the array!
+            this.loadChapter(jumpToIdx, true);
+            this.saveAllStudies();
+            
+            input.value = ''; 
+            this.#emit('chaptersImported', games.length);
+            return true;
+        };
+        reader.readAsText(file);
+    }
+exportAllStudies() {
+        let combinedPgn = "";
+        let count = 0;
+
+        this.allStudies.forEach(study => {
+            if (study.chapters && study.chapters.length > 0) {
+                study.chapters.forEach(ch => {
+                    let chPgn = ch.pgn || "";
+                    if (!chPgn.includes('[StudyName "')) chPgn = `[StudyName "${study.title}"]\n` + chPgn;
+                    if (!chPgn.includes('[Event "')) chPgn = `[Event "${study.title} - ${ch.title}"]\n` + chPgn;
+                    combinedPgn += chPgn + "\n\n";
+                });
+                count++;
+            }
+        });
+
+        if (count > 0) {
+            this.#triggerDownload(combinedPgn, `chess_studies_export`);
+            this.#emit('notification', { message: `Successfully exported ${count} studies!`, title: "Export Complete", icon: "📥" });
+        } else {
+            this.#emit('notification', { message: "No studies selected.", title: "Export Failed", icon: "⚠️" });
+        }
+    }
 saveActiveChapter() {
         if (this.#_isBooting || this.mode !== "study") return;
         if (this.activeChapterIndex >= 0 && this.activeChapterIndex < this.chapters.length) {
@@ -5488,69 +5683,89 @@ saveActiveChapter() {
             this.saveAllStudies();
         }
     }
-loadAllStudies() {
-        try {
-            const stored = localStorage.getItem('chess_studies_library');
-            const lastStudyId = localStorage.getItem('chess_last_study_id'); 
-
-            if (stored) {
-                this.allStudies = JSON.parse(stored);
-                
-                if (lastStudyId && this.allStudies.find(s => s.id === lastStudyId)) {
-                    this.currentStudyId = lastStudyId;
-                } else if (!this.currentStudyId || !this.allStudies.find(s => s.id === this.currentStudyId)) {
-                    this.currentStudyId = this.allStudies[0].id;
-                }
-                
-                const target = this.allStudies.find(s => s.id === this.currentStudyId);
-                if (target) {
-                    this.studyTitle = target.title;
-                    this.chapters = target.chapters;
-                    this.activeChapterIndex = -1; 
-                }
-            } else {
-                this.allStudies = [{
-                    id: 'default',
-                    title: this.studyTitle || "My Lichess Study",
-                    chapters: this.chapters || [{ title: "Chapter 1", pgn: "" }],
-                    activeChapterIndex: 0
-                }];
-                this.currentStudyId = 'default';
-                this.activeChapterIndex = -1;
-                this.saveAllStudies();
-            }
-        } catch(e) {
-            console.error("Failed to load studies", e);
-            this.allStudies = [{ id: 'default', title: "My Lichess Study", chapters: [{ title: "Chapter 1", pgn: "" }], activeChapterIndex: 0 }];
-            this.currentStudyId = 'default';
-            this.activeChapterIndex = -1;
-        }
-    }
 saveAllStudies() {
-        let current = this.allStudies.find(s => s.id === this.currentStudyId);
-        
-        let indexToSave = 0;
-        if (this.mode === 'study' && this.activeChapterIndex >= 0) {
-            indexToSave = this.activeChapterIndex;
-        } else if (current && current.activeChapterIndex !== undefined) {
-            indexToSave = current.activeChapterIndex;
+        // ✨ FIX 1: If there are no studies or no ID, just save the empty state.
+        if (!this.currentStudyId || this.allStudies.length === 0) {
+            localStorage.setItem('chess_studies_library', JSON.stringify(this.allStudies));
+            if (!this.currentStudyId) {
+                localStorage.removeItem('chess_last_study_id');
+            }
+            return;
         }
 
+        let current = this.allStudies.find(s => s.id === this.currentStudyId);
+
+        // ✨ FIX 2: ONLY update the study if it actually exists! 
+        // We completely removed the `else` block that was resurrecting deleted ghosts!
         if (current) {
+            let indexToSave = 0;
+            if (this.mode === 'study' && this.activeChapterIndex >= 0) {
+                indexToSave = this.activeChapterIndex;
+            } else if (current.activeChapterIndex !== undefined) {
+                indexToSave = current.activeChapterIndex;
+            }
+
             current.title = this.studyTitle;
             current.chapters = this.chapters;
             current.activeChapterIndex = indexToSave;
-        } else {
-            this.allStudies.push({
-                id: this.currentStudyId,
-                title: this.studyTitle,
-                chapters: this.chapters,
-                activeChapterIndex: indexToSave
-            });
         }
-        
+
         localStorage.setItem('chess_studies_library', JSON.stringify(this.allStudies));
-        localStorage.setItem('chess_last_study_id', this.currentStudyId); 
+        localStorage.setItem('chess_last_study_id', this.currentStudyId);
+    }
+deleteStudy(id) {
+        const isDeletingCurrent = (this.currentStudyId === id);
+
+        // ✨ FIX 3: If we are deleting a background study, ensure the current one is saved first!
+        if (!isDeletingCurrent) {
+            this.saveActiveChapter();
+        }
+
+        this.allStudies = this.allStudies.filter(s => s.id !== id);
+
+        if (this.allStudies.length === 0) {
+            // Completely wipe the slate clean if the library is empty
+            this.currentStudyId = null;
+            this.chapters = [];
+            this.activeChapterIndex = -1;
+            this.studyTitle = "My Study";
+            this.saveAllStudies(); 
+        } else {
+            if (isDeletingCurrent || !this.allStudies.find(s => s.id === this.currentStudyId)) {
+                // Safely switch to the next available study without triggering a ghost save
+                this.loadStudy(this.allStudies[0].id, true);
+            }
+            
+            // ✨ FIX 4: Explicitly command the system to save the deletion!
+            this.saveAllStudies();
+        }
+    }
+deleteSelectedStudies() {
+        const checkboxes = Array.from(document.querySelectorAll('.study-cb:checked'));
+        if (checkboxes.length === 0) return;
+
+        const idsToDelete = checkboxes.map(cb => cb.dataset.id);
+        const deletingCurrent = idsToDelete.includes(this.currentStudyId);
+
+        if (!deletingCurrent) this.saveActiveChapter();
+
+        this.allStudies = this.allStudies.filter(s => !idsToDelete.includes(s.id));
+
+        if (this.allStudies.length === 0) {
+            this.currentStudyId = null;
+            this.chapters = [];
+            this.studyTitle = "My Study";
+            this.activeChapterIndex = -1;
+            this.saveAllStudies();
+        } else {
+            if (deletingCurrent) {
+                this.loadStudy(this.allStudies[0].id, true);
+            }
+            // ✨ FIX 5: Explicitly command the system to save the deletion!
+            this.saveAllStudies();
+        }
+
+        if (this.#ui) this.#ui.renderStudyList();
     }
 loadStudy(studyId, skipSave = false) {
         if (!skipSave && this.mode === 'study') {
@@ -5594,81 +5809,12 @@ loadChapter(index, skipSave = false, force = false) {
                 this.#ui.flipBoard();
             }
             if (typeof this.#ui.renderChapters === 'function') this.#ui.renderChapters();
-        }
-    }
-createNewStudy() {
-        const nameInput = document.getElementById('newStudyName');
-        const title = nameInput ? nameInput.value.trim() : "";
-        if (!title) return;
-        
-        const newId = 'study_' + Date.now();
-        this.allStudies.push({
-            id: newId,
-            title: title,
-            chapters: [{ title: "Chapter 1", pgn: "" }]
-        });
-        
-        this.saveAllStudies();
-        this.loadStudy(newId);
-        if (nameInput) nameInput.value = "";
-    }
-deleteStudy(id) {
-        const isDeletingCurrent = (this.currentStudyId === id);
-        this.allStudies = this.allStudies.filter(s => s.id !== id);
-        
-        if (this.allStudies.length === 0) {
-            const defaultStudy = {
-                id: 'study_' + Date.now(),
-                title: "My Lichess Study",
-                chapters: [{ title: "Chapter 1", pgn: "" }],
-                activeChapterIndex: 0
-            };
-            this.allStudies.push(defaultStudy);
-        }
-        
-        if (isDeletingCurrent || !this.allStudies.find(s => s.id === this.currentStudyId)) {
-            
-            this.loadStudy(this.allStudies[0].id, true); 
-        } else {
-            this.saveAllStudies();
-        }
-    }
-deleteSelectedStudies() {
-        const checkboxes = Array.from(document.querySelectorAll('.study-cb:checked'));
-        if (checkboxes.length === 0) return;
 
-        const idsToDelete = checkboxes.map(cb => cb.dataset.id);
-        const deletingAll = idsToDelete.length === this.allStudies.length;
-        const deletingCurrent = idsToDelete.includes(this.currentStudyId);
-
-        // ONLY save if we are keeping the current study
-        if (!deletingCurrent) this.saveActiveChapter();
-
-        if (deletingAll) {
-            const newId = 'study_' + Date.now();
-            this.allStudies = [{
-                id: newId,
-                title: "My Lichess Study",
-                chapters: [{ title: "Chapter 1", pgn: "" }],
-                activeChapterIndex: 0
-            }];
-            
-            this.loadStudy(newId, true);
-            this.saveAllStudies();
-            
-            if (this.#ui) this.#ui.renderStudyList();
-            return;
+            if (typeof this.#ui.toggleHideNextMoves === 'function') {
+                const shouldHide = (this.chapters[index].analysisMode === 'hidden');
+                this.#ui.toggleHideNextMoves(shouldHide);
+            }
         }
-
-        this.allStudies = this.allStudies.filter(s => !idsToDelete.includes(s.id));
-        
-        if (deletingCurrent) {
-            this.loadStudy(this.allStudies[0].id, true);
-        } else {
-            this.saveAllStudies();
-        }
-        
-        if (this.#ui) this.#ui.renderStudyList();
     }
 deleteCurrentChapter() {
         const idx = window._editingChapterIdx;
@@ -5735,6 +5881,41 @@ deleteSelectedChapters() {
         
         if (this.#ui) this.#ui.openChapterManager(); 
     }
+downloadCurrentStudy() {
+        this.saveActiveChapter(); 
+        let combinedPgn = "";
+        let exportedCount = 0;
+        
+        this.chapters.forEach((ch, idx) => {
+            let chPgn = ch.pgn || "";
+            
+            if (chPgn.match(/\[ChapterName\s+"[^"]*"\]/)) {
+                chPgn = chPgn.replace(/\[ChapterName\s+"[^"]*"\]/, `[ChapterName "${ch.title}"]`);
+            } else {
+                chPgn = `[ChapterName "${ch.title}"]\n` + chPgn;
+            }
+
+            if (chPgn.match(/\[StudyName\s+"[^"]*"\]/)) {
+                chPgn = chPgn.replace(/\[StudyName\s+"[^"]*"\]/, `[StudyName "${this.studyTitle}"]`);
+            } else {
+                chPgn = `[StudyName "${this.studyTitle}"]\n` + chPgn;
+            }
+            
+            if (!chPgn.includes('[Event "')) {
+                chPgn = `[Event "${this.studyTitle} - ${ch.title}"]\n` + chPgn;
+            }
+            
+            combinedPgn += chPgn + "\n\n";
+            exportedCount++;
+        });
+        
+        if (exportedCount === 0) {
+            this.#emit('notification', { message: "Current study is empty.", title: "Export Failed", icon: "⚠️" });
+            return;
+        }
+        this.#triggerDownload(combinedPgn, `chess_study_${this.studyTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`);
+        this.#emit('notification', { message: `Successfully exported ${exportedCount} chapters!`, title: "Export Complete", icon: "📥" });
+    }
 downloadSelectedChapters() {
         this.saveActiveChapter(); // Guarantee latest moves are included
         const checkboxes = document.querySelectorAll('.chapter-export-cb');
@@ -5775,103 +5956,6 @@ downloadSelectedChapters() {
         
         document.getElementById('exportStudyModal').style.display = 'none';
         if (this.#ui) this.#ui.showNotification(`Successfully exported ${exportedCount} chapters.`, "Export Complete", "📥");
-    }
-importChaptersFromFile(input) {
-        const file = input.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        
-        reader.onload = (e) => {
-            const content = e.target.result;
-            const games = this.#parseMultiPGN(content);
-            
-            if (games.length === 0) {
-                if (this.#ui) this.#ui.showNotification("No valid PGN games found.", "Import Failed", "⚠️");
-                return;
-            }
-            
-            const jumpToIdx = this.chapters.length; 
-            
-            games.forEach((gamePgn) => {
-                let title = `Imported Chapter ${this.chapters.length + 1}`;
-                
-                const chapterMatch = gamePgn.match(/\[ChapterName\s+"([^"]+)"\]/);
-                const eventMatch = gamePgn.match(/\[Event\s+"([^"]+)"\]/);
-                
-                if (chapterMatch && chapterMatch[1] && chapterMatch[1].trim() !== "") {
-                    title = chapterMatch[1];
-                } else if (eventMatch && eventMatch[1] && eventMatch[1] !== "?" && eventMatch[1] !== "Casual Game") {
-                    title = eventMatch[1];
-                }
-                
-                this.chapters.push({ title: title, pgn: gamePgn, analysisMode: 'Normal analysis' });
-            });
-            
-            this.saveAllStudies();
-            input.value = ''; 
-            
-            this.loadChapter(jumpToIdx);
-            
-            this.#emit('chaptersImported', games.length);
-        return true;
-        };
-        reader.readAsText(file);
-    }
-importStudyFromFile(input) {
-        const file = input.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        
-        reader.onload = (e) => {
-            const content = e.target.result;
-            const games = this.#parseMultiPGN(content);
-            
-            if (games.length === 0) {
-                if (this.#ui) this.#ui.showNotification("No valid PGN games found in file.", "Import Failed", "⚠️");
-                return;
-            }
-
-            // Look for a StudyName header in the first game to use as the overall study title
-            let studyName = file.name.replace(/\.[^/.]+$/, "") || "Imported Study";
-            const studyMatch = games[0].match(/\[StudyName\s+"([^"]+)"\]/);
-            if (studyMatch && studyMatch[1] && studyMatch[1].trim() !== "") {
-                studyName = studyMatch[1];
-            }
-
-            const newId = 'study_' + Date.now();
-            const newChapters = [];
-            
-            games.forEach((gamePgn, index) => {
-                let title = `Chapter ${index + 1}`;
-                
-                const chapterMatch = gamePgn.match(/\[ChapterName\s+"([^"]+)"\]/);
-                const eventMatch = gamePgn.match(/\[Event\s+"([^"]+)"\]/);
-                
-                if (chapterMatch && chapterMatch[1] && chapterMatch[1].trim() !== "") {
-                    title = chapterMatch[1];
-                } else if (eventMatch && eventMatch[1] && eventMatch[1] !== "?" && eventMatch[1] !== "Casual Game") {
-                    title = eventMatch[1];
-                }
-                
-                newChapters.push({ title: title, pgn: gamePgn, analysisMode: 'Normal analysis' });
-            });
-
-            this.allStudies.push({
-                id: newId,
-                title: studyName,
-                chapters: newChapters
-            });
-            
-            this.saveAllStudies();
-            this.loadStudy(newId);
-            input.value = ''; 
-            
-            if (this.#ui) {
-                this.#ui.showNotification(`Successfully imported study with ${games.length} chapters!`, "Import Complete", "📥");
-                this.#ui.renderStudyList();
-            }
-        };
-        reader.readAsText(file);
     }
 downloadSelectedChapters() {
         this.saveActiveChapter(); 
@@ -5961,17 +6045,116 @@ downloadSelectedStudies() {
             if (this.#ui) this.#ui.showNotification("No studies selected.", "Export Failed", "⚠️");
         }
     }
+startLesson(lessonData) {
+        this.mode = 'lesson';
+        this.lessonData = lessonData;
+        this.lessonStep = 0;
+        
+        // Silence the engine so it doesn't fight the lesson
+        if (window.sfWorker) window.sfWorker.postMessage('stop');
+        
+        const fen = lessonData.fen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        if (this.#engine && typeof this.#engine.load === 'function') {
+            this.#engine.load(fen);
+        }
+        
+        // Safely reset the visual board
+        if (typeof this['#reconcileBoardIdsReverse'] === 'function') {
+            this['#reconcileBoardIdsReverse'](fen);
+        }
+        
+        this.#emit('boardUpdated', { animate: false });
+        this.#emit('lessonStarted', lessonData);
+    }
+exitLesson() {
+        this.mode = 'local';
+        this.lessonData = null;
+        this.#emit('lessonEnded');
+    }
+playLessonResponse(uci) {
+        if (!this.#engine) return;
+        const from = uci.substring(0, 2);
+        const to = uci.substring(2, 4);
+        const prom = uci.length === 5 ? uci[4] : undefined;
+        
+        // Convert the UCI string into your engine's move object
+        let legals = typeof this.#engine.moves === 'function' ? this.#engine.moves({ verbose: true }) : [];
+        const m = legals.find(x => x.from === from && x.to === to && (!prom || x.promotion === prom));
+        
+        if (m && typeof this.move === 'function') {
+            this.move(m);
+        }
+    }
 triggerMoveSound(move) {
+        if (!move) return;
         const flags = move.flags || '';
-        let type = 'move';
+        let type = 'move-self';
 
-        if (this.#engine.game_over()) type = 'victory'; 
-        else if (this.#engine.in_check()) type = 'check';
-        else if (flags.includes('c') || flags.includes('e')) type = 'capture';
-        else if (flags.includes('k') || flags.includes('q')) type = 'castle';
-        else if (flags.includes('p')) type = 'promote';
+        // ✨ 1. PUZZLE STATUS
+        if (this.mode === 'puzzle') {
+            const pStatus = move.puzzleStatus || this.puzzleStatus || move.status;
+            if (pStatus === 'wrong' || move.isWrong) type = 'wrong';
+            else if (pStatus === 'solved' || pStatus === 'best' || move.isSolved) type = 'best';
+            else if (pStatus === 'correct' || move.isCorrect) type = 'correct';
+            
+            if (['wrong', 'best', 'correct'].includes(type)) {
+                
+                // ✅ SAFE DEBUGGING LOG
+                console.log(`🔊 [SOUND] Mode: Puzzle | Type: ${type} | Square: ${move.to}`);
+                
+                this.#emit('soundTriggered', { type, destSquare: move.to });
+                return;
+            }
+        }
 
-        // ✨ UPGRADE: Don't read UI volume. Just broadcast the sound intent!
+        // ✨ 2. GAME OVER
+        if (this.#engine.game_over()) {
+            if (this.#engine.in_draw() || this.#engine.in_stalemate() || (typeof this.#engine.in_threefold_repetition === 'function' && this.#engine.in_threefold_repetition())) {
+                type = 'draw';
+            } else if (this.#engine.in_checkmate()) {
+                const matedColor = this.#engine.turn(); 
+                if (this.mode === 'bot') {
+                    type = (matedColor === this.botColor) ? 'win-long' : 'lose-long';
+                } else if (this.mode === 'puzzle') {
+                    type = 'win-long';
+                } else {
+                    type = 'win-long'; 
+                }
+            } else {
+                type = 'win'; 
+            }
+            
+            // ✅ SAFE DEBUGGING LOG
+            console.log(`🔊 [SOUND] Game Over | Type: ${type} | Square: ${move.to}`);
+            
+            this.#emit('soundTriggered', { type, destSquare: move.to });
+            return;
+        }
+
+        // ✨ 3. ACTION SOUNDS
+        if (this.#engine.in_check()) {
+            type = 'check';
+        } else if (flags.includes('p')) {
+            type = 'promote';
+        } else if (flags.includes('c') || flags.includes('e')) {
+            type = 'capture';
+        } else if (flags.includes('k') || flags.includes('q')) {
+            type = 'castle';
+        } else {
+            // ✨ 4. STANDARD MOVES
+            if (this.mode === 'bot' && move.color === this.botColor) {
+                type = 'move-opponent';
+            } else if (this.mode === 'puzzle' && move.color !== move.playerColor) {
+                type = 'move-opponent';
+            } else {
+                type = 'move-self';
+            }
+        }
+
+        // ✅ SAFE DEBUGGING LOG
+        const theme = (typeof window !== 'undefined' && window.SoundManager) ? window.SoundManager.currentSet : 'unknown';
+        console.log(`🔊 [SOUND] Type: ${type} | Flags: ${flags} | Square: ${move.to} | Theme: ${theme}`);
+
         this.#emit('soundTriggered', { type, destSquare: move.to });
     }
 }
