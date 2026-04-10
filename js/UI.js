@@ -33,7 +33,8 @@ constructor() {
         this.initDraggableSettings();
         this.avatars = { w: ``, b: `` };
         this.playerInfo = { w: {}, b: {} };
-
+        this.activeSpell = null;
+        this.spellMana = { freeze: 2, jump: 2 };
         if (this.annotationPopup) {
             document.addEventListener('click', (e) => { 
                 if (!this.annotationPopup.contains(e.target)) this.annotationPopup.style.display = 'none'; 
@@ -440,7 +441,8 @@ showVariantRules(variantMode) {
             'kingofthehill': 'First player to move their king to one of the 4 center squares (d4, d5, e4, e5) wins.',
             'racingkings': 'First player to move their king to the 8th rank wins. Checks are completely illegal.',
             'placement': 'Start with an empty board. Players take turns placing their pieces on their half of the board. Once all pieces are placed, a standard game begins.',
-            'alice': 'Played across two dimensions (Board A and B). Moving a piece transfers it to the opposite board. A move is only legal if the destination square on the opposite board is empty. Note: En Passant is disabled.'
+            'alice': 'Played across two dimensions (Board A and B). Moving a piece transfers it to the opposite board. A move is only legal if the destination square on the opposite board is empty. Note: En Passant is disabled.',
+            'spell': 'Cast a spell before making a move. Spells are limited, recharge after 3 full turns, and you cannot cast the same spell two moves in a row. Use the Jump spell on another piece to hop over it like it isn\'t there. Or use the Freeze spell to prevent pieces from moving or checking within a 3x3 area of effect. Be careful - any piece, including your own, will freeze if it enters the spell area. Use spells to find a checkmate or king capture!'        
         };
 
         const icons = {
@@ -457,7 +459,8 @@ showVariantRules(variantMode) {
             'kingofthehill': './assets/tabs-icon/koth.svg',
             'racingkings': './assets/tabs-icon/racing_kings.svg',
             'placement': './assets/tabs-icon/setup_chess.svg',
-            'alice': '📖'
+            'alice': '📖',
+            'spell':'./assets/tabs-icon/variant-spell-chess.svg',
         };
 
         const ruleText = rules[mode] || rules['classical'];
@@ -2779,13 +2782,11 @@ executeMove(move, animate = true) {
         if(overlay) overlay.style.display = 'none';
     }
 renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
-        // ✨ Guard against double-render race conditions so animations don't abort
         if (this._isExecutingMove) return; 
         
         const state = this.#game ? this.#game.getReader() : null;
         if (!state) return;
 
-        // ✨ FAST PUZZLE MODE: Disable sliding, preserve tails!
         if (state.mode === 'puzzle' && (state.puzzle.mode === '3min' || state.puzzle.mode === '5min')) {
             animate = false;
             showMangaTail = true;
@@ -2805,7 +2806,10 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             const now = performance.now();
             const delta = now - (this.lastAnimTime || 0);
             this.lastAnimTime = now;
-            if (delta > 0 && delta < 300) { moveDuration = Math.max(20, delta * 0.95); castleDuration = Math.max(20, delta * 0.95); }
+            if (delta > 0 && delta < 300) { 
+                moveDuration = Math.max(20, delta * 0.95); 
+                castleDuration = Math.max(20, delta * 0.95); 
+            }
         }
 
         const allPieces = this.piecesLayer.querySelectorAll('.piece');
@@ -2869,6 +2873,14 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         }
 
         const squares = this.squaresLayer.children;
+        
+        // ✨ SPELL CHESS DRAG FIX: Ghost the pieces layer so clicks hit the squares directly!
+        if (state.gameMode === 'spell' && this.activeSpell) {
+            this.piecesLayer.style.pointerEvents = 'none';
+        } else {
+            this.piecesLayer.style.pointerEvents = '';
+        }
+
         for (let v = 0; v < 64; v++) {
             let r_vis = Math.floor(v / 8); 
             let c_vis = v % 8;
@@ -2881,6 +2893,17 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             sq.className = `square ${(r_log + c_log) % 2 === 0 ? 'light' : 'dark'}`;
             sq.dataset.index = logical_i; 
             sq.innerHTML = '';
+
+            // ✨ SPELL CHESS: Draw Ice Blocks from Engine State
+            if (state.gameMode === 'spell' && state.frozen) {
+                const isFrozen = logical_i < 32 ? (state.frozen.lo & (1 << logical_i)) : (state.frozen.hi & (1 << (logical_i - 32)));
+                if (isFrozen) {
+                    sq.classList.add('frozen');
+                    let ice = document.createElement('div');
+                    ice.style.cssText = `position:absolute; top:0; left:0; width:100%; height:100%; background:url('./assets/tabs-icon/freeze.3455552f.png') center/cover; opacity:0.65; pointer-events:none; z-index:15; mix-blend-mode: screen; filter: hue-rotate(180deg) brightness(1.5);`;
+                    sq.appendChild(ice);
+                }
+            }
 
             if (this.coordsPosition === 'inside') {
                 const rankVal = 8 - r_log;
@@ -2902,7 +2925,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 let moveColor = activeMove.color;
                 if (!moveColor && state.board[activeMove.to]) moveColor = state.board[activeMove.to].color;
                 else if (!moveColor) moveColor = state.turn === 'w' ? 'b' : 'w';
-                
                 if (moveColor === 'w') sq.classList.add('highlight-w');
                 else if (moveColor === 'b') sq.classList.add('highlight-b');
             }
@@ -2915,6 +2937,50 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             }
 
             sq.onmousedown = null;
+
+            // ✨ THE MISSING SPELL INTERCEPTOR: Draw 3x3 Grid and click to cast!
+            if (state.gameMode === 'spell' && this.activeSpell && state.mode !== 'editor') {
+                sq.style.cursor = 'crosshair'; 
+                
+                sq.onmouseenter = () => {
+                    document.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
+                    
+                    if (this.activeSpell === 'freeze') {
+                        let r_hover = Math.floor(logical_i / 8); 
+                        let c_hover = logical_i % 8;
+                        for (let dr = -1; dr <= 1; dr++) {
+                            for (let dc = -1; dc <= 1; dc++) {
+                                let nr = r_hover + dr, nc = c_hover + dc;
+                                if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
+                                    let targetLogIdx = nr * 8 + nc;
+                                    let targetSq = this.squaresLayer.querySelector(`[data-index="${targetLogIdx}"]`);
+                                    if (targetSq) targetSq.classList.add('spell-target-hover');
+                                }
+                            }
+                        }
+                    } else if (this.activeSpell === 'jump') {
+                        sq.classList.add('spell-target-hover');
+                    }
+                };
+
+                sq.onmouseleave = () => {
+                    document.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
+                };
+
+                sq.onmousedown = (e) => {
+                    if (e.button !== 0) return;
+                    e.preventDefault(); e.stopPropagation();
+                    document.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
+                    if (typeof this.castSpell === 'function') this.castSpell(this.activeSpell, logical_i);
+                };
+                
+                continue; // VERY IMPORTANT: Skips normal move logic!
+            } else {
+                sq.style.cursor = ''; 
+                sq.onmouseenter = null;
+                sq.onmouseleave = null;
+            }
+
             if (this.duckPlacementMoves && state.mode !== 'editor') {
                 if (!this.pendingDuckMove) continue; 
                 let isEmpty = !state.board[logical_i] || logical_i === this.pendingDuckMove.from;
@@ -2947,9 +3013,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     sq.classList.add('valid-move');
                     
                     const selPiece = state.board[this.selectedSq];
-                    if (selPiece) {
-                        sq.classList.add(selPiece.color === 'w' ? 'dest-w' : 'dest-b');
-                    }
+                    if (selPiece) sq.classList.add(selPiece.color === 'w' ? 'dest-w' : 'dest-b');
                     
                     let hint = document.createElement('div');
                     hint.className = state.board[logical_i] ? 'hint-capture' : 'hint-dot';
@@ -3047,12 +3111,11 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 el.onmousedown = (e) => { if (e.button === 0) this.startDrag(e, p.idx, p); };
             }
 
-            // ✨ ALICE CHESS VISUALS: Dim and shift color for pieces on Board B!
             if (p.isBoardB) {
                 el.style.filter = 'hue-rotate(180deg) drop-shadow(0 0 5px cyan)';
                 el.style.opacity = '0.6';
                 const innerImg = el.querySelector('img');
-                if (innerImg) innerImg.style.transform = 'scale(0.80)'; // Safely shrink the child element!
+                if (innerImg) innerImg.style.transform = 'scale(0.80)'; 
             } else {
                 el.style.filter = 'none';
                 el.style.opacity = '1';
@@ -3109,7 +3172,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             let isMovedPiece = !!(targetMove && p.idx === targetMove.to);
             let forceAnimate = isMovedPiece || isCastlingMove;
 
-            // ✨ 1. EXTRACTED COORDINATE LOGIC (Required for Tails, even when snapping)
             let startTransform = currentTransform;
             let startC = c, startR = r;
 
@@ -3139,17 +3201,20 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 if (targetMove && targetMove.from === '@' && isMovedPiece) startTransform += ' scale(1.5)';
             }
 
-            // ✨ 2. HANDLE SLIDING VS SNAPPING
             if (animate && (positionChanged || forceAnimate) && (!isNew || forceAnimate)) {
-                el.style.transition = 'none';
+                el.style.transition = 'none'; 
                 el.style.transform = startTransform;
                 
-                el.getBoundingClientRect(); // Trigger reflow for animation
-
-                el.style.transition = `transform ${isCastlingMove ? castleDuration : moveDuration}ms ${isCastleRook ? 'ease-in-out' : 'ease-out'}`;
-                el.style.transform = targetTransform;
+                el.getBoundingClientRect(); 
+                
+                el.style.transition = ''; 
+                
                 el.classList.add('animating');
                 if (isCastlingMove) el.classList.add('castling-jump');
+
+                el.style.transitionDuration = `${isCastlingMove ? castleDuration : moveDuration}ms`;
+                
+                el.style.transform = targetTransform; 
 
                 const sqEl = this.squaresLayer.querySelector(`[data-index="${p.idx}"]`);
                 if (isMovedPiece && sqEl) {
@@ -3169,28 +3234,26 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 el.dataset.animTimeout = setTimeout(() => {
                     el.classList.remove('animating', 'castling-jump');
                     el.style.transition = 'none';
+                    el.style.transitionDuration = ''; 
                 }, isCastlingMove ? castleDuration + 50 : moveDuration + 50);
 
             } else {
-                // Instantly snap (Used in 3min/5min modes)
                 el.style.transition = 'none';
                 el.style.transform = targetTransform;
             }
 
-            // ✨ 3. DECOUPLED MANGA TAIL LOGIC (Executes for both Slided and Snapped pieces!)
             if (showMangaTail && (isMovedPiece || isCastlingMove) && targetMove && targetMove.from !== '@') {
                 const dx = (c - startC); const dy = (r - startR);
                 const dist = Math.sqrt(dx*dx + dy*dy);
                 
                 if (dist > 0.5) {
-                    // Provide a 250ms fallback duration for tails when pieces are snapped instantly
                     const activeDuration = animate ? (isCastlingMove ? castleDuration : moveDuration) : 250;
                     
                     el.style.setProperty('--tail-length-scale', dist);
                     el.style.setProperty('--move-angle', `${Math.atan2(dy, dx)}rad`);
                     el.style.setProperty('--anim-duration', `${activeDuration}ms`);
                     
-                    el.getBoundingClientRect(); // Trigger physical reflow
+                    el.getBoundingClientRect();
                     
                     el.classList.add('manga-tail'); 
                     
@@ -3213,6 +3276,9 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         }
         if (this.#game && this.#game.engine && typeof this.#game.engine.pocket === 'function') {
             if (typeof this.renderPockets === 'function') this.renderPockets(this.#game.engine.pocket());
+        }
+        if (typeof this.renderSpellBar === 'function') {
+            this.renderSpellBar();
         }
         if (typeof this.redrawGhostPiece === 'function') this.redrawGhostPiece();
     }
@@ -3491,13 +3557,14 @@ scrollToActiveMove() {
         const container = document.getElementById('moveHistory'); 
         if (!container) return;
         const activeEl = container.querySelector('.active');
-        if (activeEl) {
-            const containerRect = container.getBoundingClientRect();
-            const activeRect = activeEl.getBoundingClientRect();
-            const relativeTop = activeRect.top - containerRect.top;
-            const targetPos = (container.clientHeight / 2) - (activeEl.clientHeight / 2);
-            container.scrollTop += (relativeTop - targetPos);
-        }
+        if (!activeEl) return;
+        const containerRect = container.getBoundingClientRect();
+        const elRect = activeEl.getBoundingClientRect();
+        const scaleY = containerRect.height / container.offsetHeight || 1;
+        const visibleRelativeTop = elRect.top - containerRect.top;
+        const unscaledRelativeTop = visibleRelativeTop / scaleY;
+        const centerOffset = (container.clientHeight / 2) - (activeEl.offsetHeight / 2);
+        container.scrollTop += (unscaledRelativeTop - centerOffset);
     }
 getNagInfo(nag) {
         if (!nag) return null;
@@ -6831,6 +6898,100 @@ renderAnalysisResult(stats) {
 
         container.appendChild(createStatSection(stats.w, "White", 'w'));
         container.appendChild(createStatSection(stats.b, "Black", 'b'));
+    }
+renderSpellBar() {
+        let spellBar = document.getElementById('spellBarContainer');
+        if (!spellBar) return;
+
+        const state = this.#game ? this.#game.getReader() : null;
+        
+        if (!state || state.gameMode !== 'spell') {
+            spellBar.style.display = 'none';
+            spellBar.innerHTML = '';
+            return;
+        }
+
+        const myColor = (this.flipped ? 'b' : 'w'); 
+        const MAX_MANA = 3; // Setting max visual dashes to 3 like chess.com
+        const currentMana = state.mana ? state.mana[myColor] : { freeze: 3, jump: 3 };
+
+        spellBar.style.cssText = `
+            display: flex; gap: 25px; justify-content: center; align-items: center;
+            margin-top: 15px; padding: 12px 20px; border-radius: 12px;
+            background: url('./assets/tabs-icon/clans.jpg') center/cover;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 4px 10px rgba(0,0,0,0.5);
+            border: 2px solid #333;
+        `;
+
+        // Helper function to draw the "---" dashes below the spell
+        const renderDashes = (current) => {
+            let html = `<div style="display:flex; gap:4px; margin-top:8px; width:50px; justify-content:space-between;">`;
+            for(let i = 0; i < MAX_MANA; i++) {
+                const isActive = i < current;
+                const bg = isActive ? '#00ffcc' : '#444';
+                const shadow = isActive ? 'box-shadow: 0 0 5px #00ffcc;' : '';
+                html += `<div style="height:4px; flex:1; background-color:${bg}; border-radius:2px; ${shadow} transition:all 0.3s;"></div>`;
+            }
+            html += `</div>`;
+            return html;
+        };
+
+        spellBar.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center;">
+                <div title="Freeze 3x3 Grid" onclick="window.app.ui.toggleSpell('freeze', ${currentMana.freeze})" 
+                     style="width:50px; height:50px; border-radius:8px; cursor:pointer; 
+                            background: url('./assets/tabs-icon/freeze.3455552f.png') center/cover; 
+                            box-shadow: ${this.activeSpell === 'freeze' ? '0 0 15px 5px cyan' : '0 4px 6px rgba(0,0,0,0.5)'};
+                            filter: ${currentMana.freeze > 0 ? 'none' : 'grayscale(100%) opacity(0.5)'};
+                            border: 2px solid ${this.activeSpell === 'freeze' ? 'cyan' : '#555'};
+                            transition: transform 0.1s, box-shadow 0.2s;">
+                </div>
+                ${renderDashes(currentMana.freeze)}
+            </div>
+
+            <div style="display:flex; flex-direction:column; align-items:center;">
+                <div title="Jump Teleport" onclick="window.app.ui.toggleSpell('jump', ${currentMana.jump})" 
+                     style="width:50px; height:50px; border-radius:8px; cursor:pointer; 
+                            background: url('./assets/tabs-icon/jump.8e9138a2.png') center/cover; 
+                            box-shadow: ${this.activeSpell === 'jump' ? '0 0 15px 5px #ff00ff' : '0 4px 6px rgba(0,0,0,0.5)'};
+                            filter: ${currentMana.jump > 0 ? 'none' : 'grayscale(100%) opacity(0.5)'};
+                            border: 2px solid ${this.activeSpell === 'jump' ? '#ff00ff' : '#555'};
+                            transition: transform 0.1s, box-shadow 0.2s;">
+                </div>
+                ${renderDashes(currentMana.jump)}
+            </div>
+        `;
+    }
+toggleSpell(spellType, currentCharge) {
+        // ✨ FIX: Block casting if the spell is still recharging!
+        if (currentCharge < 3) {
+            if (typeof this.showNotification === 'function') {
+                this.showNotification('Spell is still recharging!', 'Cooldown', '⏳');
+            }
+            return;
+        }
+        
+        if (this.activeSpell === spellType) {
+            this.activeSpell = null; // Deselect
+        } else {
+            this.activeSpell = spellType; // Select
+            this.cleanupDrag(false); // Drop any held piece
+        }
+        this.renderBoard(false);
+    }
+castSpell(spellType, targetSq) {
+        this.spellMana[spellType]--;
+        this.activeSpell = null;
+        
+        // ✨ Create a pseudo-move object for the engine
+        const spellMove = {
+            isSpell: true,
+            spellType: spellType,
+            target: targetSq
+        };
+        
+        this.executeMove(spellMove, true);
+        this.renderSpellBar();
     }
 on(eventName, callback) {
         this.#callbacks[eventName] = callback;

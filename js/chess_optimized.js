@@ -154,6 +154,18 @@ var Chess = function(fen, gameMode = 'classical') {
             c.duck_sq = s.duck_sq;
             c.alice_b = s.alice_b ? { lo: s.alice_b.lo, hi: s.alice_b.hi } : { lo: 0, hi: 0 };
         }
+        if (s.gameMode === 'spell') {
+            c.frozen = s.frozen ? { lo: s.frozen.lo, hi: s.frozen.hi } : { lo: 0, hi: 0 };
+            c.jump_sq = s.jump_sq !== undefined ? s.jump_sq : -1;
+            c.mana = s.mana ? { 
+                w: { freeze: s.mana.w.freeze, jump: s.mana.w.jump }, 
+                b: { freeze: s.mana.b.freeze, jump: s.mana.b.jump } 
+            } : { w: {freeze: 0, jump: 0}, b: {freeze: 0, jump: 0} }; // 0 means READY
+            c.active_spells = s.active_spells ? { 
+                frozen_timer: s.active_spells.frozen_timer, 
+                jump_timer: s.active_spells.jump_timer 
+            } : { frozen_timer: 0, jump_timer: 0 };
+        }
         return c;
     }
     function load_fen(fen, setGameMode = 'classical') {
@@ -169,7 +181,7 @@ var Chess = function(fen, gameMode = 'classical') {
                 var c = pocketStr.charAt(i);
                 s.pocket[c === c.toUpperCase() ? 'w' : 'b'].push(CHAR_TO_PIECE[c.toLowerCase()]);
             }
-            tokens[0] = boardToken; // Safely put the board back for the rest of the parser!
+            tokens[0] = boardToken; 
         }
         var sq = 56;
         
@@ -180,7 +192,6 @@ var Chess = function(fen, gameMode = 'classical') {
             } else if (/\d/.test(c)) {
                 sq += parseInt(c);
             } else if (c === '*') {
-                // ✨ DUCK FIX: Extract duck directly from the board string!
                 if (setGameMode === 'duck') s.duck_sq = sq;
                 sq++;
             } else if (c === '~') {
@@ -189,7 +200,6 @@ var Chess = function(fen, gameMode = 'classical') {
                     if (setGameMode === 'crazyhouse') {
                         if (prevSq < 32) s.promoted.lo |= (1<<prevSq); else s.promoted.hi |= (1<<(prevSq-32));
                     } else if (setGameMode === 'alice') {
-                        // ✨ ALICE CHESS: Phase this piece into Board B
                         if (prevSq < 32) s.alice_b.lo |= (1<<prevSq); else s.alice_b.hi |= (1<<(prevSq-32));
                     }
                 }
@@ -210,11 +220,9 @@ var Chess = function(fen, gameMode = 'classical') {
         if (tokens[2].includes('k')) s.castling |= 4; if (tokens[2].includes('q')) s.castling |= 8;
         s.ep_square = (tokens[3] === '-' || !tokens[3]) ? -1 : str_to_sq(tokens[3]);
         
-        // ✨ Standard 6-field parsing restores!
         s.half_moves = parseInt(tokens[4]||0); 
         s.move_number = parseInt(tokens[5]||1);
         
-        // Backwards compatibility for your old saved PGNs / Engine quirks
         if (setGameMode === 'duck' && tokens.length >= 7) {
             if (isNaN(parseInt(tokens[4]))) {
                 s.duck_sq = (tokens[4] === '-') ? -1 : str_to_sq(tokens[4]);
@@ -237,6 +245,22 @@ var Chess = function(fen, gameMode = 'classical') {
             if (checkMatch) {
                 s.checks.w = parseInt(checkMatch[1], 10);
                 s.checks.b = parseInt(checkMatch[2], 10);
+            }
+        }
+        
+        // ✨ SPELL CHESS FEN PARSER: Restore the Mana and Ice Blocks!
+        if (s.gameMode === 'spell') {
+            let spellMatch = fen.match(/\[S:([^\]]+)\]/);
+            if (spellMatch) {
+                let p = spellMatch[1].split(',');
+                s.frozen = { lo: parseInt(p[0]) || 0, hi: parseInt(p[1]) || 0 };
+                s.mana = {
+                    w: { freeze: parseInt(p[2]), jump: parseInt(p[3]) },
+                    b: { freeze: parseInt(p[4]), jump: parseInt(p[5]) }
+                };
+            } else {
+                s.frozen = { lo: 0, hi: 0 };
+                s.mana = { w: {freeze: 2, jump: 2}, b: {freeze: 2, jump: 2} };
             }
         }
         
@@ -290,6 +314,15 @@ var Chess = function(fen, gameMode = 'classical') {
         }
         if (s.gameMode === '3check') {
             finalFen += " +" + s.checks.w + "+" + s.checks.b;
+        }
+        if (s.gameMode === 'spell') {
+            const frozL = s.frozen ? s.frozen.lo : 0;
+            const frozH = s.frozen ? s.frozen.hi : 0;
+            const wF = s.mana ? s.mana.w.freeze : 2;
+            const wJ = s.mana ? s.mana.w.jump : 2;
+            const bF = s.mana ? s.mana.b.freeze : 2;
+            const bJ = s.mana ? s.mana.b.jump : 2;
+            finalFen += ` [S:${frozL},${frozH},${wF},${wJ},${bF},${bJ}]`;
         }
         return finalFen;
     }
@@ -395,6 +428,24 @@ var Chess = function(fen, gameMode = 'classical') {
                     let kFile = (kSqL || kSqH) ? (ctz(kSqL, kSqH) & 7) : 4;
                     if (file > kFile) next.castling &= ~4; else if (file < kFile) next.castling &= ~8;
                 }
+            }
+        }
+        if (next.gameMode === 'spell') {
+            if (next.active_spells) {
+                if (next.active_spells.frozen_timer > 0) {
+                    next.active_spells.frozen_timer--;
+                    if (next.active_spells.frozen_timer === 0) next.frozen = {lo: 0, hi: 0};
+                }
+                if (next.active_spells.jump_timer > 0) {
+                    next.active_spells.jump_timer--;
+                    if (next.active_spells.jump_timer === 0) next.jump_sq = -1;
+                }
+            }
+            if (next.mana) {
+                if (next.mana.w.freeze > 0) next.mana.w.freeze--;
+                if (next.mana.w.jump > 0) next.mana.w.jump--;
+                if (next.mana.b.freeze > 0) next.mana.b.freeze--;
+                if (next.mana.b.jump > 0) next.mana.b.jump--;
             }
         }
         return next;
@@ -572,12 +623,51 @@ var Chess = function(fen, gameMode = 'classical') {
         }
         return next;
     }
+    function apply_spell(state, spellType, targetSq) {
+        let next = clone_state(state);
+        let us = next.turn;
+        
+        if (!next.active_spells) next.active_spells = { frozen_timer: 0, jump_timer: 0 };
+        
+        if (spellType === 'freeze') {
+            let r = targetSq >> 3, c = targetSq & 7;
+            let freezeL = 0, freezeH = 0;
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    let nr = r + dr, nc = c + dc;
+                    if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
+                        let sq = nr * 8 + nc;
+                        if (sq < 32) freezeL |= (1 << sq);
+                        else freezeH |= (1 << (sq - 32));
+                    }
+                }
+            }
+            next.frozen = { lo: freezeL, hi: freezeH };
+            next.active_spells.frozen_timer = 2; // Lasts for your move AND the opponent's response
+        } 
+        else if (spellType === 'jump') {
+            next.jump_sq = targetSq;
+            next.active_spells.jump_timer = 2;
+        }
+
+        // Put on cooldown (6 plies = 3 full turns)
+        let myColor = us === WHITE ? 'w' : 'b';
+        if (!next.mana) next.mana = { w: {freeze: 0, jump: 0}, b: {freeze: 0, jump: 0} };
+        next.mana[myColor][spellType] = 6; 
+
+        // ✨ CRITICAL FIX: DO NOT FLIP THE TURN! Spells are free actions.
+        return next;
+    }
     // --------------------------------------------------------
     // VARIANT APPLY ROUTER (MASTER SHELL)
     // --------------------------------------------------------
     function apply_move(prevState, m) {
+        // ✨ SPELL CHESS INTERCEPT: Handle object-based spell casts
+        if (typeof m === 'object' && m.isSpell) {
+            return apply_spell(prevState, m.spellType, m.target);
+        }
+
         let nextState;
-        
         switch (prevState.gameMode) {
             case 'alice':      nextState = apply_alice_move(prevState, m); break;
             case 'atomic':     nextState = apply_atomic_move(prevState, m); break;
@@ -585,12 +675,11 @@ var Chess = function(fen, gameMode = 'classical') {
             case 'chaturanga': nextState = apply_chaturanga_move(prevState, m); break;
             case 'crazyhouse': nextState = apply_crazyhouse_move(prevState, m); break;
             case 'duck':       nextState = apply_duck_move(prevState, m); break;
+            case 'spell':      nextState = apply_standard_move(prevState, m); break; // Standard piece moves in Spell Chess
             case 'placement':  
                 nextState = apply_crazyhouse_move(prevState, m); 
-                
                 if (nextState.pocket.w.length === 0 && nextState.pocket.b.length === 0 && 
                    (prevState.pocket.w.length > 0 || prevState.pocket.b.length > 0)) {
-                    
                     let c = 0; 
                     if (nextState.board[4] === ((WHITE << 3) | KING)) { 
                         if (nextState.board[7] === ((WHITE << 3) | ROOK)) c |= 1; 
@@ -638,7 +727,9 @@ var Chess = function(fen, gameMode = 'classical') {
             var occL=0, occH=0;
             // ✨ V8 LOVES THIS: Short, predictable loops
             for(let i=0; i<12; i++) { occL|=bb_lo[i]; occH|=bb_hi[i]; }
-
+            if (state.gameMode === 'spell' && state.jump_sq !== undefined && state.jump_sq !== -1) {
+            if(state.jump_sq < 32) occL &= ~(1<<state.jump_sq); else occH &= ~(1<<(state.jump_sq-32));
+            }
             let sliders = (bb_lo[by_color*6+QUEEN]|bb_lo[by_color*6+ROOK]|bb_lo[by_color*6+BISHOP]);
             let slidersH = (bb_hi[by_color*6+QUEEN]|bb_hi[by_color*6+ROOK]|bb_hi[by_color*6+BISHOP]);
 
@@ -666,7 +757,10 @@ var Chess = function(fen, gameMode = 'classical') {
             bMaskL = isB ? state.alice_b.lo : ~state.alice_b.lo;
             bMaskH = isB ? state.alice_b.hi : ~state.alice_b.hi;
         }
-
+        if (state.gameMode === 'spell' && state.frozen) {
+            bMaskL &= ~state.frozen.lo;
+            bMaskH &= ~state.frozen.hi;
+        }
         if (sq < 32) {
             if ((PAWN_LO[by_color^1][sq] & (bb_lo[by_color*6+PAWN] & bMaskL))) return true;
         } else {
@@ -675,14 +769,14 @@ var Chess = function(fen, gameMode = 'classical') {
         if ((KNIGHT_LO[sq] & (bb_lo[by_color*6+KNIGHT] & bMaskL)) | (KNIGHT_HI[sq] & (bb_hi[by_color*6+KNIGHT] & bMaskH))) return true;
         if ((KING_LO[sq] & (bb_lo[by_color*6+KING] & bMaskL)) | (KING_HI[sq] & (bb_hi[by_color*6+KING] & bMaskH))) return true;
 
-        var occL=0, occH=0;
-        for(let i=0; i<12; i++) { occL|=bb_lo[i]; occH|=bb_hi[i]; }
-
         if (state.gameMode === 'duck' && state.duck_sq !== -1) {
             if (state.duck_sq < 32) occL |= (1 << state.duck_sq);
             else occH |= (1 << (state.duck_sq - 32));
         }
-
+        if (state.gameMode === 'spell' && state.jump_sq !== undefined && state.jump_sq !== -1) {
+            if (state.jump_sq < 32) occL &= ~(1 << state.jump_sq);
+            else occH &= ~(1 << (state.jump_sq - 32));
+        }
         if (state.gameMode === 'alice') {
             occL &= bMaskL; occH &= bMaskH;
         }
@@ -774,25 +868,46 @@ var Chess = function(fen, gameMode = 'classical') {
     }
     
     function generate_standard_moves(state, options) {
-        var moves = [];
-        var us = state.turn, them = us ^ 1;
-        var bb_lo = state.bb_lo, bb_hi = state.bb_hi;
+        let legal = (typeof options !== 'undefined' && options.legal) ? options.legal : false;
+        let moves = [];
+        let us = state.turn;
+        let them = us ^ 1;
 
-        // ✨ V8 LOVES THIS: Clean, inline OCC loops
-        var occUsL = 0, occUsH = 0, occThemL = 0, occThemH = 0;
+        // ✨ THE COLLISION FIX: Copy the arrays locally so we can mask them safely
+        let bb_lo = new Int32Array(state.bb_lo);
+        let bb_hi = new Int32Array(state.bb_hi);
+
+        // 1. FREEZE SPELL: Mask the pieces directly in our local array
+        if (state.gameMode === 'spell' && state.frozen) {
+            let freeL = ~state.frozen.lo;
+            let freeH = ~state.frozen.hi;
+            for(let i=0; i<12; i++) {
+                bb_lo[i] &= freeL;
+                bb_hi[i] &= freeH;
+            }
+        }
+
+        let occUsL = 0, occUsH = 0, occThemL = 0, occThemH = 0;
         for(let i=us*6; i<us*6+6; i++) { occUsL|=bb_lo[i]; occUsH|=bb_hi[i]; }
         for(let i=them*6; i<them*6+6; i++) { occThemL|=bb_lo[i]; occThemH|=bb_hi[i]; }
         
-        var occAllL = occUsL | occThemL, occAllH = occUsH | occThemH;
-        
+        let occAllL = occUsL | occThemL;
+        let occAllH = occUsH | occThemH;
+
+        if (state.gameMode === 'spell' && state.jump_sq !== undefined && state.jump_sq !== -1) {
+            if (state.jump_sq < 32) occL &= ~(1 << state.jump_sq);
+            else occH &= ~(1 << (state.jump_sq - 32));
+        }
+
         if (state.gameMode === 'duck' && state.duck_sq !== -1) {
             if (state.duck_sq < 32) { occUsL |= (1 << state.duck_sq); occAllL |= (1 << state.duck_sq); }
             else { occUsH |= (1 << (state.duck_sq - 32)); occAllH |= (1 << (state.duck_sq - 32)); }
         }
-        var emptyL = ~occAllL, emptyH = ~occAllH;
-        var pL = bb_lo[us*6+PAWN], pH = bb_hi[us*6+PAWN];
 
-        var sL, sH;
+        let emptyL = ~occAllL, emptyH = ~occAllH;
+        let pL = bb_lo[us*6+PAWN], pH = bb_hi[us*6+PAWN];
+
+        let sL, sH;
         if (us === WHITE) {
             sL = (pL << 8) & emptyL;
             sH = ((pH << 8) | (pL >>> 24)) & emptyH;
@@ -851,24 +966,27 @@ var Chess = function(fen, gameMode = 'classical') {
         add_caps(capL_LO, capL_HI, -1);
         add_caps(capR_LO, capR_HI, 1);
 
-        let kL = bb_lo[us*6+KNIGHT], kH = bb_hi[us*6+KNIGHT];
-        while (kL || kH) {
-            let f = ctz(kL, kH);
-            if(f<32) kL &= ~(1<<f); else kH &= ~(1<<(f-32));
+        // ✨ PROPERLY DECLARED KNIGHTS
+        let nL = bb_lo[us*6+KNIGHT], nH = bb_hi[us*6+KNIGHT];
+        while (nL || nH) {
+            let f = ctz(nL, nH);
+            if(f<32) nL &= ~(1<<f); else nH &= ~(1<<(f-32));
             serialize_moves(moves, f, KNIGHT_LO[f]&~occUsL, KNIGHT_HI[f]&~occUsH, {lo:occThemL, hi:occThemH});
         }
         
-        kL = bb_lo[us*6+KING]; kH = bb_hi[us*6+KING];
-        if(kL || kH) {
-            let f = ctz(kL, kH);
+        // ✨ PROPERLY DECLARED KINGS
+        let kgL = bb_lo[us*6+KING], kgH = bb_hi[us*6+KING];
+        if(kgL || kgH) {
+            let f = ctz(kgL, kgH);
             serialize_moves(moves, f, KING_LO[f]&~occUsL, KING_HI[f]&~occUsH, {lo:occThemL, hi:occThemH});
         }
 
+        // SLIDERS
         [ROOK, QUEEN, BISHOP].forEach(type => {
-            let pL = bb_lo[us*6+type], pH = bb_hi[us*6+type];
-            while (pL || pH) {
-                let f = ctz(pL, pH);
-                if(f<32) pL &= ~(1<<f); else pH &= ~(1<<(f-32));
+            let pL_slider = bb_lo[us*6+type], pH_slider = bb_hi[us*6+type];
+            while (pL_slider || pH_slider) {
+                let f = ctz(pL_slider, pH_slider);
+                if(f<32) pL_slider &= ~(1<<f); else pH_slider &= ~(1<<(f-32));
                 let att = get_slider_attacks(type, f, occAllL, occAllH);
                 serialize_moves(moves, f, att.lo&~occUsL, att.hi&~occUsH, {lo:occThemL, hi:occThemH});
             }
@@ -933,9 +1051,9 @@ var Chess = function(fen, gameMode = 'classical') {
             }
         }
 
-        var final_moves = [];
-        for (var i = 0; i < moves.length; i++) {
-            var m = moves[i];
+        let final_moves = [];
+        for (let i = 0; i < moves.length; i++) {
+            let m = moves[i];
             if (options && options.square) {
                 if ((m & 0x3F) !== ((options.square.charCodeAt(1)-49)*8 + (options.square.charCodeAt(0)-97))) continue;
             }
@@ -943,15 +1061,15 @@ var Chess = function(fen, gameMode = 'classical') {
                 
                 // ✨ FAST-PATH RESTORED SAFELY
                 if (state.gameMode === 'classical' || state.gameMode === 'chess960' || state.gameMode === '3check' || state.gameMode === 'horde' || state.gameMode === 'chaturanga') {
-                    var flags = (m >>> 12) & 0xFF;
+                    let flags = (m >>> 12) & 0xFF;
                     if (state.gameMode === 'chess960' && (flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE))) {
-                        var nextState = apply_move(state, m);
+                        let nextState = apply_move(state, m);
                         if (!is_checked(nextState, us)) final_moves.push(m);
                         continue;
                     }
                     if (is_standard_legal_fast(state, m)) final_moves.push(m);
                 } else {
-                    var nextState = apply_move(state, m);
+                    let nextState = apply_move(state, m);
                     if (!is_checked(nextState, us)) final_moves.push(m);
                 }
                 
@@ -2177,6 +2295,28 @@ return {
             if (!o) return null;
             if (this.game_over()) return null;
             
+            // ✨ SPELL CHESS BYPASS: Intercept spells before standard validation!
+            if (typeof o === 'object' && o.isSpell) {
+                var nextState = apply_spell(currentState, o.spellType, o.target);
+                currentState = nextState;
+                history.push(currentState);
+                
+                // Convert index to algebraic coordinate (e.g., 28 -> 'e5') safely
+                var f = o.target & 7;
+                var r = o.target >> 3;
+                var targetSqStr = ['a','b','c','d','e','f','g','h'][f] + (8 - r);
+                
+                return {
+                    color: currentState.turn === WHITE ? 'b' : 'w',
+                    flags: 's',
+                    from: '@',
+                    to: targetSqStr,
+                    piece: 's',
+                    san: (o.spellType === 'freeze' ? 'Fz@' : 'Jp@') + targetSqStr,
+                    isSpell: true
+                };
+            }
+
             var m = null;
             var nag = "";
             var clean_san = null;
@@ -2252,7 +2392,9 @@ return {
             var ret = to_obj(currentState, m, nag, clean_san); 
             
             if (currentState.gameMode === 'duck') {
-                let duckSqStr = SQ_STR[(m >>> 22) & 0x3F];
+                // Ensure duck string safely extracts from SQ_STR if available, or compute fallback
+                let dIdx = (m >>> 22) & 0x3F;
+                let duckSqStr = ['a','b','c','d','e','f','g','h'][dIdx & 7] + (8 - (dIdx >> 3)); 
                 let baseUci = ret.from + ret.to + (ret.promotion ? ret.promotion : '');
                 ret.uci = baseUci + ',' + ret.to + duckSqStr;
             } else if ((currentState.gameMode === 'crazyhouse' || currentState.gameMode === 'bughouse'|| currentState.gameMode === 'placement') && (((m >>> 12) & 0xFF) & BITS.DROP)) {
@@ -2462,6 +2604,34 @@ return {
                 return { valid: false, error: `Illegal Position: ${sideName} is in check, but it is not their turn.` };
             }
             return { valid: true, error: 'No errors.' };
-        }
+        },
+        pocket: function() { 
+            return currentState.pocket ? { w: [...currentState.pocket.w], b: [...currentState.pocket.b] } : { w: [], b: [] }; 
+        },
+        checks: function() { 
+            return currentState.checks ? { w: currentState.checks.w, b: currentState.checks.b } : { w: 0, b: 0 }; 
+        },
+        alice_b: function() { 
+            return currentState.alice_b ? { lo: currentState.alice_b.lo, hi: currentState.alice_b.hi } : { lo: 0, hi: 0 }; 
+        },
+        promoted: function() { 
+            return currentState.promoted ? { lo: currentState.promoted.lo, hi: currentState.promoted.hi } : { lo: 0, hi: 0 }; 
+        },
+        duck_sq: function() { 
+            return currentState.duck_sq !== undefined ? currentState.duck_sq : -1; 
+        },
+        frozen: function() { 
+            return currentState.frozen ? { lo: currentState.frozen.lo, hi: currentState.frozen.hi } : { lo: 0, hi: 0 }; 
+        },
+        mana: function() {
+            let getCharge = (cd) => 3 - Math.ceil(cd / 2);
+            return currentState.mana ? {
+                w: { freeze: getCharge(currentState.mana.w.freeze), jump: getCharge(currentState.mana.w.jump) },
+                b: { freeze: getCharge(currentState.mana.b.freeze), jump: getCharge(currentState.mana.b.jump) }
+            } : { w: {freeze: 3, jump: 3}, b: {freeze: 3, jump: 3} };
+        },
+        jump_sq: function() { 
+            return currentState.jump_sq !== undefined ? currentState.jump_sq : -1; 
+        },
     };
 }

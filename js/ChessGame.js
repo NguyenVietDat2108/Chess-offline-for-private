@@ -174,6 +174,8 @@ getReader() {
                 solution: this.puzzleSolution,
                 cursor: this.puzzleCursor
             }),
+            mana: this.#engine && typeof this.#engine.mana === 'function' ? this.#engine.mana() : null,
+            frozen: this.#engine && typeof this.#engine.frozen === 'function' ? this.#engine.frozen() : null,
             duck_sq: uiDuckSq, 
             studyTitle: this.studyTitle,
             activeChapterIndex: this.activeChapterIndex,
@@ -2512,7 +2514,10 @@ restoreAnalysisState() {
         return restored;
     }
 setGameMode(mode, isInitialLoad = false, skipStorage = false) {
-        if (!mode || this.gameMode === mode) return;
+        // ✨ FIX 1: Do not instantly abort if the app is booting! 
+        // We MUST process the initial load to trigger the PGN load and UI render.
+        if (!mode) return;
+        if (!isInitialLoad && this.gameMode === mode) return;
 
         const oldMode = this.gameMode;
 
@@ -2532,7 +2537,7 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
         }
 
         // 1. Save the CURRENT variant's state before switching
-        if (!isInitialLoad && !skipStorage && this.gameMode) {
+        if (!isInitialLoad && !skipStorage && this.gameMode && oldMode !== mode) {
             this.saveVariantState(this.gameMode);
         }
 
@@ -2574,7 +2579,7 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
         }
         
         // 4. Let the engine switcher handle booting Fairy-Stockfish
-        const didSwitch = this.#checkAndSwitchEngine();
+        const didSwitch = typeof this.#checkAndSwitchEngine === 'function' ? this.#checkAndSwitchEngine() : false;
         
         if (!didSwitch && window.sfWorker) {
             if (this.activeEngineType === 'fairy') {
@@ -2593,12 +2598,13 @@ saveVariantState(modeToSave) {
         else if (typeof this.#ui !== 'undefined' && typeof this.#ui.exportPGN === 'function') pgnToSave = this.#ui.exportPGN();
         else if (this.#engine && typeof this.#engine.pgn === 'function') pgnToSave = this.#engine.pgn();
 
-        // Save it to a unique slot just for this variant!
+        // ✨ FIX: Never delete the slot automatically! 
+        // Only save if there is actual data. Let the "New Game" button handle deletions.
         if (pgnToSave && pgnToSave.trim() !== '') {
             localStorage.setItem(`chess_variant_pgn_${modeToSave}`, pgnToSave);
-        } else {
-            // If the board is completely empty, clear the slot
-            localStorage.removeItem(`chess_variant_pgn_${modeToSave}`);
+        } else if (this.currentNode && this.currentNode !== this.rootNode) {
+            // Fallback: If PGN generation failed but we clearly have moves, don't wipe it!
+            console.warn(`[ChessGame] PGN generation returned empty, but board has moves. Aborting save to protect data.`);
         }
     }
 async loadEngineFromFolder() {
@@ -4136,7 +4142,8 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                     'atomic': 'atomic', 'horde': 'horde', 'kingofthehill': 'kingofthehill', 
                     'koth': 'kingofthehill', 'racingkings': 'racingkings', 'crazyhouse': 'crazyhouse',
                     'bughouse': 'bughouse', 'duck': 'duck', 'duckchess': 'duck', 'chaturanga': 'chaturanga',
-                    'placement': 'placement', 'alice': 'alice', 'alicechess': 'alice'
+                    'placement': 'placement', 'alice': 'alice', 'alicechess': 'alice',
+                    'spell': 'spell', 'spellchess': 'spell' 
                 };
                 if (modeMap[rawVariant]) detectedMode = modeMap[rawVariant];
             }
@@ -4658,7 +4665,15 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         if (this.#engine && this.#engine.game_over()) return null;
         const ui = (typeof window !== 'undefined' && this.#ui) ? this.#ui : null;
         
-        if (!this.isChess960 && move && move.from !== undefined && move.to !== undefined && this.#engine) {
+        // ✨ STRING INTERCEPT: Automatically converts PGN strings (from loadPGN) into magic!
+        if (typeof move === 'string' && move.includes('@') && this.gameMode === 'spell') {
+            const isFreeze = move.startsWith('Fz');
+            const targetStr = move.split('@')[1];
+            const targetSq = (8 - parseInt(targetStr[1])) * 8 + (targetStr.charCodeAt(0) - 97);
+            move = { isSpell: true, spellType: isFreeze ? 'freeze' : 'jump', target: targetSq };
+        }
+        
+        if (!this.isChess960 && move && move.from !== undefined && move.to !== undefined && !move.isSpell && this.#engine) {
             const fromStr = typeof move.from === 'number' && this.#indexToSquare ? this.#indexToSquare(move.from) : move.from;
             const toStr = typeof move.to === 'number' && this.#indexToSquare ? this.#indexToSquare(move.to) : move.to;
 
@@ -4688,7 +4703,9 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
 
         if (batchMode) {
             const batchObj = {};
-            if (move.from === '@' || move.drop) {
+            if (move.isSpell) {
+                batchObj.isSpell = true; batchObj.spellType = move.spellType; batchObj.target = move.target;
+            } else if (move.from === '@' || move.drop) {
                 batchObj.from = '@';
                 batchObj.drop = move.drop || move.piece;
                 batchObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
@@ -4719,7 +4736,9 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         }
 
         const moveObj = {};
-        if (move.from === '@' || move.drop) {
+        if (move.isSpell) {
+            moveObj.isSpell = true; moveObj.spellType = move.spellType; moveObj.target = move.target;
+        } else if (move.from === '@' || move.drop) {
             moveObj.from = '@';
             moveObj.drop = move.drop || move.piece;
             moveObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
@@ -4731,13 +4750,10 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         if (move.duck_sq !== undefined) {
             moveObj.duck_sq = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
         }
-        
 
         const result = this.#engine.move(moveObj);
         if (!result) return null;
 
-        // ✨ THE FIX: We create a closure to guarantee the sound fires exactly once,
-        // BEFORE any early returns swallow it!
         let soundFired = false;
         const fireSound = () => {
             if (!soundFired && !muteEngine && !isAutoReply) {
@@ -4755,8 +4771,8 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             const solStr = (this.puzzleSolution[this.puzzleCursor] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
             
             if (userStr !== solStr && !this.#engine.in_checkmate()) {
-                result.puzzleStatus = 'wrong'; // Inject status so triggerMoveSound sees it!
-                fireSound(); // 🔊 Play Buzzer!
+                result.puzzleStatus = 'wrong'; 
+                fireSound(); 
                 
                 this.#engine.undo();
                 this.#reconcileBoardIds(this.#engine.fen());
@@ -4786,14 +4802,14 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         
         if (this.currentNode) this.currentNode.timeSpent = timeSpent;
 
-        if (this.isPlayingLiveGame) {
+        if (this.isPlayingLiveGame && !result.isSpell) {
             if (nextTurn === 'b') this.whiteTime += this.whiteIncrement;
             else this.blackTime += this.blackIncrement;
         }
 
         this.turn = nextTurn;
         
-        if (this.isPlayingLiveGame && this.currentNode) {
+        if (this.isPlayingLiveGame && this.currentNode && !result.isSpell) {
             const clkSeconds = nextTurn === 'b' ? this.whiteTime : this.blackTime;
             const h = Math.floor(clkSeconds / 3600);
             const m = Math.floor((clkSeconds % 3600) / 60);
@@ -4803,7 +4819,7 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             this.currentNode.comment = this.currentNode.comment ? this.currentNode.comment + ` ${clkStr}` : clkStr;
         }
 
-        if (!this.gameOver && !this.isAnalysisMode) {
+        if (!this.gameOver && !this.isAnalysisMode && !result.isSpell) {
             setTimeout(() => this.attemptPremove(), 150);
         }
 
@@ -4843,7 +4859,7 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
                 this._engineRebootTimeout = setTimeout(() => this.updateStockfish(), 200);
             }
 
-            fireSound(); // 🔊 Play Checkmate / Draw sound!
+            fireSound(); 
             return result;
         }
         
@@ -4881,7 +4897,7 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             this._engineRebootTimeout = setTimeout(() => this.updateStockfish(), 200);
         }
 
-        fireSound(); // 🔊 Play normal move / capture / check sound!
+        fireSound(); 
         return result;
     }
 generateChess960FEN() {
