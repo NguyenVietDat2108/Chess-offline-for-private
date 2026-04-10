@@ -12,7 +12,7 @@ To keep this code repository lightning-fast to download, the massive puzzle data
 
 ### 1. Download the Source Code
 Clone or download this repository to your machine. 
-*(Note: You do not need the `lila` master files here, everything you need is already packaged).*
+*(Note: You do not need the `lila`,`legacy`,'backup' folders here, everything you need is already packaged).*
 
 ### 2. Download the Core Assets (Heavy Files)
 Head over to the Releases page to grab the offline puzzle database and the Stockfish 18 WebAssembly engine:
