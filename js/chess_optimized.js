@@ -85,7 +85,12 @@ var Chess = function(fen, gameMode = 'classical') {
         if (lo !== 0) return 31 - Math.clz32(lo & -lo);
         return 32 + (31 - Math.clz32(hi & -hi));
     }
-    function str_to_sq(s) { return (s.charCodeAt(1) - 49) * 8 + (s.charCodeAt(0) - 97); }
+    function str_to_sq(s) { 
+        if (!s) return -1;
+        let f = s.charCodeAt(0);
+        if (f < 97) f += 32; // ✨ FIX: Instantly convert uppercase A-H to lowercase a-h
+        return (s.charCodeAt(1) - 49) * 8 + (f - 97); 
+    }
     function sq_str(sq) { return SQ_STR[sq]; }
     
     function get_slider_attacks(type, sq, occL, occH) {
@@ -2078,18 +2083,22 @@ var Chess = function(fen, gameMode = 'classical') {
              if (count > 1) break; 
         }
 
-        if (count > 1 && pType !== 0) { 
-            var tempL2 = pL, tempH2 = pH;
-            while (tempL2 || tempH2) {
-                let _sq = ctz(tempL2, tempH2);
-                if(_sq<32) tempL2 &= ~(1<<_sq); else tempH2 &= ~(1<<(_sq-32));
+        if (count > 1 && pType !== 0 && pType !== KING) { 
+            // ✨ FIX: Use the actual legal move generator to find TRUE ambiguities
+            // instead of blindly trusting King-safety checks on impossible jumps!
+            var legals = generate_moves(state, {legal: true});
+            for (var i = 0; i < legals.length; i++) {
+                var lm = legals[i];
+                var l_from = lm & 0x3F;
+                var l_to = (lm >>> 6) & 0x3F;
                 
-                if (_sq !== from) {
-                    let mTest = build_move_direct(state, _sq, to, promo);
-                    if (mTest !== null) {
-                        var mStr = SQ_STR[from], oStr = SQ_STR[_sq];
+                if (l_to === to && l_from !== from) {
+                    if ((state.board[l_from] & 7) === pType) {
+                        var mStr = SQ_STR[from];
+                        var oStr = SQ_STR[l_from];
                         if (mStr && oStr) {
-                            if (mStr[0] === oStr[0]) ambigRank = true; else ambigFile = true;
+                            if (mStr[0] === oStr[0]) ambigRank = true; 
+                            else ambigFile = true;
                         }
                     }
                 }
@@ -2359,6 +2368,7 @@ return {
                         let t = str_to_sq(clean_san.substring(2,4));
                         let p = clean_san.length === 5 ? clean_san[4] : null;
                         m = build_move_direct(currentState, f, t, p);
+                        clean_san = null;
                     } else { m = tr(currentState, clean_san); }
                 }
             } else {

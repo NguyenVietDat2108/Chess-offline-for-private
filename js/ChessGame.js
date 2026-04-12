@@ -8,6 +8,7 @@ export class ChessGame {
     #_isBooting;
     #ui;
     #callbacks;
+    SUSPENDED_VARIANTS = ['bughouse', 'alice','spell'];
 constructor() {
         this.#callbacks = {};
         this.#ui = null;
@@ -96,6 +97,9 @@ on(eventName, callback) {
         if (this.#callbacks[eventName]) {
             this.#callbacks[eventName](data);
         }
+    }
+isVariantSuspended(mode) {
+        return this.SUSPENDED_VARIANTS ? this.SUSPENDED_VARIANTS.includes(mode) : false;
     }
 setUI(uiInstance) {
         this.#ui = uiInstance;
@@ -1010,13 +1014,22 @@ return move.san;
 
             if (rawMoves.length > 0) {
                 const tempValidator = new (typeof Chess === 'function' ? Chess : window.Chess)(currentFen, this.gameMode);
-                const validMoves = [];
+                const validSan = [];
+                const validFull = [];
+                
                 for (let m of rawMoves) {
                     let res = tempValidator.move(m);
-                    if (!res) break; // Instantly abort the PV line at the first illegal hallucination
-                    validMoves.push(m);
+                    if (!res) break; 
+                    
+                    validSan.push(res.san); // The short version for PGN text (e.g., "Nf3")
+                    validFull.push(res);    // The full object for the arrow (contains .from and .to)
                 }
-                rawMoves = validMoves; // Now this assignment works perfectly!
+                
+                // 1. Give the PGN text box the short version it wants
+                rawMoves = validSan; 
+                
+                // 2. Attach the FULL version to the array so the arrow doesn't break!
+                rawMoves.bestMoveFull = validFull[0]; 
             }
             if (rawMoves.length === 0) return;
 
@@ -1076,7 +1089,7 @@ return move.san;
                         type, score, depth,
                         nps: nps ? nps[1] : '-',
                         node: targetNode,
-                        bestMove: rawMoves.length > 0 ? rawMoves[0] : null
+                        bestMove: rawMoves.bestMoveFull ? rawMoves.bestMoveFull.uci : rawMoves[0]
                     });
                 }
                 }
@@ -2520,6 +2533,7 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
         if (!isInitialLoad && this.gameMode === mode) return;
 
         const oldMode = this.gameMode;
+        const isSuspended = this.isVariantSuspended(mode);
 
         // ONLY trigger this warning if the user manually changed the dropdown (!skipStorage)
         // and there is actual move history on the board.
@@ -2536,61 +2550,103 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             }
         }
 
-        // 1. Save the CURRENT variant's state before switching
+        // 1. Save the CURRENT variant's state before switching (Safely!)
         if (!isInitialLoad && !skipStorage && this.gameMode && oldMode !== mode) {
             this.saveVariantState(this.gameMode);
         }
 
         this.gameMode = mode;
-        if (!skipStorage) {
+        
+        // ✨ SANDBOX: Do not remember suspended variants in localStorage
+        if (!skipStorage && !isSuspended) {
             if (typeof localStorage !== 'undefined') localStorage.setItem('chess_last_variant', mode); 
         }
         
-        // 2. Tell the internal ruleset to switch
-        if (this.#engine && typeof this.#engine.setGameMode === 'function') {
-            this.#engine.setGameMode(mode);
-        }
-        
-        // 3. Restore the saved PGN for the NEW variant (or Reset to correct starting position)
-        if (!skipStorage) {
-            const savedPgn = typeof localStorage !== 'undefined' ? localStorage.getItem(`chess_variant_pgn_${mode}`) : null;
+        // ✨ SANDBOX: Wrap the engine boot in a try-catch to prevent fatal app crashes
+        try {
+            // 2. Physically reboot the engine ruleset when the dropdown changes
+            this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, this.gameMode);
             
-            if (savedPgn) {
-                this.loadPGN(savedPgn, false, true);
+            if (isSuspended) {
+                console.warn(`[Sandbox] Booted ${mode} in isolated memory mode.`);
+            }
+            
+            // 3. Restore the saved PGN for the NEW variant (or Reset to correct starting position)
+            let safeSkipStorage = skipStorage || isSuspended; // Force fresh board if suspended
+            
+            if (!safeSkipStorage) {
+                const savedPgn = typeof localStorage !== 'undefined' ? localStorage.getItem(`chess_variant_pgn_${mode}`) : null;
                 
-                if (typeof document !== 'undefined') {
-                    const fenBox = document.getElementById('fenInput');
-                    if (fenBox && this.currentNode) fenBox.value = this.currentNode.fen;
+                if (savedPgn) {
+                    this.loadPGN(savedPgn, false, true);
+                    
+                    if (typeof document !== 'undefined') {
+                        const fenBox = document.getElementById('fenInput');
+                        if (fenBox && this.currentNode) fenBox.value = this.currentNode.fen;
+                    }
+                } else {
+                    let startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[mode]) ? VARIANT_STARTING_FENS[mode] : INITIAL_FEN;
+                    
+                    // Chess960 override (Dynamically shuffles the classical FEN)
+                    if (mode === 'chess960' && typeof this.generateChess960FEN === 'function') {
+                        startFen = this.generateChess960FEN();
+                    }
+                    
+                    if (typeof this.newGame === 'function') {
+                        this.newGame(startFen);
+                    } else if (typeof this.resetGame === 'function') {
+                        this.resetGame(false, startFen);
+                    }
                 }
-            } else {
+            } else if (isSuspended) {
+                // If suspended, we MUST force a fresh game so we don't carry over broken memory
                 let startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[mode]) ? VARIANT_STARTING_FENS[mode] : INITIAL_FEN;
-                
-                // Chess960 override (Dynamically shuffles the classical FEN)
-                if (mode === 'chess960' && typeof this.generateChess960FEN === 'function') {
-                    startFen = this.generateChess960FEN();
-                }
-                
-                if (typeof this.newGame === 'function') {
-                    this.newGame(startFen);
-                } else if (typeof this.resetGame === 'function') {
-                    this.resetGame(false, startFen);
+                if (typeof this.newGame === 'function') this.newGame(startFen);
+                else if (typeof this.resetGame === 'function') this.resetGame(false, startFen);
+            }
+            
+            // 4. Let the engine switcher handle booting Fairy-Stockfish
+            const didSwitch = typeof this.#checkAndSwitchEngine === 'function' ? this.#checkAndSwitchEngine() : false;
+            
+            if (!didSwitch && window.sfWorker) {
+                if (this.activeEngineType === 'fairy') {
+                    window.sfWorker.postMessage('setoption name UCI_Variant value ' + (mode === 'classical' ? 'chess' : mode));
+                } else {
+                    window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (mode === 'chess960' ? 'true' : 'false'));
                 }
             }
-        }
-        
-        // 4. Let the engine switcher handle booting Fairy-Stockfish
-        const didSwitch = typeof this.#checkAndSwitchEngine === 'function' ? this.#checkAndSwitchEngine() : false;
-        
-        if (!didSwitch && window.sfWorker) {
-            if (this.activeEngineType === 'fairy') {
-                window.sfWorker.postMessage('setoption name UCI_Variant value ' + (mode === 'classical' ? 'chess' : mode));
-            } else {
-                window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (mode === 'chess960' ? 'true' : 'false'));
+            
+        } catch (error) {
+            // ✨ CRASH HANDLER: If the variant throws a syntax error or logic failure, 
+            // abort instantly, fall back to Classical, and save the app!
+            console.error(`[Sandbox] Engine crash detected in ${mode}! Falling back to classical.`, error);
+            
+            this.gameMode = 'classical';
+            this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, 'classical');
+            
+            if (typeof this.newGame === 'function') this.newGame(INITIAL_FEN);
+            else if (typeof this.resetGame === 'function') this.resetGame(false, INITIAL_FEN);
+            
+            if (typeof this.#ui !== 'undefined' && this.#ui && typeof this.#ui.showNotification === 'function') {
+                this.#ui.showNotification(`${mode} engine crashed. Reverting to Classical.`, 'Variant Error', '⚠️');
+            }
+            
+            // Revert dropdown UI
+            if (typeof document !== 'undefined') {
+                const select = document.getElementById('analysisVariantSelect');
+                if (select) select.value = 'classical';
             }
         }
     }
 saveVariantState(modeToSave) {
         if (!modeToSave) return;
+
+        // ✨ THE QUARANTINE: Do not let unfinished variants touch permanent memory!
+        if (this.isVariantSuspended(modeToSave)) {
+            console.warn(`[Sandbox] ${modeToSave} is suspended. State saving aborted to protect memory.`);
+            return;
+        }
+
         let pgnToSave = '';
         
         // Dynamically find whatever PGN export function your app uses

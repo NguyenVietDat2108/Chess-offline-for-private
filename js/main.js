@@ -20,10 +20,16 @@ class ChessApp {
 
         this.ui.init();
         
-        // ✨ INSTANT PRELOAD FIX: Optimistically render the engine name!
         const lastVariant = localStorage.getItem('chess_last_variant') || 'classical';
         const isFairy = !['classical', 'chess960'].includes(lastVariant);
-        const cachedName = isFairy ? "Fairy-Stockfish 14 NNUE" : (localStorage.getItem('chess_cached_engine_name') || "Stockfish 18");
+        
+        // 1. Fetch the name from cache or default
+        let cachedName = isFairy ? "Fairy-Stockfish 14 NNUE" : (localStorage.getItem('chess_cached_engine_name') || "Stockfish 18");
+        
+        // ✨ FIX: Force the first letter to be Capitalized (e.g. "stockfish 18" -> "Stockfish 18")
+        if (cachedName && cachedName.length > 0) {
+            cachedName = cachedName.charAt(0).toUpperCase() + cachedName.slice(1);
+        }
         
         if (typeof this.ui.updateEngineName === 'function') {
             this.ui.updateEngineName(cachedName);
