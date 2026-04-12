@@ -171,6 +171,9 @@ var Chess = function(fen, gameMode = 'classical') {
                 jump_timer: s.active_spells.jump_timer 
             } : { frozen_timer: 0, jump_timer: 0 };
         }
+        if (s.gameMode === 'alice') {
+            c.alice_b = s.alice_b ? { lo: s.alice_b.lo, hi: s.alice_b.hi } : { lo: 0, hi: 0 };
+        }
         return c;
     }
     function load_fen(fen, setGameMode = 'classical') {
@@ -268,7 +271,6 @@ var Chess = function(fen, gameMode = 'classical') {
                 s.mana = { w: {freeze: 2, jump: 2}, b: {freeze: 2, jump: 2} };
             }
         }
-        
         return s;
     }
     

@@ -8,7 +8,7 @@ export class ChessGame {
     #_isBooting;
     #ui;
     #callbacks;
-    SUSPENDED_VARIANTS = ['bughouse', 'alice','spell'];
+    SUSPENDED_VARIANTS = ['bughouse','spell'];
 constructor() {
         this.#callbacks = {};
         this.#ui = null;

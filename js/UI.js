@@ -2769,8 +2769,6 @@ executeMove(move, animate = true) {
         let res = this.#game.makeMove(moveAttempt, promoChar || 'q');
         this._isExecutingMove = false;
         
-        if (res && typeof this.#game.triggerMoveSound === 'function') this.#game.triggerMoveSound(res);
-        
         this.selectedSq = null;
         this.legalMoves = [];
         this.renderBoard(animate, animate); 
@@ -3044,7 +3042,45 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
 
         if (this.coordsPosition === 'outside' && typeof this.renderExternalCoords === 'function') this.renderExternalCoords();
         
-        let visualBoard = [...state.board];
+        let visualBoard;
+        const currentFen = this.#game && this.#game.currentNode ? this.#game.currentNode.fen : '';
+        
+        // ✨ THE ULTIMATE GHOST FIX: Un-shift the corrupted array!
+        // ChessGame.js treats '~' as a phantom piece and accidentally shifts subsequent pieces to the right.
+        // We will extract the valid pieces and mathematically snap them back to their true FEN squares!
+        if (currentFen.includes('~')) {
+            visualBoard = new Array(64).fill(null);
+            let validPieces = state.board.filter(p => p && p.type !== '~');
+            
+            let fenRanks = currentFen.split(' ')[0];
+            let logicalIndex = 0;
+            let pieceCursor = 0;
+            
+            for (let i = 0; i < fenRanks.length; i++) {
+                let char = fenRanks[i];
+                if (char === '/') continue;
+                if (/\d/.test(char)) { 
+                    logicalIndex += parseInt(char, 10); 
+                } else if (char === '~') { 
+                    // Apply ghost effect to the piece we JUST placed
+                    let prevSq = logicalIndex - 1;
+                    if (visualBoard[prevSq] && state.gameMode === 'alice') {
+                        visualBoard[prevSq].isBoardB = true;
+                    }
+                } else { 
+                    // Real piece! Place it securely and preserve its animation ID
+                    if (pieceCursor < validPieces.length) {
+                        visualBoard[logicalIndex] = { ...validPieces[pieceCursor] };
+                        pieceCursor++;
+                    }
+                    logicalIndex++; 
+                }
+            }
+        } else {
+            visualBoard = [...state.board];
+        }
+
+        // Apply Duck Placement preview logic
         if (this.duckPlacementMoves && this.pendingDuckMove) {
             const fromIdx = this.pendingDuckMove.from; const toIdx = this.pendingDuckMove.to;
             if (fromIdx >= 0 && fromIdx < 64 && toIdx >= 0 && toIdx < 64) {
@@ -3054,8 +3090,12 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         
         const piecesMap = new Map();
         for (let i = 0; i < 64; i++) {
-            if (visualBoard[i]) piecesMap.set(visualBoard[i].id, { ...visualBoard[i], idx: i });
+            if (visualBoard[i]) {
+                let p = { ...visualBoard[i], idx: i };
+                piecesMap.set(visualBoard[i].id, p);
+            }
         }
+        
         if (state.gameMode === 'duck' && state.duck_sq !== undefined && state.duck_sq !== -1) {
             piecesMap.set('duck_piece', { id: 'duck_piece', type: 'duck', color: 'none', idx: state.duck_sq });
         }
