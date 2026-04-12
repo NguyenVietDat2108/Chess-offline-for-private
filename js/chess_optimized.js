@@ -2306,13 +2306,12 @@ return {
             if (!o) return null;
             if (this.game_over()) return null;
             
-            // ✨ SPELL CHESS BYPASS: Intercept spells before standard validation!
+            // ✨ UI SPELL CAST HANDLER
             if (typeof o === 'object' && o.isSpell) {
                 var nextState = apply_spell(currentState, o.spellType, o.target);
                 currentState = nextState;
                 history.push(currentState);
                 
-                // Convert index to algebraic coordinate (e.g., 28 -> 'e5') safely
                 var f = o.target & 7;
                 var r = o.target >> 3;
                 var targetSqStr = ['a','b','c','d','e','f','g','h'][f] + (8 - r);
@@ -2334,6 +2333,25 @@ return {
             var explicit_duck = -1;
             
             if (typeof o === 'string') {
+                // ✨ PGN STRING SPELL HANDLER: Catch the translated strings (e.g. "Sfreeze@b4")
+                let spellMatch = o.match(/^S(freeze|jump)@([a-h][1-8])$/);
+                if (spellMatch) {
+                    let targetSq = str_to_sq(spellMatch[2]);
+                    var nextState = apply_spell(currentState, spellMatch[1], targetSq);
+                    currentState = nextState;
+                    history.push(currentState);
+                    
+                    return {
+                        color: currentState.turn === WHITE ? 'b' : 'w',
+                        flags: 's',
+                        from: '@',
+                        to: spellMatch[2],
+                        piece: 's',
+                        san: (spellMatch[1] === 'freeze' ? 'Fz@' : 'Jp@') + spellMatch[2],
+                        isSpell: true
+                    };
+                }
+
                 var parsed = parse_nag(o);
                 nag = parsed.nag;
                 clean_san = parsed.clean;

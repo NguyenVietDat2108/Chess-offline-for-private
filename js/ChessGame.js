@@ -3429,6 +3429,11 @@ stepBack() {
         const undoneNode = this.currentNode;
         this.currentNode = this.currentNode.parent;
         
+        // ✨ THE ULTIMATE FIX: Force the path back to the mainline!
+        // When you use the Left Arrow to back out of a variation to the branch point, 
+        // the engine instantly forgets the subline so that pressing Right Arrow takes you down the main game!
+        this.currentNode.selectedChildIndex = 0;
+        
         this.#engine.load(this.currentNode.fen);
         this.turn = this.#engine.turn();
         
@@ -3452,11 +3457,17 @@ stepBack() {
         this.#emit('soundTriggered', { type: 'move-self' });
         return true;
     }
-stepForward() {
+
+    stepForward() {
         if (!this.currentNode || this.currentNode.children.length === 0) return false;
+        
+        // Follow the index (which is now mathematically guaranteed to be 0 unless clicked)
         const nextNode = this.currentNode.children[this.currentNode.selectedChildIndex || 0];
         
         this.currentNode = nextNode;
+        
+        // ✨ Wipe the future memory too, just to be absolutely bulletproof!
+        this.currentNode.selectedChildIndex = 0;
         
         this.#engine.load(nextNode.fen);
         this.turn = this.#engine.turn();
@@ -3513,7 +3524,15 @@ goToNodeId(id) {
         if (target) {
             this.currentNode = target;
             
-            // ✨ FIX: Complete wipe & load for safety
+            // ✨ THE ULTIMATE FIX: Clear the variation memory for the entire forward path!
+            // This guarantees that when you click back to a mainline move, the Right Arrow 
+            // doesn't get hijacked by a previously explored sub-variation!
+            let resetNode = target;
+            while (resetNode) {
+                resetNode.selectedChildIndex = 0;
+                resetNode = resetNode.children && resetNode.children.length > 0 ? resetNode.children[0] : null;
+            }
+            
             this.loadFEN(this.currentNode.fen, this.gameMode, true);
             
             let curr = target;
@@ -3525,7 +3544,6 @@ goToNodeId(id) {
             
             this.#emit('boardUpdated', { animate: false });
             
-            // ✨ FIX: Play sound of the clicked move
             if (this.currentNode.lastMove) this.triggerMoveSound(this.currentNode.lastMove);
             else this.#emit('soundTriggered', { type: 'move-self' });
             
@@ -4186,10 +4204,10 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
         if (typeof pgn === 'string' && !isInternalLoad) {
             let detectedMode = 'classical';
             const variantMatch = pgn.match(/\[Variant\s+"([^"]+)"\]/i);
+            const ruleVariantMatch = pgn.match(/\[RuleVariants\s+"([^"]+)"\]/i);
             
             if (variantMatch && variantMatch[1]) {
                 const rawVariant = variantMatch[1].toLowerCase().replace(/[-_ ]/g, ''); 
-                // Full map included!
                 const modeMap = {
                     'standard': 'classical', 'classical': 'classical',
                     'chess960': 'chess960', 'fischerandom': 'chess960',
@@ -4203,9 +4221,15 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 };
                 if (modeMap[rawVariant]) detectedMode = modeMap[rawVariant];
             }
+
+            // ✨ FIX 1: Detect Chess.com 4PC sub-variants (Chess960 & Spell)
+            if (ruleVariantMatch && ruleVariantMatch[1]) {
+                const rules = ruleVariantMatch[1].toLowerCase();
+                if (rules.includes('chess960')) detectedMode = 'chess960';
+                if (rules.includes('spell')) detectedMode = 'spell';
+            }
             
             if (this.gameMode !== detectedMode) {
-                // Use skipStorage=true so we don't accidentally trigger a save loop!
                 this.setGameMode(detectedMode, false, true); 
                 
                 if (typeof document !== 'undefined') {
@@ -4249,12 +4273,85 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 this.pgnHeaders[match[1]] = match[2];
             }
 
-            // 🔥 FIX: Guarantee the Variant header is correct during internal loading!
+            // ✨ FIX 2: Translate the massive 14x14 "StartFen4" into a perfect 8x8 FEN!
+            if (this.pgnHeaders['StartFen4']) {
+                let boardStr = this.pgnHeaders['StartFen4'].split('- ').pop();
+                let rows = boardStr.split('/');
+                let fenRows = [];
+                for (let r of rows) {
+                    let cells = r.trim().split(',');
+                    if (cells.every(c => c === 'x')) continue; // Skip invisible top/bottom walls
+                    let validCells = cells.filter(c => c !== 'x'); // Strip side walls
+                    if (validCells.length === 0) continue;
+                    
+                    let fenRow = '';
+                    let emptyCount = 0;
+                    for (let c of validCells) {
+                        if (!isNaN(c)) {
+                            emptyCount += parseInt(c, 10);
+                        } else if (c.length === 2) {
+                            if (emptyCount > 0) { fenRow += emptyCount; emptyCount = 0; }
+                            let color = c[0]; 
+                            let piece = c[1]; 
+                            // Yellow = Black, Red = White
+                            fenRow += color === 'y' ? piece.toLowerCase() : piece.toUpperCase();
+                        } else {
+                            if (emptyCount > 0) { fenRow += emptyCount; emptyCount = 0; }
+                            fenRow += c; 
+                        }
+                    }
+                    if (emptyCount > 0) { fenRow += emptyCount; }
+                    fenRows.push(fenRow);
+                }
+                this.pgnHeaders['FEN'] = fenRows.join('/') + " w KQkq - 0 1";
+            }
+
             if (isInternalLoad) {
                 this.pgnHeaders['Variant'] = this.gameMode === 'classical' ? 'Standard' : this.gameMode;
             }
 
             let moveTextRaw = pgn.replace(/\[[A-Za-z0-9_]+\s+"[^"]*"\]/g, '').trim();
+
+            // ✨ FIX 3: Translate 14x14 PGN coordinates (f5-f7) back to 8x8 coordinates (c2c4)!
+            if (this.pgnHeaders['StartFen4'] || this.gameMode === 'spell') {
+                const to8x8 = (coord) => {
+                    if (!coord || coord.length < 2) return coord;
+                    let f = String.fromCharCode(coord.charCodeAt(0) - 3); 
+                    let r = parseInt(coord.slice(1), 10) - 3;             
+                    return f + r;
+                };
+
+                let tokens = moveTextRaw.split(/\s+/);
+                let newTokens = [];
+
+                for (let i = 0; i < tokens.length; i++) {
+                    let t = tokens[i];
+                    if (t.includes('.') || t === '..' || t.match(/^(1-0|0-1|1\/2-1\/2|\*)$/)) {
+                        newTokens.push(t); continue; 
+                    }
+
+                    let spellMatch = t.match(/^(freeze|jump)@([a-n]\d+)&(.*)$/);
+                    let moveStr = t;
+                    
+                    if (spellMatch) {
+                        // Extract the spell into a distinct pseudo-move before the actual move!
+                        newTokens.push(`S${spellMatch[1]}@${to8x8(spellMatch[2])}`); 
+                        moveStr = spellMatch[3];
+                    }
+
+                    // Translate formats like Qg4xg7, Nh4xNg6, Kj4-k4, Be4-d5
+                    let ccMatch = moveStr.match(/^([A-Z]?)([a-n]\d+)[-x]([A-Z]?)([a-n]\d+)(=[A-Za-z])?([+#]?)$/);
+                    if (ccMatch) {
+                        // Engine loves strict algebraic pairs (e.g. c2c4) so we skip the piece letters
+                        newTokens.push(to8x8(ccMatch[2]) + to8x8(ccMatch[4]) + (ccMatch[5] ? ccMatch[5].replace('=', '').toLowerCase() : ''));
+                    } else {
+                        // Fallback perfectly preserves things like standard O-O castling!
+                        newTokens.push(moveStr); 
+                    }
+                }
+                
+                moveTextRaw = newTokens.join(' ');
+            }
 
             let initialTime = 600;
             this.timeIncrement = 0;

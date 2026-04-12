@@ -3111,7 +3111,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             } else el.remove();
         });
 
-        piecesMap.forEach((p, id) => {
+piecesMap.forEach((p, id) => {
             let el = this.piecesLayer.querySelector(`[data-id="${id}"]`);
             let isNew = false;
             
@@ -3131,7 +3131,12 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 }
             }
             
-            if (activeMove && p.idx === activeMove.to && this.#game && this.#game.currentNode && this.#game.currentNode.nag) {
+            // ✨ FIX: Robust NAG positioning that perfectly syncs with history traversal!
+            // We use this.#game.currentNode.lastMove to guarantee we are drawing on the 
+            // piece that actually moved in THIS specific snapshot of time.
+            const currentNodeMove = (this.#game && this.#game.currentNode) ? this.#game.currentNode.lastMove : null;
+            
+            if (currentNodeMove && p.idx === currentNodeMove.to && this.#game && this.#game.currentNode && this.#game.currentNode.nag) {
                 const info = typeof this.getNagInfo === 'function' ? this.getNagInfo(this.#game.currentNode.nag) : null;
                 if (info && ['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy', 'excellent', 'great', 'miss'].includes(info.type)) {
                     htmlBuffer += `<div class="nag-indicator" style="position:absolute; top:-5px; right:-5px; width:22px; height:22px; background-color:${info.color}; border:2px solid ${info.borderColor}; border-radius:50%; color:#fff; font-weight:bold; font-size:13px; display:flex; justify-content:center; align-items:center; z-index:10; box-shadow:0 2px 4px rgba(0,0,0,0.4); font-family:sans-serif; pointer-events:none;">${info.symbol}</div>`;
@@ -4980,13 +4985,30 @@ copyFEN() {
     }
 copyPGN() {
         if (!this.#game) return;
-        if (typeof this.#game.getPGN === 'function') {
+        
+        // ✨ FIX: Check for the correct function name! 
+        // Most engine implementations use generatePGN() instead of getPGN().
+        if (typeof this.#game.generatePGN === 'function') {
+            const pgn = this.#game.generatePGN();
+            navigator.clipboard.writeText(pgn).then(() => {
+                if (typeof this.showNotification === 'function') {
+                    this.showNotification("PGN copied to clipboard!", "Copied", "📄");
+                }
+            }).catch(err => {
+                console.error('Failed to copy PGN: ', err);
+            });
+        } else if (typeof this.#game.getPGN === 'function') {
+            // Fallback just in case you did name it getPGN elsewhere
             const pgn = this.#game.getPGN();
             navigator.clipboard.writeText(pgn).then(() => {
-                this.showNotification("PGN copied to clipboard!", "Copied", "📄");
+                if (typeof this.showNotification === 'function') {
+                    this.showNotification("PGN copied to clipboard!", "Copied", "📄");
+                }
             });
+        } else {
+            console.warn("PGN Generation function not found on Game object.");
         }
-    }  
+    }
 showPromotionModal(color, destIdx, callback) {
         const overlay = document.getElementById('promotion-overlay');
         if (!overlay) return;
@@ -5084,12 +5106,20 @@ toggleCheckboxes(className, state) {
         document.querySelectorAll('.' + className).forEach(cb => cb.checked = state);
     }
 renderCharts(force = false) {
-        if (!this.#game) return;
-        const state = this.#game.getReader();
-        if (state.mode !== 'analysis' && state.mode !== 'study') return;
-        if (typeof window.updateEvalChart === 'function') {
-            window.updateEvalChart(this.#game, force);
-        }
+        if (typeof Chart === 'undefined') return;
+        if (this.evalChart || this.timeChart) this.updateChartActiveLine();
+
+        let lastNode = this.#game.rootNode;
+        
+        // ✨ FIX: Lock the chart to the Main Line (the actual game) instead of following sub-variations
+        while (lastNode && lastNode.children.length > 0) lastNode = lastNode.children[0];
+
+        if (!force && this.evalChart && this._lastChartedFen === lastNode.fen) return; 
+        this._lastChartedFen = lastNode.fen;
+
+        if (this._chartRenderTimeout) clearTimeout(this._chartRenderTimeout);
+        if (force) this.forceRenderCharts();
+        else this._chartRenderTimeout = setTimeout(() => { this.forceRenderCharts(); }, 150); 
     }
 safeResizeCharts() {
         if (this.evalChart) this.evalChart.resize();
@@ -6314,7 +6344,8 @@ forceRenderCharts() {
         let scanNode = this.#game.rootNode;
         
         while (scanNode && scanNode.children.length > 0) {
-            let n = scanNode.children[scanNode.selectedChildIndex || 0];
+            // ✨ FIX: Only scan the main line for evaluations!
+            let n = scanNode.children[0]; 
             if (n.evalScore !== undefined) { hasPgnEvals = true; break; }
             scanNode = n;
         }
@@ -6339,7 +6370,7 @@ forceRenderCharts() {
         if (curr === this.#game.currentNode) activeIdx = 0;
 
         while (curr && curr.children.length > 0) {
-            let next = curr.children[curr.selectedChildIndex || 0]; ply++;
+            let next = curr.children[0]; ply++;
             let isWhite = (ply % 2 !== 0); let isMateMove = next.moveSan && next.moveSan.includes('#');
 
             if (next === this.#game.currentNode) activeIdx = ply;
@@ -6468,7 +6499,7 @@ jumpToNextError(color, type) {
 updateChartActiveLine() {
         let activeIdx = -1; let curr = this.#game.rootNode; let ply = 0;
         if (curr === this.#game.currentNode) activeIdx = 0;
-        while (curr && curr.children.length > 0) { curr = curr.children[curr.selectedChildIndex || 0]; ply++; if (curr === this.#game.currentNode) activeIdx = ply; }
+        while (curr && curr.children.length > 0) { curr = curr.children[0]; ply++; if (curr === this.#game.currentNode) activeIdx = ply; }
         if (this.evalChart) { this.evalChart.config.options.plugins.lichessAesthetic.activeIdx = activeIdx; this.evalChart.draw(); }
         if (this.timeChart) { this.timeChart.config.options.plugins.lichessAesthetic.activeIdx = activeIdx; this.timeChart.draw(); }
     }
