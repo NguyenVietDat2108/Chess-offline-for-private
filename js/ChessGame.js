@@ -2820,9 +2820,13 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                             }
 
                             if (engineInstance) {
-                                if (typeof engineInstance.postMessage === 'function') engineInstance.postMessage(cmd);
+                                // Add the ccall line right here!
+                                if (engineInstance.ccall) {
+                                    engineInstance.ccall('push_cmd', 'null', ['string'], [cmd]);
+                                } 
+                                else if (typeof engineInstance.postMessage === 'function') engineInstance.postMessage(cmd);
                                 else if (typeof engineInstance.onCustomMessage === 'function') engineInstance.onCustomMessage(cmd);
-                                else if (typeof engineInstance === 'function') engineInstance(cmd);
+                            else if (typeof engineInstance === 'function') engineInstance(cmd);
                             } else {
                                 // 🔥 Engine isn't ready yet! Save the command to the queue!
                                 messageQueue.push(cmd);
@@ -2838,7 +2842,9 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                             
                             // 🔥 Flush the queue immediately upon boot!
                             messageQueue.forEach(function(cmd) {
-                                if (typeof engineInstance.postMessage === 'function') engineInstance.postMessage(cmd);
+                                // Add the ccall line right here too!
+                                if (engineInstance.ccall) engineInstance.ccall('push_cmd', 'null', ['string'], [cmd]);
+                                else if (typeof engineInstance.postMessage === 'function') engineInstance.postMessage(cmd);
                                 else if (typeof engineInstance.onCustomMessage === 'function') engineInstance.onCustomMessage(cmd);
                                 else if (typeof engineInstance === 'function') engineInstance(cmd);
                             });
