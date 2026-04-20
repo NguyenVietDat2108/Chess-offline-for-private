@@ -3749,17 +3749,29 @@ loadFEN(fen, gameMode = null, isLoadMode = false) {
         const rows = parts[0].split('/'); 
 
         let visualRow = 0; 
+        // ✨ THE FIX: Correctly parse `~` (Alice/Crazyhouse) and `*` (Duck) to prevent board misalignment!
         for (let rStr of rows) {
             let file = 0; 
             for (let char of rStr) {
-                if (isNaN(char)) {
+                if (/\d/.test(char)) {
+                    file += parseInt(char, 10);
+                } else if (char === '~') {
+                    // Apply property to the previously placed piece
+                    const prevSqIndex = (visualRow * 8) + file - 1;
+                    if (this.#board[prevSqIndex]) {
+                        if (this.gameMode === 'alice') this.#board[prevSqIndex].isBoardB = true;
+                        else this.#board[prevSqIndex].promoted = true;
+                    }
+                } else if (char === '*') {
+                    const sqIndex = (visualRow * 8) + file;
+                    this.#board[sqIndex] = { type: 'duck', color: 'none', id: this.getUID() };
+                    file++;
+                } else {
                     const color = (char === char.toUpperCase()) ? 'w' : 'b';
                     const type = char.toLowerCase();
                     const sqIndex = (visualRow * 8) + file;
                     this.#board[sqIndex] = { type: type, color: color, id: this.getUID() };
                     file++;
-                } else {
-                    file += parseInt(char, 10);
                 }
             }
             visualRow++; 
