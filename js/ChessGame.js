@@ -8,7 +8,7 @@ export class ChessGame {
     #_isBooting;
     #ui;
     #callbacks;
-    SUSPENDED_VARIANTS = ['bughouse','spell'];
+    SUSPENDED_VARIANTS = ['bughouse'];
 constructor() {
         this.#callbacks = {};
         this.#ui = null;
@@ -900,7 +900,11 @@ return move.san;
             if (this.activeEngineType === 'fairy' || this.activeEngineType === 'custom') {
                 const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
                 window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-
+                if (this.gameMode === 'alice' || this.gameMode === 'spell') {
+                    window.sfWorker.postMessage('setoption name Use NNUE value false');
+                    window.sfWorker.postMessage('isready');
+                    return;
+                }
                 const nnueFile = nnueMap[this.gameMode];
                 if (nnueFile) {
                     fetch('./engine/nnue/' + nnueFile)
