@@ -1415,7 +1415,17 @@ renderHeaders() {
         const topData = this.playerInfo[topColor] || {};
         const botData = this.playerInfo[botColor] || {};
 
-        const cacheKey = JSON.stringify({ topData, botData, flipped: this.flipped, avatars: this.avatars });
+        const state = this.#game ? this.#game.getReader() : null;
+
+        // ✨ FIX: Update cache key to include Spell properties! 
+        // Otherwise, the headers won't redraw when you click a spell or spend mana!
+        const cacheKey = JSON.stringify({ 
+            topData, botData, flipped: this.flipped, avatars: this.avatars,
+            activeSpell: this.activeSpell, 
+            mana: state ? state.mana : null, 
+            gameMode: state ? state.gameMode : null
+        });
+        
         if (this._lastHeadersCache === cacheKey) return;
         this._lastHeadersCache = cacheKey;
 
@@ -1473,6 +1483,96 @@ renderHeaders() {
         updateSlot(0, topData, topColor); 
         updateSlot(1, botData, botColor);
         if (typeof this.updateClocks === 'function') this.updateClocks();
+
+        // ✨ SYNC THE NEW PLAYER HEADER SPELL ICONS & BARS!
+        const spellsTop = document.getElementById('spells-top');
+        const spellsBottom = document.getElementById('spells-bottom');
+
+        if (state && state.gameMode === 'spell') {
+            if (spellsTop) spellsTop.style.display = 'flex';
+            if (spellsBottom) spellsBottom.style.display = 'flex';
+            
+            // Extract remaining uses directly from the engine's FEN data
+            const fen = this.#game?.currentNode?.fen || '';
+            const spellMatch = fen.match(/'spells':\((.*?)\)/);
+            let spellArrays = [];
+            if (spellMatch) {
+                spellArrays = spellMatch[1].split("','").map(s => s.replace(/'/g, ''));
+            }
+            
+            if (state.mana) {
+                const updateIcon = (spellType, colorClass, isTop) => {
+                    const prefix = isTop ? 'top' : 'bottom';
+                    const iconEl = document.getElementById(`spell-${prefix}-${spellType}`);
+                    const countEl = document.getElementById(`spell-${prefix}-${spellType}-count`);
+                    const bar1 = document.getElementById(`spell-${prefix}-${spellType}-bar-1`);
+                    const bar2 = document.getElementById(`spell-${prefix}-${spellType}-bar-2`);
+                    const bar3 = document.getElementById(`spell-${prefix}-${spellType}-bar-3`);
+
+                    if (!iconEl) return;
+
+                    // 1. Get current cooldown charges (0 to 3)
+                    let cd = state.mana[colorClass][spellType] !== undefined ? state.mana[colorClass][spellType] : 3;
+
+                    // 2. Parse remaining uses from FEN string (White=0, Black=2)
+                    let uses = spellType === 'freeze' ? 5 : 2; 
+                    if (spellArrays.length > 0) {
+                        const colorIdx = colorClass === 'w' ? 0 : 2;
+                        const spellStr = spellArrays[colorIdx] || '';
+                        const match = spellStr.match(new RegExp(`${spellType}_\\dx(\\d+)`));
+                        if (match) uses = parseInt(match[1], 10);
+                    }
+
+                    // 3. Update Badge
+                    if (countEl) {
+                        countEl.innerText = uses;
+                        countEl.style.display = uses > 0 ? 'block' : 'none';
+                    }
+
+                    // 4. Update Icon Grayscale (Only colorize if ready AND has uses)
+                    const isReady = cd >= 3 && uses > 0;
+                    iconEl.style.opacity = isReady ? '1' : '0.4';
+                    iconEl.style.filter = isReady ? 'none' : 'grayscale(100%)';
+                    
+                    if (this.activeSpell === spellType && state.turn === colorClass) {
+                        iconEl.style.borderColor = '#00ffff';
+                        iconEl.style.boxShadow = '0 0 8px #00ffff';
+                    } else {
+                        iconEl.style.borderColor = '#555';
+                        iconEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.6)';
+                    }
+
+                    // 5. Update Recharge Segment Bars
+                    const drawBar = (bar, threshold) => {
+                        if (bar) {
+                            bar.style.backgroundColor = cd >= threshold ? '#82b41d' : '#444';
+                            bar.style.boxShadow = cd >= threshold ? '0 0 4px #82b41d' : 'none';
+                        }
+                    };
+                    drawBar(bar1, 1);
+                    drawBar(bar2, 2);
+                    drawBar(bar3, 3);
+                };
+
+                const topColor = this.flipped ? 'w' : 'b';
+                const botColor = this.flipped ? 'b' : 'w';
+
+                updateIcon('freeze', botColor, false);
+                updateIcon('jump', botColor, false);
+                updateIcon('freeze', topColor, true);
+                updateIcon('jump', topColor, true);
+            }
+        } else {
+            if (spellsTop) spellsTop.style.display = 'none';
+            if (spellsBottom) spellsBottom.style.display = 'none';
+        }
+
+        // ✨ FORCE-KILL THE OLD SPELL BAR CONTAINER
+        const oldSpellBar = document.getElementById('spellBarContainer');
+        if (oldSpellBar) {
+            oldSpellBar.style.display = 'none';
+            oldSpellBar.innerHTML = '';
+        }
     }
 resetAvatars() {
         const headers = document.querySelectorAll('.player-header');
@@ -6971,70 +7071,35 @@ renderAnalysisResult(stats) {
         container.appendChild(createStatSection(stats.b, "Black", 'b'));
     }
 renderSpellBar() {
-        let spellBar = document.getElementById('spellBarContainer');
-        if (!spellBar) return;
-
+        if (typeof this.renderHeaders === 'function') {
+            this.renderHeaders();
+        }
+    }
+toggleSpell(spellType, colorRequest) {
         const state = this.#game ? this.#game.getReader() : null;
-        
-        if (!state || state.gameMode !== 'spell') {
-            spellBar.style.display = 'none';
-            spellBar.innerHTML = '';
+        if (!state || !state.mana) return;
+
+        if (state.turn !== colorRequest) {
+            if (typeof this.showNotification === 'function') {
+                this.showNotification("It's not your turn!", "Invalid", "⚠️");
+            }
             return;
         }
 
-        const myColor = (this.flipped ? 'b' : 'w'); 
-        const MAX_MANA = 3; // Setting max visual dashes to 3 like chess.com
-        const currentMana = state.mana ? state.mana[myColor] : { freeze: 3, jump: 3 };
-
-        spellBar.style.cssText = `
-            display: flex; gap: 25px; justify-content: center; align-items: center;
-            margin-top: 15px; padding: 12px 20px; border-radius: 12px;
-            background: url('./assets/tabs-icon/clans.jpg') center/cover;
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 4px 10px rgba(0,0,0,0.5);
-            border: 2px solid #333;
-        `;
-
-        // Helper function to draw the "---" dashes below the spell
-        const renderDashes = (current) => {
-            let html = `<div style="display:flex; gap:4px; margin-top:8px; width:50px; justify-content:space-between;">`;
-            for(let i = 0; i < MAX_MANA; i++) {
-                const isActive = i < current;
-                const bg = isActive ? '#00ffcc' : '#444';
-                const shadow = isActive ? 'box-shadow: 0 0 5px #00ffcc;' : '';
-                html += `<div style="height:4px; flex:1; background-color:${bg}; border-radius:2px; ${shadow} transition:all 0.3s;"></div>`;
+        // Prevent casting if out of uses
+        const prefix = colorRequest === (this.flipped ? 'w' : 'b') ? 'top' : 'bottom';
+        const countEl = document.getElementById(`spell-${prefix}-${spellType}-count`);
+        const usesLeft = countEl ? parseInt(countEl.innerText) : 1;
+        
+        if (usesLeft <= 0) {
+            if (typeof this.showNotification === 'function') {
+                this.showNotification('Out of charges!', 'Empty', '🚫');
             }
-            html += `</div>`;
-            return html;
-        };
+            return;
+        }
 
-        spellBar.innerHTML = `
-            <div style="display:flex; flex-direction:column; align-items:center;">
-                <div title="Freeze 3x3 Grid" onclick="window.app.ui.toggleSpell('freeze', ${currentMana.freeze})" 
-                     style="width:50px; height:50px; border-radius:8px; cursor:pointer; 
-                            background: url('./assets/tabs-icon/freeze.3455552f.png') center/cover; 
-                            box-shadow: ${this.activeSpell === 'freeze' ? '0 0 15px 5px cyan' : '0 4px 6px rgba(0,0,0,0.5)'};
-                            filter: ${currentMana.freeze > 0 ? 'none' : 'grayscale(100%) opacity(0.5)'};
-                            border: 2px solid ${this.activeSpell === 'freeze' ? 'cyan' : '#555'};
-                            transition: transform 0.1s, box-shadow 0.2s;">
-                </div>
-                ${renderDashes(currentMana.freeze)}
-            </div>
-
-            <div style="display:flex; flex-direction:column; align-items:center;">
-                <div title="Jump Teleport" onclick="window.app.ui.toggleSpell('jump', ${currentMana.jump})" 
-                     style="width:50px; height:50px; border-radius:8px; cursor:pointer; 
-                            background: url('./assets/tabs-icon/jump.8e9138a2.png') center/cover; 
-                            box-shadow: ${this.activeSpell === 'jump' ? '0 0 15px 5px #ff00ff' : '0 4px 6px rgba(0,0,0,0.5)'};
-                            filter: ${currentMana.jump > 0 ? 'none' : 'grayscale(100%) opacity(0.5)'};
-                            border: 2px solid ${this.activeSpell === 'jump' ? '#ff00ff' : '#555'};
-                            transition: transform 0.1s, box-shadow 0.2s;">
-                </div>
-                ${renderDashes(currentMana.jump)}
-            </div>
-        `;
-    }
-toggleSpell(spellType, currentCharge) {
-        // ✨ FIX: Block casting if the spell is still recharging!
+        // Prevent casting if on cooldown
+        const currentCharge = state.mana[colorRequest][spellType];
         if (currentCharge < 3) {
             if (typeof this.showNotification === 'function') {
                 this.showNotification('Spell is still recharging!', 'Cooldown', '⏳');
@@ -7043,15 +7108,18 @@ toggleSpell(spellType, currentCharge) {
         }
         
         if (this.activeSpell === spellType) {
-            this.activeSpell = null; // Deselect
+            this.activeSpell = null; 
         } else {
-            this.activeSpell = spellType; // Select
-            this.cleanupDrag(false); // Drop any held piece
+            this.activeSpell = spellType; 
+            if (typeof this.cleanupDrag === 'function') this.cleanupDrag(false); 
         }
+        
         this.renderBoard(false);
+        this.renderHeaders(); 
     }
 castSpell(spellType, targetSq) {
-        this.spellMana[spellType]--;
+        // ✨ We no longer manually subtract mana here! The engine handles the math automatically 
+        // when it processes the pseudo-move we send it below.
         this.activeSpell = null;
         
         // ✨ Create a pseudo-move object for the engine
@@ -7062,7 +7130,9 @@ castSpell(spellType, targetSq) {
         };
         
         this.executeMove(spellMove, true);
-        this.renderSpellBar();
+        
+        // Update the headers to visually remove the spent mana charges
+        this.renderHeaders();
     }
 on(eventName, callback) {
         this.#callbacks[eventName] = callback;
