@@ -775,7 +775,11 @@ var Chess = function(fen, gameMode = 'classical') {
         }
         if ((KNIGHT_LO[sq] & (bb_lo[by_color*6+KNIGHT] & bMaskL)) | (KNIGHT_HI[sq] & (bb_hi[by_color*6+KNIGHT] & bMaskH))) return true;
         if ((KING_LO[sq] & (bb_lo[by_color*6+KING] & bMaskL)) | (KING_HI[sq] & (bb_hi[by_color*6+KING] & bMaskH))) return true;
-
+        var occL = 0, occH = 0;
+        for (let i = 0; i < 12; i++) {
+            occL |= bb_lo[i];
+            occH |= bb_hi[i];
+        }
         if (state.gameMode === 'duck' && state.duck_sq !== -1) {
             if (state.duck_sq < 32) occL |= (1 << state.duck_sq);
             else occH |= (1 << (state.duck_sq - 32));
