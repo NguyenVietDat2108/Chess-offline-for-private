@@ -898,8 +898,14 @@ return move.san;
             window.sfWorker.postMessage('setoption name Skill Level value 20');
             
             if (this.activeEngineType === 'fairy' || this.activeEngineType === 'custom') {
+                window.sfWorker.postMessage('setoption name VariantPath value variants.ini');
                 const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
                 window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
+                if (this.gameMode === 'alice' || this.gameMode === 'spell') {
+                    window.sfWorker.postMessage('setoption name Use NNUE value false');
+                    window.sfWorker.postMessage('isready');
+                    return;
+                }
                 if (this.gameMode === 'alice' || this.gameMode === 'spell') {
                     window.sfWorker.postMessage('setoption name Use NNUE value false');
                     window.sfWorker.postMessage('isready');
@@ -2843,7 +2849,11 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                     if (typeof Stockfish === 'function') {
                         Stockfish(Module).then(function(engine) {
                             engineInstance = engine; 
-                            
+                            try {
+                                var fsObj = typeof FS !== 'undefined' ? FS : (engineInstance.FS || Module.FS);
+                                var iniText = "[alice]\\nvariantTemplate = chess\\nmaxRank = 8\\nmaxFile = 8\\ntwoBoards = true\\npawn = p\\nknight = n\\nbishop = b\\nrook = r\\nqueen = q\\nking = k\\ncastling = true\\nchecking = true\\nenPassant = false\\npieceValueMg = p:100 n:325 b:333 r:505 q:950\\npieceValueEg = p:150 n:310 b:330 r:500 q:900\\n\\n[spell]\\npieceDrops = true\\ncustomPiece1 = j\\ncustomPiece2 = f\\nstartFen = rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[JJFFFFFjjfffff] w KQkq - 0 1\\n";
+                                fsObj.writeFile('variants.ini', iniText);
+                            } catch(e) { console.error("FS Error:", e); }
                             // 🔥 Flush the queue immediately upon boot!
                             messageQueue.forEach(function(cmd) {
                                 // Add the ccall line right here too!
