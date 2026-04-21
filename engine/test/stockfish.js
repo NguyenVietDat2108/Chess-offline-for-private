@@ -657,6 +657,7 @@ function postRun() {
 
 /**
  * @param {string|number=} what
+ * @noreturn
  */ function abort(what) {
   Module["onAbort"]?.(what);
   what = `Aborted(${what})`;
@@ -1031,7 +1032,7 @@ var stackAlloc = sz => __emscripten_stack_alloc(sz);
   return rtn;
 };
 
-function _proc_exit(code) {
+/** @noreturn */ function _proc_exit(code) {
   if (ENVIRONMENT_IS_PTHREAD) return proxyToMainThread(0, 0, 1, code);
   EXITSTATUS = code;
   if (!keepRuntimeAlive()) {

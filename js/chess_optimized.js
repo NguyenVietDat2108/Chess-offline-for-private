@@ -268,7 +268,8 @@ var Chess = function(fen, gameMode = 'classical') {
                 };
             } else {
                 s.frozen = { lo: 0, hi: 0 };
-                s.mana = { w: {freeze: 2, jump: 2}, b: {freeze: 2, jump: 2} };
+                // ✨ FIX: Set default cooldowns to 0 so spells are ready immediately!
+                s.mana = { w: {freeze: 0, jump: 0}, b: {freeze: 0, jump: 0} };
             }
         }
         return s;

@@ -8,7 +8,7 @@ export class ChessGame {
     #_isBooting;
     #ui;
     #callbacks;
-    SUSPENDED_VARIANTS = ['bughouse','spell'];
+    SUSPENDED_VARIANTS = ['bughouse'];
 constructor() {
         this.#callbacks = {};
         this.#ui = null;
@@ -825,12 +825,12 @@ return move.san;
 
         window.engineReady = true; 
 
-        if (this.activeEngineType === 'fairy') {
-            const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-            window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-        } else {
-            window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
-        }
+        if (this.activeEngineType === 'fairy' || this.activeEngineType === 'custom') {
+    const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
+    window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
+} else {
+    window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+}
         
         window.sfWorker.postMessage('setoption name UCI_LimitStrength value false');
         window.sfWorker.postMessage('setoption name Skill Level value 20');
@@ -897,10 +897,14 @@ return move.san;
             window.sfWorker.postMessage('setoption name UCI_LimitStrength value false');
             window.sfWorker.postMessage('setoption name Skill Level value 20');
             
-            if (this.activeEngineType === 'fairy') {
+            if (this.activeEngineType === 'fairy' || this.activeEngineType === 'custom') {
                 const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
                 window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-
+                if (this.gameMode === 'alice' || this.gameMode === 'spell') {
+                    window.sfWorker.postMessage('setoption name Use NNUE value false');
+                    window.sfWorker.postMessage('isready');
+                    return;
+                }
                 const nnueFile = nnueMap[this.gameMode];
                 if (nnueFile) {
                     fetch('./engine/nnue/' + nnueFile)
@@ -2998,12 +3002,12 @@ async reviewGame(autoTriggered = false) {
                 if (this.#ui && this.#ui.showNotification) this.#ui.showNotification("Analyzing game at Depth 20...", "Review Game", "⏳");
 
                 window.sfWorker.postMessage('setoption name MultiPV value 1');
-                if (this.activeEngineType === 'fairy') {
-                    const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-                    window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-                } else {
-                    window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
-                }
+                if (this.activeEngineType === 'fairy' || this.activeEngineType === 'custom') {
+    const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
+    window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
+} else {
+    window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+}
                 for (let i = 0; i < nodes.length; i++) {
                     let node = nodes[i];
                     if (node.reviewed|| (node.isBook && this.isEngineMatch)) continue;
@@ -3749,17 +3753,29 @@ loadFEN(fen, gameMode = null, isLoadMode = false) {
         const rows = parts[0].split('/'); 
 
         let visualRow = 0; 
+        // ✨ THE FIX: Correctly parse `~` (Alice/Crazyhouse) and `*` (Duck) to prevent board misalignment!
         for (let rStr of rows) {
             let file = 0; 
             for (let char of rStr) {
-                if (isNaN(char)) {
+                if (/\d/.test(char)) {
+                    file += parseInt(char, 10);
+                } else if (char === '~') {
+                    // Apply property to the previously placed piece
+                    const prevSqIndex = (visualRow * 8) + file - 1;
+                    if (this.#board[prevSqIndex]) {
+                        if (this.gameMode === 'alice') this.#board[prevSqIndex].isBoardB = true;
+                        else this.#board[prevSqIndex].promoted = true;
+                    }
+                } else if (char === '*') {
+                    const sqIndex = (visualRow * 8) + file;
+                    this.#board[sqIndex] = { type: 'duck', color: 'none', id: this.getUID() };
+                    file++;
+                } else {
                     const color = (char === char.toUpperCase()) ? 'w' : 'b';
                     const type = char.toLowerCase();
                     const sqIndex = (visualRow * 8) + file;
                     this.#board[sqIndex] = { type: type, color: color, id: this.getUID() };
                     file++;
-                } else {
-                    file += parseInt(char, 10);
                 }
             }
             visualRow++; 
@@ -5094,13 +5110,13 @@ startLocalGame(startFen = null) {
         }
 
         if (window.sfWorker) {
-            if (this.activeEngineType === 'fairy') {
-                const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-                window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-            } else {
-                window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
-            }
-        }
+            if (this.activeEngineType === 'fairy' || this.activeEngineType === 'custom') {
+        const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
+        window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
+    } else {
+        window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+    }
+}
 
         if (typeof window.engineAnalysing !== 'undefined') window.engineAnalysing = false;
         if (window.sfWorker) window.sfWorker.postMessage('stop');
@@ -5201,13 +5217,13 @@ startBotGame(level, colorPreference, startFen = null) {
         }
 
         if (window.sfWorker) {
-            if (this.activeEngineType === 'fairy') {
-                const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-                window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-            } else {
-                window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
-            }
-        }
+    if (this.activeEngineType === 'fairy' || this.activeEngineType === 'custom') {
+        const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
+        window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
+    } else {
+        window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+    }
+}
 
         if (typeof window.engineAnalysing !== 'undefined') window.engineAnalysing = false;
         if (window.sfWorker) window.sfWorker.postMessage('stop');
