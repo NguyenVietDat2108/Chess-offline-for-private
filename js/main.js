@@ -70,7 +70,7 @@ class ChessApp {
             if (typeof this.ui.renderArrows === 'function') this.ui.renderArrows();
             if (typeof this.ui.displayMetadata === 'function') this.ui.displayMetadata(this.game.pgnHeaders);
             
-            if (window.engineAnalysing && typeof this.game.updateStockfish === 'function') {
+            if (!data?.skipEngine && window.engineAnalysing && typeof this.game.updateStockfish === 'function') {
                 const state = typeof this.game.getReader === 'function' ? this.game.getReader() : null;
                 if (!state || state.mode !== 'play') {
                     this.game.updateStockfish();

@@ -103,6 +103,9 @@ Or use the Freeze spell to prevent pieces from moving or checking within a 3x3 a
 Be careful—any piece, including your own, will freeze if it enters the spell area
 Use spells to find a checkmate or king capture!
 
+Spell Chess bug:
+remove check from spell chess.
+spell and freeze should share the same number count.
 
 
 -building engine analysis for progressive chess:

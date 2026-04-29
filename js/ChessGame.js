@@ -36,7 +36,7 @@ constructor() {
         this.rootNode = new MoveNode(startingFen, null);
         this.currentNode = this.rootNode;
         this.pgnHeaders = {};
-        this.availableModes = ['classical', 'chess960', '3check', 'antichess', 'atomic', 'bughouse', 'chaturanga', 'crazyhouse', 'duck', 'horde', 'kingofthehill', 'racingkings', 'placement', 'alice'];        
+        this.availableModes = ['classical', 'chess960', '3check', 'antichess', 'atomic', 'bughouse', 'chaturanga', 'crazyhouse', 'duck', 'horde', 'kingofthehill', 'racingkings', 'placement', 'alice','spell'];        
         this.whiteStartSeconds = 600;
         this.blackStartSeconds = 600;
         this.whiteIncrement = 0;
@@ -140,13 +140,28 @@ get currentLiveFen() {
         return this.generateFEN();
     }
 getReader() {
-        // ✨ FIX: Correctly read the duck square directly from the engine memory!
+        // ✨ DUCK CHESS: Read the duck square directly from the engine memory!
         let engineDuck = (this.#engine && typeof this.#engine.get_duck_sq === 'function') ? this.#engine.get_duck_sq() : -1;
         let uiDuckSq = -1;
         if (engineDuck !== -1 && engineDuck !== undefined && engineDuck !== null) {
             let file = engineDuck % 8;
             let rank = Math.floor(engineDuck / 8);
             uiDuckSq = (7 - rank) * 8 + file;
+        }
+
+        const frozenSquares = new Array(64).fill(false);
+        const frozenObj = (this.#engine && typeof this.#engine.frozen === 'function') 
+            ? this.#engine.frozen() 
+            : { lo: 0, hi: 0 };
+
+        for (let i = 0; i < 64; i++) {
+            // UI Index (i) to Engine Index conversion (Flip rank)
+            const engineIdx = (7 - Math.floor(i / 8)) * 8 + (i % 8);
+            
+            // Check the bit in the lo (0-31) or hi (32-63) 32-bit integers
+            const isFrozen = engineIdx < 32 ? (frozenObj.lo & (1 << engineIdx)) : (frozenObj.hi & (1 << (engineIdx - 32)));
+            
+            if (isFrozen) frozenSquares[i] = true;
         }
 
         return Object.freeze({
@@ -179,6 +194,7 @@ getReader() {
                 cursor: this.puzzleCursor
             }),
             mana: this.#engine && typeof this.#engine.mana === 'function' ? this.#engine.mana() : null,
+            frozenSquares: Object.freeze(frozenSquares), 
             frozen: this.#engine && typeof this.#engine.frozen === 'function' ? this.#engine.frozen() : null,
             duck_sq: uiDuckSq, 
             studyTitle: this.studyTitle,
@@ -889,9 +905,12 @@ return move.san;
         if (line === 'uciok') {
             let threads = Math.floor(navigator.hardwareConcurrency - 1);
             if (threads < 1) threads = 1;
-            
-            window.sfWorker.postMessage('setoption name Threads value ' + threads);
-            window.sfWorker.postMessage('setoption name Hash value 1024');
+            if (this.gameMode === 'alice' || this.gameMode === 'spell') {window.sfWorker.postMessage('setoption name Threads value 1');
+                                                                        window.sfWorker.postMessage('setoption name Hash value 32');}
+            else{            window.sfWorker.postMessage('setoption name Threads value ' + threads);
+                
+            window.sfWorker.postMessage('setoption name Hash value 1024');}
+
             window.sfWorker.postMessage('setoption name MultiPV value 3');
             window.sfWorker.postMessage('setoption name Move Overhead value 10');
             window.sfWorker.postMessage('setoption name UCI_LimitStrength value false');
@@ -899,9 +918,10 @@ return move.san;
             
             if (this.activeEngineType === 'fairy' || this.activeEngineType === 'custom') {
                 const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-                window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
                 if (this.gameMode === 'alice' || this.gameMode === 'spell') {
                     window.sfWorker.postMessage('setoption name Use NNUE value false');
+                    window.sfWorker.postMessage('setoption name EvalFile value ');
+                    window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
                     window.sfWorker.postMessage('isready');
                     return;
                 }
@@ -2446,7 +2466,7 @@ toggleArrow(from, to, color) {
         else if (this.mode === 'analysis') this.#saveState('analysis'); 
         
         // ✨ FIX: Safely emit the event so main.js routes it to the UI!
-        this.#emit('boardUpdated');
+        this.#emit('boardUpdated', { skipEngine: true });
     }
 toggleCircle(sq, color) {
         if (!this.currentNode) return;
@@ -2468,7 +2488,7 @@ toggleCircle(sq, color) {
         else if (this.mode === 'analysis') this.#saveState('analysis');
         
         // ✨ FIX: Safely emit the event!
-        this.#emit('boardUpdated');
+        this.#emit('boardUpdated', { skipEngine: true });
     }
 clearAnnotations() {
         if (!this.currentNode) return;
@@ -2479,7 +2499,7 @@ clearAnnotations() {
         else if (this.mode === 'analysis') this.#saveState('analysis');
         
         // ✨ FIX: Safely emit the event!
-        this.#emit('boardUpdated');
+        this.#emit('boardUpdated', { skipEngine: true });
     }
 updateComment(nodeId, text) {
         const node = this.#findNodeById(this.rootNode, nodeId);
@@ -2538,9 +2558,6 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
 
         const oldMode = this.gameMode;
         const isSuspended = this.isVariantSuspended(mode);
-
-        // ONLY trigger this warning if the user manually changed the dropdown (!skipStorage)
-        // and there is actual move history on the board.
         if (!isInitialLoad && !skipStorage && this.currentNode && this.currentNode !== this.rootNode) {
             const confirmReset = confirm(`Changing the variant to ${mode.toUpperCase()} will reset the current board and clear the move history.\n\nContinue?`);
             
@@ -3467,8 +3484,7 @@ stepBack() {
         this.#emit('soundTriggered', { type: 'move-self' });
         return true;
     }
-
-    stepForward() {
+stepForward() {
         if (!this.currentNode || this.currentNode.children.length === 0) return false;
         
         // Follow the index (which is now mathematically guaranteed to be 0 unless clicked)
@@ -4876,10 +4892,12 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
 
         const promotion = (promo && promo.length === 1) ? promo.toLowerCase() : undefined;
 
-        if (batchMode) {
+         if (batchMode) {
             const batchObj = {};
             if (move.isSpell) {
-                batchObj.isSpell = true; batchObj.spellType = move.spellType; batchObj.target = move.target;
+                batchObj.isSpell = true; 
+                batchObj.spellType = move.spellType; 
+                batchObj.target = typeof move.target === 'number' ? this.#indexToSquare(move.target) : move.target;
             } else if (move.from === '@' || move.drop) {
                 batchObj.from = '@';
                 batchObj.drop = move.drop || move.piece;
@@ -4912,7 +4930,9 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
 
         const moveObj = {};
         if (move.isSpell) {
-            moveObj.isSpell = true; moveObj.spellType = move.spellType; moveObj.target = move.target;
+            moveObj.isSpell = true; 
+            moveObj.spellType = move.spellType; 
+            moveObj.target = typeof move.target === 'number' ? this.#indexToSquare(move.target) : move.target;
         } else if (move.from === '@' || move.drop) {
             moveObj.from = '@';
             moveObj.drop = move.drop || move.piece;
@@ -4972,8 +4992,13 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
 
         this.#reconcileBoardIds(newFen, move);
 
-        const moveData = { from: move.from, to: move.to, flags: result.flags, color: result.color };
-        this.#addMoveToTree(newFen, result.san, move.to, moveData, true);
+        const moveData = { 
+            from: move.from !== undefined ? move.from : '@', 
+            to: move.to !== undefined ? move.to : move.target, 
+            flags: result.flags, 
+            color: result.color 
+        };
+        this.#addMoveToTree(newFen, result.san, moveData.to, moveData, true);
         
         if (this.currentNode) this.currentNode.timeSpent = timeSpent;
 

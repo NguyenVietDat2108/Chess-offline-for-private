@@ -2818,10 +2818,10 @@ executeMove(move, animate = true) {
         }
         
         const isDrop = move.from === '@';
-        let destIdx = move.to;
-        if (typeof move.to === 'string') {
-            const f = move.to.charCodeAt(0) - 97;
-            const r = 8 - parseInt(move.to[1]);
+        let destIdx = move.to !== undefined ? move.to : move.target;
+        if (typeof destIdx === 'string') {
+            const f = destIdx.charCodeAt(0) - 97;
+            const r = 8 - parseInt(destIdx[1]);
             destIdx = r * 8 + f;
         }
         
@@ -2838,9 +2838,9 @@ executeMove(move, animate = true) {
         
         this.pendingDuckMove = null;
         let piece = isDrop ? { type: move.drop || move.piece, color: state.turn } : state.board[move.from];
-        if (!piece) return; 
+        if (!piece && !move.isSpell) return; 
         
-        const isPawn = (piece.type.toLowerCase() === 'p');
+        const isPawn = (piece && piece.type.toLowerCase() === 'p');
         const destRank = Math.floor(destIdx / 8);
         const isRank8 = (destRank === 0 || destRank === 7);
         let promoChar = null; 
@@ -2972,13 +2972,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
 
         const squares = this.squaresLayer.children;
         
-        // ✨ SPELL CHESS DRAG FIX: Ghost the pieces layer so clicks hit the squares directly!
-        if (state.gameMode === 'spell' && this.activeSpell) {
-            this.piecesLayer.style.pointerEvents = 'none';
-        } else {
-            this.piecesLayer.style.pointerEvents = '';
-        }
-
         for (let v = 0; v < 64; v++) {
             let r_vis = Math.floor(v / 8); 
             let c_vis = v % 8;
@@ -2992,15 +2985,11 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             sq.dataset.index = logical_i; 
             sq.innerHTML = '';
 
-            // ✨ SPELL CHESS: Draw Ice Blocks from Engine State
-            if (state.gameMode === 'spell' && state.frozen) {
-                const isFrozen = logical_i < 32 ? (state.frozen.lo & (1 << logical_i)) : (state.frozen.hi & (1 << (logical_i - 32)));
-                if (isFrozen) {
-                    sq.classList.add('frozen');
-                    let ice = document.createElement('div');
-                    ice.style.cssText = `position:absolute; top:0; left:0; width:100%; height:100%; background:url('./assets/tabs-icon/freeze.3455552f.png') center/cover; opacity:0.65; pointer-events:none; z-index:15; mix-blend-mode: screen; filter: hue-rotate(180deg) brightness(1.5);`;
-                    sq.appendChild(ice);
-                }
+             if (state.gameMode === 'spell' && state.frozenSquares && state.frozenSquares[logical_i]) {
+                sq.classList.add('frozen');
+                let ice = document.createElement('div');
+                ice.style.cssText = `position:absolute; top:0; left:0; width:100%; height:100%; background:url('./assets/tabs-icon/freeze.3455552f.png') center/cover; opacity:0.65; pointer-events:none; z-index:20; mix-blend-mode: screen; filter: hue-rotate(180deg) brightness(1.5);`; 
+                sq.appendChild(ice);
             }
 
             if (this.coordsPosition === 'inside') {
@@ -3036,43 +3025,52 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
 
             sq.onmousedown = null;
 
-            // ✨ THE MISSING SPELL INTERCEPTOR: Draw 3x3 Grid and click to cast!
+            // ✨ SPELL INTERCEPTOR: Handle 3x3 Hover & Spell Casting
             if (state.gameMode === 'spell' && this.activeSpell && state.mode !== 'editor') {
-                sq.style.cursor = 'crosshair'; 
-                
+                sq.style.cursor = 'pointer'; // Replaced crosshair with pointer
+
                 sq.onmouseenter = () => {
-                    document.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
-                    
+                    // Clear previous highlights efficiently
+                    this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
+
                     if (this.activeSpell === 'freeze') {
-                        let r_hover = Math.floor(logical_i / 8); 
-                        let c_hover = logical_i % 8;
+                        const r = Math.floor(logical_i / 8);
+                        const c = logical_i % 8;
+
+                        // Highlight 3x3 area
                         for (let dr = -1; dr <= 1; dr++) {
                             for (let dc = -1; dc <= 1; dc++) {
-                                let nr = r_hover + dr, nc = c_hover + dc;
+                                const nr = r + dr, nc = c + dc;
                                 if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
-                                    let targetLogIdx = nr * 8 + nc;
-                                    let targetSq = this.squaresLayer.querySelector(`[data-index="${targetLogIdx}"]`);
+                                    const targetIdx = nr * 8 + nc;
+                                    const targetSq = this.squaresLayer.querySelector(`[data-index="${targetIdx}"]`);
                                     if (targetSq) targetSq.classList.add('spell-target-hover');
                                 }
                             }
                         }
-                    } else if (this.activeSpell === 'jump') {
+                    } else {
+                        // Default 1x1 highlight for 'jump' or other spells
                         sq.classList.add('spell-target-hover');
                     }
                 };
 
                 sq.onmouseleave = () => {
-                    document.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
+                    this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
                 };
 
                 sq.onmousedown = (e) => {
-                    if (e.button !== 0) return;
-                    e.preventDefault(); e.stopPropagation();
-                    document.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
-                    if (typeof this.castSpell === 'function') this.castSpell(this.activeSpell, logical_i);
+                    if (e.button !== 0) return; // Only left click
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
+                    
+                    if (typeof this.castSpell === 'function') {
+                        this.castSpell(this.activeSpell, logical_i);
+                    }
                 };
-                
-                continue; // VERY IMPORTANT: Skips normal move logic!
+
+                continue; // Prevents normal piece interaction while spell is active
             } else {
                 sq.style.cursor = ''; 
                 sq.onmouseenter = null;
@@ -3145,9 +3143,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         let visualBoard;
         const currentFen = this.#game && this.#game.currentNode ? this.#game.currentNode.fen : '';
         
-        // ✨ THE ULTIMATE GHOST FIX: Un-shift the corrupted array!
-        // ChessGame.js treats '~' as a phantom piece and accidentally shifts subsequent pieces to the right.
-        // We will extract the valid pieces and mathematically snap them back to their true FEN squares!
+        // ✨ THE ULTIMATE GHOST FIX: Safely parse the ~ character without collapsing the board!
         if (currentFen.includes('~')) {
             visualBoard = new Array(64).fill(null);
             let validPieces = state.board.filter(p => p && p.type !== '~');
@@ -3159,8 +3155,14 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             for (let i = 0; i < fenRanks.length; i++) {
                 let char = fenRanks[i];
                 if (char === '/') continue;
+                
                 if (/\d/.test(char)) { 
-                    logicalIndex += parseInt(char, 10); 
+                    // ✨ FIX: Explicitly fill empty squares with null so pieces don't collapse!
+                    let empties = parseInt(char, 10);
+                    for (let e = 0; e < empties; e++) {
+                        visualBoard[logicalIndex] = null;
+                        logicalIndex++;
+                    }
                 } else if (char === '~') { 
                     // Apply ghost effect to the piece we JUST placed
                     let prevSq = logicalIndex - 1;
@@ -3168,7 +3170,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                         visualBoard[prevSq].isBoardB = true;
                     }
                 } else { 
-                    // Real piece! Place it securely and preserve its animation ID
+                    // Real piece! Place it securely
                     if (pieceCursor < validPieces.length) {
                         visualBoard[logicalIndex] = { ...validPieces[pieceCursor] };
                         pieceCursor++;
@@ -3203,7 +3205,16 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         Array.from(this.piecesLayer.children).forEach(el => {
             const oldId = el.dataset.id;
             if (piecesMap.has(oldId)) return;
-            const match = Array.from(piecesMap.values()).find(p => p.color === (el.classList.contains('piece-w') ? 'w' : 'b') && !this.piecesLayer.querySelector(`[data-id="${p.id}"]`));
+            
+            // ✨ FIX: Match by COLOR and TYPE to prevent pawns from morphing into queens!
+            const domType = Array.from(el.classList).find(c => ['P','N','B','R','Q','K','duck'].includes(c.toUpperCase()));
+            
+            const match = Array.from(piecesMap.values()).find(p => 
+                p.color === (el.classList.contains('piece-w') ? 'w' : 'b') && 
+                p.type.toUpperCase() === (domType ? domType.toUpperCase() : '') &&
+                !this.piecesLayer.querySelector(`[data-id="${p.id}"]`)
+            );
+            
             if (match) { el.dataset.id = match.id; return; }
             if (animate) {
                 el.classList.add('captured-pending');
@@ -3211,12 +3222,12 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             } else el.remove();
         });
 
-piecesMap.forEach((p, id) => {
+        piecesMap.forEach((p, id) => {
             let el = this.piecesLayer.querySelector(`[data-id="${id}"]`);
             let isNew = false;
             
             const colorClass = p.color === 'w' ? 'piece-w' : 'piece-b';
-            
+            const typeClass = p.type.toUpperCase();
             const rawSVG = this.getPieceHTML(p);
             let htmlBuffer = rawSVG;
 
@@ -3245,15 +3256,67 @@ piecesMap.forEach((p, id) => {
 
             if (!el) {
                 el = document.createElement('div');
-                el.className = `piece ${colorClass}`;
+                el.className = `piece ${colorClass} ${typeClass}`; 
                 el.dataset.id = id; el.innerHTML = htmlBuffer;
-                el.onmousedown = (e) => { if (e.button === 0) this.startDrag(e, p.idx, p); };
                 this.piecesLayer.appendChild(el);
                 isNew = true;
             } else {
-                if (!el.classList.contains(colorClass)) { el.classList.remove('piece-w', 'piece-b'); el.classList.add(colorClass); }
+                el.className = `piece ${colorClass} ${typeClass}`; 
                 if (el.innerHTML !== htmlBuffer) el.innerHTML = htmlBuffer;
-                el.onmousedown = (e) => { if (e.button === 0) this.startDrag(e, p.idx, p); };
+            }
+
+            // ========================================================
+            // ✨ NEW: EXPLICIT PIECE INTERCEPTOR FOR SPELLS
+            // ========================================================
+            if (state.gameMode === 'spell' && this.activeSpell && state.mode !== 'editor') {
+                el.style.cursor = 'pointer';
+                
+                // 1. Mirror the Hover Effect
+                el.onmouseenter = () => {
+                    this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(s => s.classList.remove('spell-target-hover'));
+                    
+                    if (this.activeSpell === 'freeze') {
+                        const r = Math.floor(p.idx / 8);
+                        const c = p.idx % 8;
+                        for (let dr = -1; dr <= 1; dr++) {
+                            for (let dc = -1; dc <= 1; dc++) {
+                                const nr = r + dr, nc = c + dc;
+                                if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
+                                    const targetSq = this.squaresLayer.querySelector(`[data-index="${nr * 8 + nc}"]`);
+                                    if (targetSq) targetSq.classList.add('spell-target-hover');
+                                }
+                            }
+                        }
+                    } else {
+                        const targetSq = this.squaresLayer.querySelector(`[data-index="${p.idx}"]`);
+                        if (targetSq) targetSq.classList.add('spell-target-hover');
+                    }
+                };
+
+                // 2. Mirror the Un-hover Effect
+                el.onmouseleave = () => {
+                    this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(s => s.classList.remove('spell-target-hover'));
+                };
+
+                // 3. Mirror the Click / Cast Effect
+                el.onmousedown = (e) => {
+                    if (e.button !== 0) return;
+                    e.preventDefault(); 
+                    e.stopPropagation();
+                    
+                    this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(s => s.classList.remove('spell-target-hover'));
+                    
+                    if (typeof this.castSpell === 'function') {
+                        this.castSpell(this.activeSpell, p.idx);
+                    }
+                };
+            } else {
+                el.style.cursor = '';
+                el.onmouseenter = null;
+                el.onmouseleave = null;
+                el.onmousedown = (e) => { 
+                    if (e.button === 0) this.startDrag(e, p.idx, p); 
+                };
             }
 
             if (p.isBoardB) {
@@ -3463,7 +3526,11 @@ animateToStartPosition(targetFen, previousBoard, onCompleteCallback) {
             for (let i = 0; i < rows[r].length; i++) {
                 const char = rows[r][i];
                 if (/\d/.test(char)) {
-                    c += parseInt(char);
+                    c += parseInt(char, 10);
+                } else if (char === '~') {
+                    // ✨ ALICE CHESS FIX: Ignore '~', don't increment 'c'
+                    // This prevents the UI from shifting all pieces to the right!
+                    continue;
                 } else {
                     const color = (char === char.toUpperCase()) ? 'w' : 'b';
                     targets.push({ type: char.toLowerCase(), color, r, c, assigned: false });
@@ -4789,12 +4856,21 @@ hoverEngineMove(fen, e, duckSq = -1) {
         
         for (let r = 0; r < 8; r++) { 
             let rankStr = rows[r]; let fileIdx = 0; 
-            for (let char of rankStr) { 
+            for (let i = 0; i < rankStr.length; i++) { 
+                let char = rankStr[i];
                 if (isNaN(char)) {
                     let currentSq = r * 8 + fileIdx;
                     let renderPiece = char === '*' ? null : char;
+                    let isAliceB = false;
+                    
+                    // ✨ FIX: Check for Alice B board marker (e.g. ~)
+                    if (i + 1 < rankStr.length && rankStr[i+1] === '~') {
+                        isAliceB = true;
+                        i++; // Skip the '~'
+                    }
+
                     if (currentSq === targetGridIndex) renderPiece = 'duck';
-                    this.renderPreviewSquare(grid, r, fileIdx, renderPiece); 
+                    this.renderPreviewSquare(grid, r, fileIdx, renderPiece, isAliceB); 
                     fileIdx++;
                 } else {
                     let empties = parseInt(char); 
@@ -4807,7 +4883,7 @@ hoverEngineMove(fen, e, duckSq = -1) {
             }
         }
     }
-renderPreviewSquare(container, r, c, pieceChar) {
+renderPreviewSquare(container, r, c, pieceChar, isAliceB = false) {
         const isLight = (r + c) % 2 === 0;
         const sq = document.createElement('div');
         sq.className = `preview-square ${isLight ? 'light' : 'dark'}`;
@@ -4847,7 +4923,14 @@ renderPreviewSquare(container, r, c, pieceChar) {
             }
 
             const pDiv = document.createElement('div'); pDiv.className = 'preview-piece';
-            pDiv.style.cssText = 'position:absolute; top:0; left:0; width:100%; height:100%; display:flex; justify-content:center; align-items:center; transform-origin:center;';
+            
+            // ✨ ALICE CHESS FIX: Apply the same visual filter used on the main board
+            let aliceStyle = '';
+            if (isAliceB) {
+                aliceStyle = 'filter: hue-rotate(180deg) drop-shadow(0 0 5px cyan); opacity: 0.6; transform: scale(0.80);';
+            }
+            
+            pDiv.style.cssText = `position:absolute; top:0; left:0; width:100%; height:100%; display:flex; justify-content:center; align-items:center; transform-origin:center; ${aliceStyle}`;
             pDiv.innerHTML = htmlBuffer || '';
             sq.appendChild(pDiv);
         }

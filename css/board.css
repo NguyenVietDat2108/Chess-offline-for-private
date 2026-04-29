@@ -357,6 +357,37 @@ body.show-editor .square.selected {
 body.show-editor .square.in-check {
     background-color: transparent !important;
 }
+/* The 3x3 Hover Preview */
+.spell-target-hover {
+    background-color: rgba(0, 255, 255, 0.25) !important;
+    box-shadow: inset 0 0 8px #00ffff;
+    z-index: 5;
+}
+
+/* The Actual Frozen Style (Applied when a square is in the engine's frozen mask) */
+.square.frozen-effect {
+    position: relative;
+    background-image: linear-gradient(135deg, rgba(173, 216, 230, 0.4) 25%, transparent 25%, transparent 50%, rgba(173, 216, 230, 0.4) 50%, rgba(173, 216, 230, 0.4) 75%, transparent 75%, transparent) !important;
+    background-size: 10px 10px; /* Subtle "frosted glass" stripes */
+    transition: background 0.3s ease;
+}
+
+.square.frozen-effect::after {
+    content: "❄️";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.8rem;
+    opacity: 0.5;
+    pointer-events: none;
+    filter: drop-shadow(0 0 5px white);
+}
+
+/* Optional: Make the piece on a frozen square look tinted */
+.square.frozen-effect img {
+    filter: brightness(1.2) sepia(1) hue-rotate(160deg) saturate(2);
+}
 /* Lichess Setup Modal Theme */
 .modal-content.lichess-setup {
     background: #262421;

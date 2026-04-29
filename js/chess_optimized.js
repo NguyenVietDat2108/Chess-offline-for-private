@@ -776,7 +776,11 @@ var Chess = function(fen, gameMode = 'classical') {
         }
         if ((KNIGHT_LO[sq] & (bb_lo[by_color*6+KNIGHT] & bMaskL)) | (KNIGHT_HI[sq] & (bb_hi[by_color*6+KNIGHT] & bMaskH))) return true;
         if ((KING_LO[sq] & (bb_lo[by_color*6+KING] & bMaskL)) | (KING_HI[sq] & (bb_hi[by_color*6+KING] & bMaskH))) return true;
-
+        var occL = 0, occH = 0;
+        for (let i = 0; i < 12; i++) {
+            occL |= bb_lo[i];
+            occH |= bb_hi[i];
+        }
         if (state.gameMode === 'duck' && state.duck_sq !== -1) {
             if (state.duck_sq < 32) occL |= (1 << state.duck_sq);
             else occH |= (1 << (state.duck_sq - 32));
@@ -901,18 +905,18 @@ var Chess = function(fen, gameMode = 'classical') {
         
         let occAllL = occUsL | occThemL;
         let occAllH = occUsH | occThemH;
-
+        
+        let emptyL = ~occAllL, emptyH = ~occAllH;
         if (state.gameMode === 'spell' && state.jump_sq !== undefined && state.jump_sq !== -1) {
-            if (state.jump_sq < 32) occL &= ~(1 << state.jump_sq);
-            else occH &= ~(1 << (state.jump_sq - 32));
-        }
+        if (state.jump_sq < 32) occAllL &= ~(1 << state.jump_sq);
+        else occAllH &= ~(1 << (state.jump_sq - 32));
+            }
 
         if (state.gameMode === 'duck' && state.duck_sq !== -1) {
             if (state.duck_sq < 32) { occUsL |= (1 << state.duck_sq); occAllL |= (1 << state.duck_sq); }
             else { occUsH |= (1 << (state.duck_sq - 32)); occAllH |= (1 << (state.duck_sq - 32)); }
         }
 
-        let emptyL = ~occAllL, emptyH = ~occAllH;
         let pL = bb_lo[us*6+PAWN], pH = bb_hi[us*6+PAWN];
 
         let sL, sH;
@@ -1973,7 +1977,18 @@ var Chess = function(fen, gameMode = 'classical') {
                         if (type === ROOK && isDiag) continue;
                         if (type === BISHOP && !isDiag) continue;
                         let idx = from*64+to;
-                        if (((BETWEEN_LO[idx]&occL)|(BETWEEN_HI[idx]&occH))===0) {
+                        let oL = occL, oH = occH;
+
+                        // ✨ FAST PATH OVERRIDE for ALICE CHESS
+                        if (state.gameMode === 'alice') {
+                            let isB = from < 32 ? (state.alice_b.lo & (1<<from)) : (state.alice_b.hi & (1<<(from-32)));
+                            let bMaskL = isB ? state.alice_b.lo : ~state.alice_b.lo;
+                            let bMaskH = isB ? state.alice_b.hi : ~state.alice_b.hi;
+                            oL &= bMaskL; 
+                            oH &= bMaskH;
+                        }
+
+                        if (((BETWEEN_LO[idx]&oL)|(BETWEEN_HI[idx]&oH))===0) {
                             if(from<32) candL |= (1<<from); else candH |= (1<<(from-32));
                         }
                     }
@@ -2307,18 +2322,17 @@ return {
             if (!o) return null;
             if (this.game_over()) return null;
             
-            // ✨ UI SPELL CAST HANDLER
             if (typeof o === 'object' && o.isSpell) {
-                var nextState = apply_spell(currentState, o.spellType, o.target);
+                let targetEngineIdx = typeof o.target === 'string' ? str_to_sq(o.target) : o.target;
+                
+                var nextState = apply_spell(currentState, o.spellType, targetEngineIdx);
                 currentState = nextState;
                 history.push(currentState);
                 
-                var f = o.target & 7;
-                var r = o.target >> 3;
-                var targetSqStr = ['a','b','c','d','e','f','g','h'][f] + (8 - r);
+                var targetSqStr = typeof o.target === 'string' ? o.target : sq_str(targetEngineIdx);
                 
                 return {
-                    color: currentState.turn === WHITE ? 'b' : 'w',
+                    color: currentState.turn === WHITE ? 'w' : 'b',
                     flags: 's',
                     from: '@',
                     to: targetSqStr,
@@ -2343,7 +2357,7 @@ return {
                     history.push(currentState);
                     
                     return {
-                        color: currentState.turn === WHITE ? 'b' : 'w',
+                        color: currentState.turn === WHITE ? 'w' : 'b',
                         flags: 's',
                         from: '@',
                         to: spellMatch[2],
