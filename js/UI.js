@@ -63,6 +63,14 @@ constructor() {
             this.injectVariantRuleButtons();
         }, 1000);
     }
+on(eventName, callback) {
+        this.#callbacks[eventName] = callback;
+    }
+#emit(eventName, data) {
+        if (this.#callbacks[eventName]) {
+            this.#callbacks[eventName](data);
+        }
+    }
 setGame(gameInstance) {
         this.#game = gameInstance;
     }
@@ -3163,12 +3171,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                         visualBoard[logicalIndex] = null;
                         logicalIndex++;
                     }
-                    // ✨ FIX: Explicitly fill empty squares with null so pieces don't collapse!
-                    let empties = parseInt(char, 10);
-                    for (let e = 0; e < empties; e++) {
-                        visualBoard[logicalIndex] = null;
-                        logicalIndex++;
-                    }
                 } else if (char === '~') { 
                     // Apply ghost effect to the piece we JUST placed
                     let prevSq = logicalIndex - 1;
@@ -3221,16 +3223,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 !this.piecesLayer.querySelector(`[data-id="${p.id}"]`)
             );
             
-            
-            // ✨ FIX: Match by COLOR and TYPE to prevent pawns from morphing into queens!
-            const domType = Array.from(el.classList).find(c => ['P','N','B','R','Q','K','duck'].includes(c.toUpperCase()));
-            
-            const match = Array.from(piecesMap.values()).find(p => 
-                p.color === (el.classList.contains('piece-w') ? 'w' : 'b') && 
-                p.type.toUpperCase() === (domType ? domType.toUpperCase() : '') &&
-                !this.piecesLayer.querySelector(`[data-id="${p.id}"]`)
-            );
-            
             if (match) { el.dataset.id = match.id; return; }
             if (animate) {
                 el.classList.add('captured-pending');
@@ -3243,7 +3235,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             let isNew = false;
             
             const colorClass = p.color === 'w' ? 'piece-w' : 'piece-b';
-            const typeClass = p.type.toUpperCase();
             const typeClass = p.type.toUpperCase();
             const rawSVG = this.getPieceHTML(p);
             let htmlBuffer = rawSVG;
@@ -7233,13 +7224,5 @@ castSpell(spellType, targetSq) {
         
         // Update the headers to visually remove the spent mana charges
         this.renderHeaders();
-    }
-on(eventName, callback) {
-        this.#callbacks[eventName] = callback;
-    }
-#emit(eventName, data) {
-        if (this.#callbacks[eventName]) {
-            this.#callbacks[eventName](data);
-        }
     }
 }
