@@ -105,7 +105,7 @@ Use spells to find a checkmate or king capture!
 
 Spell Chess bug:
 remove check from spell chess.
-spell and freeze should share the same number count.
+spell and freeze should share the same number count in the pgn , for ex: 1. fz@e4 e4 e6, not 1. fz@e4 e4. 2.e6
 
 
 -building engine analysis for progressive chess:

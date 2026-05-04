@@ -864,6 +864,7 @@ var Chess = function(fen, gameMode = 'classical') {
             case 'antichess':   return false; 
             case 'racingkings': return false; 
             case 'duck':        return false;
+            case 'spell':       return false; // ✨ SPELL CHESS FIX: Spells ignore checks completely!
             case 'horde':       return color === BLACK ? is_standard_checked(state, color) : false; 
             case 'atomic':
                 var wkL = state.bb_lo[WHITE*6+KING], wkH = state.bb_hi[WHITE*6+KING];
@@ -2258,6 +2259,7 @@ var Chess = function(fen, gameMode = 'classical') {
                 if (!std_bK) return WHITE;
                 return null;
             case 'duck':
+            case 'spell': // ✨ SPELL CHESS FIX: King capture is the win condition!
                 let duck_wK = state.bb_lo[WHITE*6+KING] | state.bb_hi[WHITE*6+KING];
                 let duck_bK = state.bb_lo[BLACK*6+KING] | state.bb_hi[BLACK*6+KING];
                 if (!duck_wK) return BLACK;
@@ -2267,7 +2269,7 @@ var Chess = function(fen, gameMode = 'classical') {
                     return state.turn === WHITE ? BLACK : WHITE;
                 }
                 return null;
-            default:              return null; 
+            default:              return null;
         }
     }
     currentState = load_fen(fen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", gameMode);
