@@ -391,6 +391,12 @@ var Chess = function(fen, gameMode = 'classical') {
         }
 
         next.turn ^= 1;
+        let isBigStep = (flags & BITS.BIG_PAWN);
+        if (prevState.gameMode === 'horde' && p_type === PAWN && us === WHITE) {
+            if ((from >> 3) === 0 && (to - from) === 16) {
+                isBigStep = true;
+            }
+        }
         next.ep_square = (flags & BITS.BIG_PAWN) ? ((us === WHITE) ? to - 8 : to + 8) : -1;
         if (p_type === PAWN || (flags & BITS.CAPTURE)) next.half_moves = 0; else next.half_moves++;
         if (us === BLACK) next.move_number++;
@@ -1142,7 +1148,8 @@ var Chess = function(fen, gameMode = 'classical') {
         }
 
         // 2. CHECK FOR ATTACKS (The board array is untouched!)
-        var king_sq = (piece === KING) ? to : ctz(state.bb_lo[us*6+KING], state.bb_hi[us*6+KING]); 
+        var klo = state.bb_lo[us*6+KING], khi = state.bb_hi[us*6+KING];
+        var king_sq = (piece === KING) ? to : ((klo === 0 && khi === 0) ? 64 : ctz(klo, khi));
         var safe = (king_sq === 64) || !is_attacked(state, king_sq, them);
 
         // 3. INSTANT REVERSAL

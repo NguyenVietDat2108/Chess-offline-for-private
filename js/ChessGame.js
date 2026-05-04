@@ -3511,16 +3511,37 @@ stepForward() {
         return true;
     }
 goToStart() {
-        if (!this.rootNode) return false;
-        this.currentNode = this.rootNode;
-        
-        // ✨ FIX: A complete wipe & load prevents Piece IDs from corrupting on large jumps!
-        this.loadFEN(this.currentNode.fen, this.gameMode, true);
-        
-        this.#emit('boardUpdated', { animate: false });
-        this.#emit('soundTriggered', { type: 'move-self' });
-        return true;
-    }
+    if (!this.rootNode) return false;
+
+    const startFen = this.rootNode.fen;
+
+    // 1. Snapshot the board state BEFORE it gets overwritten by loadFEN
+    // We map the pieces to ensure we have a deep enough copy of the references
+    const previousBoardSnapshot = this.#board.map(p => p ? { ...p } : null);
+
+    // 2. Update the logical engine state
+    this.currentNode = this.rootNode;
+    
+    // Note: loadFEN will internally update this.#board to the starting position
+    this.loadFEN(startFen, this.gameMode, true); 
+
+    // 3. Sync UI elements (like the FEN text box)
+    this.#emit('fenChanged', { fen: startFen });
+    
+    // 4. Trigger the visual animation via the App Switchboard
+    // We pass 'isGoToStart' so ChessApp knows to call ui.animateToStartPosition
+    this.#emit('boardUpdated', { 
+        isGoToStart: true, 
+        targetFen: startFen, 
+        previousBoard: previousBoardSnapshot,
+        animate: false // prevents the standard renderer from jumping the gun
+    });
+
+    // 5. Optional sound feedback
+    this.#emit('soundTriggered', { type: 'move-self' });
+
+    return true;
+}
 goToEnd() {
         if (!this.rootNode) return false;
         let curr = this.rootNode;

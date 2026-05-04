@@ -11,10 +11,10 @@ export const VARIANT_STARTING_FENS = {
     'chaturanga': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
     'crazyhouse': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1',
     'duck': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-    'horde': 'rnbqkbnr/pppppppp/8/1PP2PP1/PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP w - - 0 1',
+    'horde': 'rnbqkbnr/pppppppp/8/1PP2PP1/PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP w kq - 0 1',
     'kingofthehill': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
     'racingkings': '8/8/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1',
-    'placement': '8/8/8/8/8/8/8/8[RNBQKBNRPPPPPPPPrnbqkbnrpppppppp] w - - 0 1',
+    'placement': '8/8/8/8/8/8/8/8[RNBQKBNRPPPPPPPPrnbqkbnrpppppppp] w KQkq - 0 1',
     'alice': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
     'spell': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
 };
@@ -31,7 +31,7 @@ export const nnueMap = {
     'racingkings': 'racingkings-636b95f085e3.nnue',
     'placement': 'nn-46832cfbead3.nnue',
     'alice': 'nn-46832cfbead3.nnue',
-    'alice': 'nn-46832cfbead3.nnue'
+    'spell': 'nn-46832cfbead3.nnue'
 };
 export const ICON_BOOK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="30" height="30" style="vertical-align: middle;"><circle cx="12" cy="12" r="10.5" fill="currentColor"/><g transform=" translate(12, 12) scale(0.75) translate(-12, -12)"><path fill="#f0dec3" d="M17,7 c-2,0 -3.5,1 -4,2 h-2 c-0.5,-1 -2,-2 -4,-2 c-2,0 -3,1 -3,1 v10 c0,0 1,-1 3,-1 c2,0 3.5,1 4,1 h2 c0.5,0 2,-1 4,-1 c2,0 3,1 3,1 V8 C20,8 19,7 17,7 z"/><path fill="#7a5533" d="M11.5,9 h1 v9 h-1 V9 z" /></g></svg>`;
 export const BOOK_ICON_IMG = new Image();
