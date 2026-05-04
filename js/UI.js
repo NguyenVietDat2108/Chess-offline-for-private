@@ -2725,7 +2725,7 @@ updateLessonUI() {
             if (progBar) progBar.style.width = "100%";
         }
 }
-executeMove(move, animate = true) {
+executeMove(move, animate = true, overridePromo = null) {
         const state = this.#game ? this.#game.getReader() : null;
         
         const chapter = (state && state.chapters) ? state.chapters[state.activeChapterIndex] : null;
@@ -2737,17 +2737,13 @@ executeMove(move, animate = true) {
             let failTxt = "Inaccuracy! Try finding a better move.";
             let botResponseMove = null;
 
-            // Safely parse the user's attempted move into a UCI string (e.g. e2e4)
             let attemptFrom = typeof move.from === 'number' ? this.#game.indexToSquare(move.from) : move.from;
             let attemptTo = typeof move.to === 'number' ? this.#game.indexToSquare(move.to) : move.to;
             const attemptedUci = move.uci || (attemptFrom + attemptTo + (move.promotion || ''));
 
-            // ==========================================
-            // 1. Custom Lesson Mode
-            // ==========================================
             if (state.mode === 'lesson') {
                 const step = this.#game.lessonData.steps[this.#game.lessonStep];
-                if (!step) return; // Lesson over
+                if (!step) return; 
                 
                 const expected = step.expectedMove;
                 isCorrect = Array.isArray(expected) ? expected.includes(attemptedUci) : attemptedUci === expected;
@@ -2758,11 +2754,7 @@ executeMove(move, animate = true) {
                     this.#game.lessonStep++;
                     botResponseMove = step.opponentResponse; 
                 }
-            } 
-            // ==========================================
-            // 2. Lichess Study Interactive Mode
-            // ==========================================
-            else {
+            } else {
                 const expectedNode = this.#game.currentNode.children[0];
                 if (expectedNode && expectedNode.lastMove) {
                     const lm = expectedNode.lastMove;
@@ -2782,11 +2774,10 @@ executeMove(move, animate = true) {
                         }
                     }
                 } else {
-                    isCorrect = true; // No more moves in the study tree
+                    isCorrect = true; 
                 }
             }
 
-            // --- Apply Validation ---
             if (!isCorrect) {
                 const feedbackEl = document.getElementById('lesson-feedback');
                 if (feedbackEl) {
@@ -2795,11 +2786,10 @@ executeMove(move, animate = true) {
                 } else {
                     this.showNotification(failTxt, "Incorrect", "❌");
                 }
-                this.renderBoard(false); // Snap piece back
-                return; // 🛑 BLOCK EXECUTION
+                this.renderBoard(false); 
+                return; 
             }
 
-            // CORRECT MOVE!
             const feedbackEl = document.getElementById('lesson-feedback');
             if (feedbackEl) {
                 feedbackEl.innerText = "✅ " + successTxt;
@@ -2808,10 +2798,8 @@ executeMove(move, animate = true) {
                 this.showNotification("Good move!", "Correct", "✅");
             }
             
-            // Queue Opponent Response
             if (botResponseMove) {
                 setTimeout(() => {
-                    // Hijack the playUCI command to seamlessly bypass the interceptor
                     if (this.#game && typeof this.#game.playUCI === 'function') {
                         this.#game.playUCI(botResponseMove);
                     }
@@ -2823,7 +2811,6 @@ executeMove(move, animate = true) {
                     else this.showNotification("Lesson Complete!", "Success", "🏆");
                 }, 100);
             }
-            // By NOT returning here, we allow the user's correct move to slide down into the engine!
         }
         
         const isDrop = move.from === '@';
@@ -2852,13 +2839,19 @@ executeMove(move, animate = true) {
         const isPawn = (piece && piece.type.toLowerCase() === 'p');
         const destRank = Math.floor(destIdx / 8);
         const isRank8 = (destRank === 0 || destRank === 7);
-        let promoChar = null; 
+        
+        // ✨ FIX: Set the variable using the new argument!
+        let promoChar = overridePromo; 
         
         if (!isDrop && isPawn && isRank8 && !promoChar) {
             const autoQueen = document.getElementById('autoQueen')?.checked;
-            if (autoQueen) { promoChar = 'q'; } 
-            else {
-                this.showPromotionModal(piece.color, destIdx, (selectedType) => { this.executeMove(move, animate, selectedType); });
+            if (autoQueen) { 
+                promoChar = 'q'; 
+            } else {
+                this.showPromotionModal(piece.color, destIdx, (selectedType) => { 
+                    // ✨ FIX: Pass the modal choice correctly!
+                    this.executeMove(move, animate, selectedType.toLowerCase()); 
+                });
                 return;
             }
         }
@@ -2875,7 +2868,8 @@ executeMove(move, animate = true) {
         }
 
         this._isExecutingMove = true;
-        let res = this.#game.makeMove(moveAttempt, promoChar || 'q');
+        // ✨ FIX: Pass the securely captured promo string into the engine!
+        let res = this.#game.makeMove(moveAttempt, promoChar || move.promotion || 'q');
         this._isExecutingMove = false;
         
         this.selectedSq = null;

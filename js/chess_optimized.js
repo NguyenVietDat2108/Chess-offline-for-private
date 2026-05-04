@@ -1164,15 +1164,22 @@ var Chess = function(fen, gameMode = 'classical') {
             if(rt<32) state.bb_lo[us*6+ROOK] &= ~rtM; else state.bb_hi[us*6+ROOK] &= ~rtM;
             if(rf<32) state.bb_lo[us*6+ROOK] |= rfM; else state.bb_hi[us*6+ROOK] |= rfM;
         }
+        
+        // ✨ THE FIX: Revert the base piece move FIRST, before touching the promotion/capture logic!
+        // This ensures the bitmasks don't cannibalize each other if piece === captured === PAWN
+        if(isLoTo) state.bb_lo[us*6+piece] &= ~toMask; else state.bb_hi[us*6+piece] &= ~toMask;
+        if(isLoFrom) state.bb_lo[us*6+piece] |= fromMask; else state.bb_hi[us*6+piece] |= fromMask;
+
+        // Now revert the promotion overwrite
         if (flags & 16) {
             if(isLoTo) {
                 state.bb_lo[us*6+promo] &= ~toMask;
-                state.bb_lo[us*6+PAWN] |= toMask;
             } else {
                 state.bb_hi[us*6+promo] &= ~toMask;
-                state.bb_hi[us*6+PAWN] |= toMask;
             }
         }
+        
+        // Finally, restore the captured piece (or EP pawn) to the board cleanly
         if (flags & 8) {
             let capMask = (cap_sq<32) ? (1<<cap_sq) : (1<<(cap_sq-32));
             if(cap_sq<32) state.bb_lo[them*6+PAWN] |= capMask; else state.bb_hi[them*6+PAWN] |= capMask;
@@ -1181,9 +1188,6 @@ var Chess = function(fen, gameMode = 'classical') {
                 if(isLoTo) state.bb_lo[them*6+captured] |= toMask; else state.bb_hi[them*6+captured] |= toMask;
             }
         }
-        
-        if(isLoTo) state.bb_lo[us*6+piece] &= ~toMask; else state.bb_hi[us*6+piece] &= ~toMask;
-        if(isLoFrom) state.bb_lo[us*6+piece] |= fromMask; else state.bb_hi[us*6+piece] |= fromMask;
 
         return safe;
     }
