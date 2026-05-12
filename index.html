@@ -86,19 +86,7 @@
                                     </select>
                                 </div>
                                 <button onclick="const v = document.getElementById('analysisVariantSelect').value; window.app.game.setGameMode(v); if(v === 'chess960') window.app.game.startChess960Analysis(); else window.app.game.startAnalysisMode(); window.app.ui.switchTab('analysis'); window.app.ui.toggleSideMenu(false);" style="text-align: center; justify-content: center; padding: 8px 12px; background: transparent; border: none; border-radius: 4px; color: #aaa; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;" onmouseover="this.style.color='#fff'; this.style.background='#333'" onmouseout="this.style.color='#aaa'; this.style.background='transparent'">
-                                    <img src="./assets/tabs-icon/magnifier-analysis.svg" width="16" height="16" style="opacity: 0.8;">Start Analysis
-                                
-                                
-                                
-                                
-                                
-                                
-                                
-                                
-                                
-                                
-                                
-                                </button>
+                                    <img src="./assets/tabs-icon/magnifier-analysis.svg" width="16" height="16" style="opacity: 0.8;">Start Analysis </button>
                             </div>
                         </div>
                         <div class="menu-nav-item group" style="display: flex; flex-direction: column;" onmouseenter="document.getElementById('playSubmenu').style.display='flex'; if(!document.getElementById('menuBtn-play').classList.contains('active')) document.getElementById('menuBtn-play').style.background='#222';" onmouseleave="document.getElementById('playSubmenu').style.display='none'; if(!document.getElementById('menuBtn-play').classList.contains('active')){ document.getElementById('menuBtn-play').style.background='transparent'; }">
@@ -975,6 +963,7 @@
                                         
                                         </button>
                                         <button id="nextPuzzleBtn" class="btn-primary" style="display:none; background:#26c2a3; min-height:40px; width:100%; font-size:14px; margin-bottom:5px;" onclick="window.app.game.nextPuzzle()">Next Puzzle ➡</button>
+                                        <button id="analysisBtn" class="btn-primary" style="display:none; background:#266ac2; min-height:40px; width:100%; font-size:14px; margin-bottom:5px;" onclick="window.app.game.switchToAnalysis()">Analysis ➡</button>
                                         <button id="showSolBtn" class="btn-secondary" style="display:inline-block; min-height:40px; width:100%; font-size:14px; margin-bottom:5px;" onclick="window.app.game.showSolution()">Show Solution</button>
                                     </div>
                                     <button class="btn-secondary" style="min-height:40px; width:100%; font-size:14px;" onclick="window.app.game.endPuzzleRun('quit')">Exit / Finish</button>

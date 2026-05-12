@@ -706,50 +706,8 @@ return possibleMoves;
         return null;
     }
 #changeMode(targetMode) {
-        if (this.mode === targetMode) return; 
-
-        if (['analysis', 'local', 'bot', 'study'].includes(this.mode)) {
-            if (typeof this.#saveState === 'function') this.#saveState(this.mode);
-            if (this.mode === 'study' && typeof this.saveActiveChapter === 'function') this.saveActiveChapter();
-        } else if (this.mode === 'puzzle') {
-            if (typeof this.#saveState === 'function') this.#saveState('puzzle');
-        }
-
-        if (window.sfWorker && window.engineAnalysing && targetMode !== 'analysis' && targetMode !== 'study') {
-            window.sfWorker.postMessage('stop');
-        }
-
-        this.mode = targetMode;
-        
-        switch (targetMode) {
-            case 'study':
-                this.gameOver = true;
-                // ✨ FIX: Same here. Never restore volatile state for studies.
-                let targetIdx = this.activeChapterIndex !== -1 ? this.activeChapterIndex : 0;
-                this.activeChapterIndex = -1; // Bypass guard
-                this.loadChapter(targetIdx, true, true); 
-                break;
-            case 'analysis':
-                if (this.isPlayingLiveGame) {
-                    this.gameOver = false;
-                    if (this.#timerInterval) clearInterval(this.#timerInterval);
-                    if (!this.pgnHeaders['Result']) this.pgnHeaders['Result'] = '*';
-                } else {
-                    this.gameOver = true;
-                    if (typeof this.#restoreState === 'function') this.#restoreState('analysis');
-                }
-                break;
-            case 'puzzles':
-            case 'puzzle':
-                this.gameOver = true;
-                if (typeof this.#restoreState === 'function') this.#restoreState('puzzle');
-                break;
-            case 'editor':
-                this.gameOver = true;
-                break;
-        }
-
-        if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
+        if (targetMode === 'puzzles') targetMode = 'puzzle';
+        this.handleTabSwitch(targetMode);
     }
 #checkAndSwitchEngine() {
         const needsFairy = !['classical', 'chess960'].includes(this.gameMode);
@@ -1122,45 +1080,128 @@ return move.san;
     }
 #saveState(stateName) {
         if (!stateName) return;
+        
+        // 1. Initialize isolated memory mapping if missing
+        if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
+        
+        const memSlot = (stateName === 'local' || stateName === 'bot') ? 'play' : stateName;
+        
+        // 2. Save the deep references directly into RAM
+        this.tabMemory[memSlot] = {
+            rootNode: this.rootNode,
+            currentNode: this.currentNode,
+            history: [...(this.history || [])],
+            moveList: [...(this.moveList || [])],
+            headers: { ...this.pgnHeaders },
+            wTime: this.whiteTime,
+            bTime: this.blackTime,
+            mode: this.mode,
+            botColor: this.botColor,
+            myColor: this.myColor,
+            botLevel: this.botLevel,
+            puzzleCursor: this.puzzleCursor,
+            puzzleSolution: this.puzzleSolution,
+            puzzleScore: this.puzzleScore,
+            puzzleStrikes: this.puzzleStrikes
+        };
+
+        // 3. Fallback stringification for LocalStorage
         const state = {
             fen: typeof this.generateFEN === 'function' ? this.generateFEN() : this.currentNode.fen,
             pgn: typeof this.generatePGN === 'function' ? this.generatePGN() : "",
             headers: { ...this.pgnHeaders },
             wTime: this.whiteTime,
             bTime: this.blackTime,
-            activeNodeId: this.currentNode ? this.currentNode.id : null
+            activeNodeId: this.currentNode ? this.currentNode.id : null,
+            mode: this.mode,
+            botColor: this.botColor,
+            myColor: this.myColor,
+            botLevel: this.botLevel,
+            puzzleCursor: this.puzzleCursor,
+            puzzleSolution: this.puzzleSolution,
+            puzzleScore: this.puzzleScore,
+            puzzleStrikes: this.puzzleStrikes
         };
-        localStorage.setItem(`chess_state_${stateName}`, JSON.stringify(state));
+        localStorage.setItem(`chess_state_${memSlot}`, JSON.stringify(state));
     }
 #restoreState(stateName) {
         if (!stateName) return false;
+        if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
+        
+        const memSlot = (stateName === 'local' || stateName === 'bot') ? 'play' : stateName;
+        
+        // 1. Instant RAM Restore
+        if (this.tabMemory[memSlot]) {
+            const mem = this.tabMemory[memSlot];
+            this.rootNode = mem.rootNode;
+            this.currentNode = mem.currentNode;
+            this.history = mem.history;
+            this.moveList = mem.moveList;
+            this.pgnHeaders = mem.headers;
+            this.whiteTime = mem.wTime !== undefined ? mem.wTime : 600;
+            this.blackTime = mem.bTime !== undefined ? mem.bTime : 600;
+            this.mode = mem.mode || stateName;
+            this.botColor = mem.botColor;
+            this.myColor = mem.myColor;
+            this.botLevel = mem.botLevel;
+            this.puzzleCursor = mem.puzzleCursor || 0;
+            this.puzzleSolution = mem.puzzleSolution || [];
+            this.puzzleScore = mem.puzzleScore || 0;
+            this.puzzleStrikes = mem.puzzleStrikes || 0;
+            this.loadFEN(this.currentNode.fen, this.gameMode, true);
+            return true;
+        }
+
+        // 2. LocalStorage Fallback
         try {
-            const stored = localStorage.getItem(`chess_state_${stateName}`);
+            const stored = localStorage.getItem(`chess_state_${memSlot}`);
             if (stored) {
                 const state = JSON.parse(stored);
                 
-                // Restore Board
-                if (state.pgn) {
-                    this.loadPGN(state.pgn);
-                } else if (state.fen) {
-                    this.loadNewPosition(state.fen);
-                }
+                if (state.pgn) this.loadPGN(state.pgn, false, true);
+                else if (state.fen) this.loadNewPosition(state.fen);
                 
-                // Restore Metadata
                 if (state.headers) this.pgnHeaders = { ...state.headers };
                 if (state.wTime !== undefined) this.whiteTime = state.wTime;
                 if (state.bTime !== undefined) this.blackTime = state.bTime;
-
-                // Restore exact move position
-                if (state.activeNodeId) {
-                    this.goToNodeId(state.activeNodeId);
-                }
+                if (state.activeNodeId) this.goToNodeId(state.activeNodeId);
                 
+                this.mode = state.mode || stateName;
+                this.botColor = state.botColor;
+                this.myColor = state.myColor;
+                this.botLevel = state.botLevel;
+                this.puzzleCursor = state.puzzleCursor || 0;
+                this.puzzleSolution = state.puzzleSolution || [];
+                this.puzzleScore = state.puzzleScore || 0;
+                this.puzzleStrikes = state.puzzleStrikes || 0;
+
+                // Sync back to RAM
+                this.tabMemory[memSlot] = {
+                    rootNode: this.rootNode, currentNode: this.currentNode,
+                    history: [...(this.history || [])], moveList: [...(this.moveList || [])],
+                    headers: { ...this.pgnHeaders }, wTime: this.whiteTime, bTime: this.blackTime,
+                    mode: this.mode, botColor: this.botColor, myColor: this.myColor, botLevel: this.botLevel,
+                    puzzleCursor: this.puzzleCursor, puzzleSolution: this.puzzleSolution,
+                    puzzleScore: this.puzzleScore, puzzleStrikes: this.puzzleStrikes
+                };
                 return true;
             }
         } catch (e) {
             console.error(`Failed to restore state ${stateName}`, e);
         }
+        
+        // 3. THE BLEED FIX: Clear the board explicitly if empty
+        let startFen = INITIAL_FEN;
+        if (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode]) {
+            startFen = VARIANT_STARTING_FENS[this.gameMode];
+        }
+        this.rootNode = new MoveNode(startFen, null);
+        this.currentNode = this.rootNode;
+        this.history = [];
+        this.moveList = [];
+        this.pgnHeaders = {};
+        this.loadFEN(startFen, this.gameMode, true);
+        
         return false;
     }
 #parsePGNTokens(tokens, index) {
@@ -1518,17 +1559,13 @@ return move.san;
         try { this.#engine.load(savedFen); } catch(e) {}
     }
 #addMoveToTree(fen, moveSan, toSq, moveData) {
-        // 1. Check if the engine is currently parsing a hypothetical variation
         let isPVMove = !!this._isParsingPV;
-        
-        // 2. Separate PV nodes from Mainline nodes so they don't accidentally merge
         let existingChild = this.currentNode.children.find(child => 
             child.moveSan === moveSan && !!child.isPV === isPVMove
         );
 
         if (existingChild) {
             this.currentNode = existingChild;
-            // Ensure manual clicks on existing variations update the selected path
             if (!isPVMove && !this.isLoadingPGN) {
                 const idx = this.currentNode.parent.children.indexOf(this.currentNode);
                 if (idx !== -1) this.currentNode.parent.selectedChildIndex = idx;
@@ -1538,48 +1575,40 @@ return move.san;
             newNode.lastMove = moveData;
             newNode.isPV = isPVMove;
             
-            // Capture Clock Times ONLY for real, live-played moves
             if (this.isPlayingLiveGame && !isPVMove) {
                 const isWhiteMove = this.turn === 'b'; 
                 const secondsLeft = isWhiteMove ? this.whiteTime : this.blackTime;
-                
                 newNode.timeLeft = secondsLeft * 1000; 
-                
                 const h = Math.floor(secondsLeft / 3600);
                 const m = Math.floor((secondsLeft % 3600) / 60);
                 const s = Math.floor(secondsLeft % 60);
                 newNode.clk = `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-                
                 const now = Date.now();
-                if (this.lastMoveTimestamp) {
-                    newNode.moveTime = now - this.lastMoveTimestamp;
-                }
+                if (this.lastMoveTimestamp) newNode.moveTime = now - this.lastMoveTimestamp;
                 this.lastMoveTimestamp = now;
             }
 
             this.currentNode.children.push(newNode);
-            // Determine the new index of the node we just added
             const newIdx = this.currentNode.children.indexOf(newNode);
-
-            if (this.currentNode.children.length === 1) {
-                this.currentNode.selectedChildIndex = 0;
-            } else if (!isPVMove && !this.isLoadingPGN) {
-                // If it's a newly played real move, auto-select it!
-                this.currentNode.selectedChildIndex = newIdx;
-            }
+            if (this.currentNode.children.length === 1) this.currentNode.selectedChildIndex = 0;
+            else if (!isPVMove && !this.isLoadingPGN) this.currentNode.selectedChildIndex = newIdx;
 
             this.currentNode = newNode;
         }
+
         if (!isPVMove) {
-            if (typeof this.#syncMoveHistory === 'function') {
-                this.#syncMoveHistory();
-            }
+            if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
         }
 
+        // ✨ TAB AUTOSAVE LOGIC
         if (this.mode === 'analysis' && !this._isParsingPV) {
             this.#saveState('analysis');
         } else if (this.mode === 'study' && !this._isParsingPV) {
             if (typeof this.saveActiveChapter === 'function') this.saveActiveChapter();
+        } else if ((this.mode === 'local' || this.mode === 'bot') && !this._isParsingPV) {
+            this.#saveState('play');
+        } else if (this.mode === 'puzzle' && !this._isParsingPV) {
+            this.#saveState('puzzle');
         }
         
         if (this.isLoadingPGN || isPVMove) return; 
@@ -1587,11 +1616,8 @@ return move.san;
         try {
             if (typeof this.#ui !== 'undefined') {
                 if (this._historyRenderTimeout) clearTimeout(this._historyRenderTimeout);
-                
                 this._historyRenderTimeout = setTimeout(() => {
-                    requestAnimationFrame(() => {
-                        this.#ui.updateHistory();
-                    });
+                    requestAnimationFrame(() => { this.#ui.updateHistory(); });
                 }, 200); 
             }
         } catch (e) {}
@@ -1710,7 +1736,7 @@ return move.san;
         if (this.puzzleIndex >= this.puzzleQueue.length) {
             if (this.isFetchingPuzzles) {
                 if (this.#ui && typeof this.#ui.showNotification === 'function') this.#ui.showNotification("Fetching more puzzles...", "Please Wait", "⏳");
-                setTimeout(() => this.#loadCurrentPuzzle(), 500); // Try again in half a second
+                setTimeout(() => this.#loadCurrentPuzzle(), 500); 
                 return;
             } else {
                 if (this.#ui && typeof this.#ui.showNotification === 'function') {
@@ -1724,10 +1750,41 @@ return move.san;
         const p = this.puzzleQueue[this.puzzleIndex];
         console.log(`%c[PUZZLE LOADED] ID: ${p.id} | Rating: ${p.rating}`, "color: #38bdf8; font-weight: bold;");
         
+        // 🔥 THE RACE CONDITION FIX: Safe background loading!
+        // If the fetch finished but the user already swapped to the Analysis tab, buffer the puzzle safely!
+        if (this.mode !== 'puzzle' && this.mode !== 'puzzles') {
+            if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
+            
+            const pRoot = new MoveNode(p.fen, null);
+            this.tabMemory['puzzle'] = {
+                rootNode: pRoot,
+                currentNode: pRoot,
+                history: [],
+                moveList: [],
+                headers: {},
+                wTime: 600,
+                bTime: 600
+            };
+            
+            this.currentPuzzle = p;
+            this.initialPuzzleFEN = p.fen;
+            this.puzzleSolution = (typeof p.moves === 'string') ? p.moves.trim().split(' ') : p.moves;
+            this.puzzleCursor = 0;
+            
+            // DO NOT call this.#saveState('puzzle') because that grabs global variables!
+            // Just sync to localStorage directly so it's ready when they click back to the tab.
+            localStorage.setItem('chess_state_puzzle', JSON.stringify({
+                fen: p.fen, pgn: "", headers: {}, wTime: 600, bTime: 600, activeNodeId: pRoot.id
+            }));
+            
+            return; // Abort visual rendering to protect the active Analysis tab!
+        }
+
+        // Normal Execution
         this.history = [];  
         this.pgn = "";  
+        this.pgnHeaders = {}; 
         
-        // ✨ FIX 1: Use proper MoveNode class so the UI can read it!
         this.rootNode = new MoveNode(p.fen, null);
         this.currentNode = this.rootNode;
         
@@ -1737,6 +1794,9 @@ return move.san;
             else pgnBox.innerText = "";
         }
         
+        const analysisBtn = document.getElementById('analysisBtn');
+        if (analysisBtn) analysisBtn.style.display = 'none';
+
         if (window.engineAnalysing) {
             window.engineAnalysing = false;
             if (window.sfWorker) window.sfWorker.postMessage('stop');
@@ -1760,7 +1820,6 @@ return move.san;
         this.initialPuzzleFEN = p.fen;
         this.loadFEN(p.fen);
         
-        // ✨ FIX 2: Safely trigger UI board flip & state via Event!
         const opponentColor = this.#engine.turn();
         const wantFlipped = (opponentColor === 'w');
         this.#emit('puzzleLoaded', { wantFlipped, puzzle: p });
@@ -1775,17 +1834,11 @@ return move.san;
                 const to = this.#squareToIndex(setupMove.substring(2, 4));
                 const promo = setupMove.length > 4 ? setupMove.substring(4, 5) : 'q';
                 
-                // ✨ Capture the result
                 const res = this.makeMove({ from, to }, promo, true, null, true);
                 
-                this.#emit('boardUpdated', { 
-                    animate: true, 
-                    overrideMove: this.currentNode.lastMove 
-                });
+                this.#emit('boardUpdated', { animate: true, overrideMove: this.currentNode.lastMove });
                 
-                // ✨ Replace the hardcoded emit with the smart sound trigger!
                 if (res) this.triggerMoveSound(res);
-                
                 this.puzzleCursor++;
             }
         }, 500);
@@ -1793,7 +1846,6 @@ return move.san;
         const remainingPuzzles = this.puzzleQueue.length - this.puzzleIndex;
         if (remainingPuzzles <= 5 && !this.isFetchingPuzzles) {
             const prefetchTask = () => {
-                console.log("🧩 Queue running low! Pre-fetching more puzzles in background...");
                 const isRush = ['3min', '5min', 'survival'].includes(this.puzzleMode);
                 if (isRush) {
                     this.fetchPuzzles(700, 1100, 10); 
@@ -1867,16 +1919,17 @@ return move.san;
             const status = document.getElementById('puzzleStatus');
             const next = document.getElementById('nextPuzzleBtn');
             const solBtn = document.getElementById('showSolBtn');
+            const hintBtn = document.getElementById('hintBtn');
+            const resetPuzzleBtn = document.getElementById('resetPuzzleBtn');
+            const analysisBtn = document.getElementById('analysisBtn');
 
             if (status) { status.innerText ="Solved!"; status.style.color ="#26c2a3"; }
             if (next) next.style.display ="block";
             if (solBtn) solBtn.style.display ="none";
-            
-            setTimeout(() => {
-                this.mode ='analysis'; 
-                this.gameOver = false;
-                if (typeof this.#ui !=='undefined') this.#ui.updateHistory();
-            }, 50);
+            if (hintBtn) hintBtn.style.display ="none";
+            if (resetPuzzleBtn) resetPuzzleBtn.style.display ="none";
+            if (analysisBtn) analysisBtn.style.display ="block";
+            // NO mode switching!
         }
     }
 #puzzleFail() {
@@ -1885,11 +1938,10 @@ return move.san;
 
         const isRush = ['3min', '5min', 'survival'].includes(this.puzzleMode);
 
-        // Lock board automatically ONLY in Rush modes
         if (isRush) {
             this.gameOver = true; 
         } else {
-            this.gameOver = false; // Allow retrying in Custom Training Mode
+            this.gameOver = false; 
         }
 
         const puzRating = (this.currentPuzzle && this.currentPuzzle.rating) ? parseInt(this.currentPuzzle.rating) : 1200;
@@ -1905,21 +1957,19 @@ return move.san;
             this.#ui.updateStatus(`Puzzle Failed.`);
             
             if (!isRush) {
-                // In training mode, show a notification and let them try again
                 this.#ui.showNotification(`Wrong Move! Try again. ❌`, 'Incorrect');
-                
-                // Show the Next button so they can manually skip if they want to give up
                 const nextBtn = document.getElementById('nextPuzzleBtn');
                 if (nextBtn) nextBtn.style.display = 'block';
+                const analysisBtn = document.getElementById('analysisBtn');
+                if (analysisBtn) analysisBtn.style.display = 'block';
+                // NO mode switching!
             }
             if (this.#ui.updatePuzzleStats) this.#ui.updatePuzzleStats();
         }
 
-        // Unlock the engine button so you can see why you failed
         const engineBtn = document.querySelector('.engine-toggle-btn');
         if (engineBtn) { engineBtn.style.opacity = '1'; engineBtn.style.cursor = 'pointer'; }
 
-        // Auto-skip ONLY happens in Rush modes
         if (isRush) {
             if (this.puzzleStrikes >= 3) {
                 this.endPuzzleRun("3 Strikes - You're Out!");
@@ -2366,6 +2416,8 @@ return move.san;
     }
     
 //Public API calling
+saveState(stateName) { this.#saveState(stateName); }
+restoreState(stateName) { return this.#restoreState(stateName); }
 squareToIndex(sq) { return this.#squareToIndex(sq); }
 indexToSquare(idx) { return this.#indexToSquare(idx); }
 validateFen(fen) {
@@ -2376,12 +2428,13 @@ handleTabSwitch(lowerTab) {
         // 1. SAVE CURRENT STATE BEFORE LEAVING
         if (['analysis', 'local', 'bot', 'study'].includes(this.mode)) {
             this.#saveState(this.mode);
-            // ✨ FIX: Guarantee the study saves to the library before we switch tabs!
             if (this.mode === 'study' && typeof this.saveActiveChapter === 'function') {
                 this.saveActiveChapter();
             }
         } else if (this.mode === 'puzzle') {
             this.#saveState('puzzle');
+        } else if (this.mode === 'editor') {
+            if (typeof localStorage !== 'undefined') localStorage.setItem('chess_state_editor_fen', typeof this.generateFEN === 'function' ? this.generateFEN() : this.currentNode.fen);
         }
 
         // 2. STOP BACKGROUND ENGINES
@@ -2392,20 +2445,27 @@ handleTabSwitch(lowerTab) {
 
         // 3. SECURE STATE TRANSITIONS
         switch (lowerTab) {
+            case 'play':
+                if (this.#restoreState('play')) this.gameOver = false;
+                else { this.mode = 'local'; this.gameOver = true; }
+                break;
             case 'study':
                 this.mode = 'study';
                 this.gameOver = true;
-                // ✨ FIX: NEVER use volatile restoreState for studies. ALWAYS load fresh from the truth library!
                 let targetIdx = this.activeChapterIndex !== -1 ? this.activeChapterIndex : 0;
-                this.activeChapterIndex = -1; // Bypass the guard to force a clean render
+                this.activeChapterIndex = -1; 
                 this.loadChapter(targetIdx, true);
                 break;
-                
             case 'editor':
                 this.mode = 'editor';
                 this.gameOver = true;
+                const savedEditorFen = typeof localStorage !== 'undefined' ? localStorage.getItem('chess_state_editor_fen') : null;
+                if (savedEditorFen) {
+                    this.loadFEN(savedEditorFen, this.gameMode, true);
+                    this.rootNode = new MoveNode(savedEditorFen, null);
+                    this.currentNode = this.rootNode;
+                }
                 break;
-                
             case 'analysis':
                 if (this.isPlayingLiveGame) {
                     this.gameOver = false;
@@ -2418,10 +2478,10 @@ handleTabSwitch(lowerTab) {
                     this.#restoreState('analysis');
                 }
                 break;
-                
             case 'puzzles':
             case 'puzzle':
                 this.mode = 'puzzle';
+                this.gameMode = 'classical';
                 this.gameOver = true;
                 this.#restoreState('puzzle');
                 break;
@@ -2433,6 +2493,50 @@ handleTabSwitch(lowerTab) {
 switchMode(targetMode) {
         this.#changeMode(targetMode);
     }
+switchToAnalysis() {
+        if (!this.currentPuzzle) return;
+
+        // 1. Load the headers for the engine
+        this.pgnHeaders = {
+            "Event": `Chess Puzzle #${this.currentPuzzle.id}`,
+            "FEN": this.initialPuzzleFEN,
+            "SetUp": "1"
+        };
+
+        // 2. EXPLICIT OVERWRITE: Push the puzzle data safely into the Analysis memory slot
+        if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
+        this.tabMemory['analysis'] = {
+            rootNode: this.rootNode,
+            currentNode: this.currentNode,
+            history: [...this.history],
+            moveList: [...this.moveList],
+            headers: { ...this.pgnHeaders },
+            wTime: this.whiteTime,
+            bTime: this.blackTime
+        };
+
+        // 3. Switch the internal game state over
+        this.mode = 'analysis';
+        this.gameOver = false;
+
+        // Save to localStorage to persist the switch
+        if (typeof this.#saveState === 'function') {
+            this.#saveState('analysis');
+        }
+
+        // 4. Send command to the UI to physically switch the tab
+        if (this.#ui) {
+            if (typeof this.#ui.displayMetadata === 'function') {
+                this.#ui.displayMetadata(this.pgnHeaders);
+            }
+            if (typeof this.#ui.updateHistory === 'function') {
+                this.#ui.updateHistory(true);
+            }
+            if (typeof this.#ui.switchTab === 'function') {
+                this.#ui.switchTab('analysis');
+            }
+        }
+    }
 editBoard(idx, piece) {
         if (this.mode !== 'editor') return;
         this.#board[idx] = piece ? { ...piece } : null;
@@ -2443,6 +2547,7 @@ editBoard(idx, piece) {
             if (this.currentNode) this.currentNode.fen = newFen;
             const fenInput = document.getElementById('fenInput');
             if (fenInput) fenInput.value = newFen;
+            if (typeof localStorage !== 'undefined') localStorage.setItem('chess_state_editor_fen', newFen);
         }
     }
 toggleArrow(from, to, color) { 
@@ -4013,8 +4118,12 @@ startAnalysisMode() {
             this.pgnHeaders['Result'] = '*';
         }
 
-        if (typeof this.#saveState === 'function') {
-            this.#saveState('analysis');
+        // 🔥 THE ISOLATION FIX: Prevent Puzzles and Studies from bleeding into Analysis!
+        // Only overwrite the Analysis memory slot if we are converting a Live Game or Editor board.
+        if (this.mode === 'local' || this.mode === 'bot' || this.mode === 'editor') {
+            if (typeof this.#saveState === 'function') {
+                this.#saveState('analysis');
+            }
         }
 
         // 3. Switch to the Analysis Tab
@@ -4022,8 +4131,10 @@ startAnalysisMode() {
             this.#ui.switchTab('analysis');
         }
 
-        // 4. Force the board to the final move of the game
-        this.goToEnd();
+        // 4. Force the board to the final move ONLY if coming from a live game
+        if (this.mode === 'local' || this.mode === 'bot') {
+            this.goToEnd();
+        }
 
         // 5. Hide the Game Over screen
         if (this.#ui) {
@@ -5253,6 +5364,7 @@ startLocalGame(startFen = null) {
         const drawBtn = document.getElementById('drawBtn');
         if (resignBtn) resignBtn.style.display = 'block';
         if (drawBtn) drawBtn.style.display = 'block';
+        this.#saveState('play');
     }
 startBotGame(level, colorPreference, startFen = null) {
         if (!startFen) {
@@ -5395,6 +5507,7 @@ startBotGame(level, colorPreference, startFen = null) {
         const drawBtn = document.getElementById('drawBtn');
         if (resignBtn) resignBtn.style.display = 'block';
         if (drawBtn) drawBtn.style.display = 'block';
+        this.#saveState('play');
     }
 startChess960Game(targetMode = 'local', level = 8, colorPref = 'w') {
         this.gameMode = 'chess960';

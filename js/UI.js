@@ -113,6 +113,23 @@ init() {
         const drawBtn = document.getElementById('drawBtn');
         if (resignBtn) resignBtn.style.display = 'none';
         if (drawBtn) drawBtn.style.display = 'none';
+        setTimeout(() => {
+            if (typeof this.resizeApp === 'function') this.resizeApp();
+
+            // ✨ THE GLOBAL RESTORE: Automatically load into whichever tab you were looking at!
+            let lastTab = 'play';
+            if (typeof localStorage !== 'undefined') {
+                lastTab = localStorage.getItem('chess_last_tab') || 'play';
+            }
+            this.switchTab(lastTab);
+
+            // Force a deep UI sweep
+            if (this.#game) {
+                this.updateHistory();
+                this.renderArrows();
+                if (typeof this.updateClocks === 'function') this.updateClocks();
+            }
+        }, 50);
     }
 #bindDOMEvents() {
         const btn = document.getElementById('btnBrowseFolder');
@@ -225,23 +242,16 @@ init() {
                 const newFen = e.target.value.trim();
                 const currentMode = document.getElementById('editorVariantSelect')?.value || this.#game.gameMode;
                 
-                // ✨ FIX: Securely ask the Game to validate, do NOT touch the engine!
                 const validation = this.#game.validateFen(newFen);
                 
+                // FIX: Update Editor board directly without switching to Analysis mode
                 if (validation.valid) {
-                    this.#game.loadNewPosition(newFen, currentMode);
-                    
-                    const parts = newFen.split(' ');
-                    if (parts.length >= 3) {
-                        const turn = parts[1];
-                        const castling = parts[2];
-                        
-                        if (document.getElementById('editorTurn')) document.getElementById('editorTurn').value = turn;
-                        if (document.getElementById('castling-wK')) document.getElementById('castling-wK').checked = castling.includes('K');
-                        if (document.getElementById('castling-wQ')) document.getElementById('castling-wQ').checked = castling.includes('Q');
-                        if (document.getElementById('castling-bK')) document.getElementById('castling-bK').checked = castling.includes('k');
-                        if (document.getElementById('castling-bQ')) document.getElementById('castling-bQ').checked = castling.includes('q');
+                    this.#game.loadFEN(newFen, currentMode);
+                    if (this.#game.rootNode) {
+                        this.#game.rootNode.fen = newFen;
+                        this.#game.currentNode = this.#game.rootNode;
                     }
+                    this.syncEditorHTMLWithGame(); // Re-syncs the Castling/Turn checkboxes
                     this.renderBoard(false);
                 }
             });
@@ -543,7 +553,9 @@ initThemeButtons() {
 switchTab(tabName) {
         if (!tabName) return;
         const lowerTab = tabName.toLowerCase();
-
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('chess_last_tab', lowerTab);
+        }
         if (this.#game) {
             if (this.#game.mode === 'editor' && lowerTab !== 'editor') {
                 const fenInput = document.getElementById('fenInput');
@@ -3511,159 +3523,179 @@ renderExternalCoords() {
         }
     }
 animateToStartPosition(targetFen, previousBoard, onCompleteCallback) {
-    if (typeof previousBoard === 'function') {
-        onCompleteCallback = previousBoard;
-        previousBoard = this.#game ? this.#game.board : null;
-    }
-    
-    const piecesLayer = this.piecesLayer;
-    if (!piecesLayer || !targetFen) {
-        if (onCompleteCallback) onCompleteCallback();
-        return;
-    }
-    // 1. Parse the Target FEN
-    const targets = [];
-    const fenBoard = targetFen.split(' ')[0];
-    const rows = fenBoard.split('/');
-    for (let r = 0; r < 8; r++) {
-        let c = 0;
-        for (let i = 0; i < rows[r].length; i++) {
-            const char = rows[r][i];
-            if (/\d/.test(char)) c += parseInt(char, 10);
-            else if (char === '~') continue;
-            else {
-                const color = (char === char.toUpperCase()) ? 'w' : 'b';
-                targets.push({ type: char.toLowerCase(), color, r, c, assigned: false });
-                c++;
+        if (typeof previousBoard === 'function') {
+            onCompleteCallback = previousBoard;
+            previousBoard = this.#game ? this.#game.board : null;
+        }
+        
+        const piecesLayer = this.piecesLayer;
+        if (!piecesLayer || !targetFen) {
+            if (onCompleteCallback) onCompleteCallback();
+            return;
+        }
+
+        // Prevent overlapping animations if called rapidly
+        if (this._startAnimTimeout) {
+            clearTimeout(this._startAnimTimeout);
+            this._startAnimTimeout = null;
+        }
+
+        // Lock `renderBoard` from interfering while we handle the DOM manually
+        this._isExecutingMove = true;
+
+        // 1. Parse the Target FEN
+        const targets = [];
+        const fenBoard = targetFen.split(' ')[0];
+        const rows = fenBoard.split('/');
+        for (let r = 0; r < 8; r++) {
+            let c = 0;
+            for (let i = 0; i < rows[r].length; i++) {
+                const char = rows[r][i];
+                if (/\d/.test(char)) {
+                    c += parseInt(char, 10);
+                } else if (char === '~') {
+                    continue; // Skip variant modifiers
+                } else if (char === '*') {
+                    targets.push({ type: 'duck', color: 'none', r, c, assigned: false });
+                    c++;
+                } else {
+                    const color = (char === char.toUpperCase()) ? 'w' : 'b';
+                    targets.push({ type: char.toLowerCase(), color, r, c, assigned: false });
+                    c++;
+                }
             }
         }
+
+        // 2. Map current DOM elements with ROBUST type detection
+        const currentPieces = [];
+        Array.from(piecesLayer.querySelectorAll('.piece')).forEach(el => {
+            // Forcefully cancel any lingering CSS/JS animations on these nodes
+            el.getAnimations().forEach(a => a.cancel());
+            el.style.opacity = '1';
+
+            const id = el.dataset.id;
+            const logicalPiece = previousBoard ? previousBoard.find(p => p && p.id === id) : null;
+            
+            let detectedType = logicalPiece ? logicalPiece.type : '';
+            if (!detectedType) {
+                const classes = Array.from(el.classList);
+                if (classes.includes('duck')) detectedType = 'duck';
+                else {
+                    const found = classes.find(cls => /^[pnbrqkPNBRQK]$/.test(cls));
+                    detectedType = found ? found.toLowerCase() : '';
+                }
+            }
+
+            let physC = 0, physR = 0;
+            const transform = el.style.transform;
+            const match = transform.match(/translate\(([-\d.]+)%,\s*([-\d.]+)%\)/);
+            if (match) {
+                physC = Math.round(parseFloat(match[1]) / 100);
+                physR = Math.round(parseFloat(match[2]) / 100);
+                if (this.flipped) { physC = 7 - physC; physR = 7 - physR; }
+            }
+
+            currentPieces.push({
+                el, id, r: physR, c: physC,
+                type: detectedType,
+                color: logicalPiece ? logicalPiece.color : (el.classList.contains('piece-w') ? 'w' : (el.classList.contains('piece-none') ? 'none' : 'b')),
+                assigned: false
+            });
+        });
+
+        const animations = [];
+
+        // 3. MATCHING LOGIC: Priority 1 - Exact Position (Stay Put)
+        targets.forEach(target => {
+            const exact = currentPieces.find(p => 
+                !p.assigned && p.type === target.type && p.color === target.color && 
+                p.c === target.c && p.r === target.r
+            );
+            if (exact) { exact.assigned = true; target.assigned = true; }
+        });
+
+        // 4. MATCHING LOGIC: Priority 2 - Global Shortest Distance
+        let potentialMoves = [];
+        targets.forEach((target, tIdx) => {
+            if (target.assigned) return;
+            currentPieces.forEach((piece, pIdx) => {
+                if (piece.assigned || piece.type !== target.type || piece.color !== target.color) return;
+                const dist = Math.abs(piece.c - target.c) + Math.abs(piece.r - target.r);
+                potentialMoves.push({ tIdx, pIdx, dist });
+            });
+        });
+
+        potentialMoves.sort((a, b) => a.dist - b.dist);
+
+        potentialMoves.forEach(move => {
+            const target = targets[move.tIdx];
+            const piece = currentPieces[move.pIdx];
+            if (!target.assigned && !piece.assigned) {
+                piece.assigned = true;
+                target.assigned = true;
+                animations.push({ el: piece.el, r: target.r, c: target.c });
+            }
+        });
+
+        // 5. EXECUTE ANIMATIONS & CLEANUP
+        const duration = 300;
+        animations.forEach(anim => {
+            let tC = anim.c, tR = anim.r;
+            if (this.flipped) { tC = 7 - tC; tR = 7 - tR; }
+            const targetTransform = `translate(${tC * 100}%, ${tR * 100}%)`;
+
+            anim.el.animate([
+                { transform: anim.el.style.transform },
+                { transform: targetTransform }
+            ], { duration, easing: 'ease-in-out', fill: 'forwards' }).onfinish = () => {
+                anim.el.style.transform = targetTransform;
+            };
+        });
+
+        // Fade out pieces that weren't assigned
+        currentPieces.forEach(p => {
+            if (!p.assigned) {
+                p.el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'forwards' });
+            }
+        });
+
+        // Spawn and fade in new missing pieces
+        targets.filter(t => !t.assigned).forEach(item => {
+            const el = document.createElement('div');
+            const typeClass = item.type === 'duck' ? 'duck' : item.type.toUpperCase();
+            el.className = `piece piece-${item.color} ${typeClass}`;
+            el.style.width = '12.5%'; el.style.height = '12.5%'; el.style.position = 'absolute';
+            
+            const content = this.getPieceHTML({ color: item.color, type: item.type === 'duck' ? 'duck' : item.type.toUpperCase() });
+            if (content) {
+                el.innerHTML = content.trim().startsWith('<svg') 
+                    ? `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(content.trim())}" style="width:100%;height:100%;display:block;pointer-events:none;">`
+                    : content;
+            }
+
+            let tC = item.c; let tR = item.r;
+            if (this.flipped) { tC = 7 - tC; tR = 7 - tR; }
+            el.style.transform = `translate(${tC * 100}%, ${tR * 100}%)`;
+            el.style.opacity = '0';
+            piecesLayer.appendChild(el);
+
+            el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, delay: 50, fill: 'forwards' })
+              .onfinish = () => { el.style.opacity = '1'; };
+        });
+
+        // 6. SYNC RENDER CYCLE
+        this._startAnimTimeout = setTimeout(() => {
+            // Unlock the rendering engine
+            this._isExecutingMove = false;
+            
+            // 🔥 THE FIX: Atomically purge all animation fragments from the DOM.
+            // When onCompleteCallback triggers renderBoard(false), it will draw 
+            // a flawless, pristine 32-piece setup without any stacking conflicts.
+            piecesLayer.innerHTML = ''; 
+            
+            if (onCompleteCallback) onCompleteCallback();
+        }, duration + 10);
     }
-
-    // 2. Map current DOM elements with ROBUST type detection
-    const currentPieces = [];
-    const domPieces = Array.from(piecesLayer.querySelectorAll('.piece'));
-
-    domPieces.forEach(el => {
-        const id = el.dataset.id;
-        const logicalPiece = previousBoard ? previousBoard.find(p => p && p.id === id) : null;
-        
-        // FIX: Improved type detection from classList if logicalPiece is missing
-        let detectedType = logicalPiece ? logicalPiece.type : '';
-        if (!detectedType) {
-            const classes = el.className.split(' ');
-            // Standard chess classes are usually 1 letter: p, n, b, r, q, k
-            detectedType = classes.find(cls => /^[pnbrqk]$/.test(cls)) || '';
-        }
-
-        let physC = 0, physR = 0;
-        const transform = el.style.transform;
-        const match = transform.match(/translate\(([-\d.]+)%,\s*([-\d.]+)%\)/);
-        if (match) {
-            physC = Math.round(parseFloat(match[1]) / 100);
-            physR = Math.round(parseFloat(match[2]) / 100);
-            if (this.flipped) { physC = 7 - physC; physR = 7 - physR; }
-        }
-
-        currentPieces.push({
-            el, id, r: physR, c: physC,
-            type: detectedType,
-            color: logicalPiece ? logicalPiece.color : (el.classList.contains('piece-w') ? 'w' : 'b'),
-            assigned: false
-        });
-    });
-
-    const animations = [];
-
-    // 3. MATCHING LOGIC: Priority 1 - Exact Position (Stay Put)
-    targets.forEach(target => {
-        const exact = currentPieces.find(p => 
-            !p.assigned && p.type === target.type && p.color === target.color && 
-            p.c === target.c && p.r === target.r
-        );
-        if (exact) { exact.assigned = true; target.assigned = true; }
-    });
-
-    // 4. MATCHING LOGIC: Priority 2 - Global Shortest Distance
-    // Collect all possible valid moves
-    let potentialMoves = [];
-    targets.forEach((target, tIdx) => {
-        if (target.assigned) return;
-        currentPieces.forEach((piece, pIdx) => {
-            if (piece.assigned || piece.type !== target.type || piece.color !== target.color) return;
-            const dist = Math.abs(piece.c - target.c) + Math.abs(piece.r - target.r);
-            potentialMoves.push({ tIdx, pIdx, dist });
-        });
-    });
-
-    // Sort moves by distance to ensure the "closest" pieces claim their spots first
-    potentialMoves.sort((a, b) => a.dist - b.dist);
-
-    potentialMoves.forEach(move => {
-        const target = targets[move.tIdx];
-        const piece = currentPieces[move.pIdx];
-        if (!target.assigned && !piece.assigned) {
-            piece.assigned = true;
-            target.assigned = true;
-            animations.push({ el: piece.el, r: target.r, c: target.c });
-        }
-    });
-    const piecesToSpawn = targets
-        .filter(t => !t.assigned)
-        .map(t => ({
-            type: t.type,
-            color: t.color,
-            r: t.r,
-            c: t.c
-        }));
-    // 5. EXECUTE ANIMATIONS & CLEANUP
-    const duration = 300;
-    animations.forEach(anim => {
-        let tC = anim.c, tR = anim.r;
-        if (this.flipped) { tC = 7 - tC; tR = 7 - tR; }
-        const targetTransform = `translate(${tC * 100}%, ${tR * 100}%)`;
-
-        anim.el.animate([
-            { transform: anim.el.style.transform },
-            { transform: targetTransform }
-        ], { duration, easing: 'ease-in-out', fill: 'forwards' }).onfinish = () => {
-            anim.el.style.transform = targetTransform;
-        };
-    });
-
-    // Remove pieces that weren't assigned (Fade out)
-    currentPieces.forEach(p => {
-        if (!p.assigned) {
-            p.el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'forwards' })
-                .onfinish = () => p.el.remove();
-        }
-    });
-
-    // 6. SPAWN NEW PIECES (Fade in)
-    piecesToSpawn.forEach(item => {
-        const el = document.createElement('div');
-        el.className = `piece piece-${item.color} ${item.type}`;
-        el.style.width = '12.5%'; el.style.height = '12.5%'; el.style.position = 'absolute';
-        
-        const content = this.getPieceHTML({ color: item.color, type: item.type });
-        el.innerHTML = content.trim().startsWith('<svg') 
-            ? `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}" style="width:100%;height:100%;display:block;pointer-events:none;">`
-            : content;
-
-        let tC = item.c; let tR = item.r;
-        if (this.flipped) { tC = 7 - tC; tR = 7 - tR; }
-        el.style.transform = `translate(${tC * 100}%, ${tR * 100}%)`;
-        el.style.opacity = '0';
-        piecesLayer.appendChild(el);
-
-        el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, delay: 100, fill: 'forwards' })
-          .onfinish = () => { el.style.opacity = '1'; };
-    });
-
-    // Final callback sync
-    setTimeout(() => {
-        if (onCompleteCallback) onCompleteCallback();
-    }, duration + 50);
-}
 updateHistory(force = false) {
         if (force) {
             this._lastTreeSize = -1;
@@ -3829,35 +3861,14 @@ getNagInfo(nag) {
     }
 updateEditorState() {
         if (!this.#game || this.#game.mode !== 'editor') return;
-        const currentFen = typeof this.#game.generateFEN === 'function' ? this.#game.generateFEN() : (this.#game.currentNode ? this.#game.currentNode.fen : "");
-        const fenInput = document.getElementById('fenInput');
-        if (fenInput) fenInput.value = currentFen;
-
-        const parts = currentFen.split(' ');
-        if (parts.length >= 4) {
-            const turn = parts[1];
-            const castling = parts[2];
-            const ep = parts[3];
-            
-            const turnEl = document.getElementById('editorTurn');
-            if (turnEl) turnEl.value = turn;
-            
-            const wK = document.getElementById('castling-wK'); if (wK) wK.checked = castling.includes('K');
-            const wQ = document.getElementById('castling-wQ'); if (wQ) wQ.checked = castling.includes('Q');
-            const bK = document.getElementById('castling-bK'); if (bK) bK.checked = castling.includes('k');
-            const bQ = document.getElementById('castling-bQ'); if (bQ) bQ.checked = castling.includes('q');
-
-            const epEl = document.getElementById('editorEnPassant');
-            if (epEl) {
-                if (epEl.tagName === 'SELECT') {
-                    let found = Array.from(epEl.options).some(opt => opt.value === ep);
-                    if (!found && ep !== '-') {
-                        let opt = document.createElement('option'); opt.value = ep; opt.text = ep; epEl.add(opt);
-                    }
-                }
-                epEl.value = ep !== '-' ? ep : '-';
-            }
+        
+        // FIX: Instead of overwriting the DOM, push the DOM checkbox changes to the game engine
+        if (typeof this.#game.syncEngineToBoard === 'function') {
+            this.#game.syncEngineToBoard();
         }
+        
+        // Re-render the board to reflect any changes
+        this.renderBoard(false);
     }
 updateInlineEval(node) {
         if (!node || !node.id) return;
@@ -5206,10 +5217,12 @@ copyFEN() {
 copyPGN() {
         if (!this.#game) return;
         
-        // ✨ FIX: Check for the correct function name! 
-        // Most engine implementations use generatePGN() instead of getPGN().
+        // FIX: Dynamically read the format selected in the UI dropdown
+        const formatMenu = document.getElementById('pgnFormatSelect');
+        const exportFormat = formatMenu ? formatMenu.value : 'both';
+        
         if (typeof this.#game.generatePGN === 'function') {
-            const pgn = this.#game.generatePGN();
+            const pgn = this.#game.generatePGN(exportFormat); // Pass the chosen format
             navigator.clipboard.writeText(pgn).then(() => {
                 if (typeof this.showNotification === 'function') {
                     this.showNotification("PGN copied to clipboard!", "Copied", "📄");
@@ -5218,15 +5231,12 @@ copyPGN() {
                 console.error('Failed to copy PGN: ', err);
             });
         } else if (typeof this.#game.getPGN === 'function') {
-            // Fallback just in case you did name it getPGN elsewhere
             const pgn = this.#game.getPGN();
             navigator.clipboard.writeText(pgn).then(() => {
                 if (typeof this.showNotification === 'function') {
                     this.showNotification("PGN copied to clipboard!", "Copied", "📄");
                 }
             });
-        } else {
-            console.warn("PGN Generation function not found on Game object.");
         }
     }
 showPromotionModal(color, destIdx, callback) {

@@ -222,8 +222,14 @@ document.addEventListener('DOMContentLoaded', () => {
     window.app = new ChessApp();
 
     window.addEventListener('beforeunload', () => {
-        if (window.app.game && window.app.game.gameMode) {
-            window.app.game.saveVariantState(window.app.game.gameMode);
+        if (window.app.game) {
+            if (window.app.game.gameMode) {
+                window.app.game.saveVariantState(window.app.game.gameMode);
+            }
+            // Ask the active mode to execute its memory flush
+            if (typeof window.app.game.saveState === 'function') {
+                window.app.game.saveState(window.app.game.mode);
+            }
         }
     });
 });
