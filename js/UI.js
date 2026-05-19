@@ -551,69 +551,86 @@ initThemeButtons() {
         });
     }
 switchTab(tabName) {
-        if (!tabName) return;
-        const lowerTab = tabName.toLowerCase();
-        if (typeof localStorage !== 'undefined') {
-            localStorage.setItem('chess_last_tab', lowerTab);
-        }
-        if (this.#game) {
-            if (this.#game.mode === 'editor' && lowerTab !== 'editor') {
-                const fenInput = document.getElementById('fenInput');
-                const currentFen = fenInput ? fenInput.value : (typeof this.#game.generateFEN === 'function' ? this.#game.generateFEN() : "");
-                if (!this.#validateEditorExit(currentFen)) return; // Block switch if invalid
-            }
+    if (!tabName) return;
+    if (typeof this.hideGameOver === 'function') this.hideGameOver();
+    const lowerTab = tabName.toLowerCase();
 
-            if (lowerTab === 'editor') {
-                this.originalEditorFen = typeof this.#game.generateFEN === 'function' ? this.#game.generateFEN() : (this.#game.currentNode ? this.#game.currentNode.fen : "");
-            }
-
-            if (typeof this.#game.handleTabSwitch === 'function') {
-                this.#game.handleTabSwitch(lowerTab);
-            } else if (typeof this.#game.switchMode === 'function') {
-                this.#game.switchMode(lowerTab);
-            }
-        }
-
-        const state = this.#game ? this.#game.getReader() : { mode: lowerTab, isLive: false };
-        this.#applyTabVisuals(state.mode, lowerTab);
-
-        if (state.headers) {
-            this.displayMetadata(state.headers);
-            const wLabel = (state.headers['White'] || 'White') + (state.headers['WhiteElo'] ? ` (${state.headers['WhiteElo']})` : '');
-            const bLabel = (state.headers['Black'] || 'Black') + (state.headers['BlackElo'] ? ` (${state.headers['BlackElo']})` : '');
-            if (this.updatePgnAvatars) this.updatePgnAvatars(state.headers['White'], state.headers['Black'], this.#game ? this.#game.isEngineMatch : false, true);
-            if (this.updatePlayerNames) {
-                if (this.flipped) this.updatePlayerNames(wLabel, bLabel);
-                else this.updatePlayerNames(bLabel, wLabel);
-            }
-            this.renderHeaders();
-            if (this.updateClocks) this.updateClocks();
-            if (state.mode === 'analysis' && this.toggleReviewButton) this.toggleReviewButton(true);
-        }
-
-        if (this.#game) {
-            this.updateHistory(true);
-            this.renderBoard(false);
-
-            if (state.mode !== 'play' && window.engineAnalysing) {
-                if (this.#game.updateStockfish) this.#game.updateStockfish();
-            }
-
-            if (state.mode === 'analysis' || state.mode === 'study') {
-                const engineLinesBox = document.getElementById('engine-lines-box');
-                if (engineLinesBox) engineLinesBox.innerHTML = '';
-                if (this.renderCharts) {
-                    this._lastChartedFen = null;
-                    requestAnimationFrame(() => this.renderCharts(true));
-                }
-            }
-        }
-
-        setTimeout(() => {
-            if (this.resizeApp) this.resizeApp();
-            if (this.safeResizeCharts) this.safeResizeCharts();
-        }, 10);
+    if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('chess_last_tab', lowerTab);
     }
+
+    if (this.#game) {
+        // 1. VALIDATE EXITING EDITOR
+        if (this.#game.mode === 'editor' && lowerTab !== 'editor') {
+            const fenInput = document.getElementById('fenInput');
+            const currentFen = fenInput ? fenInput.value : (typeof this.#game.generateFEN === 'function' ? this.#game.generateFEN() : "");
+            if (!this.#validateEditorExit(currentFen)) return; 
+        }
+
+        // 2. PREP FOR ENTERING EDITOR
+        if (lowerTab === 'editor') {
+            // Save the FEN for the 'Cancel' logic
+            this.originalEditorFen = typeof this.#game.generateFEN === 'function' ? this.#game.generateFEN() : (this.#game.currentNode ? this.#game.currentNode.fen : "");
+
+            // ✨ THE FIX: Export Analysis/Play PGN to the Editor Textarea
+            const pgnInput = document.getElementById('editorPgnInput');
+            if (pgnInput) {
+                // We grab the PGN NOW before handleTabSwitch wipes the current history
+                const currentPgn = typeof this.#game.generatePGN === 'function' ? this.#game.generatePGN() : "";
+                pgnInput.value = currentPgn;
+            }
+        }
+
+        // 3. EXECUTE THE ENGINE SWAP (This clears/restores memory slots)
+        if (typeof this.#game.handleTabSwitch === 'function') {
+            this.#game.handleTabSwitch(lowerTab);
+        } else if (typeof this.#game.switchMode === 'function') {
+            this.#game.switchMode(lowerTab);
+        }
+    }
+
+    // --- Visual Updates ---
+    const state = this.#game ? this.#game.getReader() : { mode: lowerTab, isLive: false };
+    this.#applyTabVisuals(state.mode, lowerTab);
+
+    if (state.headers) {
+        this.displayMetadata(state.headers);
+        const wLabel = (state.headers['White'] || 'White') + (state.headers['WhiteElo'] ? ` (${state.headers['WhiteElo']})` : '');
+        const bLabel = (state.headers['Black'] || 'Black') + (state.headers['BlackElo'] ? ` (${state.headers['BlackElo']})` : '');
+        
+        if (this.updatePgnAvatars) this.updatePgnAvatars(state.headers['White'], state.headers['Black'], this.#game ? this.#game.isEngineMatch : false, true);
+        if (this.updatePlayerNames) {
+            if (this.flipped) this.updatePlayerNames(wLabel, bLabel);
+            else this.updatePlayerNames(bLabel, wLabel);
+        }
+        this.renderHeaders();
+        if (this.updateClocks) this.updateClocks();
+        if (state.mode === 'analysis' && this.toggleReviewButton) this.toggleReviewButton(true);
+    }
+
+    if (this.#game) {
+        this.updateHistory(true);
+        this.renderBoard(false);
+
+        if (state.mode !== 'play' && window.engineAnalysing) {
+            if (this.#game.updateStockfish) this.#game.updateStockfish();
+        }
+
+        if (state.mode === 'analysis' || state.mode === 'study') {
+            const engineLinesBox = document.getElementById('engine-lines-box');
+            if (engineLinesBox) engineLinesBox.innerHTML = '';
+            if (this.renderCharts) {
+                this._lastChartedFen = null;
+                requestAnimationFrame(() => this.renderCharts(true));
+            }
+        }
+    }
+
+    setTimeout(() => {
+        if (this.resizeApp) this.resizeApp();
+        if (this.safeResizeCharts) this.safeResizeCharts();
+    }, 10);
+}
 async loadCustomPieces() {
         if (!window.showDirectoryPicker) {
             this.showNotification("Your browser does not support folder access. Please use Chrome, Edge, or Opera.", "Not Supported", "⚠️");
@@ -1287,6 +1304,10 @@ toggleEngine(forceOff = false) {
         if (this.#game && typeof this.#game.updateStockfish === 'function') {
             this.#game.updateStockfish();
         }
+        const popup = document.getElementById('previewPopup');
+        if (popup) {
+            popup.style.display = 'none';
+        }
     }
 updateEngineName(fullName, shortName = null) {
         if (!fullName) return;
@@ -1673,7 +1694,6 @@ showGameOver(winner, reason) {
         modal.style.display = 'flex';
 
         this.toggleReviewButton(true);
-        this.switchTab('analysis');
     }
 hideGameOver() {
         const modal = document.getElementById('gameOverModal');
@@ -3256,12 +3276,24 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     htmlBuffer = `<img src="${trimmed}" class="piece-img${duckClass}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
                 }
             }
-            const currentNodeMove = (this.#game && this.#game.currentNode) ? this.#game.currentNode.lastMove : null;
+            const activeNode = (this.#game && this.#game.currentNode) ? this.#game.currentNode : null;
+            const currentNodeMove = activeNode ? activeNode.lastMove : null;
             
-            if (currentNodeMove && p.idx === currentNodeMove.to && this.#game && this.#game.currentNode && this.#game.currentNode.nag) {
-                const info = typeof this.getNagInfo === 'function' ? this.getNagInfo(this.#game.currentNode.nag) : null;
-                if (info && ['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy', 'excellent', 'great', 'miss'].includes(info.type)) {
-                    htmlBuffer += `<div class="nag-indicator" style="position:absolute; top:-5px; right:-5px; width:22px; height:22px; background-color:${info.color}; border:2px solid ${info.borderColor}; border-radius:50%; color:#fff; font-weight:bold; font-size:13px; display:flex; justify-content:center; align-items:center; z-index:10; box-shadow:0 2px 4px rgba(0,0,0,0.4); font-family:sans-serif; pointer-events:none;">${info.symbol}</div>`;
+            if (currentNodeMove && p.idx === currentNodeMove.to && activeNode) {
+                const info = activeNode.nag ? (typeof this.getNagInfo === 'function' ? this.getNagInfo(activeNode.nag) : null) : null;
+                const isBook = activeNode.isBook;
+
+                if (isBook || (info && ['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy', 'excellent', 'great', 'miss'].includes(info.type))) {
+                    let bgColor = info ? info.color : '#a87c53';
+                    let bColor = info ? info.borderColor : '#825f3c';
+                    
+                    let content = info ? info.symbol : '';
+                    if (isBook) {
+                        let svgBook = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG.replace('width="30"', 'width="24"').replace('height="30"', 'height="24"') : '📖';
+                        content = `<div style="display:flex; justify-content:center; align-items:center; color:transparent;">${svgBook}</div>`;
+                    }
+
+                    htmlBuffer += `<div class="nag-indicator" style="position:absolute; top:-5px; right:-5px; width:22px; height:22px; background-color:${bgColor}; border:2px solid ${bColor}; border-radius:50%; color:#fff; font-weight:bold; font-size:13px; display:flex; justify-content:center; align-items:center; z-index:10; box-shadow:0 2px 4px rgba(0,0,0,0.4); font-family:sans-serif; pointer-events:none;">${content}</div>`;
                 }
             }
 
@@ -3697,6 +3729,8 @@ animateToStartPosition(targetFen, previousBoard, onCompleteCallback) {
         }, duration + 10);
     }
 updateHistory(force = false) {
+        const canEdit = this.#game.isAnalysisMode || this.#game.mode === 'editor';
+        this.togglePgnEditing(canEdit);
         if (force) {
             this._lastTreeSize = -1;
             this.isHistoryUpdatePending = false; 
@@ -4040,25 +4074,45 @@ renderTreeRecursive(node, container, moveNum) {
         
         let mainIdx = 0; 
         let mainChild = node.children[mainIdx];
-        let ply = this.getPly(mainChild);
-        let mNum = Math.ceil(ply / 2);
-        let isWhite = (ply % 2 !== 0);
-        let row;
+        
+        let parentFen = node.fen || (typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+        let fenParts = parentFen.split(' ');
+        let moveColor = fenParts[1] || 'w';
+        let mNum = parseInt(fenParts[5] || 1, 10);
 
-        if (isWhite) {
-            row = document.createElement('div'); row.className ='move-row';
-            let num = document.createElement('div'); num.className ='move-num'; num.innerText = mNum;
-            row.appendChild(num); row.appendChild(this.createMoveSpanSafe(mainChild)); 
-            container.appendChild(row);
-        } else {
-            row = container.lastElementChild;
-            if (!row || !row.classList.contains('move-row') || row.children.length > 2) {
-                row = document.createElement('div'); row.className ='move-row';
-                let num = document.createElement('div'); num.className ='move-num'; num.innerText = mNum + "...";
-                row.appendChild(num); container.appendChild(row);
-            }
-            row.appendChild(this.createMoveSpanSafe(mainChild));
+        let row = container.lastElementChild;
+        let isNewRowNeeded = true;
+        
+        // Only reuse the row if it matches the EXACT move number!
+        if (row && row.classList.contains('move-row') && row.dataset.mNum == mNum) {
+            isNewRowNeeded = false;
         }
+
+        if (isNewRowNeeded) {
+            row = document.createElement('div'); 
+            row.className = 'move-row';
+            row.dataset.mNum = mNum; // Store the move number directly on the row
+            
+            let num = document.createElement('div'); 
+            num.className = 'move-num'; 
+            num.innerText = mNum + "."; 
+            
+            // 🔥 THE ONE-CELL FIX: Create dedicated column wrappers!
+            // This prevents consecutive Spell moves from breaking the CSS grid layout.
+            let wCell = document.createElement('div'); wCell.className = 'move-cell white-cell';
+            let bCell = document.createElement('div'); bCell.className = 'move-cell black-cell';
+
+            row.appendChild(num);
+            row.appendChild(wCell);
+            row.appendChild(bCell);
+            container.appendChild(row);
+        }
+
+        // Send the move directly to the White or Black cell!
+        let targetCell = moveColor === 'w' ? row.querySelector('.white-cell') : row.querySelector('.black-cell');
+        
+        let moveUI = typeof this.createMoveSpanSafe === 'function' ? this.createMoveSpanSafe(mainChild) : this.createPlyDiv(mainChild);
+        targetCell.appendChild(moveUI);
 
         let cleanComment = mainChild.comment ? mainChild.comment.replace(/\[%(cal|csl|clk|emt)[^\]]+\]/g,"").trim() : "";
         let hasComment = cleanComment.length > 0;
@@ -4112,11 +4166,24 @@ renderTreeVertical(node, container) {
 
         let curr = node.children[0]; 
         let isFirstInLine = true;
+        let lastColor = null; // Track consecutive colors for Spell Chess
         const state = this.#game ? this.#game.getReader() : null;
 
         while (curr) {
-            let ply = this.getPly(curr); let mNum = Math.ceil(ply / 2); let moveText = "";
-            if (ply % 2 !== 0) moveText = `${mNum}.`; else if (isFirstInLine) moveText = `${mNum}...`;
+            let parentFen = curr.parent ? curr.parent.fen : (typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+            let fenParts = parentFen.split(' ');
+            let moveColor = fenParts[1] || 'w';
+            let mNum = parseInt(fenParts[5] || 1, 10);
+
+            let moveText = "";
+            if (moveColor === 'w') {
+                // White always gets a number if the color just switched to White, or if it's a new line
+                if (moveColor !== lastColor || isFirstInLine) moveText = `${mNum}.`;
+            } else {
+                // Black ONLY gets a number if it is forced to start a brand new line
+                if (isFirstInLine) moveText = `${mNum}...`;
+            }
+            lastColor = moveColor;
 
             if (moveText) {
                 let idxSpan = document.createElement('span'); idxSpan.className = 'tree-index'; idxSpan.innerText = moveText;
@@ -4226,11 +4293,24 @@ renderTreeVerticalRecursiveSingle(node, container) {
         container.appendChild(line);
 
         let curr = node; let isFirstInLine = true;
+        let lastColor = null;
         const state = this.#game ? this.#game.getReader() : null;
 
         while (curr) {
-            let ply = this.getPly(curr); let mNum = Math.ceil(ply / 2); let moveText = "";
-            if (ply % 2 !== 0) moveText = `${mNum}.`; else if (isFirstInLine) moveText = `${mNum}...`;
+            let parentFen = curr.parent ? curr.parent.fen : (typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+            let fenParts = parentFen.split(' ');
+            let moveColor = fenParts[1] || 'w';
+            let mNum = parseInt(fenParts[5] || 1, 10);
+
+            let moveText = "";
+            if (moveColor === 'w') {
+                // White always gets a number if the color just switched to White, or if it's a new line
+                if (moveColor !== lastColor || isFirstInLine) moveText = `${mNum}.`;
+            } else {
+                // Black ONLY gets a number if it is forced to start a brand new line
+                if (isFirstInLine) moveText = `${mNum}...`;
+            }
+            lastColor = moveColor;
 
             if (moveText) {
                 let idxSpan = document.createElement('span'); idxSpan.className = 'tree-index'; idxSpan.innerText = moveText;
@@ -4334,6 +4414,116 @@ renderTreeVerticalRecursiveSingle(node, container) {
             else curr = null;
         }
     }
+renderVariationLine(node, container) {
+        let curr = node; let isFirst = true; let lastColor = null; 
+        const state = this.#game ? this.#game.getReader() : null;
+
+        while (curr) {
+            let parentFen = curr.parent ? curr.parent.fen : (typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+            let fenParts = parentFen.split(' ');
+            let moveColor = fenParts[1] || 'w';
+            let mNum = parseInt(fenParts[5] || 1, 10);
+
+            let txt = "";
+            if (moveColor === 'w') {
+                if (moveColor !== lastColor || isFirst) txt = `${mNum}.`;
+            } else {
+                if (isFirst) txt = `${mNum}...`;
+            }
+            lastColor = moveColor;
+
+            let span = document.createElement('span');
+            if (!curr.id) curr.id = 'n_' + Math.random().toString(36).substr(2, 9);
+            const isActive = (this.#game && this.#game.currentNode === curr) || (state && state.activeNodeId && curr.id === state.activeNodeId);
+            
+            span.className = `var-move ${isActive ? 'active' : ''}`; 
+            span.dataset.id = curr.id; 
+            span.style.cssText = "display: inline-block;margin: 2px 1px; border-radius: 4px; cursor: pointer;text-align: center;";
+            
+            span.innerText = txt ? `${txt} ${curr.moveSan}` : curr.moveSan;
+
+            if (curr.nag) {
+                let nags = curr.nag.toString().split(','); let primaryInfo = null; let symbols = [];
+                nags.forEach(n => {
+                    const info = this.getNagInfo(n.trim());
+                    if (info) { symbols.push(info); if (['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy', 'excellent', 'great', 'miss'].includes(info.type)) primaryInfo = info; }
+                });
+                if (primaryInfo) { span.style.color = primaryInfo.color; span.style.backgroundColor = primaryInfo.color + '20'; }
+                symbols.forEach(info => {
+                    let nagSpan = document.createElement('span'); nagSpan.className = 'nag-glyph'; nagSpan.innerText = info.symbol;
+                    nagSpan.style.color = info.color; nagSpan.style.marginLeft = "2px"; nagSpan.style.fontWeight = "bold";
+                    span.appendChild(nagSpan);
+                });
+            }
+            const dotColor = this.getAnnotationDotColor(curr);
+            if (dotColor) {
+                let dot = document.createElement('span'); dot.className = 'annotation-dot'; 
+                dot.style.cssText = `display:inline-block; width:6px; height:6px; background-color:${dotColor}; border-radius:50%; margin-left:4px; box-shadow:0 0 5px ${dotColor};`;
+                span.appendChild(dot);
+            }
+
+            const evalData = this.getEvalData(curr);
+            if (evalData) {
+                let evSpan = document.createElement('span'); evSpan.className = evalData.className; evSpan.style.fontSize = "0.85em";
+                evSpan.style.marginLeft = "3px"; evSpan.innerText = evalData.text; span.appendChild(evSpan);
+            }
+
+            // Keep the spacing between inline blocks
+            span.appendChild(document.createTextNode(" "));
+
+            const targetNodeId = curr.id; let capturedRef = curr;
+
+            span.onmousedown = (e) => {
+                if (e.button !== 0) return; e.preventDefault(); e.stopPropagation();
+                if (this.#game.goToNodeId(targetNodeId)) {
+                    const freshState = this.#game.getReader();
+                    this.renderBoard(false); this.updateHistory(); this.renderArrows();
+                    if (freshState.mode !== 'play' && this.#game.updateStockfish) this.#game.updateStockfish();
+                }
+            };
+            
+            span.oncontextmenu = (e) => { e.preventDefault(); this.showAnnotationPopup(e, capturedRef); };
+
+            container.appendChild(span);
+
+            let cleanComment = curr.comment ? curr.comment.replace(/\[%(cal|csl|clk|emt)[^\]]+\]/g, "").trim() : "";
+            let hasComment = cleanComment.length > 0; let hasVariations = curr.children.length > 1;
+
+            if (hasComment || hasVariations) {
+                let isHidden = capturedRef.isCollapsed === true;
+                let toggleBtn = document.createElement('span'); toggleBtn.innerText = isHidden ? " [+] " : " [-] ";
+                toggleBtn.style.cssText = "cursor:pointer; color:#888; font-weight:bold; font-size:0.9em; user-select:none; margin: 0 4px;";
+                
+                let annWrapper = document.createElement('span'); annWrapper.className = 'annotation-wrapper';
+                annWrapper.style.display = isHidden ? 'none' : 'inline';
+                
+                toggleBtn.onclick = (e) => {
+                    e.stopPropagation(); capturedRef.isCollapsed = !capturedRef.isCollapsed; const hidden = capturedRef.isCollapsed;
+                    annWrapper.style.display = hidden ? 'none' : 'inline'; toggleBtn.innerText = hidden ? " [+] " : " [-] ";
+                };
+                
+                container.appendChild(toggleBtn); container.appendChild(annWrapper);
+
+                if (hasComment) {
+                    let cSpan = document.createElement('span'); cSpan.className = 'inline-comment'; cSpan.dataset.nodeId = capturedRef.id; 
+                    cSpan.innerText = ` {${cleanComment}} `; annWrapper.appendChild(cSpan);
+                }
+
+                if (hasVariations) {
+                    if (hasComment) annWrapper.appendChild(document.createTextNode(" "));
+                    annWrapper.appendChild(document.createTextNode("("));
+                    curr.children.forEach((child, i) => {
+                        if (i !== 0) { this.renderVariationLine(child, annWrapper); if (i < curr.children.length - 1) annWrapper.appendChild(document.createTextNode("; ")); }
+                    });
+                    annWrapper.appendChild(document.createTextNode(") "));
+                }
+            }
+
+            if (curr.children.length > 0) curr = curr.children[0]; 
+            else curr = null;
+            isFirst = false;
+        }
+    }
 createPlyDiv(node) {
         if (!node.id) node.id = 'n_' + Math.random().toString(36).substr(2, 9);
         const state = this.#game ? this.#game.getReader() : null;
@@ -4420,99 +4610,6 @@ createPlyDiv(node) {
         };
         d.oncontextmenu = (e) => { e.preventDefault(); this.showAnnotationPopup(e, node); };
         return d;
-    }
-renderVariationLine(node, container) {
-        let curr = node; let isFirst = true; const state = this.#game ? this.#game.getReader() : null;
-
-        while (curr) {
-            let ply = this.getPly(curr); let mn = Math.ceil(ply / 2); let txt = (ply % 2 !== 0) ? `${mn}.` : (isFirst ? `${mn}...` : ``);
-
-            let span = document.createElement('span');
-            if (!curr.id) curr.id = 'n_' + Math.random().toString(36).substr(2, 9);
-            const isActive = (this.#game && this.#game.currentNode === curr) || (state && state.activeNodeId && curr.id === state.activeNodeId);
-            
-            span.className = `var-move ${isActive ? 'active' : ''}`; span.dataset.id = curr.id; span.innerText = `${txt} ${curr.moveSan}`;
-
-            if (curr.nag) {
-                let nags = curr.nag.toString().split(','); let primaryInfo = null; let symbols = [];
-                nags.forEach(n => {
-                    const info = this.getNagInfo(n.trim());
-                    if (info) { symbols.push(info); if (['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy', 'excellent', 'great', 'miss'].includes(info.type)) primaryInfo = info; }
-                });
-                if (primaryInfo) { span.style.color = primaryInfo.color; span.style.backgroundColor = primaryInfo.color + '20'; }
-                symbols.forEach(info => {
-                    let nagSpan = document.createElement('span'); nagSpan.className = 'nag-glyph'; nagSpan.innerText = info.symbol;
-                    nagSpan.style.color = info.color; nagSpan.style.marginLeft = "2px"; nagSpan.style.fontWeight = "bold";
-                    span.appendChild(nagSpan);
-                });
-            }
-            const dotColor = this.getAnnotationDotColor(curr);
-            if (dotColor) {
-                let dot = document.createElement('span'); dot.className = 'annotation-dot'; 
-                dot.style.cssText = `display:inline-block; width:6px; height:6px; background-color:${dotColor}; border-radius:50%; margin-left:4px; box-shadow:0 0 5px ${dotColor};`;
-                span.appendChild(dot);
-            }
-
-            const evalData = this.getEvalData(curr);
-            if (evalData) {
-                let evSpan = document.createElement('span'); evSpan.className = evalData.className; evSpan.style.fontSize = "0.85em";
-                evSpan.style.marginLeft = "3px"; evSpan.innerText = evalData.text; span.appendChild(evSpan);
-            }
-
-            span.appendChild(document.createTextNode(" "));
-
-            const targetNodeId = curr.id; let capturedRef = curr;
-
-            span.onmousedown = (e) => {
-                if (e.button !== 0) return; e.preventDefault(); e.stopPropagation();
-                if (this.#game.goToNodeId(targetNodeId)) {
-                    const freshState = this.#game.getReader();
-                    this.renderBoard(false); this.updateHistory(); this.renderArrows();
-                    if (freshState.mode !== 'play' && this.#game.updateStockfish) this.#game.updateStockfish();
-                }
-            };
-            
-            span.oncontextmenu = (e) => { e.preventDefault(); this.showAnnotationPopup(e, capturedRef); };
-
-            container.appendChild(span);
-
-            let cleanComment = curr.comment ? curr.comment.replace(/\[%(cal|csl|clk|emt)[^\]]+\]/g, "").trim() : "";
-            let hasComment = cleanComment.length > 0; let hasVariations = curr.children.length > 1;
-
-            if (hasComment || hasVariations) {
-                let isHidden = capturedRef.isCollapsed === true;
-                let toggleBtn = document.createElement('span'); toggleBtn.innerText = isHidden ? " [+] " : " [-] ";
-                toggleBtn.style.cssText = "cursor:pointer; color:#888; font-weight:bold; font-size:0.9em; user-select:none;";
-                
-                let annWrapper = document.createElement('span'); annWrapper.className = 'annotation-wrapper';
-                annWrapper.style.display = isHidden ? 'none' : 'inline';
-                
-                toggleBtn.onclick = (e) => {
-                    e.stopPropagation(); capturedRef.isCollapsed = !capturedRef.isCollapsed; const hidden = capturedRef.isCollapsed;
-                    annWrapper.style.display = hidden ? 'none' : 'inline'; toggleBtn.innerText = hidden ? " [+] " : " [-] ";
-                };
-                
-                container.appendChild(toggleBtn); container.appendChild(annWrapper);
-
-                if (hasComment) {
-                    let cSpan = document.createElement('span'); cSpan.className = 'inline-comment'; cSpan.dataset.nodeId = capturedRef.id; 
-                    cSpan.innerText = ` {${cleanComment}} `; annWrapper.appendChild(cSpan);
-                }
-
-                if (hasVariations) {
-                    if (hasComment) annWrapper.appendChild(document.createTextNode(" "));
-                    annWrapper.appendChild(document.createTextNode("("));
-                    curr.children.forEach((child, i) => {
-                        if (i !== 0) { this.renderVariationLine(child, annWrapper); if (i < curr.children.length - 1) annWrapper.appendChild(document.createTextNode("; ")); }
-                    });
-                    annWrapper.appendChild(document.createTextNode(") "));
-                }
-            }
-
-            if (curr.children.length > 0) curr = curr.children[0]; 
-            else curr = null;
-            isFirst = false;
-        }
     }
 updateEvalBar(type, val) {
         const bar = document.getElementById('evalBarFill');
@@ -4601,6 +4698,15 @@ showAnnotationPopup(e, node) {
             if (typeof this.renderCharts === 'function') this.renderCharts();
             if (this.renderBoard) this.renderBoard(false, false);
             if (this.#game && this.#game.updateStockfish) this.#game.updateStockfish();
+            
+            // ✨ FIX: Force the system to save changes to LocalStorage/Memory after modifying Book status or NAGs
+            if (this.#game) {
+                if (this.#game.mode === 'study' && typeof this.#game.saveActiveChapter === 'function') {
+                    this.#game.saveActiveChapter();
+                } else if (this.#game.mode === 'analysis' && typeof this.#game.saveState === 'function') {
+                    this.#game.saveState('analysis');
+                }
+            }
         };
 
         let nagContainer = document.createElement('div');
@@ -4847,7 +4953,7 @@ renderAnalysisLine(index, type, val, moves, startFen) {
                     
                     span.onmouseenter = (e) => { span.style.color = '#fff'; span.style.textDecoration = 'underline'; this.hoverEngineMove(fenAtMove, e, duckSq); };
                     span.onmouseleave = () => { span.style.color = ''; span.style.textDecoration = 'none'; this.stopHoverEngineMove(); };
-                    span.onclick = (e) => { e.stopPropagation(); if (this.#game && this.#game.playEngineSequence) this.#game.playEngineSequence(seqString, currentFen); };
+                    span.onclick = (e) => { e.stopPropagation(); this.stopHoverEngineMove();if (this.#game && this.#game.playEngineSequence) this.#game.playEngineSequence(seqString, currentFen); };
                     movesContainer.appendChild(span);
                 } else break; 
             }
@@ -5946,6 +6052,54 @@ openExportStudyModal() {
         document.getElementById('exportStudyModal').style.display = 'flex';
     }
 toggleAllChapters(state) { document.querySelectorAll('.chapter-export-cb').forEach(cb => cb.checked = state); }
+openAddToStudyModal() {
+        // Hide Game Over Modal if it's open
+        const gameOverModal = document.getElementById('gameOverModal');
+        if (gameOverModal) gameOverModal.style.display = 'none';
+
+        // Make sure studies are loaded into memory
+        if (this.#game && typeof this.#game.loadAllStudies === 'function') {
+            this.#game.loadAllStudies();
+        }
+
+        // Create or get the Save Modal
+        let saveModal = document.getElementById('addToStudyModal');
+        if (!saveModal) {
+            saveModal = document.createElement('div');
+            saveModal.id = 'addToStudyModal';
+            saveModal.className = 'modal-overlay';
+            saveModal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 100000; display: flex; align-items: center; justify-content: center;';
+            document.body.appendChild(saveModal);
+        }
+
+        const studies = (this.#game && this.#game.allStudies) ? this.#game.allStudies : [];
+        
+        let studyOptions = studies.map((study, idx) => {
+            const title = study.title || `Study ${idx + 1}`;
+            return `<button class="btn-secondary" style="width:100%; margin-bottom:8px; text-align:left; padding:8px; background:#333; border:none; color:#fff; cursor:pointer; border-radius:4px;" 
+                    onclick="window.app.game.saveCurrentGameToStudy('${study.id}')">📁 ${title}</button>`;
+        }).join('');
+
+        saveModal.innerHTML = `
+            <div class="modal-content" style="background:#2c2c2c; padding:20px; border-radius:8px; width:300px; color:#fff; display:flex; flex-direction:column;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                    <h3 style="margin:0;">Save to Study</h3>
+                    <span onclick="document.getElementById('addToStudyModal').style.display='none'" style="cursor:pointer; font-size:20px; color:#aaa;">&times;</span>
+                </div>
+                
+                <div style="max-height: 200px; overflow-y: auto; margin-bottom:15px;">
+                    ${studyOptions || '<p style="color:#888; font-size:14px; text-align:center;">No existing studies.</p>'}
+                </div>
+                
+                <hr style="border:none; border-top:1px solid #444; margin:0 0 15px 0;">
+                
+                <input type="text" id="newStudyInput" placeholder="New Study Title..." style="padding:8px; margin-bottom:10px; background:#1e1e1e; color:#fff; border:1px solid #444; border-radius:4px;">
+                <button class="btn-primary" style="padding:8px;" onclick="window.app.game.saveCurrentGameToStudy('NEW')">Create & Save</button>
+            </div>
+        `;
+        
+        saveModal.style.display = 'flex';
+    }
 openChapterManager() {
         if (this.#game) this.#game.saveActiveChapter();
         const container = document.getElementById('chapterManagerList'); if (!container) return;
@@ -6991,12 +7145,54 @@ updatePlayerNames(topName, bottomName, skipRender = false) {
         if (!skipRender && typeof this.renderHeaders === 'function') this.renderHeaders();
     }
 loadPgnAndAnalyze() {
-        let val = document.getElementById('editorPgnInput').value;
-        if (val && this.#game) {
-            this.#game.mode = 'analysis';
-            this.switchTab('analysis');
-            if (typeof this.#game.loadPGN === 'function') {
-                this.#game.loadPGN(val, true);
+        const fileInput = document.getElementById('pgnInput');
+        const editorInput = document.getElementById('editorPgnInput');
+
+        // 📂 CASE 1: A file was just selected via the file picker
+        if (fileInput && fileInput.files && fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+
+            // This runs asynchronously once the file is fully read
+            reader.onload = (e) => {
+                const pgnText = e.target.result;
+
+                // 1. Paste the file's contents into the editor box
+                if (editorInput) editorInput.value = pgnText;
+
+                // 2. Switch the tab and load the game
+                if (this.#game) {
+                    this.switchTab('analysis');
+                    
+                    if (typeof this.#game.loadPGN === 'function') {
+                        // loadPGN(text, isLiveGame, forceOverwrite)
+                        this.#game.loadPGN(pgnText, false, true); 
+                    }
+                    
+                    // 3. Force the sandbox to save this new file into the Analysis bucket
+                    if (typeof this.#game.saveVariantState === 'function') {
+                        this.#game.saveVariantState(this.#game.gameMode || 'classical');
+                    }
+                }
+
+                // 4. Clear the file input so you can upload the exact same file again later if needed
+                fileInput.value = '';
+            };
+
+            // Command the reader to extract the text
+            reader.readAsText(file);
+        } 
+        // 📝 CASE 2: No file was picked, fallback to reading whatever is already typed in the text box
+        else {
+            let val = editorInput ? editorInput.value : '';
+            if (val && this.#game) {
+                this.switchTab('analysis');
+                if (typeof this.#game.loadPGN === 'function') {
+                    this.#game.loadPGN(val, false, true);
+                }
+                if (typeof this.#game.saveVariantState === 'function') {
+                    this.#game.saveVariantState(this.#game.gameMode || 'classical');
+                }
             }
         }
     }

@@ -30,17 +30,6 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid #222;">
                     <h2 style="margin: 0; color: #fff; font-size: 20px; font-weight: bold; display: flex; align-items: center; gap: 10px;">
                         <img src="./assets/tabs-icon/rating-stats.svg" viewBox="0 0 24 24" width="18" height="18">Menu
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
                     </h2>
                     <button onclick="window.app.ui.toggleSideMenu(false)" style="background: none; border: none; color: #888; font-size: 28px; cursor: pointer; padding: 0; line-height: 1; transition: 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#888'">&times;</button>
                 </div>
@@ -49,17 +38,6 @@
                         <div class="menu-nav-item group" style="display: flex; flex-direction: column;" onmouseenter="document.getElementById('analysisSubmenu').style.display='flex'; if(!document.getElementById('menuBtn-analysis').classList.contains('active')) document.getElementById('menuBtn-analysis').style.background='#222';" onmouseleave="document.getElementById('analysisSubmenu').style.display='none'; if(!document.getElementById('menuBtn-analysis').classList.contains('active')){ document.getElementById('menuBtn-analysis').style.background='transparent'; }">
                             <button id="menuBtn-analysis" class="menu-nav-btn active" style="text-align: left; padding: 12px 15px; background: #2872b5; border: none; border-radius: 6px; color: white; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s;" onmouseover="if(!this.classList.contains('active')){this.style.background='#222'; this.style.color='#fff'}" onmouseout="if(!this.classList.contains('active')){this.style.background='transparent'; this.style.color='#ccc'}">
                                 <img src="./assets/tabs-icon/magnifier-analysis.svg" viewBox="0 0 24 24" width="18" height="18">Analysis
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
                             </button>
                             <div id="analysisSubmenu" style="display: none; flex-direction: column; padding-top: 5px; gap: 5px;">
                                 <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.05); border-radius: 4px; margin-bottom: 4px;">
@@ -92,17 +70,6 @@
                         <div class="menu-nav-item group" style="display: flex; flex-direction: column;" onmouseenter="document.getElementById('playSubmenu').style.display='flex'; if(!document.getElementById('menuBtn-play').classList.contains('active')) document.getElementById('menuBtn-play').style.background='#222';" onmouseleave="document.getElementById('playSubmenu').style.display='none'; if(!document.getElementById('menuBtn-play').classList.contains('active')){ document.getElementById('menuBtn-play').style.background='transparent'; }">
                             <button id="menuBtn-play" class="menu-nav-btn" style="text-align: center; justify-content: center; padding: 12px 15px; background: transparent; border: none; border-radius: 6px; color: #ccc; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s;" onmouseover="if(!this.classList.contains('active')){this.style.background='#222'; this.style.color='#fff'}" onmouseout="if(!this.classList.contains('active')){this.style.background='transparent'; this.style.color='#ccc'}">
                                 <img src="./assets/tabs-icon/play-white.svg" viewBox="0 0 24 24" width="18" height="18">Play
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
                             </button>
                             <div id="playSubmenu" style="display: none; flex-direction: column; padding-top: 5px; gap: 5px;">
                                 <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: rgba(255,255,255,0.05); border-radius: 4px; margin-bottom: 4px;">
@@ -128,24 +95,14 @@
                                         <option value="spell">Spell Chess</option>
                                     </select>
                                 </div>
-                                <button onclick="const v = document.getElementById('gameVariantSelect').value; window.app.game.gameMode = v; if(v === 'chess960') window.app.game.startChess960Game('local'); else window.app.game.startLocalGame(); window.app.ui.switchTab('play'); window.app.ui.toggleSideMenu(false);" style="text-align: center; justify-content: center; padding: 8px 12px; background: transparent; border: none; border-radius: 4px; color: #aaa; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;" onmouseover="this.style.color='#fff'; this.style.background='#333'" onmouseout="this.style.color='#aaa'; this.style.background='transparent'">👤 Play vs Human</button>
-                                <button onclick="const v = document.getElementById('gameVariantSelect').value; window.app.game.setGameMode(v); window.app.ui.openBotMenu(); window.app.ui.switchTab('play'); window.app.ui.toggleSideMenu(false);" style="text-align: center; justify-content: center; padding: 8px 12px; background: transparent; border: none; border-radius: 4px; color: #aaa; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;" onmouseover="this.style.color='#fff'; this.style.background='#333'" onmouseout="this.style.color='#aaa'; this.style.background='transparent'">🤖 Play vs Computer</button>
+<button onclick="window.app.ui.switchTab('play'); const v = document.getElementById('gameVariantSelect').value; window.app.game.gameMode = v; if(v === 'chess960') window.app.game.startChess960Game('local'); else window.app.game.startLocalGame(); window.app.ui.toggleSideMenu(false);" style="text-align: center; justify-content: center; padding: 8px 12px; background: transparent; border: none; border-radius: 4px; color: #aaa; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;" onmouseover="this.style.color='#fff'; this.style.background='#333'" onmouseout="this.style.color='#aaa'; this.style.background='transparent'">👤 Play vs Human</button>
+
+<button onclick="window.app.ui.switchTab('play'); const v = document.getElementById('gameVariantSelect').value; window.app.game.setGameMode(v); window.app.ui.openBotMenu(); window.app.ui.toggleSideMenu(false);" style="text-align: center; justify-content: center; padding: 8px 12px; background: transparent; border: none; border-radius: 4px; color: #aaa; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;" onmouseover="this.style.color='#fff'; this.style.background='#333'" onmouseout="this.style.color='#aaa'; this.style.background='transparent'">🤖 Play vs Computer</button>
                             </div>
                         </div>
                         <button id="menuBtn-puzzles" class="menu-nav-btn" onclick="window.app.ui.switchTab('puzzles'); window.app.ui.toggleSideMenu(false);" style="text-align: left; padding: 12px 15px; background: transparent; border: none; border-radius: 6px; color: #ccc; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s;" onmouseover="if(!this.classList.contains('active')){this.style.background='#222'; this.style.color='#fff'}" onmouseout="if(!this.classList.contains('active')){this.style.background='transparent'; this.style.color='#ccc'}">
                             <img src="./assets/tabs-icon/puzzle-piece.svg" viewBox="0 0 24 24" width="18" height="18">Puzzles
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        </button>
+                    </button>
                         <button id="menuBtn-study" class="menu-nav-btn" onclick="window.app.ui.switchTab('study'); window.app.ui.toggleSideMenu(false);" style="text-align: left; padding: 12px 15px; background: transparent; border: none; border-radius: 6px; color: #ccc; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s;" onmouseover="if(!this.classList.contains('active')){this.style.background='#222'; this.style.color='#fff'}" onmouseout="if(!this.classList.contains('active')){this.style.background='transparent'; this.style.color='#ccc'}">
                             <img src="./assets/tabs-icon/book-mark-aqua.svg" width="16" height="16" style="opacity: 0.8;">
                             <span>Study</span>
@@ -162,17 +119,6 @@
                                 </g>
                             </svg>
                             Board Editor
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
                         </button>
                     </div>
                 </div>
@@ -182,17 +128,6 @@
                             <path d="M524.531,69.836a1.5,1.5,0,0,0-.764-.7A485.065,485.065,0,0,0,404.081,32.03a1.816,1.816,0,0,0-1.923.91,337.461,337.461,0,0,0-14.9,30.6,447.848,447.848,0,0,0-134.426,0,309.541,309.541,0,0,0-15.135-30.6,1.89,1.89,0,0,0-1.924-.91A483.689,483.689,0,0,0,116.085,69.137a1.712,1.712,0,0,0-.788.676C39.068,183.651,18.186,294.69,28.43,404.354a2.016,2.016,0,0,0,.765,1.375A487.666,487.666,0,0,0,176.02,479.918a1.9,1.9,0,0,0,2.063-.676A348.2,348.2,0,0,0,208.12,430.4a1.86,1.86,0,0,0-1.019-2.588,321.173,321.173,0,0,1-45.868-21.853,1.885,1.885,0,0,1-.185-3.126c3.082-2.309,6.166-4.711,9.109-7.137a1.819,1.819,0,0,1,1.9-.256c96.229,43.917,200.41,43.917,295.5,0a1.812,1.812,0,0,1,1.924.233c2.944,2.426,6.027,4.851,9.132,7.16a1.884,1.884,0,0,1-.162,3.126,301.407,301.407,0,0,1-45.89,21.83,1.875,1.875,0,0,0-1,2.611,391.055,391.055,0,0,0,30.014,48.815,1.864,1.864,0,0,0,2.063.7A486.048,486.048,0,0,0,610.7,405.729a1.882,1.882,0,0,0,.765-1.352C623.729,277.594,590.933,167.465,524.531,69.836ZM222.491,337.58c-28.972,0-52.844-26.587-52.844-59.239S193.056,219.1,222.491,219.1c29.665,0,53.306,26.82,52.843,59.239C275.334,310.993,251.924,337.58,222.491,337.58Zm195.38,0c-28.971,0-52.843-26.587-52.843-59.239S388.437,219.1,417.871,219.1c29.667,0,53.307,26.82,52.844,59.239C470.715,310.993,447.538,337.58,417.871,337.58Z"></path>
                         </svg>
                         Join Discord
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
                     </a>
                 </div>
             </div>
@@ -497,51 +432,15 @@
                         </div>
                         <div class="setting-row" style="border-bottom:1px solid #444; padding-bottom:10px;">
                             <label class="checkbox-label">
-                                <input type="checkbox" id="autoQueen">Auto-Queen 
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            </label>
+                                <input type="checkbox" id="autoQueen">Auto-Queen </label>
                         </div>
                         <div class="setting-row" style="border-bottom:1px solid #444; padding-bottom:10px;">
                             <label class="checkbox-label">
-                                <input type="checkbox" id="pgnIgnoreMove" checked="">Flexible Import (Ignore move numbers) 
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            </label>
+                                <input type="checkbox" id="pgnIgnoreMove" checked="">Flexible Import (Ignore move numbers) </label>
                         </div>
                         <div class="setting-row" style="border-bottom:1px solid #444; padding-bottom:10px;">
                             <label class="checkbox-label">
-                                <input type="checkbox" id="enableAnimations" checked="" onchange="window.app.ui.toggleAnimations()">Enable Move Animations 
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            </label>
+                                <input type="checkbox" id="enableAnimations" checked="" onchange="window.app.ui.toggleAnimations()">Enable Move Animations </label>
                         </div>
                     </div>
                 </div>
@@ -573,19 +472,7 @@
                         <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 5v14M5 12h14"></path>
                         </svg>
-                        Add a new chapter
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    </div>
+                        Add a new chapter</div>
                 </div>
                 <div id="analysisPanel" class="left-panel" style="width: 500px; height: fit-content; max-height: 100%; overflow-y: auto; background: #1e1e1e; border-radius: 8px; border: 1px solid #333; padding: 15px; display: flex; flex-direction: column; gap: 15px; flex-shrink: 0; box-sizing: border-box;">
                     <div style="border-bottom: 1px solid #333; padding-bottom: 10px; flex-shrink: 0; display: flex; align-items: center; gap: 8px;">
@@ -933,37 +820,15 @@
                                                 <path d="M10 22h4"></path>
                                             </svg>
                                             Hint
-                                        
-                                        
-                                        
-                                        
-                                        
-                                        
-                                        
-                                        
-                                        
-                                        
-                                        
                                         </button>
                                         <button id="resetPuzzleBtn" onclick="if(window.game) window.app.game.retryPuzzle();" class="btn-secondary" style="flex: 1; min-height: 40px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14px; padding: 0;">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                                                 <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
                                             </svg>
                                             Reset
-                                        
-                                        
-                                        
-                                        
-                                        
-                                        
-                                        
-                                        
-                                        
-                                        
-                                        
                                         </button>
                                         <button id="nextPuzzleBtn" class="btn-primary" style="display:none; background:#26c2a3; min-height:40px; width:100%; font-size:14px; margin-bottom:5px;" onclick="window.app.game.nextPuzzle()">Next Puzzle ➡</button>
-                                        <button id="analysisBtn" class="btn-primary" style="display:none; background:#266ac2; min-height:40px; width:100%; font-size:14px; margin-bottom:5px;" onclick="window.app.game.switchToAnalysis()">Analysis ➡</button>
+                                        <button id="analysisBtn" class="btn-primary" style="display:none; background:#266ac2; min-height:40px; width:100%; font-size:14px; margin-bottom:5px;" onclick="window.app.game.startAnalysisMode(true)">Analysis ➡</button>
                                         <button id="showSolBtn" class="btn-secondary" style="display:inline-block; min-height:40px; width:100%; font-size:14px; margin-bottom:5px;" onclick="window.app.game.showSolution()">Show Solution</button>
                                     </div>
                                     <button class="btn-secondary" style="min-height:40px; width:100%; font-size:14px;" onclick="window.app.game.endPuzzleRun('quit')">Exit / Finish</button>
@@ -984,59 +849,16 @@
                                         <div class="checkbox-grid">
                                             <label class="checkbox-label">
                                                 <input type="checkbox" id="castling-wK" onchange="window.app.ui.updateEditorState()">White O-O
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
+                                       
                                             </label>
                                             <label class="checkbox-label">
                                                 <input type="checkbox" id="castling-bK" onchange="window.app.ui.updateEditorState()">Black O-O
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
                                             </label>
                                             <label class="checkbox-label">
                                                 <input type="checkbox" id="castling-wQ" onchange="window.app.ui.updateEditorState()">White O-O-O
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
                                             </label>
                                             <label class="checkbox-label">
                                                 <input type="checkbox" id="castling-bQ" onchange="window.app.ui.updateEditorState()">Black O-O-O
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
-                                            
                                             </label>
                                         </div>
                                     </div>
@@ -1073,7 +895,7 @@
                                         <div class="control-group">
                                             <label class="control-label">Import / Export Tools</label>
                                             <div style="display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
-                                                <input type="file" id="pgnInput" accept=".pgn,.txt" style="display:none;" onchange="window.app.game.loadPGNFile(this)">
+                                                <input type="file" id="pgnInput" accept=".pgn,.txt" style="display:none;" onchange="window.app.ui.loadPgnAndAnalyze()">
                                                 <button class="tool-btn" onclick="document.getElementById('pgnInput').click();" title="Import PGN" style="display: inline-flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 6px; cursor: pointer; width: 36px; height: 36px; padding: 0;">
                                                     <svg viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px;">
                                                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -1353,19 +1175,7 @@
                         <svg viewBox="0 0 24 24" width="24" height="24" style="margin-right:8px; opacity:0.6">
                             <path fill="currentColor" d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/>
                         </svg>
-                        Play against computer
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                    
-                    </button>
+                        Play against computer</button>
                 </div>
             </div>
         </div>
@@ -1413,6 +1223,7 @@
                 <div class="modal-buttons">
                     <button class="btn-primary" onclick="window.app.game.rematch()">Rematch</button>
                     <button class="btn-primary" onclick="window.app.game.startAnalysisMode()">Analyze</button>
+                    <button class="btn-primary" onclick="window.app.ui.openAddToStudyModal()">Study</button>
                 </div>
             </div>
         </div>

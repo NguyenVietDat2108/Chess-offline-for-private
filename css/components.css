@@ -663,3 +663,42 @@ input[type=range] { flex-grow: 1; accent-color: #629924; }
 }
 
 .mt-10 { margin-top: 10px; }
+/* Force the row to behave as a perfect flex container */
+.move-row {
+    display: flex;
+    width: 100%;
+}
+
+/* The Left/Right column wrappers */
+.move-cell {
+    flex: 1 1 0%;
+    width: 100%;
+    display: flex;
+    flex-wrap: nowrap; /* Forces multiple Spell moves to sit side-by-side */
+    gap: 4px;
+    align-items: stretch;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+/* Optional hooks if you want to color the backgrounds of columns later */
+.move-cell.white-cell {
+    /* padding-right: 2px; */
+}
+
+.move-cell.black-cell {
+    /* padding-left: 2px; */
+}
+
+/* The clickable move button itself (stretches to fill the cell) */
+.move-cell > .move-ply,
+.move-cell > .tree-move,
+.move-cell > span {
+    flex: 1 1 0%;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 2px 5px;
+    cursor: pointer;
+}
