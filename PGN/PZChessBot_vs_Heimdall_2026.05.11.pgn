@@ -1,0 +1,1193 @@
+[Event "Testing: Prune, Quanticade, and Friends"]
+[Site "https://www.chess.com/computer-chess-championship"]
+[Date "2026.05.11"]
+[Round "7"]
+[White "PZChessBot"]
+[Black "Heimdall"]
+[Result "1-0"]
+[GameDuration "00:15:25"]
+[GameStartTime "2026-05-11T08:57:33 -0700"]
+[GameEndTime "2026-05-11T09:12:59 -0700"]
+[PlyCount "311"]
+[Termination "normal"]
+[TimeControl "180+2"]
+[ECO "C15"]
+[Opening "French Defense: Winawer Variation, Alekhine-Marczy Gambit"]
+[Link "https://www.chess.com/computer-chess-championship"]
+
+1. e4 {book} 1... e6 {book} 2. d4 {book} 2... d5 {book} 3. Nc3 {book} 3... Bb4
+{book} 4. Ne2 {book} 4... Ne7 {book} 5. a3 {book} 5... Bxc3+ {book} 6. Nxc3
+{book} 6... b6 {book} 7. exd5 {book} 7... exd5 {book} 8. Bf4 {book} 8... O-O
+{book} 9. Qd2 {+0.98/27 10.501s, tl=173.499s, latency=0.002s, n=1158838695,
+sd=43, nps=110376102, hashfull=1000, tbhits=0, pv=\"d1d2 c7c6 e1c1 c8a6 c3e2
+e7g6 f4e3 f8e8 h2h4 g6f8 g2g4 b8d7 d1e1 a6e2 f1e2 b6b5 h4h5 d7b6 h5h6 g7g6 f2f4
+b6c4 e2c4 b5c4\"} 9... c6 {-0.54/33 12.780s, tl=171.220s, latency=0.000s,
+n=1387675174, sd=53, nps=108581000, hashfull=302, tbhits=0, pv=\"c7c6 e1c1 c8a6
+c3e2 c6c5 d2c3 b8d7 c3f3 a6e2 f1e2 c5c4 h2h4 b6b5 h4h5 d7f6 h5h6 g7g6 f4c7 d8c7
+f3f6 e7f5 e2f3 a8d8 f6e5 c7e5 d4e5 d5d4 f3c6 a7a6 c6b7 d8b8 b7e4 f8d8 g2g4 f5e7
+f2f4 e7d5 e4d5\"} 10. O-O-O {+0.92/28 6.093s, tl=169.406s, latency=0.001s,
+n=728722235, sd=45, nps=119619539, hashfull=862, tbhits=0, pv=\"e1c1 c8a6 c3e2
+e7g6 f4e3 b8d7 h2h4 f8e8 h4h5 g6f8 h5h6 g7g6 c1b1 d7f6 f2f3 a6e2 d2e2 f6h5 e2f2
+h5g3 h1g1 g3f1 g1f1 d8d7 g2g4 f7f6 e3d2 e8e7 d2b4 e7e8 f2d2 a7a5\"} 10... Ba6
+{-0.55/36 13.119s, tl=160.101s, latency=0.001s, n=1536442285, sd=58,
+nps=117124000, hashfull=507, tbhits=0, pv=\"c8a6 c3e2 c6c5 d2e3 e7f5 e3h3 f5e7
+e2c3 a6f1 h1f1 b8c6 d4c5 b6c5 h3h5 c6d4 f4e5 d4e6 f2f4 f7f6 f4f5 f6e5 f5e6 d8d6
+f1f8 a8f8 c3d5 e7d5 c2c4 d6e6 c4d5 e6d6 h5e2 f8f4\"} 11. Ne2 {+1.03/32 14.208s,
+tl=157.198s, latency=0.000s, n=1591804576, sd=49, nps=112035795, hashfull=970,
+tbhits=0, pv=\"c3e2 e7g6 f4e3 b8d7 h2h4 f8e8 h4h5 g6f8 h5h6 g7g6 d1e1 a6c4 c1b1
+a7a5 e2c1 b6b5 f1d3 d8c8 d2d1 c8b8 d1g4 f8e6 d3f5 b5b4 f5e6 d7f6 e6f7 g8f7 g4f3
+b4a3 b2b3 b8b4 e3g5 e8e1 f3f6 f7g8 h1e1 b4e1 b3c4\"} 11... c5 {-0.55/36 13.180s,
+tl=148.921s, latency=0.001s, n=1566524138, sd=59, nps=118865000, hashfull=657,
+tbhits=0, pv=\"c6c5 d2e3 e7f5 e3h3 f5e7 e2c3 a6f1 h1f1 b8c6 d4c5 b6c5 h3h5 c6d4
+d1d3 d8b6 f1d1 f8d8 f4e3 g7g6 h5g5 e7f5 e3d4 c5d4 c3e2 d8b8 d3b3 b6e6 b3b8 a8b8
+e2d4 f5d4 d1d4\"} 12. Qe3 {+0.80/31 11.978s, tl=147.220s, latency=0.001s,
+n=1328911293, sd=49, nps=110955272, hashfull=880, tbhits=0, pv=\"d2e3 e7f5 e3h3
+f5e7 h3h5 a6e2 f1e2 c5c4 h2h4 b8d7 f4g5 f7f6 e2g4 g8h8 g4e6 f6g5 h4g5 h7h6 h5g4
+d7f6 g5f6 f8f6 f2f4 b6b5 f4f5 d8d6 h1e1 b5b4 g4f3 b4a3 f3a3 d6a3 b2a3 e7f5 e6d5
+a8d8 e1e5\"} 12... Nf5 {-0.55/37 13.145s, tl=137.776s, latency=0.001s,
+n=1551674686, sd=61, nps=118051000, hashfull=773, tbhits=0, pv=\"e7f5 e3h3 f5e7
+e2c3 a6f1 h1f1 c5d4 d1d4 b8c6 d4d2 d5d4 f4e3 e7g6 e3d4 c6d4 h3g4 d8c7 d2d4 c7h2
+f2f4 a8e8 c1b1 f7f5 g4f3 g6h4 f3d5 g8h8\"} 13. Qh3 {+0.93/33 11.776s,
+tl=137.444s, latency=0.000s, n=1320967882, sd=52, nps=112174582, hashfull=920,
+tbhits=9, pv=\"e3h3 f5e7 f4g5 h7h6 g5h4 d8d6 h4e7 d6e7 e2f4 f8d8 h3g3 c5c4 c2c3
+d8d6 f1e2 b8d7 h2h4 b6b5 d1e1 e7f8 e2d1 d7f6 e1e5 a6c8 h1e1 c8d7 d1f3 d7c6 e5e7
+f6e4 f3e4 d5e4 f4h5 d6g6 g3e5 g6g2\"} 13... Ne7 {-0.62/37 8.530s, tl=131.246s,
+latency=0.000s, n=1034490372, sd=58, nps=121276000, hashfull=815, tbhits=0,
+pv=\"f5e7 e2c3 a6f1 h1f1 b8c6 d4c5 b6c5 h3h5 c6d4 f4e5 d4e6 f2f4 f7f6 f4f5 f6e5
+f5e6 d8d6 f1e1 d5d4 e1e5 e7g6 e5e4 g6e7 c3b1 a8e8 b1d2 e7f5 d2c4 d6a6 d1f1 g7g6
+h5e2 f5e3 f1f8 e8f8 e6e7 f8e8\"} 14. Bg5 {+1.00/33 14.213s, tl=125.231s,
+latency=0.001s, n=1589787393, sd=54, nps=111862327, hashfull=926, tbhits=0,
+pv=\"f4g5 h7h6 g5e7 d8e7 e2f4 f8d8 h3g3 c5c4 c2c3 d8d6 f1e2 e7f8 d1e1 b8d7 e2d1
+b6b5 f4h5 d6g6 g3c7 f8d6 c7d6 g6d6 e1e7 g8f8 h1e1 a8d8 f2f4 a6c8 f4f5 d7f6 h5f6
+d6f6 g2g4 c8d7 e7e5 d7c8 d1f3 h6h5 h2h3 g7g6 f3d5 g6f5 g4g5 f6g6\"} 14... h6
+{-0.53/34 6.609s, tl=126.637s, latency=0.000s, n=771953398, sd=55,
+nps=116803000, hashfull=843, tbhits=0, pv=\"h7h6 g5e7 d8e7 e2f4 f8d8 f1a6 b8a6
+h1e1 e7g5 g2g3 c5d4 d1d4 a6c7 h3f1 d8d6 e1d1 a8e8 h2h4 g5f5 c1b1 e8e5 d1d2 g7g5
+h4g5 h6g5 f4e2 c7e6 d4d3 e6c5\"} 15. Bxe7 {+0.88/32 7.467s, tl=119.764s,
+latency=0.001s, n=854335665, sd=48, nps=114430172, hashfull=828, tbhits=2,
+pv=\"g5e7 d8e7 e2f4 f8d8 h3g3 c5c4 c2c3 d8d6 f1e2 b8d7 d1e1 e7f8 e2d1 b6b5 f4h5
+d6g6 g3c7 f8d6 c7d6 g6d6 e1e7 g8f8 h1e1 a8d8 h5f4 a6c8 h2h4 a7a6 g2g4 d7b6 g4g5
+h6g5 h4g5 c8d7 c1d2 g7g6 e7e5 a6a5\"} 15... Qxe7 {-0.55/33 6.106s, tl=122.531s,
+latency=0.001s, n=699839884, sd=58, nps=114633000, hashfull=863, tbhits=0,
+pv=\"d8e7 e2f4 a6b7 d4c5 e7c5 f4h5 d5d4 b2b4 c5d6 h3g3 d6g3 h5g3 b8c6 g3f5 a8d8
+f1b5 g8h7 f2f3 b7c8 f5g3 c6e5 h1e1 f7f6 f3f4 a7a6 b5a6 c8a6 f4e5 f6e5 e1e5 d4d3
+b4b5 a6b7 d1d3 d8d3 c2d3\"} 16. Qe3 {+0.98/35 21.914s, tl=99.850s,
+latency=0.001s, n=2434952474, sd=53, nps=111119083, hashfull=952, tbhits=78,
+pv=\"h3e3 e7e3 f2e3 c5c4 e2c3 a6b7 e3e4 d5e4 f1c4 b8d7 c3b5 b7a6 h1e1 f8e8 a3a4
+d7f6 c4f1 e8e7 c2c4 a6b5 a4b5 g8f8 c1c2 f6e8 f1e2 g7g6 g2g4 a8d8 c2c3 f8g7 b2b4
+f7f5 g4f5 g6f5 e1f1 g7f6\"} 16... Qxe3+ {-0.50/38 9.393s, tl=115.138s,
+latency=0.000s, n=1147454548, sd=62, nps=122160000, hashfull=896, tbhits=0,
+pv=\"e7e3 f2e3 c5c4 e2c3 a6b7 e3e4 d5e4 f1c4 b8d7 c3b5 b7a6 h1e1 f8e8 a3a4 a8c8
+b2b3 a6b5 c4b5 c8d8 b5c6 f7f5 g2g4 g7g6 c2c4\"} 17. fxe3 {+0.92/31 4.552s,
+tl=97.298s, latency=0.000s, n=569235114, sd=53, nps=125051650, hashfull=609,
+tbhits=1440, pv=\"f2e3 c5c4 e2c3 a6b7 e3e4 d5e4 f1c4 b8d7 c3b5 b7a6 h1e1 f8e8
+b2b3 a6b5 c4b5 a8d8 b5c6 f7f5 g2g4 f5g4 c2c4 h6h5 e1e4 e8e4 c6e4 d7f6 e4h1 h5h4
+b3b4 g8f7 c4c5 f7e6 c1c2 e6d7 d1g1 b6c5 b4c5 d8e8 c2d3 e8b8 g1e1 b8b2 d4d5
+b2h2\"} 17... c4 {-0.48/39 9.148s, tl=107.990s, latency=0.000s, n=1108521725,
+sd=65, nps=121176000, hashfull=924, tbhits=0, pv=\"c5c4 e2c3 a6b7 e3e4 d5e4 f1c4
+b8d7 c3b5 b7a6 h1e1 a8e8 a3a4 d7f6 c4f1 e8e7 c2c4 f8c8 b5d6 c8d8 d6f5 e7d7 d4d5
+d7c7 d5d6 c7d7 f5e7 g8f8 e7c6 d8c8 c6e5 d7d8 b2b4 a6b7 c1b2 f6d7 e5d7 d8d7 g2g4
+g7g6 b2c3 f8g7 a4a5 g7f6 f1h3\"} 18. Nc3 {+0.84/33 4.928s, tl=94.370s,
+latency=0.001s, n=617015882, sd=59, nps=125231557, hashfull=858, tbhits=6140,
+pv=\"e2c3 a6b7 e3e4 d5e4 f1c4 b8d7 c3b5 b7a6 h1e1 a8e8 a3a4 d7f6 b2b3 e8e7 d4d5
+a6b5 c4b5 f8d8 c2c4 a7a5 d1d2 e7e5 c1c2 f6e8 c2c3 e8d6 d2b2 f7f5 b3b4 d6b5 a4b5
+a5b4 c3d4 d8e8 b2b4 e4e3 d5d6 e5e4 d4d5 g8f7 b4a4 g7g5 g2g4 e4g4 d6d7 e8d8\"}
+18... Bb7 {-0.51/40 7.974s, tl=102.016s, latency=0.001s, n=980250358, sd=64,
+nps=122946000, hashfull=945, tbhits=0, pv=\"a6b7 e3e4 d5e4 f1c4 b8d7 c3b5 b7a6
+h1e1 f8e8 b2b3 a6b5 c4b5 a8d8 b5c6 f7f5 g2g4 f5g4 c2c4 g8f8 c1c2 e8e6 c6d5 e6f6
+d5e4 f6f4 e4g6 f4f2 d1d2 f2f6 g6e4 h6h5 b3b4 f6e6 d2e2 d7f6 c2d3 h5h4 e4h1 e6e2
+e1e2 d8e8 c4c5 e8e2\"} 19. e4 {+0.89/32 3.455s, tl=92.915s, latency=0.001s,
+n=460018840, sd=58, nps=133184377, hashfull=852, tbhits=720, pv=\"e3e4 d5e4 f1c4
+b8d7 c3b5 b7a6 h1e1 a8e8 c4f1 e8e7 b5a7 a6f1 e1f1 f7f5 g2g3 g7g5 a7c6 e7e8 c1d2
+f5f4 c2c4 f4f3 d2e3 g8g7 a3a4 e8c8 d4d5 d7f6 e3d4 c8e8 d1e1 h6h5 c6e5 h5h4 g3h4
+g5g4 a4a5 b6a5 d5d6 e8b8 f1f2 b8b4 d4e3 b4b3 e3f4\"} 19... dxe4 {-0.50/37
+5.117s, tl=98.899s, latency=0.000s, n=646889687, sd=65, nps=126419000,
+hashfull=956, tbhits=0, pv=\"d5e4 f1c4 b8d7 c3b5 b7a6 h1e1 f8e8 a3a4 d7f6 c4f1
+e8e7 c2c4 a8c8 c1c2 f6g4 c2c3 a6b5 a4b5 f7f5 d4d5 g4f6 c3d4 g7g5 b2b4 c8d8 g2g3
+g8g7 d1d2 g7g6 d2a2 f5f4 e1a1 f4f3 a2a7 e7e8\"} 20. Bxc4 {+0.90/31 5.644s,
+tl=89.271s, latency=0.001s, n=709097962, sd=54, nps=125659748, hashfull=949,
+tbhits=663, pv=\"f1c4 b8d7 c3b5 b7a6 h1e1 a8e8 b2b3 e8e7 d4d5 d7f6 c1b2 e7d7
+b5c3 a6c4 b3c4 f8e8 a3a4 g8f8 c3b5 e4e3 d1d3 a7a6 b5d4 d7e7 d3b3 f6d7 d4f5 e7e5
+f5d6 e8e7 d6c8 e7e8 c8b6 d7c5 b2c3 e5e4 b3b1 f7f5 a4a5 f5f4 d5d6 e8e5 b6d5\"}
+20... Nd7 {-0.51/36 5.210s, tl=95.689s, latency=0.001s, n=664458869, sd=61,
+nps=127559000, hashfull=960, tbhits=0, pv=\"b8d7 c3b5 b7a6 h1e1 a8e8 a3a4 d7f6
+c4f1 e8e7 c2c4 f8c8 c1c2 f6g4 c2c3 f7f5 b5d6 c8f8 b2b4 f8f6 d6b5 g4h2 f1e2 f5f4
+d4d5 f4f3 e2f3 h2f3 g2f3 f6f3 c3c2 f3f2 d1d2 e4e3 e1e3 f2d2 c2d2 e7e3 d2e3 a6b5
+a4b5 g7g5\"} 21. Nb5 {+0.94/32 7.946s, tl=83.325s, latency=0.001s, n=961820100,
+sd=51, nps=121059798, hashfull=934, tbhits=2249, pv=\"c3b5 b7a6 h1e1 a8e8 a3a4
+d7f6 c4f1 e8e7 c2c4 f8c8 b5d6 c8d8 d6f5 e7c7 f5e3 h6h5 b2b3 a6b7 f1e2 g7g6 a4a5
+h5h4 c1b2 g8g7 g2g3 b6b5 c4b5 f6d5 e3c4 f7f5 c4e5 g7f6 d1c1 c7c1 e1c1 g6g5 a5a6
+b7a8 e5c6 a8c6 c1c6 f6e7\"} 21... Ba6 {-0.49/38 8.848s, tl=88.841s,
+latency=0.001s, n=1076945429, sd=64, nps=121730000, hashfull=969, tbhits=0,
+pv=\"b7a6 h1e1 a8e8 a3a4 d7f6 c4f1 e8e7 c2c4 f8c8 c1c2 a6b5 a4b5 f6g4 d4d5 f7f5
+c2c3 g8f7 f1e2 h6h5 b2b4 f7f6 d5d6 e7e5 d1d4 c8d8 e1a1 d8d7 a1a7 d7a7 d6d7 a7d7
+d4d7 e5e7 d7d6 e7e6 d6d8 g4e3 g2g3 h5h4 c4c5 h4g3 h2g3\"} 22. Rhe1 {+0.83/31
+5.033s, tl=80.292s, latency=0.000s, n=617891262, sd=50, nps=122767983,
+hashfull=871, tbhits=281, pv=\"h1e1 a8e8 a3a4 d7f6 c4f1 e8e7 c2c4 f8c8 b5d6 c8d8
+d6f5 e7c7 f5e3 h6h5 b2b3 a6b7 f1e2 g7g6 a4a5 f6d5 c1d2 d5e7 d4d5 g8g7 a5b6 a7b6
+e1f1 f7f5 g2g3 b6b5 e3g2 b5c4 b3c4\"} 22... Rfe8 {-0.50/36 7.475s, tl=83.366s,
+latency=0.000s, n=916033710, sd=59, nps=122546000, hashfull=974, tbhits=0,
+pv=\"f8e8 b2b3 a6b5 c4b5 a8d8 b5c6 f7f5 g2g4 f5g4 c2c4 g8f8 c1c2 e8e6 c6d5 e6f6
+d5e4 f6f2 d1d2 f2f4 e4c6 d7f6 c2c3 d8c8 c6b7 c8b8 b7g2 h6h5 c4c5 h5h4 b3b4 h4h3
+g2h1 b8e8 d2e2 e8e2 e1e2 f4f1 h1c6\"} 23. b3 {+1.19/31 6.532s, tl=75.760s,
+latency=0.000s, n=820615291, sd=57, nps=125630020, hashfull=908, tbhits=12259,
+pv=\"b2b3 a6b5 c4b5 a8d8 b5c6 f7f5 g2g4 f5g4 c2c4 g8f8 c1c2 e8e6 c6d5 e6f6 d5e4
+f6f4 e4g6 f4f2 d1d2 f2f6 g6e4 f6f4 c2c3 d7f6 e4c6 d8c8 c6b7 c8b8 b7h1 b8e8 d2e2
+f4f2 e2e8 f6e8 h1c6 e8f6 b3b4 f2h2 d4d5 h2h3 c3d4 h3a3 d5d6 a3a2 c4c5\"} 23...
+Bxb5 {-0.46/23 0.053s, tl=85.313s, latency=0.000s, n=6887372, sd=42,
+nps=129950000, hashfull=974, tbhits=0, pv=\"a6b5 c4b5 a8d8 b5c6 f7f5 g2g4 f5g4
+c2c4 g8f8 c1c2 e8e6 c6d5 e6f6 d5e4 f6f4 e4g6 f4f2 d1d2 f2f6 g6h5 f6f4 d4d5 d7f6
+h5g6 h6h5\"} 24. Bxb5 {+1.20/31 3.370s, tl=74.390s, latency=0.001s, n=445464498,
+sd=58, nps=132224546, hashfull=806, tbhits=4903, pv=\"c4b5 a8d8 b5c6 f7f5 g2g4
+f5g4 c2c4 g8f8 c1c2 e8e6 c6d5 e6f6 d5e4 d8e8 c2c3 h6h5 b3b4 f6f2 e4c6 e8e1 d1e1
+d7f6 d4d5 f2h2 d5d6 g4g3 c4c5 g7g5 c6b7 g3g2 b7g2 b6c5 g2c6 c5b4 a3b4 h2f2 d6d7
+f6d7 c6d7\"} 24... Rad8 {-0.55/36 4.813s, tl=82.500s, latency=0.000s,
+n=614115898, sd=63, nps=127595000, hashfull=976, tbhits=0, pv=\"a8d8 b5c6 f7f5
+g2g4 f5g4 c2c4 g8f8 c1c2 e8e6 c6d5 e6f6 d5e4 d8e8 c2c3 h6h5 b3b4 f6e6 e1f1 f8e7
+e4d3 e7d8 c4c5 e6f6 c3c4 h5h4 f1f5 f6f5 d3f5 d7f6 c4b5 e8e3 b5c6 g4g3 h2g3 h4g3
+c6b7\"} 25. Bc6 {+0.94/32 5.562s, tl=70.828s, latency=0.001s, n=703572581,
+sd=61, nps=126519075, hashfull=955, tbhits=16103, pv=\"b5c6 f7f5 g2g4 f5g4 c2c4
+g8f8 c1c2 e8e6 c6d5 e6f6 d5e4 d8e8 c2c3 h6h5 b3b4 f6e6 e1f1 f8e7 e4d3 e7d8 c4c5
+e6f6 c3c4 e8e3 f1e1 e3e1 d1e1 h5h4 e1e4 f6g6 e4f4 g6g5 d3e4 h4h3 a3a4 d7f6 e4h1
+g4g3 h2g3 b6c5 b4c5 g5g3 f4h4 d8c7 h4h8 a7a6 d4d5 g3g4 c4c3 g4g3 c3d4 g3g4
+d4e5\"} 25... f5 {-0.50/35 4.010s, tl=80.490s, latency=0.001s, n=534289252,
+sd=58, nps=133272000, hashfull=980, tbhits=0, pv=\"f7f5 g2g4 f5g4 c2c4 g8f8 c1c2
+e8e6 c6d5 e6f6 d5e4 d8e8 c2c3 h6h5 b3b4 f6e6 e1f1 f8e7 e4d3 e7d8 c4c5 e6f6 c3c4
+e8e3 f1e1 e3e1 d1e1 h5h4 e1e4 f6g6 e4f4 g6g5 d3e4\"} 26. g4 {+1.14/31 4.183s,
+tl=68.645s, latency=0.001s, n=544348551, sd=62, nps=130164646, hashfull=876,
+tbhits=15251, pv=\"g2g4 f5g4 c2c4 g8f8 b3b4 h6h5 e1e4 e8e4 c6e4 f8e7 d1e1 d8h8
+c1d2 e7d8 c4c5 h5h4 d2d3 h8f8 e1c1 d7f6 c1f1 f8h8 e4h1 g4g3 h2g3 h4g3 f1g1 h8h5
+d3c4 b6c5 d4c5 h5g5 h1f3 d8c7\"} 26... fxg4 {-0.56/36 6.744s, tl=75.746s,
+latency=0.000s, n=862812503, sd=66, nps=127937000, hashfull=983, tbhits=0,
+pv=\"f5g4 c2c4 g8f8 c1c2 h6h5 c2c3 e4e3 e1e2 e8e6 d4d5 e6e7 d1f1 d7f6 b3b4 h5h4
+c3d3 e7e6 c6a4 a7a6 e2e3 e6e3 d3e3 b6b5 c4b5 a6b5 a4b5 f8e7 b5c6 f6d5 c6d5 d8d5
+a3a4 e7d6 a4a5\"} 27. b4 {+1.11/32 14.166s, tl=56.479s, latency=6.049s,
+n=1016677491, sd=52, nps=125252863, hashfull=951, tbhits=28833, pv=\"b3b4 h6h5
+c2c4 g8f8 e1e4 e8e4 c6e4 f8e7 d1e1 d8h8 c1c2 e7d8 c2d3 h8f8 c4c5 f8f2 e1e2 f2f1
+d3c4 h5h4 c4b5 f1d1 b5a6 d8c7 e2c2 b6c5 d4c5 d7f6 e4a8 c7b8 a8c6 d1a1 c2c3 a1a2
+c3e3 h4h3 e3e7 a2a3 a6b5\"} 27... Kf8 {-0.45/30 4.490s, tl=73.256s,
+latency=0.001s, n=539670342, sd=58, nps=120220000, hashfull=984, tbhits=0,
+pv=\"g8f8 e1e4 e8e4 c6e4 f8e7 c2c4 d8f8 c4c5 e7d8 c1c2 h6h5 c2d3 f8f2 d1d2 f2f1
+d3c4 b6c5 d4c5 f1f4 c4d3 d8c7 d3e3 f4f1 d2f2 f1f2 e3f2 h5h4\"} 28. c4 {+1.26/27
+3.179s, tl=55.300s, latency=0.000s, n=412633118, sd=50, nps=129799659,
+hashfull=654, tbhits=13628, pv=\"c2c4 h6h5 e1f1 f8e7 c6e4 e7d6 c4c5 d6c7 e4h1
+e8f8 c1c2 h5h4 c2c3 f8f1 d1f1 d8f8 f1f8 d7f8 d4d5 g4g3 h2g3 h4g3 c3d4 f8g6 h1e4
+g6h4 d4e3 c7d7 e3e2 b6c5 b4c5 g7g5 a3a4 d7e8 d5d6 e8d7 e2f1 d7c8\"} 28... h5
+{-0.58/32 5.858s, tl=69.398s, latency=0.001s, n=722490343, sd=65, nps=123355000,
+hashfull=987, tbhits=0, pv=\"h6h5 e1f1 f8e7 c6e4 e7d6 e4h1 e8f8 c1c2 d6c7 c4c5
+h5h4 c2c3 f8f1 d1f1 d8f8 f1f8 d7f8 d4d5 g4g3 h2g3 h4g3 h1e4 c7d7 c3d3 b6c5 b4c5
+f8g6 d3e3 g6h4 e3e2 g7g6 e2f1 d7c8 d5d6 c8d7 f1g1 h4f5 g1g2 f5d4 e4g6 d7c6 g6e4
+c6c5\"} 29. Rf1+ {+1.06/31 2.694s, tl=54.606s, latency=0.001s, n=358929488,
+sd=53, nps=133282394, hashfull=834, tbhits=39148, pv=\"e1f1 f8e7 c6e4 e7d6 e4h1
+e8f8 c1c2 d6c7 c2c3 f8f1 d1f1 d8f8 f1f8 d7f8 c4c5 h5h4 d4d5 g4g3 h2g3 h4g3 c3d4
+f8g6 d5d6 c7d7 h1e4 d7e6 d4e3 g6h4 e3e2 e6d7 a3a4 b6c5 b4c5 d7e6 e4d3 e6d7 d3b5
+d7e6 e2f1 g7g5 f1e2 h4f5 e2f3 f5d4 f3g3\"} 29... Ke7 {-0.66/31 3.762s,
+tl=67.636s, latency=0.001s, n=474889237, sd=63, nps=126266000, hashfull=989,
+tbhits=0, pv=\"f8e7 c6e4 e7d6 e4h1 e8f8 c1d2 d6c7 d2e3 g7g5 f1f8 d8f8 d1c1 f8f5
+c4c5 b6c5 b4c5 d7f6 c1d1 c7d7 d4d5 h5h4 e3d4 g4g3 h2g3 h4g3 d1e1 f5f4 d4c3 f4f2
+e1g1 f6h5 c3d4 f2d2 d4e5 d2e2 h1e4 h5f6 e5f6\"} 30. Bxe4 {+0.98/31 4.903s,
+tl=51.703s, latency=0.000s, n=621364788, sd=55, nps=126731549, hashfull=939,
+tbhits=112087, pv=\"c6e4 e7d6 e4h1 e8f8 c1d2 d6c7 d2c3 f8f1 d1f1 d8f8 f1f8 d7f8
+c4c5 h5h4 c3d3 g4g3 h2g3 h4g3 d4d5 f8g6 d3e3 g6h4 h1e4 g7g6 a3a4 b6c5 b4c5 c7d8
+a4a5 d8d7 d5d6\"} 30... Kd6 {-0.71/33 7.509s, tl=62.127s, latency=0.000s,
+n=932829563, sd=78, nps=124228000, hashfull=989, tbhits=0, pv=\"e7d6 e4h1 e8f8
+c4c5 d6c7 c1c2 h5h4 c2c3 d8e8 c3d3 h4h3 f1g1 b6c5 b4c5 g4g3 h2g3 f8f2 g1f1 e8e2
+f1f2 e2f2 d1b1 c7c8 g3g4 f2a2 g4g5 a2a3 d3e4\"} 31. Bh1 {+1.33/26 2.036s,
+tl=51.667s, latency=0.001s, n=284503302, sd=48, nps=139805062, hashfull=674,
+tbhits=30451, pv=\"e4h1 e8f8 c1d2 h5h4 d2e3 d6c7 c4c5 d8e8 e3d3 h4h3 f1g1 f8f4
+d1f1 e8f8 f1e1 b6c5 b4c5 g7g5 a3a4 f8b8 c5c6 b8b4 e1e7 f4d4 d3e3 c7d8 e7d7 d4d7
+c6d7 d8d7 a4a5\"} 31... Rf8 {-0.72/30 5.089s, tl=59.038s, latency=0.001s,
+n=655929148, sd=57, nps=128916000, hashfull=994, tbhits=0, pv=\"e8f8 c4c5 b6c5
+b4c5 d7c5 d4c5 d6c5 c1c2 d8d1 f1d1 f8f2 d1d2 f2f4 h1a8 h5h4 c2c3 f4c4 c3b3 c4d4
+d2c2 c5d6 a3a4 g7g5 a4a5 h4h3 a8b7 g4g3 h2g3 d4g4 c2c3\"} 32. Kd2 {+1.26/25
+2.532s, tl=51.135s, latency=0.001s, n=356010707, sd=47, nps=140660097,
+hashfull=871, tbhits=57394, pv=\"c1d2 h5h4 d2e3 d6c7 c4c5 b6c5 b4c5 f8e8 e3f4
+e8f8 f4g5 g4g3 h2g3 h4g3 g5h4 f8f1 d1f1 d7f6 f1d1 f6d5 h1d5 d8d5 h4g3 c7c6 g3f3
+d5h5 f3e4 h5h4 e4e5 h4h5 e5e6 h5d5 e6e7\"} 32... Kc7 {-0.66/32 3.552s,
+tl=57.486s, latency=0.001s, n=451317028, sd=66, nps=127095000, hashfull=994,
+tbhits=0, pv=\"d6c7 d2e3 g7g5 f1f8 d8f8 d1c1 h5h4 c4c5 g4g3 h2g3 h4g3 d4d5 b6c5
+b4c5 d7e5 d5d6 c7d7 h1d5 f8f4 c5c6 e5c6 c1c6 f4a4 c6c3 d7d6 d5f3 a4f4 c3c6 d6e5
+c6c5 e5f6 c5a5 f4c4 e3d2 c4c7 a5a4 f6f5 f3g2 a7a5 a4a5 f5g4\"} 33. Ke3 {+1.24/27
+2.679s, tl=50.456s, latency=0.001s, n=363605833, sd=54, nps=135775143,
+hashfull=912, tbhits=89763, pv=\"d2e3 d8e8 e3d3 h5h4 c4c5 e8d8 d3c4 b6c5 b4c5
+h4h3 f1e1 d8e8 e1e8 f8e8 d1b1 e8e2 b1b7 c7c8 h1c6 e2c2 c4d5 d7f6 d5d6 f6e8 d6e7
+e8f6 d4d5 c2c5 e7d6 c5c2 b7f7 f6e4 d6e5 g4g3 e5e4 g3h2\"} 33... g5 {-0.66/34
+4.588s, tl=54.898s, latency=0.007s, n=583892685, sd=69, nps=127459000,
+hashfull=994, tbhits=0, pv=\"g7g5 f1f8 d8f8 d1c1 h5h4 c4c5 b6c5 b4c5 g4g3 h2g3
+h4g3 d4d5 d7e5 d5d6 c7d7 h1d5 f8f4 c5c6 e5c6 d5c6 d7d6 c1c2 d6e5 c6f3 f4h4 f3a8
+h4f4 c2c5 e5f6 c5c3 f4g4 a8g2 g4f4 g2f3 f6e5 c3c5 e5f6 c5a5 f4h4 f3g2\"} 34.
+Rxf8 {+1.35/30 2.657s, tl=49.799s, latency=0.001s, n=361798078, sd=60,
+nps=136219155, hashfull=930, tbhits=160365, pv=\"f1f8 d8f8 d1c1 c7d8 c4c5 h5h4
+d4d5 d7e5 h1e4 d8d7 a3a4 b6c5 b4c5 d7c8 d5d6 f8f4 e4d5 c8d7 c5c6 e5c6 d5c6 d7d6
+c6e4 g4g3 h2g3 h4g3 e3d4 a7a5 c1g1 f4g4 g1g2 d6e6 d4e3 e6e5 e4c2 g4c4 e3f3 c4c3
+f3g4 e5d6 g4g5 d6c5\"} 34... Rxf8 {-0.68/35 3.157s, tl=53.741s, latency=0.000s,
+n=433865856, sd=63, nps=137429000, hashfull=995, tbhits=0, pv=\"d8f8 d1c1 h5h4
+c4c5 b6c5 b4c5 g4g3 h2g3 h4g3 d4d5 d7e5 d5d6 c7d7 h1d5 f8f4 c5c6 e5c6 d5c6 d7d6
+c6f3 d6e5 c1c5 e5f6 c5c6 f6e5 c6a6 f4c4 a6a5 e5d6 f3a8 g5g4 a5d5 d6e6 d5d4 c4c3
+d4d3 c3c8 a8b7 c8b8\"} 35. Rc1 {+1.28/36 6.935s, tl=44.864s, latency=0.001s,
+n=864079290, sd=62, nps=124614838, hashfull=980, tbhits=2137288, pv=\"d1c1 h5h4
+c4c5 b6c5 b4c5 g4g3 h2g3 h4g3 d4d5 d7e5 d5d6 c7d7 h1d5 f8f4 c5c6 e5c6 d5c6 d7d6
+c6f3 f4h4 c1d1 d6c5 d1d5 c5b6 d5d6 b6b5 d6g6 b5c4 g6g5 c4b3 g5a5 h4h7 e3f4 h7g7
+f3g2 b3a2 a5a6 g7c7 a3a4 c7g7 a4a5\"} 35... h4 {-0.66/33 4.065s, tl=51.676s,
+latency=0.000s, n=534226689, sd=64, nps=131421000, hashfull=996, tbhits=0,
+pv=\"h5h4 c4c5 b6c5 b4c5 g4g3 h2g3 h4g3 d4d5 d7e5 d5d6 c7d7 h1d5 f8f4 c5c6 e5c6
+d5c6 d7d6 c6f3 d6e5 c1c5 e5f6 c5c6 f6e5 c6a6 f4c4 a6a5 e5f6 e3d2 g5g4 f3b7
+c4c7\"} 36. c5 {+1.24/33 2.872s, tl=43.992s, latency=0.001s, n=396842643, sd=65,
+nps=138224536, hashfull=615, tbhits=1332333, pv=\"c4c5 g4g3 h2g3 h4g3 d4d5 b6c5
+b4c5 d7e5 d5d6 c7d7 h1d5 f8f4 c5c6 e5c6 d5c6 d7d6 c6f3 f4h4 c1d1 d6c5 d1d5 c5b6
+d5d6 b6c5 d6c6 c5b5 c6g6 b5a4 g6a6 a4b3 a6a7 b3c3 a7a8 h4c4 f3d5 c4g4 d5g2 c3b3
+a8a5 b3b2 e3f3\"} 36... bxc5 {-0.79/35 6.010s, tl=47.666s, latency=0.000s,
+n=804012618, sd=56, nps=133779000, hashfull=997, tbhits=0, pv=\"b6c5 b4c5 g4g3
+h2g3 h4g3 d4d5 d7e5 d5d6 c7d7 h1d5 f8f4 c5c6 e5c6 d5c6 d7d6 c6f3 d6e5 c1c5 e5f6
+c5c8 f4h4 e3e2 h4h2 e2f1 h2b2 c8c3 f6f5 f3c6 f5f4 c3c4 f4e5 c4a4 e5d6 c6e8 b2f2
+f1g1 f2e2 e8h5 e2h2 h5g6 h2e2\"} 37. bxc5 {+1.24/43 3.094s, tl=42.898s,
+latency=0.001s, n=439809022, sd=69, nps=142194963, hashfull=898, tbhits=1308111,
+pv=\"b4c5 g4g3 h2g3 h4g3 d4d5 d7e5 d5d6 c7d7 h1d5 f8f4 c5c6 e5c6 d5c6 d7d6 c6f3
+f4h4 c1c6 d6e5 c6c2 e5f5 c2c8 f5e6 c8e8 e6d6 e8d8 d6e5 d8d5 e5f6 d5d4 h4h2 d4d2
+h2h4 f3e4 h4f4 d2c2 f6e5 c2c5 e5f6 c5c3 f6e5 e4f3 f4h4 f3g2 h4f4 c3c5 e5f6 c5c6
+f6e5\"} 37... g3 {-0.76/33 4.281s, tl=45.385s, latency=0.000s, n=613799535,
+sd=57, nps=143377000, hashfull=997, tbhits=0, pv=\"g4g3 h2g3 h4g3 d4d5 d7e5 d5d6
+c7d7 h1d5 f8f4 c5c6 e5c6 d5c6 d7d6 c6f3 f4h4 f3e4 h4f4 c1c6 d6e5 e4f3 f4h4 c6c2
+h4a4 c2c5 e5d6 c5c3 a4f4 c3c6 d6e5 c6c5 e5f6 c5c8 f6e5 c8e8 e5d6 e8d8 d6c5 d8g8
+f4a4 g8c8 c5d6 c8c6 d6e5\"} 38. hxg3 {+1.29/43 2.568s, tl=42.330s,
+latency=0.000s, n=402654305, sd=63, nps=156796847, hashfull=804, tbhits=1254898,
+pv=\"h2g3 h4g3 d4d5 d7e5 d5d6 c7d7 h1d5 f8f4 c5c6 e5c6 d5c6 d7d6 c6f3 f4h4 f3e4
+h4g4 e4a8 g4f4 c1c3 f4f8 a8e4 f8f2 c3c6 d6e5 c6c5 e5f6 c5c2 f2f1 e4g2 f1f4 g2f3
+f4a4 c2c3 f6f5 e3e2 a4d4 e2f1 d4d2 f3h5 d2h2 h5e8 f5g4\"} 38... hxg3 {-0.84/33
+3.704s, tl=43.681s, latency=0.000s, n=700253111, sd=56, nps=189053000,
+hashfull=997, tbhits=0, pv=\"h4g3 d4d5 d7e5 d5d6 c7d7 h1d5 f8f4 c5c6 e5c6 d5c6
+d7d6 c6f3 f4h4 c1c6 d6e5 f3g2 h4f4 c6c5 e5f6 c5c1 f6e5 g2f3 f4h4 c1c2 e5e6 f3a8
+h4f4 c2c5 e6f6 c5c3\"} 39. d5 {+1.34/39 2.133s, tl=42.197s, latency=0.001s,
+n=337471722, sd=63, nps=158288800, hashfull=677, tbhits=689322, pv=\"d4d5 d7e5
+d5d6 c7d7 h1d5 f8f4 c5c6 e5c6 d5c6 d7d6 c6f3 f4h4 f3e4 h4g4 e4a8 g4f4 c1c3 f4f8
+a8e4 f8f2 c3c2 f2f1 e4g2 f1f4 g2f3 d6e5 c2c5 e5f6 c5c3 f6e5 e3e2 g5g4 f3c6 f4f6
+c3c4 f6f2 e2e1 e5d6 c4c3 f2a2 e1f1 d6e5 c3g3 a2a1 f1g2 a1a2 g2g1 a2a1 g1f2 a1a2
+f2e1\"} 39... Ne5 {-0.86/31 3.131s, tl=42.550s, latency=0.000s, n=595620931,
+sd=56, nps=190233000, hashfull=997, tbhits=0, pv=\"d7e5 d5d6 c7d7 h1d5 f8f4 c5c6
+e5c6 d5c6 d7d6 c6f3 f4h4 c1c6 d6e5 c6c2 e5f6 f3a8 h4f4 c2c3 f6e5 e3d2 f4f2 d2e1
+e5f4 c3c4 f4f5 c4a4 a7a6 a8b7 a6a5 a4a5 f5g4 b7c8 g4h5\"} 40. d6+ {+1.24/43
+9.403s, tl=34.794s, latency=8.335s, n=182129970, sd=77, nps=170533679,
+hashfull=508, tbhits=413549, pv=\"d5d6 c7d7 h1d5 f8f4 c5c6 e5c6 d5c6 d7d6 c1c2
+d6e5 c6f3 f4h4 f3g2 h4f4 c2c5 e5f6 c5c1 f6e6 g2f3 f4h4 f3e4 h4g4 c1c2 e6e5 e4a8
+g4f4 c2c5 e5f6 c5c8 f6e5 a8f3 f4h4 c8e8 e5f6 e8e4 f6f5 e4d4 h4f4 d4b4 f4h4 b4e4
+h4f4 e4d4 f5e5 d4b4 e5f5 b4b5 f5f6 b5c5 f4h4 c5c6 f6f5 c6a6 h4c4 a6a5 f5f6 e3d2
+g5g4 f3a8 c4c8 a8e4 c8c4 e4g2 c4f4 a5a7\"} 40... Kd7 {-0.91/30 2.614s,
+tl=41.936s, latency=0.000s, n=517450867, sd=50, nps=197953000, hashfull=997,
+tbhits=0, pv=\"c7d7 h1d5 f8f4 c5c6 e5c6 d5c6 d7d6 c6f3 f4h4 c1c6 d6e5 c6c2 e5e6
+f3a8 h4f4 c2c3 e6e5 e3d2 f4f2 d2e1 e5f4 c3c4 f4f5 c4a4 a7a6 a8b7 a6a5 b7c6 f5f6
+a4a5 g5g4 c6e4 f6e7 a5a6\"} 41. Bd5 {+1.13/37 1.436s, tl=35.358s,
+latency=0.001s, n=209653454, sd=60, nps=146099967, hashfull=426, tbhits=1011027,
+pv=\"h1d5 f8f4 c5c6 e5c6 d5c6 d7d6 c6f3 d6e5 c1c5 e5f6 c5c8 f6e5 c8e8 e5f5 e8e4
+f4h4 e4d4 h4f4 d4d5 f5f6 d5d3 f6f5 d3d4 f4h4 d4d5 f5f6 d5d3 h4h2 d3d2 h2h4 f3e4
+h4f4 d2d6 f6e5 d6d5 e5f6 e4g2 f4f2 d5d2 f2f4 d2d6 f6e5 d6d8 f4f2 d8d2 f2f4 d2c2
+e5f5 c2c5 f5f6 c5c8\"} 41... Rf4 {-0.89/29 3.200s, tl=40.736s, latency=0.001s,
+n=655669782, sd=50, nps=204960000, hashfull=997, tbhits=0, pv=\"f8f4 c5c6 e5c6
+d5c6 d7d6 c6e4 d6e5 e4f3 f4h4 f3c6 h4f4 c1c5 e5d6 c5c2 d6e5 c6f3 f4h4 c2c5 e5f6
+f3g2 h4f4 c5c1 f6e6 g2e4 f4f2 c1c6 e6e5 c6c5 e5f6 c5c2\"} 42. c6+ {+1.51/41
+8.168s, tl=29.190s, latency=5.558s, n=367828915, sd=71, nps=140930618,
+hashfull=724, tbhits=2652498, pv=\"c5c6 e5c6 d5c6 d7d6 c6f3 d6e5 c1c5 e5f6 c5c3
+f6e5 c3c7 f4h4 c7e7 e5f6 e7e4 f6f5 a3a4 h4f4 f3g2 f4f2 g2h3 f5g6 e4d4 g6h5 h3g4
+h5g6 d4d6 g6f7 g4f3 f7e7 d6d4 f2c2 f3d5 c2b2 d5c6 b2b3 e3e2 b3b6 c6e4 b6b2 d4d2
+b2d2 e2d2 e7d6 d2c3 d6c5 e4f3 c5b6 c3b4 b6a6 f3d5 a6b6\"} 42... Nxc6 {-0.92/27
+2.223s, tl=40.513s, latency=0.000s, n=482792679, sd=43, nps=217180000,
+hashfull=997, tbhits=0, pv=\"e5c6 d5c6 d7d6 c6f3 f4h4 f3e4 h4f4 c1c3 f4f2 c3c2
+f2f4 e4f3 d6e5 c2c5 e5f6 c5c8 f4h4 c8c2 h4f4 c2c3 f6f5\"} 43. Bxc6+ {+1.68/41
+2.986s, tl=28.204s, latency=0.000s, n=409039249, sd=62, nps=136985682,
+hashfull=751, tbhits=3428126, pv=\"d5c6 d7d6 c6f3 d6e5 c1c7 f4h4 c7e7 e5f6 e7e4
+f6f5 e4d4 h4f4 d4d5 f5f6 d5d3 f6f5 d3c3 f5e5 c3c5 e5f6 c5c8 f6e5 c8e8 e5f6 e3e2
+a7a5 e8e3 f6f5 e2e1 f4c4 f3d1 g3g2 e1f2 c4c1 e3e1 f5f4 a3a4 c1a1 f2g2 g5g4 e1f1
+f4g5 d1b3\"} 43... Kxd6 {-0.93/29 2.243s, tl=40.270s, latency=0.000s,
+n=507128674, sd=44, nps=226093000, hashfull=997, tbhits=0, pv=\"d7d6 c6f3 f4h4
+f3e4 h4f4 c1c3 d6e5 c3c5 e5f6 c5c6 f6e5 e4f3 f4h4 f3g2 h4f4 c6c5 e5f6 c5c1 f6e5
+g2f3 f4h4 c1c2 e5f6 f3a8 h4f4 c2c3 f6f5\"} 44. Bf3 {+1.79/35 4.722s, tl=25.482s,
+latency=0.001s, n=700392740, sd=55, nps=148356860, hashfull=717, tbhits=3116148,
+pv=\"c6f3 d6e5 c1c5 e5f6 c5c6 f6e5 c6c7 f4h4 c7e7 e5f6 e7e4 f6f5 a3a4 h4f4 f3g2
+f4f2 g2h3 f5g6 e4d4 g6h5 h3g4 h5g6 d4d6 g6f7 g4f3 f7e7 d6d2 f2f1 f3g2 f1b1 d2d4
+b1b3 e3e2 e7f6 g2h3 f6e5 d4g4 e5d6 g4g5 b3a3 g5a5 d6c6 a5a7 c6b6 a7a8 b6b7 h3g2
+b7b6\"} 44... Rh4 {-0.96/29 2.653s, tl=39.617s, latency=0.000s, n=579193767,
+sd=45, nps=218316000, hashfull=997, tbhits=0, pv=\"f4h4 c1c6 d6e5 f3g2 h4f4 c6c5
+e5f6 c5c1 f6e5 g2f3 f4h4 c1c2 e5f6 f3e4 h4f4 c2c6 f6e5 e4f3 f4h4 f3g2 h4f4 c6c5
+e5f6 c5c1 f6e6\"} 45. Be4 {+2.03/32 1.345s, tl=26.137s, latency=0.000s,
+n=225288072, sd=54, nps=167500425, hashfull=649, tbhits=704096, pv=\"f3e4 h4f4
+e3d4 f4g4 a3a4 d6e6 c1d1 e6d6 d1b1 d6e6 b1g1 e6d6 g1g2 a7a5 g2b2 d6e6 b2e2 e6d6
+e2c2 g4f4 c2c3 f4g4 c3c1 g4f4 c1c2 f4g4 c2g2 d6e6 g2b2 e6d6 b2b1\"} 45... Rf4
+{-0.96/29 2.285s, tl=39.332s, latency=0.000s, n=501392071, sd=42, nps=219427000,
+hashfull=997, tbhits=0, pv=\"h4f4 c1c6 d6e5 e4f3 f4h4 c6c5 e5f6 c5c2 f6e5 f3a8
+h4f4 c2c5 e5e6 c5c3 e6e5 a8f3 f4h4 c3c5 e5f6 f3g2 h4f4\"} 46. Kd4 {+2.23/46
+2.364s, tl=25.773s, latency=0.000s, n=350311101, sd=58, nps=148185744,
+hashfull=956, tbhits=3994938, pv=\"e3d4 f4h4 c1c6 d6d7 c6c5 h4g4 c5c1 d7e6 a3a4
+e6d6 c1g1 d6e6 g1d1 g4f4 d1h1 e6d6 h1g1 f4g4 g1g2 a7a5 g2g1 d6e6 g1c1 e6d6 c1d1
+g4f4 d1b1 d6e6 b1b6 e6d7 b6b3 f4g4 b3b2 d7d6 b2g2 d6e6 d4e3 e6e5 e4c2 g4c4 e3f3
+c4c3 f3g4 e5d5 g4g5 d5c4\"} 46... Rg4 {-0.94/33 4.573s, tl=36.759s,
+latency=0.001s, n=1064368400, sd=41, nps=232801000, hashfull=997, tbhits=0,
+pv=\"f4g4 c1c2 d6e6 c2b2 g4h4 b2e2 h4g4 e2g2 e6d6 g2c2 d6e6 c2a2 g4f4 a2d2 f4g4
+d2e2 g4h4 e2g2 h4g4 g2c2 e6d6 c2g2\"} 47. Rg1 {+2.28/49 3.973s, tl=23.800s,
+latency=0.001s, n=548886714, sd=71, nps=138189001, hashfull=924, tbhits=7081781,
+pv=\"c1g1 d6e6 g1g2 e6d6 g2d2 a7a6 d2b2 g4h4 b2g2 h4g4 g2a2 g4h4 a2e2 h4f4 e2c2
+f4g4 c2d2 d6e6 d2e2 g4h4 e2c2 h4f4 c2c6 e6d7 c6c5 f4g4 c5c1 d7d6 a3a4 g4h4 c1c6
+d6d7 c6c4 d7d6 c4b4 h4g4 b4b1 g4f4 b1b6 d6d7 b6b3 f4g4 b3b2 d7d6 b2c2 g4f4 c2c6
+d6e7 c6c3 f4g4 c3c2 e7d6 c2b2\"} 47... Ke6 {-0.96/34 2.135s, tl=36.624s,
+latency=0.000s, n=518178773, sd=42, nps=242706000, hashfull=997, tbhits=0,
+pv=\"d6e6 g1g2 e6d6 g2d2 d6e6 d2b2 e6d6 b2a2 g4h4 a2e2 d6e6 e2c2 h4g4 c2g2 e6d6
+g2e2 g4h4 e2b2 d6e6 b2d2 h4g4 d2c2 e6d6 c2d2\"} 48. Rg2 {+2.28/56 1.036s,
+tl=24.764s, latency=0.001s, n=169523912, sd=74, nps=163791219, hashfull=536,
+tbhits=1018679, pv=\"g1g2 e6d6 g2d2 a7a6 a3a4 g4f4 d2b2 f4g4 b2c2 g4h4 c2c6 d6d7
+c6c5 h4g4 c5c1 d7d6 c1c6 d6d7 c6c2 d7e6 c2d2 e6d6 d2d1 g4f4 d1g1 f4g4 g1g2 a6a5
+g2b2 d6e6 b2b1 g4f4 b1g1 f4g4 g1c1 e6d6 c1c2 g4h4 c2c6 d6d7 c6c3 h4g4 c3c2 d7e6
+c2e2 e6d6 e2g2 d6e6 g2g1 e6d6 g1b1 d6e6 b1d1 g4h4 d1c1 h4g4 c1c2 e6d6 c2d2 g4h4
+d2b2 h4f4 b2b6 d6d7 b6b3 f4g4 b3b1\"} 48... Kd6 {-0.99/30 2.275s, tl=36.349s,
+latency=0.000s, n=535264230, sd=38, nps=235280000, hashfull=997, tbhits=0,
+pv=\"e6d6 g2d2 d6e6 d2e2 g4h4 e2b2 h4f4 b2c2 f4g4 c2g2 e6d6 g2b2 g4h4 d4e3 d6c5
+b2c2 c5b5 e4g2 h4f4 g2c6 b5a6 c2c5 a6b6\"} 49. Rd2 {+2.28/61 2.281s, tl=24.483s,
+latency=0.001s, n=352909661, sd=79, nps=154784939, hashfull=841, tbhits=3157309,
+pv=\"g2d2 a7a6 a3a4 g4f4 d2b2 f4g4 b2c2 g4h4 c2c6 d6d7 c6c5 h4g4 c5c1 d7d6 c1c6
+d6d7 c6c2 d7e6 c2d2 e6d6 d2d1 g4f4 d1g1 f4g4 g1g2 a6a5 g2b2 d6e6 b2b1 g4f4 b1g1
+f4g4 g1c1 e6d6 c1c2 g4h4 c2c6 d6d7 c6c3 h4g4 c3c2 d7e6 c2e2 e6d6 e2a2 g4f4 a2b2
+d6e6 b2b6 e6d7 b6b5 f4g4 b5b1 d7d6 b1d1 g4f4 d1g1 f4g4 g1f1 d6e6 f1e1 e6d6 e1a1
+d6e6 a1f1 e6d6 f1h1 d6e6 h1d1 e6d6 d1d2 g4h4 d2g2\"} 49... Ke6 {-0.97/30 2.290s,
+tl=36.059s, latency=0.000s, n=543469138, sd=43, nps=237322000, hashfull=997,
+tbhits=0, pv=\"d6e6 d2g2 e6d6 g2e2 g4f4 e2d2 d6e6 d2c2 e6d6 c2c6 d6d7 c6c3 f4g4
+c3c2 d7d6 c2g2 d6e6 g2e2 g4h4 e2c2 h4g4 c2d2\"} 50. Re2 {+2.28/52 6.213s,
+tl=20.270s, latency=5.091s, n=158575450, sd=62, nps=141332843, hashfull=696,
+tbhits=1712751, pv=\"d2e2 e6d6 e2b2 g4f4 b2c2 f4g4 c2g2 a7a6 g2d2 a6a5 a3a4 g4h4
+d2c2 h4g4 c2g2 d6e6 g2d2 g4f4 d2d3 f4g4 d3d1 e6d6 d1e1 g4f4 e1h1 f4g4 h1g1 d6e6
+g1f1 e6d6 f1d1 g4f4 d1g1 f4g4 g1h1 d6e6 h1e1 e6d6 e1e2 g4f4 e2b2 f4g4 b2b1 d6e6
+b1c1 e6d6 c1a1 d6e6 a1a2 g4h4 a2c2 e6d6 c2d2 h4g4 d2c2\"} 50... Rh4 {-1.02/31
+2.446s, tl=35.613s, latency=0.000s, n=582184157, sd=42, nps=238014000,
+hashfull=997, tbhits=0, pv=\"g4h4 e2g2 h4g4 g2c2 g4h4 c2c6 e6d7 c6c5 h4g4 c5c2
+d7d6 c2g2 d6e6 g2b2 g4f4 b2d2 f4g4 d2e2 g4h4 e2e1 e6d6 e1g1\"} 51. Rd2 {+1.82/53
+5.455s, tl=16.815s, latency=3.387s, n=307714071, sd=65, nps=148797906,
+hashfull=582, tbhits=2582735, pv=\"e2d2 h4g4 a3a4 e6d6 d2c2 g4f4 c2c6 d6e7 c6c3
+f4g4 c3c1 e7d6 c1e1 d6e6 e1b1 g4h4 b1b2 h4g4 b2c2 e6d6 c2d2 d6e6 d2d1 e6d6 d1h1
+d6e6 h1g1 e6d6 g1f1 d6e6 f1e1 g4h4 e1g1 h4g4 g1h1 e6d6 h1c1 d6e6 c1a1 e6d6 a1b1
+g4h4 b1f1 h4g4 f1a1 d6e6 a1a2 e6d6 a2g2 d6e6 g2e2 e6d6 e2a2 d6e6 a2g2\"} 51...
+Rf4 {-0.97/31 2.757s, tl=34.856s, latency=0.001s, n=670932095, sd=44,
+nps=243444000, hashfull=997, tbhits=0, pv=\"h4f4 d2c2 f4g4 c2g2 e6d6 g2b2 d6e6
+b2d2 g4f4 d2c2 f4h4 c2c6 e6d7 c6c3 h4g4 c3c2 d7d6 c2c6 d6d7 c6c1 d7d6 c1c2 d6e6
+c2b2\"} 52. Rc2 {+1.82/52 4.833s, tl=13.982s, latency=4.311s, n=91858188, sd=65,
+nps=175973540, hashfull=352, tbhits=231437, pv=\"d2c2 e6d6 c2g2 f4g4 g2a2 d6e6
+a3a4 e6d6 a2a1 d6e6 a1d1 e6d6 d1g1 d6e6 g1f1 e6d6 f1c1 g4f4 c1c6 d6e7 c6c7 e7f6
+c7c3 f4g4 c3c2 f6e6 c2g2 e6d6 g2b2 d6e6 b2e2 g4h4 e2g2 h4g4 g2g1 e6d6 g1e1 d6e6
+e1a1 e6d6 a1h1 d6e6 h1e1 e6d6 e1d1 g4f4 d1c1 f4g4 c1f1 d6e6 f1h1 e6d6 h1b1 g4h4
+b1g1\"} 52... Rg4 {-0.95/31 4.799s, tl=32.057s, latency=0.000s, n=1126129210,
+sd=39, nps=234659000, hashfull=997, tbhits=0, pv=\"f4g4 c2e2 g4h4 e2b2 h4f4 b2c2
+e6d6 c2c6 d6d7 c6c5 f4g4 c5c2 d7e6 d4e3 e6f6 e4g2 g4f4 g2f3 f4h4 f3a8 h4f4 c2c3
+f4g4 a8g2\"} 53. a4 {+2.23/41 4.320s, tl=11.662s, latency=3.811s, n=75966814,
+sd=58, nps=149247178, hashfull=407, tbhits=608552, pv=\"a3a4 a7a6 c2g2 e6d6 g2b2
+g4h4 b2b4 h4g4 b4b6 d6e7 b6b1 e7d6 b1h1 g4f4 h1g1 f4g4 g1g2 d6e6 g2b2 g4f4 b2e2
+e6d6 e2c2 f4h4 c2c6 d6d7 c6c3 h4g4 c3c1 d7d6 c1g1 d6e6 g1e1 e6d6 e1a1 g4h4 a1a2
+d6e6 a2d2 h4f4 d2d3 f4g4 d3d1 e6d6 d1c1 d6e6\"} 53... Kd6 {-1.15/30 4.520s,
+tl=29.537s, latency=0.001s, n=925385971, sd=44, nps=204776000, hashfull=997,
+tbhits=0, pv=\"e6d6 c2g2 a7a6 g2g1 d6e6 g1e1 e6d6 e1d1 g4f4 d1g1 f4g4 g1g2 d6e6
+d4e3 e6e5 e4c2 g4c4 e3f3 e5d6 f3g3\"} 54. Rg2 {+2.33/52 1.511s, tl=12.151s,
+latency=0.001s, n=220949202, sd=73, nps=146323974, hashfull=642, tbhits=2613495,
+pv=\"c2g2 a7a6 g2b2 g4h4 b2b6 d6c7 b6b4 h4g4 b4b7 c7d6 b7b1 g4h4 b1b3 h4g4 b3b6
+d6e7 b6b1 e7d6 b1g1 d6e6 g1a1 e6d6 a1a2 g4h4 a2c2 h4g4 c2g2 a6a5 g2g1 d6e6 g1h1
+g4f4 h1h6 e6d7 h6h3 f4g4 h3h1 d7d6 h1b1 g4f4 b1b6 d6c7 b6b7 c7d6 b7b3 f4g4 b3b6
+d6e7 b6b1 e7d6 b1h1 d6e6 h1d1 g4h4 d1c1 e6d6 c1g1 h4g4 g1g2 d6e6 g2e2 g4f4 e2c2
+f4g4 c2b2\"} 54... Ke6 {-1.30/28 2.401s, tl=29.136s, latency=0.000s,
+n=519387265, sd=43, nps=216321000, hashfull=997, tbhits=0, pv=\"d6e6 g2g1 e6d6
+g1b1 g4h4 b1c1 h4f4 c1c6 d6d7 c6c3 f4g4 c3c2 d7d6 c2b2 a7a6 b2g2 d6e6 g2c2 g4f4
+c2c5 f4g4 c5c1 g4h4\"} 55. Ke3 {+2.62/30 1.406s, tl=12.745s, latency=0.001s,
+n=225002221, sd=57, nps=160143929, hashfull=471, tbhits=1887388, pv=\"d4e3 e6e5
+e4c2 g4c4 e3f3 c4c3 f3g4 e5d6 g4g5 d6c7 g5g4 c7b6 g4h3 a7a6 g2d2 c3e3 c2d1 b6a5
+d2d4 e3c3 d4d5 a5b4 d5d8 b4a5 d8d7 c3e3 d7d6 e3c3 d6d8 c3e3 d8d7 e3c3 d7d6 c3e3
+d6d5 a5b4\"} 55... Kd6 {-1.38/26 2.506s, tl=28.630s, latency=0.000s,
+n=481738007, sd=54, nps=192233000, hashfull=997, tbhits=0, pv=\"e6d6 e4c2 d6e5
+e3f3 g4f4 f3g3 e5d4 g2e2 d4c3 c2e4 f4f6 e4f3 c3b3 e2e4 b3a3 g3g4 f6a6 f3d1 a6a5
+g4f3 a5a6 f3e3 a3b2 e3d3 b2c1 d1e2 c1b2 d3e3 a6a5 e2b5\"} 56. Bc2 {+2.90/27
+1.453s, tl=13.292s, latency=0.000s, n=233582933, sd=54, nps=160759072,
+hashfull=596, tbhits=1818240, pv=\"e4c2 d6d5 c2b3 d5e5 e3f3 g4d4 b3c2 d4f4 f3g3
+e5d4 g2e2 d4c3 c2e4 f4f6 e4f3 c3b3 e2e4 b3a3 g3g4 f6a6 f3d1 a6a5 g4f3 a7a6 f3e3
+a5f5 e4d4 f5f6 e3d2 f6e6 d2d3 e6c6 d4c4 c6b6 d3c3 b6e6\"} 56... Ke5 {-1.48/31
+2.705s, tl=27.925s, latency=0.000s, n=521127184, sd=56, nps=192653000,
+hashfull=997, tbhits=0, pv=\"d6e5 e3f3 g4f4 f3g3 e5d4 g2e2 d4c3 c2e4 f4f6 e4f3
+c3b3 e2e4 b3a3 g3g4 f6a6 f3d1 a6a5 e4d4 a3b2 d4d7 b2a3 g4f3 a5f5 f3e3 f5f8 d7a7
+f8g8 e3f3 g8e8 f3g3 e8e1\"} 57. Kf3 {+3.06/33 1.391s, tl=13.901s,
+latency=0.001s, n=218446070, sd=59, nps=157155446, hashfull=797, tbhits=2294646,
+pv=\"e3f3 g4f4 f3g3 e5d4 g2e2 d4c3 c2e4 f4f6 e4f3 c3b3 e2e4 b3a3 g3g4 f6a6 f3d1
+a6a5 g4f3 a5f5 f3e3 f5f8 d1e2 f8g8 e3f3 g8b8 e2b5 b8g8 e4e3 a3b4 e3e6 g8g7 e6a6
+b4c3 a6c6 c3b4 f3g4 g7g8 c6e6 b4a3 e6a6 g8g7 a6c6 a3b4\"} 57... Rf4+ {-1.60/29
+2.145s, tl=27.780s, latency=0.000s, n=416661665, sd=58, nps=194247000,
+hashfull=998, tbhits=0, pv=\"g4f4 f3g3 e5d4 g2e2 d4c3 c2e4 f4f6 e4f3 c3b4 e2e4
+b4a3 g3g4 f6a6 f3d1 a6a5 e4d4 a3b2 d4d7 b2c3 g4g3 c3b2 g3f3 b2c1 f3e4 a5a6
+d7d4\"} 58. Kxg3 {+3.16/31 1.046s, tl=14.855s, latency=0.001s, n=169670751,
+sd=58, nps=162364355, hashfull=858, tbhits=1885628, pv=\"f3g3 e5d4 g2e2 d4c3
+c2e4 f4f6 e4f3 c3b4 e2e4 b4a3 g3g4 f6a6 f3d1 a6a5 g4f3 a5f5 f3e3 f5f1 d1e2 f1c1
+e2b5 c1d1 e3f3 d1d8 e4e3 a3b4 e3e8 d8d6 e8e4 b4a5 b5e8 d6d1 f3g4 d1g1 g4f5 g1g3
+e4e5 a5b4\"} 58... Kd4 {-1.70/31 2.184s, tl=27.596s, latency=0.000s,
+n=449691577, sd=56, nps=205902000, hashfull=998, tbhits=0, pv=\"e5d4 g2e2 d4c3
+c2e4 f4f6 e4f3 c3b4 e2e4 b4a3 g3g4 f6a6 f3d1 a6a5 e4d4 a3b2 g4g3 b2a3 d4d7 a3b2
+g3f3 b2c3 f3e4 a5a6 d7d5 a6g6 e4f5 g6g7\"} 59. Re2 {+3.32/36 1.498s, tl=15.357s,
+latency=0.000s, n=252160879, sd=74, nps=168331694, hashfull=896, tbhits=2906099,
+pv=\"g2e2 d4c3 c2e4 f4f6 e4f3 c3b4 e2e4 b4a3 g3g4 f6a6 f3d1 a6a5 g4f3 a7a6 f3e3
+a5d5 e4d4 d5e5 e3d2 e5e7 d2c3 e7e8 c3d3 e8g8 d1g4 g8h8 d3e4 a3b3 g4d7 h8h5 e4f5
+h5h7 f5g6 h7e7 g6g5 e7g7 g5f6 g7h7 d7e8 h7h6 f6g5 h6h8 e8d7 h8g8 g5f6 g8d8\"}
+59... a6 {-1.32/31 4.074s, tl=25.522s, latency=0.000s, n=889512903, sd=53,
+nps=218338000, hashfull=998, tbhits=0, pv=\"a7a6 e2e7 d4c3 c2e4 c3b4 e4c6 f4f1
+e7e5 f1c1 c6e8 c1g1 g3f3 g1f1 f3g4 f1g1 g4f5 g5g4 e5e4 b4a5 e4g4 g1d1 g4e4 d1d2
+f5f6 d2d3 e4g4 d3f3 f6g5 f3e3\"} 60. Re6 {+3.52/37 1.390s, tl=15.967s,
+latency=0.001s, n=237877469, sd=64, nps=171258077, hashfull=843, tbhits=2880569,
+pv=\"e2e6 d4c3 c2e4 c3b4 e4c6 f4f1 e6e4 b4c5 c6d7 c5b6 d7e8 f1g1 g3f2 g1c1 e4e6
+b6b7 f2f3 c1c4 e6g6 c4c8 e8d7 c8c1 g6g5 b7b6 g5d5 c1g1 f3f4 g1a1 f4f5 b6c7 d5d4
+a1e1 f5f6 e1f1 f6g5 c7b6 d4e4 b6a5 d7e8 f1f8 g5g4\"} 60... Kc3 {-1.37/27 2.011s,
+tl=25.511s, latency=0.000s, n=457086866, sd=57, nps=227293000, hashfull=998,
+tbhits=0, pv=\"d4c3 c2e4 c3b4 e4c6 f4d4 c6e8 b4a5 e6e5 a5b4 e5g5 d4d1 g3f2 d1c1
+g5g1 c1c8 g1e1 c8c2 f2f3 c2d2 e1g1\"} 61. Be4 {+3.57/48 2.704s, tl=15.263s,
+latency=0.000s, n=419143969, sd=65, nps=155008864, hashfull=969, tbhits=8010657,
+pv=\"c2e4 c3b4 e4c6 f4f1 e6e4 b4c5 c6d7 c5b6 d7e8 b6a5 g3g4 f1g1 g4f5 a5b6 e4e6
+b6a5 e6e5 a5b4 e5d5 g1e1 d5d4 b4a5 e8d7 e1g1 d4c4 g1d1 d7c6 d1d8 f5g5 d8f8 c4e4
+f8f2 e4e1 f2d2 g5f5 d2f2 f5e5 f2f8 e1e4 f8f3 e5d4 f3f8 c6e8 f8f1 d4e5 a5b6
+e5d5\"} 61... Kb4 {-0.88/26 3.549s, tl=23.962s, latency=0.000s, n=819413900,
+sd=44, nps=230885000, hashfull=998, tbhits=0, pv=\"c3b4 e4c6 f4c4 c6e8 b4a5 e6e5
+a5b4 e5g5 c4c3 g3f4 c3c8 e8d7 c8c1 f4e5 c1d1 e5e6 d1e1 e6d6 e1f1\"} 62. Bc6
+{+3.57/54 1.542s, tl=15.721s, latency=0.000s, n=240180305, sd=62, nps=155758952,
+hashfull=735, tbhits=3747531, pv=\"e4c6 f4f1 e6e4 b4c5 c6d7 c5b6 d7e8 b6a5 g3g4
+f1g1 g4f5 a5b6 e4e6 b6a5 e6e5 a5b4 e5d5 g1e1 d5d4 b4a5 e8d7 e1g1 d4e4 a5b6 e4e6
+b6a5 e6g6 g1f1 f5g5 f1f7 d7e8 f7e7 e8c6 e7f7 g6e6 f7f1 e6e4 f1f8 c6e8 f8f2 e4e5
+a5b4 e5e6 b4a5 e6e4 f2f3 e4e5 a5b6 e8d7 f3f2 e5e4 b6a5 e4d4 f2f1\"} 62... Rc4
+{-0.38/23 2.404s, tl=23.558s, latency=0.001s, n=531928736, sd=45, nps=221360000,
+hashfull=998, tbhits=0, pv=\"f4c4 c6e8 b4a5 e6e5 a5b4 e5g5 c4c8 g5e5 c8c2 g3f3
+c2c1 e5e4 b4a5 e4g4 c1c8 e8g6 c8c3 f3f2 c3c8\"} 63. Bd7 {+3.57/45 4.637s,
+tl=13.084s, latency=4.082s, n=97912968, sd=76, nps=176419762, hashfull=491,
+tbhits=933437, pv=\"c6d7 c4d4 d7e8 b4a5 e6g6 d4d3 g3g4 d3e3 e8d7 e3e1 g4g5 e1d1
+d7c6 d1f1 g6d6 f1g1 g5f4 g1f1 f4g4 a5b4 d6e6 b4a5 e6e5 a5b4 c6e8 f1g1 g4f5 g1f1
+f5e6 f1d1 e8c6 d1d3 e5e4 b4a5 c6d7 d3d1 d7e8 d1d3 e6f6 d3f3 f6e5 f3d3 e5f4 d3h3
+e4d4 h3a3\"} 63... Rd4 {-0.15/22 2.189s, tl=23.369s, latency=0.000s,
+n=478584928, sd=46, nps=218631000, hashfull=998, tbhits=0, pv=\"c4d4 d7c6 d4c4
+c6e8 b4a5 e6e5 a5b4 e5g5 c4c1 g3f2 c1c3 g5g3 c3c5 f2g2 c5c1 g3e3 c1d1 e3e2
+d1d3\"} 64. Be8 {+4.18/45 1.234s, tl=13.850s, latency=0.000s, n=215043124,
+sd=62, nps=174265092, hashfull=576, tbhits=2650904, pv=\"d7e8 b4a5 e6e5 a5b6
+e5g5 d4e4 e8d7 e4d4 g5g7 b6c5 g3f3 d4d3 f3f2 d3d5 f2e3 d5e5 e3f3 e5d5 d7c8 c5b4
+g7g4 b4a5 g4e4 d5d3 f3e2 d3a3 c8d7 a5b6 e2d2 b6a5 e4g4 a3a1 g4d4 a1a3 d4e4 a3b3
+d7g4 b3g3 g4e2 g3g6 e2d3 g6c6 d3c2 c6c7 d2d3 c7c8 e4d4 c8c5 d3d2 c5c8 c2g6\"}
+64... Ka5 {-0.10/22 2.610s, tl=22.759s, latency=0.001s, n=616892477, sd=52,
+nps=236447000, hashfull=998, tbhits=0, pv=\"b4a5 e6e5 a5b4 e5e3 b4a5 e3e1 d4f4
+e1e5 a5b4 e5e6 b4a5 e6e7 f4f5 g3g4 f5f1 e7e5 a5b4 e5e6\"} 65. Re5+ {+4.44/40
+1.604s, tl=14.246s, latency=0.001s, n=278672260, sd=63, nps=173844204,
+hashfull=708, tbhits=3445193, pv=\"e6e5 a5b6 e5g5 d4e4 e8d7 e4d4 g5g7 b6c5 g3f3
+d4d3 f3f2 d3d1 f2e2 d1d6 e2e3 c5b6 g7e7 d6d1 e3e2 d1h1 e7e4 b6c5 e2f3 h1h7 d7g4
+h7c7 f3e3 c5b6 e3d2 c7c5 g4e2 b6a5 e4d4 c5g5 e2d3 g5c5 d4e4 c5g5 d3c2 g5g7 e4d4
+g7g3 c2d1 g3g7 d2c3 g7g3 c3c4\"} 65... Kb4 {-0.18/22 2.107s, tl=22.652s,
+latency=0.001s, n=506492250, sd=42, nps=240499000, hashfull=998, tbhits=0,
+pv=\"a5b4 e5g5 d4d6 g5g4 b4a5 g3f3 d6f6 f3e3 f6e6 g4e4 e6d6 e8h5 d6h6 h5e2 h6d6
+e2f3 d6d8 f3g4 d8h8 g4e2 h8d8 e2d3 d8d7\"} 66. Rxg5 {+4.85/40 1.748s,
+tl=14.498s, latency=0.000s, n=311341792, sd=62, nps=178113153, hashfull=861,
+tbhits=5050184, pv=\"e5g5 d4d2 g5e5 d2d4 e5e7 d4d1 e7e6 d1d8 g3f3 b4a5 e8c6 d8d4
+e6e4 d4d6 c6e8 d6f6 f3e3 a5b6 e3d4 f6d6 d4c3 d6f6 e4e5 f6f4 e5e6 b6b7 c3d3 f4b4
+e6e4 b4b1 d3d4 b1a1 e4e6 a1a2 d4e5 b7a7 e5d6 a7b6 d6d5 b6a5 d5e5 a2e2 e5f6\"}
+66... Rd1 {-0.09/21 3.580s, tl=21.072s, latency=0.001s, n=897882857, sd=40,
+nps=250875000, hashfull=998, tbhits=0, pv=\"d4d1 g5g4 b4a5 g4e4 d1c1 e4e5 a5b4
+g3f4 c1d1 e5e4 b4a5 e4e3 d1f1 f4g5 a5b4 e3e4 b4a5 e4e6 f1g1 g5f6 g1c1\"} 67.
+Rg4+ {+4.95/45 1.524s, tl=14.974s, latency=0.001s, n=271196865, sd=80,
+nps=178067541, hashfull=846, tbhits=3648016, pv=\"g5g4 b4c5 g3f2 c5b6 e8g6 d1a1
+f2e2 a1c1 e2d2 c1c7 d2d3 c7c1 g4e4 c1d1 d3c4 d1c1 c4d5 c1d1 d5e5 b6c7 e5f5 d1f1
+f5e6 f1d1 g6e8 c7b6 e6e7 b6a5 e4e6 d1g1 e7d6 a5b6 e6e5 g1d1 d6e7 b6a7 e5e4 a7b6
+e4e6 b6a5 e8d7 d1d4 e7d8 d4d3 d8c7 d3d5 d7c6 d5g5 c7d6 g5g7 c6e8 a5b4 e8d7
+b4a5\"} 67... Ka5 {-0.04/20 1.731s, tl=21.341s, latency=0.000s, n=404153598,
+sd=41, nps=233479000, hashfull=998, tbhits=0, pv=\"b4a5 g4g5 a5b4 g3f2 d1d8 g5g4
+b4a5 e8g6 d8d5 f2e2 d5d7 e2e3 d7d5 g6c2 d5h5 e3d2 h5h2 d2c3 h2h3 c3d4\"} 68. Kf2
+{+4.95/42 4.496s, tl=12.478s, latency=4.201s, n=55391723, sd=61, nps=187768552,
+hashfull=0, tbhits=190245, pv=\"g3f2 a5b6 e8g6 d1d6 f2e3 d6c6 g6e8 c6c1 e3d2
+c1c8 g4e4 b6a5 d2d3 c8d8 d3c3 d8d5 e4e6 d5c5 c3d4 c5c1 d4e5 c1c3 e5f6 c3h3 e6e4
+h3h7 f6e6 h7h2 e6d5 a5b6 e4e6 b6a5 e6e5 h2a2 d5c5 a2a1 e5e6 a1d1 c5c4 d1c1 c4d5
+c1c3 d5e5 c3d3 e8c6 a5b4 e5f6 b4a3 c6e8 a6a5 e6e5 d3d6 f6f5 d6a6 f5e4 a6a7 e5e6
+a3b4 e4d5 a7g7 d5d6\"} 68... Rd6 {0.00/20 2.612s, tl=20.729s, latency=0.000s,
+n=618479312, sd=40, nps=236783000, hashfull=998, tbhits=0, pv=\"d1d6 f2e3 d6e6
+g4e4 e6d6 e4g4\"} 69. Ke3 {+11.26/19 1.876s, tl=12.602s, latency=0.000s,
+n=344158416, sd=146, nps=183453313, hashfull=513, tbhits=3233329, pv=\"f2e3 d6b6
+e3d3 b6b3 d3d2 b3b7 d2c3 b7c7 c3b3 c7b7 b3a3 a5b6 e8g6 b7c7 a3b3 c7d7 b3c3 d7e7
+g4e4 e7c7 e4c4 c7g7 g6e4 g7g1 c4c6 b6a7 c6e6 g1g4 c3c4 a6a5 c4d4 g4g3 d4c5 g3g7
+e4c6 g7f7 c6b5 f7f5 c5d4 f5f8 d4d5 a7b7 d5e4 f8h8 b5c6 b7a7 e4e5 h8h7 e5d6 a7b6
+d6d5 b6a7 d5d4 h7h5 c6e8 h5h8 d4c5 h8h7 c5b5 h7h8 b5c6 a7a6 c6c5 a6b7 e6e5 h8h7
+c5b5 h7h5 e8c6 b7a7 e5h5 a7b8 b5c5 b8c7 c6b5 c7c8 h5e5\"} 69... Re6+ {-0.47/21
+2.417s, tl=20.312s, latency=0.000s, n=585784910, sd=42, nps=242360000,
+hashfull=998, tbhits=0, pv=\"d6e6 g4e4 e6d6 e4e5 a5b4 e3f4 d6d1 e5e4 b4a5 f4f5
+d1d6 e4e3 d6d1 e3e5 a5b4 e5e4 b4a5 f5f4 d1d8 e4e7 d8d4 f4f5 d4d8\"} 70. Re4
+{+36.32/22 1.014s, tl=13.588s, latency=0.000s, n=193367101, sd=133,
+nps=190697338, hashfull=547, tbhits=1879045, pv=\"g4e4 e6d6 e3f4 a5b6 f4f5 d6d8
+f5f6 d8c8 e4e5 c8c2 e5e6 b6a5 e6e4 c2f2 f6e7 f2d2 e8d7 a5b6 e4e6 b6b7 d7e8 b7a7
+e7f6 d2d5 e6e7 a7b6 e7e5 d5d2 e5e6 b6a5 f6e7 d2d5 e8c6 d5d2\"} 70... Rd6
+{-0.45/20 2.965s, tl=19.347s, latency=0.001s, n=727014807, sd=40, nps=245281000,
+hashfull=998, tbhits=0, pv=\"e6d6 e3f4 d6d2 f4f5 d2f2 f5e5 f2c2 e5e6 a5b6 e4e5
+c2a2 e8d7 a2a1 e6d6 a1a3 d6e7\"} 71. Kf4 {+34.84/22 4.250s, tl=11.338s,
+latency=3.598s, n=124107421, sd=129, nps=190348805, hashfull=571,
+tbhits=1322542, pv=\"e3f4 d6d2 f4f5 d2f2 f5e6 a5b6 e6e7 f2d2 e4e6 b6a7 e7f6 d2d5
+e6e7 a7b6 e7e5 d5d1 e5e6 b6a7 f6e5 d1g1 e5d6 a7b6 d6d7 b6a7 e8g6 a6a5 g6e4 g1g4
+d7c6 g4g3\"} 71... Rd8 {-2.12/18 3.200s, tl=18.147s, latency=0.000s,
+n=729799284, sd=39, nps=228062000, hashfull=998, tbhits=0, pv=\"d6d8 f4f5 a5b6
+e4e5 b6c7 e5e6 d8d5 f5f6 c7d8 e8g6 d5a5 g6c2 a5c5 c2d3 c5d5 d3e2 d5d4 e6a6 d4f4
+f6e6 f4b4 e2b5\"} 72. Kg5 {+91.14/22 3.844s, tl=9.494s, latency=0.971s,
+n=465452307, sd=129, nps=162009156, hashfull=700, tbhits=24838456, pv=\"f4g5
+d8d6 g5f5 d6d3 e4e5 a5b6 e5e6 b6a5 f5f6 d3c3 f6e7 c3h3 e7d8 h3h7 e8d7 h7f7 d8c8
+f7g7 e6d6 g7h7 c8b7 h7h3 d6a6 a5b4 d7h3 b4c5 b7c7 c5b4 h3f5 b4c5 f5d7 c5b4 a6b6
+b4c3 b6c6 c3d4 c6c4 d4c4 a4a5 c4b4 c7b6 b4c3\"} 72... Kb6 {-2.54/24 2.352s,
+tl=17.795s, latency=0.000s, n=538126983, sd=49, nps=228795000, hashfull=998,
+tbhits=0, pv=\"a5b6 g5f6 b6c7 e4e7 c7d6 e7e5 a6a5 e5e6 d6c7 f6e5 d8d1 e8b5 c7b7
+e6h6 d1d2 h6f6 b7c8 f6d6 d2a2\"} 73. Kf6 {+11.61/18 2.319s, tl=9.175s,
+latency=0.001s, n=412641873, sd=133, nps=178016338, hashfull=744,
+tbhits=22380545, pv=\"g5f6 d8d3 e4e6 b6a5 f6e7 d3h3 e7d8 h3h7 e6e5 a5b4 e5e7
+h7h2 d8c7 h2h8 e7e4 b4a5 e4e5 a5b4 e8c6 h8h2 e5e6 h2h8 c6d7 b4a5 e6d6 h8h2 c7b7
+h2b2 b7a7 b2b6 d6d5 a5b4 a7b6 a6a5 d5c5 b4b3 c5c3 b3c3 b6a5 c3d2 a5b6 d2d3 a4a5
+d3c4 b6b7 c4d4 d7e8 d4e5 a5a6 e5d5 e8c6 d5c4 b7b6 c4c3 c6b5 c3c2\"} 73... Kc7
+{-2.97/24 3.094s, tl=16.701s, latency=0.001s, n=742237028, sd=46, nps=239973000,
+hashfull=998, tbhits=0, pv=\"b6c7 e4e7 c7d6 e7e5 d8a8 e5e6 d6c5 f6e7 a8a7 e8d7
+c5d5 e6c6 a7a8 c6f6 a8h8 f6e6 d5d4 e7d6 h8h7\"} 74. Re6 {+12.14/20 3.454s,
+tl=7.721s, latency=0.906s, n=395176335, sd=97, nps=155092753, hashfull=892,
+tbhits=19241309, pv=\"e4e6 c7b7 f6e5 b7c7 e8g6 d8b8 g6e4 a6a5 e6c6 c7d7 c6a6
+d7c7 a6a5 b8d8 a5a6 d8e8 e5d4 e8d8 d4c5 d8d2 a4a5 d2e2 a6c6 c7b8 c6b6 b8c7 b6b7
+c7d8 e4d5 d8e8 a5a6 e8f8 b7a7 e2e1 c5d6 e1a1 d5b3 a1b1 a7f7 f8g8 d6d7 b1d1 b3d1
+g8f7 d7d6 f7f6 d6c5 f6f5 d1f3 f5f4 f3d5 f4g4 d5b7 g4f4 c5c4 f4e5 c4b5 e5d4 b7f3
+d4d3 f3c6 d3e3 c6b7\"} 74... Rd1 {-2.92/19 2.989s, tl=15.712s, latency=0.001s,
+n=706767202, sd=46, nps=236535000, hashfull=998, tbhits=0, pv=\"d8d1 e6a6 d1f1
+f6e7 f1c1 e8b5 c1e1 e7f6 e1h1 a6e6 h1h4 e6c6 c7d8 c6d6 d8c7 d6e6 h4h1 e6a6 h1c1
+f6e5 c1a1 a6c6 c7b7\"} 75. Bg6 {+12.17/24 3.191s, tl=6.530s, latency=1.829s,
+n=194660270, sd=109, nps=142922371, hashfull=835, tbhits=10405683, pv=\"e8g6
+c7b7 g6e4 b7a7 f6e5 a6a5 e4c6 d1a1 e5d5 a1d1 d5c5 d1b1 c6d5 b1c1 d5c4 c1b1 e6a6
+a7b8 a6a5 b8c8 a5a6 c8c7 c4b5 c7b8 a6b6 b8c7 b6c6 c7b7 b5a6 b7a7 c6e6 b1b2 a6b5
+b2c2 b5c4 c2b2 a4a5 b2b8 e6e7 b8b7 e7b7 a7b7 c4d5 b7a6 c5b4 a6a7 b4b5 a7b8
+b5b6\"} 75... a5 {-2.47/17 1.749s, tl=15.963s, latency=0.000s, n=390898684,
+sd=43, nps=223498000, hashfull=998, tbhits=0, pv=\"a6a5 e6e7 c7d6 e7e5 d1f1 g6f5
+f1f3 e5a5 f3e3 a5a6 d6c7 f5c2 c7b8 f6f5 b8c7 c2e4 e3h3 a6c6 c7d7\"} 76. Ra6
+{+12.17/18 1.297s, tl=7.233s, latency=0.001s, n=172044885, sd=143,
+nps=132750682, hashfull=770, tbhits=10778067, pv=\"e6a6 d1f1 f6g5 f1g1 g5f5 g1f1
+f5e5 f1e1 e5d4 c7d7 g6f5 d7e7 a6a7 e7d6 f5d3 e1d1 a7a5 d1d2 a5a6 d6e7 a6a8 e7f7
+a4a5 f7e7 a8g8 d2d1 g8g6 d1c1 a5a6 c1a1 d4c5 e7d7 c5b6 a1a3 d3c4 d7e7 g6g2 a3a1
+g2g7 e7f6 g7f7 f6g5 b6c5 a1c1 f7f8 c1b1 f8g8 g5f6 g8g6 f6e5 g6b6 b1a1 b6b7 e5f6
+b7f7 f6e5 f7e7 e5f6 e7c7 a1a5 c5b4 a5g5 c7c8 g5g7 c8a8 g7g5 c4d5 g5g4 b4c5 f6f5
+d5f3 f5e6 f3g4 e6f7 a8f8 f7f8 g4e2 f8e7 e2d3 e7f6 d3c4 f6e5 c4e2 e5e4 e2c4\"}
+76... Rd5 {-2.63/18 2.911s, tl=15.052s, latency=0.000s, n=678626335, sd=40,
+nps=233124000, hashfull=998, tbhits=0, pv=\"d1d5 f6e6 d5c5 g6e8 c7b7 a6d6 c5c8
+e8b5 c8g8 d6d7 b7b6 d7d5 b6c7 d5c5 c7d8 b5c4 g8g6 e6e5\"} 77. Be8 {+12.17/23
+3.110s, tl=6.123s, latency=1.989s, n=158856632, sd=105, nps=141709752,
+hashfull=813, tbhits=8922067, pv=\"g6e8 d5d8 e8b5 d8f8 f6e5 f8d8 e5f4 d8f8 f4e3
+c7d8 a6a5 f8f6 b5c4 d8e7 a5b5 f6c6 e3d4 c6d6 d4c5 d6h6 b5b6 h6h5 c5b4 h5g5 b6b7
+e7f6 b7b5 g5b5 b4b5 f6f5 a4a5 f5g6 a5a6 g6f5 b5b6 f5f6 b6c5 f6g7 c4b5 g7f6 b5d3
+f6f7 d3e4 f7e7 e4g2 e7f6 g2c6 f6f5 c6f3\"} 77... Rd8 {-3.64/17 2.819s,
+tl=14.233s, latency=0.001s, n=670131227, sd=38, nps=237803000, hashfull=998,
+tbhits=0, pv=\"d5d8 f6e7 d8d1 a6c6 c7b7 c6c4 d1e1 e7d8 b7b6 d8d7 e1d1 d7c8 d1d6
+c4c7 d6h6 c7b7 b6c5 b7b5 c5d4 c8c7 h6h7 c7b6 d4c3 e8c6 h7h8 b6c7 h8h7 c6d7\"}
+78. Ke7 {+12.17/21 2.634s, tl=5.489s, latency=0.000s, n=369298772, sd=157,
+nps=140204545, hashfull=851, tbhits=22601680, pv=\"f6e7 d8d5 e7e6 d5g5 e6f6 g5g8
+e8g6 g8f8 f6e5 f8d8 a6a5 c7c6 g6e4 c6c7 a5a6 d8e8 a6e6 e8b8 e6c6 c7b7 c6c5 b7a6
+e4d3 a6a7 a4a5 a7a8 c5d5 a8b7 e5d4 b8c8 d5c5 c8d8 d4e4 d8e8 c5e5 e8f8 d3c4 f8f6
+c4e2 f6f7 e5e6 f7g7 e4d5 g7f7 e2b5 f7f5 e6e5 f5f7 d5d6 f7h7 b5e2 h7h6 d6d7 h6h7
+e5e7 h7h8 e7e4 h8h7 d7e8 h7h8 e8f7 h8h7 f7f6 h7h6 f6f5 h6h1 e4e5 h1h7 f5e6 h7h6
+e6e7 h6h7 e7f6 h7h6 f6g7 h6d6 e5e4 d6d7 g7g8 d7d8 g8f7 b7c7 e2c4 d8d7 e4e7 c7c6
+e7d7 c6d7 c4b5 d7d6 f7g8 d6e5 g8f8 e5e6 b5c4 e6f5 f8f7 f5e4 c4d3 e4e3 d3b5 e3d4
+f7e6 d4c5 b5e2 c5d4 a5a6 d4e3 e2f1 e3f3 e6d6 f3e4 f1b5 e4f4 d6e6 f4e4 b5e8
+e4e3\"} 78... Rd4 {-5.82/19 2.203s, tl=14.030s, latency=0.001s, n=534255369,
+sd=44, nps=242622000, hashfull=998, tbhits=0, pv=\"d8d4 a6c6 c7b7 c6d6 d4c4 e8b5
+c4c1 e7d7 c1c7 d7e6 c7c2 d6d5 c2f2 e6d6\"} 79. Bb5 {+12.17/21 2.189s, tl=5.300s,
+latency=0.000s, n=307211362, sd=123, nps=140343244, hashfull=881,
+tbhits=18714517, pv=\"e8b5 d4e4 e7f8 e4f4 f8g7 f4g4 g7h6 g4e4 h6g5 e4e5 g5f4
+e5h5 a6a5 c7b6 a5a6 b6c7 a6e6 h5h4 f4e5 h4h3 e5d4 h3b3 d4c5 b3a3 c5b4 a3a2 e6e7
+c7d8 e7e8 d8c7 e8e6 a2c2 e6a6 c2b2 b4c5 b2c2 b5c4 c2b2 a6c6 c7d7 c6h6 b2c2 h6a6
+d7e7 a4a5 c2b2 a6a7 e7e8 c4b5 e8f8 c5b6 b2c2 a7a8 f8e7 a5a6 c2b2 a8e8 e7f6 e8c8
+f6f7 c8c4 b2a2 c4b4 f7g6 b5d3 g6h6 d3e4 h6g5 e4d5 a2a1 d5c4 g5g6 c4e2 g6g5 b4g4
+g5f6 g4f4 f6e6 f4f1 a1f1 e2f1 e6e5 f1c4 e5d4 c4b5 d4d5 b5c6 d5d4 c6g2\"} 79...
+Re4+ {-1.93/15 2.466s, tl=13.564s, latency=0.000s, n=583594057, sd=42,
+nps=236656000, hashfull=998, tbhits=0, pv=\"d4e4 a6e6 e4g4 e6c6 c7b7 c6c4 g4g7
+e7e6 g7g6 e6f7 g6h6 f7g7 h6h3 b5e8\"} 80. Kf7 {+12.17/19 1.595s, tl=5.705s,
+latency=0.000s, n=222435690, sd=151, nps=139458112, hashfull=835,
+tbhits=12965101, pv=\"e7f7 e4d4 f7e6 d4e4 e6d5 e4e3 d5d4 e3a3 a6a5 c7b7 a5a6
+a3b3 d4c4 b3b2 c4c5 b2c2 c5d4 c2b2 a6e6 b7c7 d4c5 b2c2 b5c4 c2g2 e6e7 c7d8 e7e5
+d8c7 a4a5 g2g7 e5e6 g7g5 c4d5 c7d7 e6f6 g5g3 a5a6 g3a3 d5c4 a3a5 c5b6 a5g5 c4b5
+d7e7 f6h6 g5g8 h6h7 e7f6 b5c6 g8b8 b6a5 f6e5 h7h5 e5e6 h5b5 b8c8 a5b6 c8b8 b6c7
+b8d8 b5e5 e6e5 c7d8 e5d4 c6b5 d4e5 b5e8 e5f6 e8h5 f6e6 d8c7 e6e5 h5f7 e5e4 c7d8
+e4d3 f7e8 d3c4 d8e7 c4d4 e7f6 d4d5 f6f7 d5e5 f7g7 e5f5 e8b5\"} 80... Re5
+{-3.00/15 2.521s, tl=13.043s, latency=0.001s, n=600776921, sd=35, nps=238403000,
+hashfull=998, tbhits=0, pv=\"e4e5 a6a5 c7d6 a5a6 d6c5 a6c6 c5b4 c6c8 b4a5 c8b8
+e5e3 b8e8 e3g3 e8a8 a5b6 a8a6 b6c5 b5d7 c5d4 a6d6 d4c5 d6e6 c5d4\"} 81. Kg6
+{+12.17/22 2.423s, tl=5.282s, latency=0.001s, n=338432251, sd=152,
+nps=139732556, hashfull=926, tbhits=19848055, pv=\"f7g6 e5e4 g6f6 e4f4 f6e5 f4g4
+e5d5 g4g5 d5d4 g5g4 d4e3 g4g3 e3e2 g3g2 e2f1 g2h2 f1g1 h2h3 g1g2 h3h5 g2g3 h5d5
+g3h4 d5d4 h4g5 d4d5 g5g6 d5e5 g6g7 e5g5 g7f7 g5f5 f7e7 f5e5 e7f6 e5d5 a6a5 c7b6
+a5a6 b6c5 b5e8 c5b4 a6b6 b4c3 e8b5 c3d2 a4a5 d2c2 b6b7 d5d6 f6f7 c2d2 b7b6 d6d5
+f7g6 d5e5 g6f6 e5d5 f6e6 d5c5 e6e7 c5e5 e7d7 e5d5 b6d6 d5d4 d6d4 d2c3 d7e6 c3b3
+b5c4 b3c3 a5a6 c3d4 e6d7 d4e5 c4f7 e5e4 d7d6 e4f5 f7e8\"} 81... Re1 {-2.82/15
+2.445s, tl=12.598s, latency=0.000s, n=562931521, sd=35, nps=230237000,
+hashfull=998, tbhits=0, pv=\"e5e1 a6a5 c7b6 a5a6 b6c5 g6f6 c5b4 b5d7 b4c3 a6a5
+e1h1 a5c5 c3d3 d7b5 d3e3 f6e6 e3f4 c5f5 f4g4\"} 82. Kg7 {+12.17/22 2.759s,
+tl=4.523s, latency=0.731s, n=278691462, sd=163, nps=137421825, hashfull=881,
+tbhits=16162564, pv=\"g6g7 e1g1 g7h6 g1h1 h6g5 h1a1 g5h4 a1g1 h4h3 g1h1 h3g2
+h1h5 g2g3 h5d5 g3h4 d5d4 h4g5 d4d5 g5g4 d5e5 g4h4 e5e4 h4h3 e4d4 h3g2 d4d2 g2f1
+d2h2 a6a5 h2c2 a5a7 c7b8 a7a6 c2c1 f1f2 c1c2 f2e3 c2c8 a6e6 c8c3 e3d4 c3c8 e6b6
+b8a7 b6a6 a7b8 d4d3 c8d8 d3c3 d8c8 c3b2 c8d8 b2b3 b8c7 a6c6 c7b8 c6b6 b8a7 b6a6
+a7b8 b3c4 d8c8 a6c6 c8d8 c4c5 d8f8 c6e6 b8c7 e6e7 c7d8 e7d7 d8e8 a4a5 f8f5 d7d5
+e8f8 d5f5 f8e7 f5f1 e7e6 f1f8 e6e7 b5d3 e7f8 a5a6 f8e7 c5c6\"} 82... Rh1
+{-2.78/15 2.573s, tl=12.025s, latency=0.000s, n=604540038, sd=33, nps=234955000,
+hashfull=998, tbhits=0, pv=\"e1h1 a6a5 c7b7 a5a6 b7b8 g7g6 h1c1 g6f6 c1h1 f6e6
+h1h2 e6f5 b8b7 a6g6\"} 83. Kf6 {+11.96/15 2.621s, tl=3.902s, latency=1.404s,
+n=164737048, sd=139, nps=135363227, hashfull=765, tbhits=9865540, pv=\"g7f6 h1e1
+f6f5 e1h1 f5e5 h1e1 e5d5 e1d1 d5c5 d1a1 a6a7 c7c8 c5b6 c8d8 a7a5 d8e7 a5a7 e7d6
+a4a5 d6e5\"} 83... Rh8 {-3.03/14 2.473s, tl=11.552s, latency=0.000s,
+n=576172821, sd=36, nps=232985000, hashfull=998, tbhits=0, pv=\"h1h8 a6a5 c7d6
+a5a6 d6c5 a6c6 c5b4 c6c4 b4a5 c4c5 a5b4 c5e5 h8a8\"} 84. Ra7+ {+12.00/20 2.511s,
+tl=3.391s, latency=1.288s, n=168679388, sd=168, nps=137922639, hashfull=736,
+tbhits=9692405, pv=\"a6a7 c7b6 a7a6 b6c7 f6e6 h8h6 e6d5 h6h5 d5d4 h5h4 d4d3 h4h3
+d3e2 h3h2 e2e3 h2h3 e3f2 h3h2 f2g1 h2c2 g1h1 c2c1 h1g2 c1c2 g2f3 c2b2 f3e3 b2b3
+e3d2\"} 84... Kb6 {-3.61/16 1.776s, tl=11.776s, latency=0.000s, n=429411108,
+sd=36, nps=241785000, hashfull=998, tbhits=0, pv=\"c7b6 a7a6 b6c5 f6e6 c5b4 a6c6
+h8d8 c6c4 b4b3 c4c5 b3b4 c5d5 d8c8 e6d6 c8c2 d5d4 b4b3 b5c6 c2c3 d4d5 c3h3 d5e5
+b3b4 e5b5 b4c4 b5c5 c4b4 c5g5\"} 85. Ra6+ {+12.10/22 1.363s, tl=4.028s,
+latency=0.001s, n=177012651, sd=146, nps=129965235, hashfull=856,
+tbhits=11406081, pv=\"a7a6 b6c7 f6e5 h8h5 e5f4 c7d8 f4f3 h5g5 f3f2 d8c7 f2f1
+g5f5 f1e2 f5e5 e2d1 e5d5 d1e1 d5d8 e1f1 d8f8 f1g2 f8f7 g2h3 f7h7 h3g4 h7h2 g4g5
+h2g2 g5h5 g2b2 h5h4 c7d8 h4g5 b2g2 g5f4 g2g1 f4e4 g1e1 e4d3 e1e5 a6a5 e5f5 d3e4
+f5c5 a5a6 c5h5 a6b6 h5h4 e4d5 h4h5 d5c6 h5h6 c6c5 h6h5 c5b4 h5g5 a4a5 g5g4 b5c4
+d8e7 b6h6 g4g5 h6h8 g5g4 h8g8 g4f4 a5a6 f4f5 g8g3 f5f4 g3g7 e7d6 g7g8 d6e7 g8g5
+f4f6 b4c5 f6f4 g5g7 e7f6 g7f7 f6e5 f7f4 e5f4 c5d5 f4f5 d5d4 f5f6\"} 85... Kc7
+{-3.22/14 1.492s, tl=12.284s, latency=0.001s, n=364199275, sd=36, nps=244265000,
+hashfull=998, tbhits=0, pv=\"b6c7 a6a5 h8h5 a5a7 c7b6 a7a6 b6c5 f6e7 c5b4 a6a8
+h5h3 b5e8\"} 86. Kf7 {+101.08/20 2.421s, tl=3.607s, latency=0.000s, n=334984034,
+sd=123, nps=138365978, hashfull=931, tbhits=19464261, pv=\"f6f7 h8h1 f7g6 h1h8
+g6g5 h8g8 g5f4 g8f8 f4e4 f8f2 e4e3 f2a2 e3d4 a2f2 d4c3 c7b8 c3d3 f2f5 d3e3 f5f8
+a6a5 b8c7 a5a6 f8b8 e3d4 b8f8 a4a5 f8f5 a6c6 c7d8 c6c5 f5f4 d4d5 f4f5 d5c4 f5f6
+c4b3 f6f3 b3a4 f3f4 b5c4 f4f3 a4b4 f3f4 a5a6 f4f6 c4b5 f6f4 b4a5 d8e7 b5c6 e7f6
+a5b6 f6g7 c6b5 f4f6 b6b7 g7g6 c5c6 f6c6 b5c6 g6h5 c6e8 h5h6 b7b6 h6g5 b6c5 g5f5
+e8b5 f5e5 b5e8\"} 86... Rh1 {-2.55/14 2.543s, tl=11.741s, latency=0.001s,
+n=587839863, sd=34, nps=231250000, hashfull=998, tbhits=0, pv=\"h8h1 a6c6 c7d8
+c6c5 h1e1 f7f6 e1e6 f6f5 e6e7 b5d3 e7d7 d3c4 d8e7 f5e5 d7a7 e5d4 e7f8 c5f5
+f8e8\"} 87. Kg8 {+12.07/19 2.456s, tl=3.151s, latency=0.158s, n=295688538,
+sd=122, nps=128672122, hashfull=932, tbhits=20405265, pv=\"f7g8 h1g1 g8h7 g1h1
+h7g7 h1g1 g7f8 g1h1 f8f7 h1g1 f7e7 g1g7 e7f6 g7g8 f6e6 g8g1 e6f5 g1h1 f5g6 h1h8
+g6g5 h8g8 g5h6 g8h8 h6g6 c7b7 g6f5 h8f8 f5e4 f8d8 e4f3 d8f8 f3e3 b7b8 e3d4 b8c7
+d4c3 f8d8 a6a5 c7b8 a5a6 d8c8 c3d4 c8d8 d4c5 b8b7 a6b6 b7c7 b6g6 d8f8 g6c6 c7d8
+a4a5 f8f5 c5b6 d8e7 b5c4 f5g5 a5a6 g5f5 c6c5 f5f4 c4d5 f4f6 b6a5 f6f5 c5c6 f5g5
+c6e6 e7f7 e6e5 f7f6 e5g5 f6g5 a5b6 g5f6 d5f3 f6g5 f3e2 g5f6 b6c5 f6e5 e2d3 e5f6
+c5d4\"} 87... Rh5 {-2.26/14 1.813s, tl=11.928s, latency=0.001s, n=424102304,
+sd=33, nps=234052000, hashfull=998, tbhits=0, pv=\"h1h5 a6a5 c7b8 a5a6 h5f5 g8h7
+f5g5 a6g6 g5h5 g6h6 h5e5 h7g8 e5f5 h6b6 b8c7 b6a6\"} 88. Kg7 {+101.08/21 2.368s,
+tl=2.783s, latency=0.420s, n=234529310, sd=174, nps=120394922, hashfull=935,
+tbhits=18306630, pv=\"g8g7 h5g5 g7f6 g5d5 f6e6 d5d2 e6e5 d2f2 e5e4 c7c8 e4d3
+f2a2 d3c4 a2c2 c4b3 c2c1 a6a8 c8c7 b3b2 c1d1 a8a6 d1d2 b2b3 d2d5 b3c4 d5d8 a6a5
+c7b6 a5a6 b6c7 a4a5 d8f8 a6c6 c7b7 c4c5 f8f5 c5b4 f5f4 c6c4 f4f5 c4c5 f5f4 b4b3
+f4f3 b3c4 f3f4 c4c3 f4f3 c3d4 f3f6 d4e4 f6d6 c5d5 d6e6 e4f5 e6e7 f5f6 e7h7 f6e6
+h7h6 e6f5 h6h1 f5g5 h1g1 g5f4 g1h1 f4e4 h1h4 e4e3 h4h3 e3f2 h3h2 f2g3 h2h1 d5e5
+h1g1 g3h4 g1h1 h4g4 h1g1 g4f5 g1h1 f5g5 h1g1 g5f4 g1h1 f4e4 h1h7 e5f5 h7e7 e4d3
+e7c7 f5d5 c7e7 d5d4 e7e6 d4d7 b7c8 d7g7 e6d6 d3c4 c8d8 a5a6 d6g6 g7g6 d8e7 c4c5
+e7f7 b5c4 f7g6 c4d3 g6f6 d3b5\"} 88... Rc5 {-2.04/13 2.477s, tl=11.451s,
+latency=0.000s, n=583413621, sd=33, nps=235532000, hashfull=998, tbhits=0,
+pv=\"h5c5 g7f6 c7b8 f6f7 c5c3 f7e7 b8c7 e7f6 c3f3 f6e5 f3h3 a6c6 c7b7 c6c2
+h3h4\"} 89. Ra7+ {+12.01/20 2.306s, tl=2.477s, latency=0.889s, n=189309270,
+sd=167, nps=133598637, hashfull=833, tbhits=12013284, pv=\"a6a7 c7b6 a7a6 b6c7
+g7f8 c5f5 f8e7 f5e5 e7f6 e5e1 f6f7 e1e4 f7g7 e4g4 g7h6 g4e4 h6g5 e4e5 g5h4 e5e4
+h4h3 e4d4 h3g2 d4d2 g2f3 d2a2 f3e3 c7d8 e3d3 d8c8 a6a8 c8c7 d3c3 c7b6 a8a6 b6c7
+c3d4 a2f2 a6a5 c7b6 a5a6 b6b7 a6e6 f2f4 d4d5 f4f5 d5e4 f5h5 e4d4 h5g5 e6e5 g5g4
+d4c5 b7c7 a4a5 g4g7 c5d5 g7f7 e5g5 f7e7 d5d4 e7e6 g5g7 e6e7 g7e7 c7d6 a5a6 d6e7
+d4d5 e7f6 b5e2 f6g7 d5c5 g7f6 e2b5\"} 89... Kd6 {-4.03/14 2.138s, tl=11.313s,
+latency=0.001s, n=513845241, sd=38, nps=240451000, hashfull=998, tbhits=0,
+pv=\"c7d6 a7a5 c5g5 g7f6 g5g3 a5a6 d6c5 a6c6 c5d5 f6e7 g3g7 e7f8 g7g3 f8f7 g3g2
+c6f6 g2h2 f6f5 d5d4\"} 90. Kh6 {+12.10/20 2.250s, tl=2.227s, latency=0.303s,
+n=282147529, sd=132, nps=144913985, hashfull=781, tbhits=16678606, pv=\"g7h6
+c5e5 a7a6 d6c7 h6g6 e5e4 g6f5 e4b4 f5f6 b4g4 f6e5 g4g5 e5f4 g5h5 f4e4 h5g5 e4d4
+g5g4 d4e3 g4g3 e3f4\"} 90... Rc3 {-2.66/16 1.999s, tl=11.314s, latency=0.000s,
+n=472092349, sd=39, nps=236164000, hashfull=998, tbhits=0, pv=\"c5c3 a7a5 c3g3
+a5a6 d6c5 a6f6 g3g1 f6c6 c5b4 c6c4 b4a5 c4c5 a5b4 c5g5 g1c1 b5e8 c1c3 g5d5 c3a3
+e8d7 a3c3\"} 91. Kg6 {+12.13/20 2.203s, tl=2.024s, latency=0.649s, n=214342785,
+sd=106, nps=137929720, hashfull=869, tbhits=13451228, pv=\"h6g6 c3g3 g6h5 g3h3
+h5g4 h3b3 a7a8 b3c3 g4f4 d6e7 f4e4 c3c2 e4e3 c2a2 a8a7 e7d8 a7a6 d8c7 e3d4 a2f2
+d4d5 f2d2 d5c4 d2a2 c4c3 a2f2 c3d4 f2a2 a6a5 c7b6 a5a6 b6c7 d4d5 c7b8 d5c5 b8b7
+a6b6 b7c7 b6c6 c7d7 c5b6 d7e7 c6e6 e7f7 e6e2 a2e2 b5e2 f7e7 a4a5 e7d6 e2d3 d6e6
+a5a6 e6d5 d3f1 d5e5 b6c5 e5f4 c5d5 f4e3 f1b5 e3f4 d5d4\"} 91... Rg3+ {-3.13/16
+2.446s, tl=10.868s, latency=0.000s, n=587965614, sd=46, nps=240378000,
+hashfull=998, tbhits=0, pv=\"c3g3 g6f5 d6c5 a7a5 c5b4 a5a8 g3e3 a8c8 b4a5 c8c5
+a5b6 c5d5 e3a3 b5e8 a3a1 f5f6\"} 92. Kf5 {+12.13/21 2.173s, tl=2.000s,
+latency=0.469s, n=218707057, sd=120, nps=128349211, hashfull=888,
+tbhits=15591862, pv=\"g6f5 g3f3 f5e4 f3f2 a7a5 d6c5 b5d7 c5d6 a5d5 d6c7 d7f5
+c7b6 a4a5 b6b7 e4e5 f2a2 f5d3 b7c6 d3c4 a2b2 e5e4 b2c2 c4b5 c6c7 e4d3 c2b2 d5h5
+b2b3 d3c2 b3g3 c2d2 g3g2 d2c3 g2g3 c3b2 g3g2 b2b3 g2g3 b3b4 g3f3 h5h7 c7d6 h7d7
+d6e6 a5a6 e6e5 b5c4 f3e3 d7e7 e5d4 e7e3 d4e3 b4c3 e3e4 c4d3 e4e5 d3b5\"} 92...
+Rh3 {-3.90/16 2.400s, tl=10.468s, latency=0.000s, n=576974196, sd=40,
+nps=240405000, hashfull=998, tbhits=0, pv=\"g3h3 a7a5 h3h4 a5a8 h4h1 a8c8 h1h3
+c8d8 d6c5 d8b8 h3e3 f5f4 e3b3 f4e4 b3a3 b8c8 c5b6\"} 93. Ke4 {+101.08/20 2.168s,
+tl=2.000s, latency=0.921s, n=157325518, sd=125, nps=126163206, hashfull=824,
+tbhits=11828465, pv=\"f5e4 h3h4 e4f5 h4h3 f5g6 h3g3 g6h7 g3h3 h7g7 h3g3 g7f6
+g3f3 f6g5 f3c3 a7a8 c3g3 g5f4 g3g1 f4e4 g1g4 e4f3 g4g5 f3f2 g5f5 f2e1 f5f3 e1d2
+f3f2 d2c3 f2f3 c3c2 f3f2 c2d3 f2f3 d3e4 f3f2 a8a5 d6c5 b5d7 c5d6 a5d5 d6c7 d7f5
+c7b6 a4a5 b6b7 e4e5 f2a2 f5d3 b7c6 d3c4 a2b2 e5e4 b2c2 c4b5 c6c7 e4d3 c2b2 d5h5
+b2b3 d3e2 b3b2 e2e3 c7d6 e3d4 b2b3 h5g5 b3b4 d4c3 b4b1 b5d3 b1c1 c3d4 d6c7 g5c5
+c1c5 d4c5 c7b8 c5c6 b8c8 a5a6 c8b8 c6b6 b8c8 d3b5 c8d8 b6c6 d8e7 c6c5\"} 93...
+Kc5 {-2.86/17 2.360s, tl=10.108s, latency=0.000s, n=526476050, sd=48,
+nps=223083000, hashfull=998, tbhits=0, pv=\"d6c5 a7a5 c5b4 a5a7 b4c5 a7c7 c5b6
+c7c6 b6a5 c6a6 a5b4 b5e8 h3a3 e4d4 a3a2 a6e6 a2d2 d4e5 d2e2 e5f6 e2h2 f6e7 h2h7
+e7d8\"} 94. Rxa5 {+12.13/20 0.648s, tl=3.352s, latency=0.000s, n=88803259,
+sd=108, nps=137042066, hashfull=629, tbhits=4808677, pv=\"a7a5 c5b4 a5a8 h3h4
+e4f5 h4h5 f5f4 h5h4 f4g3 h4h1 b5e8 h1g1 g3f2 g1a1 f2e3 a1a2 e3e4 a2a1 e4d3 a1a2
+a8b8 b4a5 b8b5 a5a6 b5e5 a2a1 d3c3 a6b6 e8b5 a1a2 c3b4 a2b2 b4c4 b2a2 c4b3 a2a1
+b3b2 a1g1 b2c3 g1c1 c3b4 c1b1 b4c4 b1c1 c4d4 b6a5 b5d7 a5a6 d7e8 c1d1 d4c3 d1c1
+c3d4\"} 94... Rh4+ {-2.86/15 2.292s, tl=9.816s, latency=0.000s, n=516990202,
+sd=36, nps=225562000, hashfull=998, tbhits=0, pv=\"h3h4 e4d3 h4h3 d3d2 h3g3 a5a7
+g3g5 d2c3 g5g1 a7b7 g1b1 b5d3\"} 95. Kd3 {+12.13/17 1.497s, tl=3.855s,
+latency=0.001s, n=209207491, sd=129, nps=139844579, hashfull=924,
+tbhits=11192009, pv=\"e4d3 c5b4 a5a8 h4h3 d3e4 h3h4 e4e5 h4h5 e5f4 h5h4 f4g3
+h4h1 b5e8 h1a1 g3f4 a1a3 e8b5 a3a2 f4e3 a2a1 b5e8 a1a2 e3d3 a2a1 a8b8 b4a5 b8b5
+a5a6 b5e5 a1c1 d3d2 c1g1 e8b5 a6b6 d2c3 g1g7 b5d3 g7a7 c3b4 a7c7 d3b5 b6b7 a4a5
+c7g7 e5d5 b7c7 b4c5 c7b7 d5d7 g7d7 b5d7 b7a6 c5b4 a6b7 d7b5 b7c7 b4c5 c7d8 c5c6
+d8e8 c6d5 e8d8 d5c5 d8e7 b5c4\"} 95... Rh3+ {-4.34/16 2.296s, tl=9.520s,
+latency=0.001s, n=524492224, sd=40, nps=228536000, hashfull=998, tbhits=0,
+pv=\"h4h3 d3d2 c5b4 a5a7 h3a3 a7b7 b4a5 b5d7 a5a6 b7b4 a3a1 d2c2 a1a2 c2b3 a2d2
+d7b5 a6a5 b5e8 d2d3 b3c2 d3f3 b4d4 f3f1 e8b5 f1h1 b5d7\"} 96. Kd2 {+12.16/19
+0.952s, tl=4.903s, latency=0.000s, n=137016381, sd=115, nps=143924769,
+hashfull=775, tbhits=6564849, pv=\"d3d2 c5b4 a5a8 h3a3 b5e8 a3a2 d2d3 a2a1 d3d4
+a1d1 d4e3 d1a1 e3d3 a1a2 a8b8 b4a5 b8b5 a5a6 b5e5 a2a1 e8b5 a6a5 d3c3 a5b6 b5e8
+a1a2 c3b3 a2a1 b3b4 b6a7 e5e7 a7b8 e8b5 b8c8 a4a5 c8d8 e7e2 d8c7 e2e3 a1a2 e3e6
+a2b2 b4c5 b2c2 b5c4 c7d7 e6e5 c2g2 c4b5 d7c7 a5a6 g2g7 e5d5 c7b8 d5d7 g7d7 b5d7
+b8c7 d7c6 c7b8 c5b6 b8c8 c6b5 c8d8 b5c6\"} 96... Kb4 {-4.51/16 1.837s,
+tl=9.683s, latency=0.000s, n=428915482, sd=37, nps=233486000, hashfull=998,
+tbhits=0, pv=\"c5b4 a5a7 h3b3 a7b7 b4a5 b7d7 b3g3 d7d5 g3a3 d5c5 a5b4 c5c4 b4a5
+b5d7 a3g3 c4c5 a5b4\"} 97. Ra8 {+12.16/20 1.441s, tl=5.462s, latency=0.001s,
+n=199598297, sd=113, nps=138609928, hashfull=925, tbhits=10672920, pv=\"a5a8
+h3g3 b5e8 g3g2 d2d3 g2a2 d3e3 a2a1 e3d4 a1d1 d4e5 d1a1 e5e4 a1a2 e4d3 a2a1 a8b8
+b4a5 b8b5 a5a6 b5e5 a1a2 d3c3 a6b6 c3b3 a2a1 b3b4 a1b1 b4a3 b1a1 a3b3 b6a6 e8b5
+a6b6 b5d3 a1d1 b3c2 d1g1 c2c3 g1a1 c3b4 a1a2 a4a5 b6c6 e5e6 c6b7 e6e2 a2a1 e2e4
+a1a2 e4e1 a2b2 b4c5 b7c8 e1e8 c8c7 e8e5 c7d7 d3c4 b2b8 c4b5 d7d8 e5e8 d8c7 e8b8
+c7b8 a5a6 b8c7 b5e8 c7c8 c5b6 c8d8 e8f7 d8e7 f7d5 e7d6 d5c6 d6e5 b6c5 e5e6
+c6g2\"} 97... Rg3 {-5.14/16 2.283s, tl=9.400s, latency=0.001s, n=527955233,
+sd=41, nps=231356000, hashfull=998, tbhits=0, pv=\"h3g3 a8b8 b4a5 b5e8 a5a6 e8c6
+g3h3 c6d7 h3h4 d2d3 a6a7 b8c8 h4h1 d3c2 h1h4 c2c3 h4h1 c3b4 h1b1 b4a5 b1d1\"}
+98. Bd7 {+12.16/19 1.840s, tl=5.622s, latency=0.001s, n=260618500, sd=136,
+nps=141717509, hashfull=888, tbhits=13447323, pv=\"b5d7 g3g5 d7c6 g5h5 c6e8 h5h2
+d2d3 h2a2 a8b8 b4a5 b8b5 a5a6 b5e5 a2a1 d3c4 a6b6 c4b3 b6a6 b3c3 a6b6 c3b2 a1d1
+a4a5 b6b7 e8b5 b7c7 e5g5 d1d2 b2c3 d2a2 c3b4 c7d6 g5d5 d6e6 d5d8 a2a1 d8d3 e6e5
+d3f3 e5e4 f3f1 a1a2 b5c4 a2b2 b4c5 e4e3 f1f7 b2c2 f7b7 c2d2 b7e7 e3f4 e7e2 d2e2
+c4e2 f4e3 e2c4 e3e4 c4b5 e4e3 a5a6 e3e4 c5c6\"} 98... Rg7 {-5.40/15 1.607s,
+tl=9.793s, latency=0.000s, n=379073478, sd=40, nps=235888000, hashfull=998,
+tbhits=0, pv=\"g3g7 a8b8 b4c4 d7b5 c4b4 d2d3 g7g3 d3d4 g3g4 d4e5 g4g5 e5f6 g5g3
+b5e8 b4c3 f6e6 g3g5 b8b5 g5g8\"} 99. Be8 {+12.22/20 2.411s, tl=5.211s,
+latency=0.000s, n=342203634, sd=169, nps=141934315, hashfull=930,
+tbhits=18211114, pv=\"d7e8 g7g5 d2e3 g5g3 e3f4 g3a3 f4e5 a3a1 e5d6 a1a2 d6c7
+a2a1 c7b6 a1a2 e8b5 a2a1 a4a5 b4b3 a5a6 b3b4 b5e8 b4c3 e8c6 a1b1 c6b5 b1b4 b6c6
+c3b2 c6c5 b2c3 c5d6 b4d4 d6c6 c3b4 c6b6 d4d5 b5e8 d5g5 a8b8 g5g4 e8d7 g4c4 b8a8
+c4c5 a8c8 c5g5 d7e8 g5g2 c8c6 g2g7 c6f6 b4c3 f6g6 g7e7 g6g3 c3b4 e8c6 e7e6 g3g4
+b4c3 g4g8 c3d4 g8e8 e6e5 c6b5 e5e8 b5e8 d4d5 e8b5 d5d4 b5c6 d4c3 c6b5\"} 99...
+Rg3 {-5.93/15 1.760s, tl=10.033s, latency=0.000s, n=414443337, sd=41,
+nps=235479000, hashfull=998, tbhits=0, pv=\"g7g3 a8b8 b4c5 d2c2 g3g7 e8b5 c5b4
+c2d3 g7g3 d3d4 g3g4 d4e5 g4g5 e5f6 g5g1 b5e8 b4c3 a4a5 g1e1\"} 100. a5
+{+12.22/18 2.224s, tl=4.987s, latency=0.001s, n=311012245, sd=112,
+nps=139906542, hashfull=899, tbhits=16564522, pv=\"a4a5 g3g4 d2e3 g4g1 e3f4 g1g8
+f4f5 g8g2 f5f6 g2g3 f6e7 g3g7 e7d6 b4c3 a5a6 c3b3 e8b5 g7g6 d6d5 g6f6 b5c6 f6f5
+d5e6 f5g5 e6d6 g5g6 d6c7 g6g7 c7b6 b3c4 a8e8 g7g1 e8e4 c4d3 e4e7 d3c3 e7e6 g1b1
+c6b5 b1a1 e6e8 c3c2 e8c8 c2d2 c8f8 d2c3 f8f1 a1a2 f1e1 c3d4 e1e7 a2a1 e7e2 a1d1
+e2f2 d1a1 f2f1 a1f1 b5f1 d4e5 f1d3 e5d4 d3e2 d4e5 e2b5\"} 100... Rg8 {-4.76/18
+1.678s, tl=10.355s, latency=0.000s, n=381359727, sd=36, nps=227270000,
+hashfull=998, tbhits=0, pv=\"g3g8 d2e3 g8g3 e3f4 g3a3 a5a6 b4c5 e8h5 a3a4 f4e3
+a4a3 e3f2 c5b6 h5e2 b6c6 a8c8 c6b6 c8b8 b6c7\"} 101. Kd3 {+12.22/21 1.684s,
+tl=5.303s, latency=0.001s, n=235208937, sd=115, nps=139755755, hashfull=881,
+tbhits=12287666, pv=\"d2d3 g8g3 d3e2 g3g2 e2e3 g2g1 e3f4 g1g8 f4f5 g8g2 f5f6
+g2g3 f6e7 g3g7 e7e6 g7g4 e6d7 g4d4 d7c6 b4c3 a5a6 d4c4 c6b5 c4b4 b5c5 b4b3 e8b5
+b3b1 a8f8 b1a1 f8f1 a1a5 c5b6 a5a2 f1f3 c3d4 f3d3 d4e5 b5c4 a2b2 b6c6 e5f6 d3b3
+b2b3 c4b3 f6e5 b3f7 e5d4 c6b5 d4c3 b5c5 c3d3 f7d5\"} 101... Rg3+ {-4.35/17
+1.222s, tl=11.133s, latency=0.000s, n=290241861, sd=37, nps=237513000,
+hashfull=998, tbhits=0, pv=\"g8g3 d3d4 g3g4 d4e3 g4g3 e3f4 g3h3 f4e4 h3c3 a5a6
+b4a5 e8h5 c3c7 h5e2\"} 102. Ke2 {+12.22/18 2.764s, tl=4.539s, latency=1.199s,
+n=209392892, sd=147, nps=133797375, hashfull=911, tbhits=12328589, pv=\"d3e2
+g3g2 e2e3 g2g1 e3f3 g1g8 f3f4 g8g1 f4f5 g1g2 f5e6 g2g4 e6d7 g4d4 d7c6 b4c3 a5a6
+d4c4 c6d5 c4b4 d5e5 b4d4 e8b5 d4b4 a8b8 c3c2 e5d5 c2c3 d5c6 b4d4 b8e8 d4d1 c6b6
+d1a1 e8e3 c3d4 e3d3 d4e5 d3d2 a1b1 d2d8 b1b2 d8e8 e5d4 e8e7 b2b1 e7f7 b1b2 f7f4
+d4e5 f4f8 b2a2 f8h8 e5d4 h8h4 d4c3 h4h3 c3d4 h3d3 d4e5 b5c4 a2b2 b6c7 e5f6 d3f3
+f6e5 f3e3 e5f6 e3e1 f6f5 e1e8 f5g5 c7c6 b2c2 e8g8 g5f6 g8f8 f6e5 f8f3 c2d2 f3e3
+e5f4 e3d3 d2b2 d3a3 f4g5 a3a5 g5f4 c6c5 f4f5 a5a4 f5f4 a4b4 b2b4 c5b4 f4g5 b4c5
+g5f5 c4b5 f5f4 b5e8 f4g5 e8f7 g5f6 f7b3 f6e5 c5b6 e5e4 b6c5\"} 102... Rg7
+{-4.32/16 2.427s, tl=10.706s, latency=0.000s, n=571000412, sd=43, nps=235270000,
+hashfull=998, tbhits=0, pv=\"g3g7 e2e3 g7g3 e3f4 g3g7 e8h5 g7g2 h5f3 g2d2 f3e4
+d2d6 f4e3 d6h6 e3d4 h6d6 e4d5\"} 103. Kd3 {+12.18/17 2.624s, tl=3.915s,
+latency=0.430s, n=289324028, sd=139, nps=131870568, hashfull=854,
+tbhits=19022478, pv=\"e2d3 g7g3 d3e2 g3g7 e2e3 g7g1 e8h5 g1g3 e3e4 g3g1 e4f5
+g1g2 h5g6 g2f2 f5e5 f2e2 e5f6 e2f2 f6e6 f2g2 g6e8 g2g4 e6d7 g4d4 d7c6 b4c3 a5a6
+d4c4 c6d5 c4b4 e8b5 b4d4 d5e5 d4b4 e5d6 b4d4 d6c6 c3b3 c6c7 d4d2 a8f8 b3c3 b5c4
+c3b2 f8d8 d2f2 d8b8 b2a1 b8e8 a1b1 c4d3 b1b2 e8e2 f2e2 d3e2 b2c3 c7c6 c3d4
+e2f1\"} 103... Rg8 {-3.11/15 1.966s, tl=10.740s, latency=0.001s, n=464173149,
+sd=34, nps=236220000, hashfull=998, tbhits=0, pv=\"g7g8 d3e4 g8g4 e4e3 g4g3 e3f4
+g3g7 e8h5 g7e7 h5g6 b4b5 a5a6 b5b6 g6f5 e7c7 f4e5 c7c5 e5d6 c5f5\"} 104. Ke3
+{+88.38/18 2.509s, tl=3.406s, latency=0.724s, n=223972482, sd=170,
+nps=125474779, hashfull=794, tbhits=16248452, pv=\"d3e3 g8g1 e8h5 g1g3 e3e4 g3g1
+e4f5 g1g2 f5f6 g2g1 f6e6 g1g2 h5e8 g2g4 e6d7 g4d4 d7e7 d4g4 e7d6 g4f4 a5a6 b4c3
+d6e5 f4g4 a8c8 c3b3 c8b8 b3c3 b8b7 g4g5 e5d6 g5g8 e8b5 c3b3 d6e6 g8g6 e6d7 g6g7
+d7c8 g7g8 c8c7 g8g7 c7b6 g7g6 b5c6 b3c3 b7h7 g6d6 h7e7 d6d2 e7e3 c3c4 e3e2 d2d1
+c6b5 c4c3 e2e3 c3b2 e3e8 d1d6 b6c7 d6d2 a6a7 b2c1 e8e2 d2e2 b5e2 c1d2 e2b5 d2c2
+c7d6 c2d2 a7a8q\"} 104... Rg3+ {-4.75/16 1.551s, tl=11.189s, latency=0.000s,
+n=365394102, sd=35, nps=235586000, hashfull=998, tbhits=0, pv=\"g8g3 e3f4 g3a3
+a5a6 b4c5 e8h5 c5c6 h5e2 c6d5 e2b5 d5c5 a8b8 c5d5 b8e8 d5c5 e8e5 c5b6 f4e4
+a3g3\"} 105. Ke2 {+12.04/18 2.277s, tl=3.129s, latency=0.001s, n=315657722,
+sd=171, nps=138689684, hashfull=861, tbhits=17307132, pv=\"e3e2 g3g2 e2e3 g2g3
+e3d4 g3g4 d4d3 g4g8 d3e4 g8g4 e4f5 g4g2 f5e6 g2g4 e6d7 g4d4 d7c7 b4c3 a5a6 d4c4
+c7d6 c4f4 e8c6 f4f6 d6c5 f6f7 c6e8 f7f5 c5c6 f5a5 c6b7 a5f5 b7b8 f5d5 e8b5 c3b4
+b8c7 d5c5 b5c6 c5c4 a8e8 c4g4 e8f8 g4g7 c7b6 b4c3 f8c8 c3b4 c8e8 g7f7 e8b8 b4c3
+c6b5 f7f6 b6c7 f6f7 b5d7 f7h7 c7b6 h7h6 d7c6 c3d4 b8e8 h6h7 e8e4 d4c3 e4e3 c3d2
+e3a3 h7e7 a3a2 d2e3 a2h2 e7g7 h2h5 e3d2 h5c5 g7e7 c5c4 e7g7 c6d5 g7g6 b6b7 g6g7
+c4c7 g7g6 d5f7 g6g7 b7c8 d2e3 f7e6 e3f4 c7g7 f4f3 g7g3 f3g3 c8b7 g3f4 e6f7 f4e4
+f7e8 e4d5 b7b6 d5d4 b6c6 d4e5 e8f7\"} 105... Rg7 {-3.47/15 1.651s, tl=11.538s,
+latency=0.001s, n=390531269, sd=32, nps=236685000, hashfull=998, tbhits=0,
+pv=\"g3g7 e2d2 g7g8 d2e3 g8g3 e3f4 g3g7 e8h5 g7g2 h5f3 g2h2\"} 106. Bh5
+{+73.09/17 2.370s, tl=2.759s, latency=0.924s, n=183562024, sd=141,
+nps=126944691, hashfull=905, tbhits=12538697, pv=\"e8h5 g7g2 e2e1 g2g1 e1d2 g1g2
+d2d3 g2g3 d3d4 g3g1 h5f3 g1e1 d4d3 b4a4 f3b7 e1d1 d3e4 d1e1 e4f4 e1f1 f4g3 f1g1
+b7g2 g1e1 g3f4 e1g1 g2c6 a4b4 c6e8 g1g8 f4f5 g8g2 e8h5 g2g3 f5f6 g3g1 h5f7 g1c1
+f7e8 c1f1 f6e6 f1f4 e6e7 f4g4 e7d7 g4d4 d7c6 b4c3 a5a6 d4c4 c6b6 c4b4 e8b5 b4d4
+b6a5 d4e4 a8e8 e4d4 b5c6 d4b4 e8c8 b4c4 c6d7 c4c8 d7c8 c3d4 a5b6 d4e4 c8d7 e4d3
+d7f5 d3e3 f5g4 e3f4 g4d7 f4e5 d7b5\"} 106... Rg3 {-4.80/14 2.190s, tl=11.348s,
+latency=0.001s, n=517326404, sd=38, nps=236330000, hashfull=998, tbhits=0,
+pv=\"g7g3 e2d2 g3a3 a5a6 b4c5 h5e2 c5d6 e2b5 d6c5 a8b8 a3a1 d2d3 c5d5\"} 107.
+Bf3 {+93.31/18 2.302s, tl=2.457s, latency=0.759s, n=218486218, sd=128,
+nps=141598326, hashfull=786, tbhits=11358776, pv=\"h5f3 g3g1 f3e4 g1g4 e2e3 g4g3
+e3f4 g3g1 f4e5 g1d1 e4b7 d1e1 e5d4 e1d1 d4e4 d1e1 e4f5 e1f1 f5g4 f1g1 g4f3 g1f1
+f3g3 f1g1 b7g2 g1e1 g3f4 e1d1 g2f3\"} 107... Kb5 {-5.02/17 2.448s, tl=10.900s,
+latency=0.000s, n=575990241, sd=38, nps=235290000, hashfull=998, tbhits=0,
+pv=\"b4b5 f3e4 g3a3 a5a6 b5b6 e4d3 b6c7 a8a7 c7d6 e2e3 d6c5 e3e4 c5d6 d3b5 a3a1
+a7g7 a1e1 e4f4 d6c5\"} 108. Ke3 {+12.16/17 2.244s, tl=2.213s, latency=0.342s,
+n=290413774, sd=164, nps=152688629, hashfull=856, tbhits=13249662, pv=\"e2e3
+g3h3 e3f2 h3h2 f2g1 h2h3 f3e2 b5c5 e2f1 h3g3 f1g2 c5b5 g1f2 g3g7 g2f3 b5b4 f2e3
+g7g1 e3d4 g1e1 f3b7 e1d1 d4e4 d1e1 e4f3 e1f1 f3e2 f1g1 e2e3 g1e1 e3d2 e1g1 d2d3
+g1d1 d3c2 d1g1 b7e4 g1e1 e4g6 e1e2 c2d3 e2f2 d3e3 f2f1 g6d3 f1e1 e3d2 e1g1 d3f5
+g1g2 d2d3 g2f2 f5e4 f2f1 d3e3 f1e1 e3f4 e1g1 f4e5 g1d1 e4b7 d1e1 e5f6 e1f1 f6g5
+f1g1 g5f5 g1f1 f5g4 f1g1 g4f4 b4b5 f4f3 g1f1 f3g3\"} 108... Rh3 {-3.64/16
+1.174s, tl=11.726s, latency=0.001s, n=259781369, sd=35, nps=221467000,
+hashfull=998, tbhits=0, pv=\"g3h3 e3f2 h3h2 f2e1 h2a2 a5a6 b5b6 f3e2 b6c6 a8c8
+c6d7 c8b8 d7d6 e1d1 d6e5 e2c4 a2a4 d1d2\"} 109. Ra7 {+11.99/15 2.201s,
+tl=2.012s, latency=1.806s, n=53800267, sd=95, nps=136203207, hashfull=0,
+tbhits=2875070, pv=\"a8a7 h3h4 a7a8 h4h3 e3f2 h3h2 f2f1 h2h3 f1g2 h3h4 f3e2 b5c5
+g2f3 h4h3 f3f4 c5d4 a8d8 d4c3 d8b8 h3h4 f4g3 h4h7 b8c8 c3d4 c8c4 d4d5 c4a4 h7g7
+a4g4 g7g4 g3g4 d5e5 g4g3 e5d4 a5a6 d4e3 e2b5 e3d4 b5f1 d4e3 f1g2 e3d3 a6a7 d3c3
+g2c6 c3d4 g3f4 d4c3\"} 109... Kb4 {-5.15/17 1.867s, tl=11.859s, latency=0.000s,
+n=423544875, sd=39, nps=226858000, hashfull=998, tbhits=0, pv=\"b5b4 e3e4 h3h4
+e4d5 h4h2 d5d4 h2d2 d4e3 d2a2 a5a6 b4c5 f3e2 a2a3 e3e4 a3a4 e4e5 c5c6 a7b7
+a4a3\"} 110. Kf2 {+11.73/15 2.167s, tl=2.000s, latency=2.037s, n=14581647,
+sd=53, nps=112166515, hashfull=0, tbhits=920515, pv=\"e3f2 h3h2 f2g3 b4c4 g3h2
+c4d4 h2g2 d4d3 a7a8 d3d4 a8b8 d4e3 g2g3 e3d4 f3e2\"} 110... Kb5 {-3.94/15
+1.687s, tl=12.172s, latency=0.000s, n=401345910, sd=39, nps=237905000,
+hashfull=998, tbhits=0, pv=\"b4b5 f2e3 b5b4 e3e4 h3h4 e4d5 h4h2 d5d4 h2c2 a5a6
+b4b5 a7a8 c2c4 d4e3 b5b6 f3e2 c4c7 a8e8\"} 111. Be2+ {+101.08/19 1.728s,
+tl=2.272s, latency=0.000s, n=223136241, sd=185, nps=129129769, hashfull=880,
+tbhits=15554363, pv=\"f3e2 b5c6 e2f1 h3h2 f2e3 c6c5 a7a8 h2h4 f1e2 h4h3 e2f3
+c5b5 e3f4 b5a4 f4e4 h3h4 e4e3 h4h3 e3f2 h3h2 f2g3 h2d2 g3f4 d2f2 f4e3 f2f1 f3d5
+f1e1 e3d2 e1g1 d5c6 a4b3 c6e4 b3b4 e4d3 b4a4 d3e2 a4b4 a5a6 b4a5 a8b8 g1g7 b8b5
+a5a4 b5b7 g7g8 d2e3 g8e8 e3d4 e8d8 d4e5 d8e8 e5f5 e8f8 f5g4 f8g8 g4h5 a4a5 e2c4
+g8h8 h5g6 a5a4 c4d3 h8g8 g6f7 g8d8 d3b5 a4b4 f7e6 d8f8 b5f1 b4a4 e6e5 f8e8 e5d6
+e8c8 f1e2 c8d8 d6c7 d8a8 b7b8 a8a7 c7b6 a7g7 b8c8 a4b4 e2f3 g7g6 b6b7 g6g7 c8c7
+g7c7 b7c7 b4c3 a6a7 c3b2 f3d5 b2c3 d5c6 c3d4 c7c8 d4c3 c6d7 c3d4 c8b7 d4e5 d7c6
+e5f6 c6b5\"} 111... Kc6 {-8.80/17 2.532s, tl=11.640s, latency=0.001s,
+n=604918920, sd=35, nps=239003000, hashfull=998, tbhits=0, pv=\"b5c6 a5a6 h3a3
+a7b7 c6d6 e2b5 d6e5 a6a7 e5f4 b7g7 a3a2 f2e1 f4e3 g7e7 e3f4 b5c6\"} 112. Ra8
+{+12.17/17 2.209s, tl=2.063s, latency=0.113s, n=263325850, sd=149,
+nps=125632562, hashfull=928, tbhits=19316863, pv=\"a7a8 c6b7 a8e8 h3h2 f2g3 h2h7
+e2f3 b7a6 e8a8 a6b5 g3g2 h7h4 f3e2 b5a4 g2f3 h4h3 f3f4 a4a3 a8a7 a3b4 e2f3 h3h4
+f4f5 h4h3 f5g4 h3h6 a7a8 h6g6 g4f4 g6g1 f3d5 g1f1 f4e5 f1e1 e5d6 b4a4 d5b7 e1d1
+d6c7 d1c1 b7c6 a4a3 a5a6 a3b2 a8d8 c1c3 d8b8 b2a2 c7d6 c3d3 c6d5 a2a1 b8b7 d3e3
+b7b3 e3e2 d6d7 e2d2 b3a3 a1b1 a3a5 d2d1 d7c7 d1c1 d5c6 c1c4 c7b6 c4c3 a5c5 c3d3
+c5d5 d3d5 c6d5 b1c1 b6c5 c1d2 c5d6 d2c3 d5c6 c3b4 c6b7\"} 112... Ra3 {-3.12/13
+2.138s, tl=11.502s, latency=0.000s, n=468863873, sd=29, nps=219300000,
+hashfull=998, tbhits=0, pv=\"h3a3 a5a6 c6c5 a8c8 c5d6 e2b5 d6e5 c8c5 e5d6 c5c6
+d6e5 c6g6\"} 113. Ra7 {+12.09/18 1.923s, tl=2.140s, latency=0.001s, n=224837279,
+sd=171, nps=116980894, hashfull=928, tbhits=19149454, pv=\"a8a7 a3h3 e2f3 c6b5
+a7a8 h3h2 f2g1 h2h3 f3e2 b5a4 e2d1 a4b4 g1g2 h3e3 d1f3 b4c3 f3b7 e3d3 g2f2 d3d1
+a5a6 d1d2 f2e3 d2d3 e3e4 d3d4 e4f3 d4d3 f3g4 d3d4 g4h5 d4d1 b7g2 d1g1 a8c8 c3b2
+c8b8 b2c2 g2e4 c2c3 b8c8 c3d2 c8d8 d2c3 d8a8 g1f1 h5g6 f1g1 g6f7 g1f1 f7e8 f1e1
+e8d8 e1d1 d8c7 d1c1 c7b7 c3b2 b7b6 b2a2 e4c6 a2b2 a8f8 c1c3 f8f2 b2c1 f2f1 c1b2
+f1f3 c3c1 c6e4 c1a1 e4g6 b2c1 f3f1 c1d2 g6d3 a1f1 d3f1 d2e3 a6a7 e3e4 f1c4 e4d4
+c4e2 d4e3 e2b5 e3d4 b5c6 d4d3 b6c5 d3c3\"} 113... Ra1 {-6.29/15 2.464s,
+tl=11.038s, latency=0.000s, n=607864879, sd=29, nps=246698000, hashfull=998,
+tbhits=0, pv=\"a3a1 a5a6 a1a2 a7g7 c6d6 g7f7 d6e6\"} 114. Bd3 {+12.06/20 2.189s,
+tl=2.000s, latency=0.091s, n=263656814, sd=139, nps=125670550, hashfull=908,
+tbhits=19034009, pv=\"e2d3 a1d1 f2e2 d1g1 e2f3 g1d1 d3e4 c6b5 a7a8 d1f1 f3g3
+f1e1 g3f4 e1f1 f4g5 f1g1 g5h4 b5b4 e4b7 g1e1 b7g2 e1d1 h4h5 b4c3 a5a6 d1g1 g2b7
+c3d3 b7c6 d3c3 h5h6 g1f1 c6f3 f1g1 h6h5 g1a1 h5g5 a1g1 g5f5 g1f1 f5g6 f1g1 g6h7
+g1a1 h7g7 a1g1 g7f6 g1f1 f6e6 f1e1 e6d7 e1a1 d7d8 a1g1 f3g2 g1d1 d8c7 d1c1 c7b6
+c1d1 a8c8 c3b2 g2c6 b2c3 c6d7 c3b2 d7a4 d1d6 a4c6 d6d2 b6c7 d2d4 c8d8 d4e4 d8d2
+b2c3 c6e4 c3d2 e4f3 d2c3 c7b6 c3d2 f3b7 d2e3 b7c6 e3d4 c6g2\"} 114... Ra3
+{-6.37/15 2.418s, tl=10.620s, latency=0.000s, n=567891592, sd=31, nps=234860000,
+hashfull=998, tbhits=0, pv=\"a1a3 f2e3 c6d5 a7g7 a3a4 g7h7 a4b4 h7h5 d5d6
+h5b5\"} 115. Bc4 {+12.23/17 2.168s, tl=2.000s, latency=0.054s, n=268918257,
+sd=131, nps=127208257, hashfull=892, tbhits=17678250, pv=\"d3c4 c6c5 c4e2 c5d5
+a5a6 d5c5 a7c7 c5b6 c7b7 b6c5 e2b5 a3a1 f2e2 a1g1 e2e3 g1e1 e3f4 e1a1 f4f3 a1a3
+f3e2 a3a2 e2e3 a2a1 e3f4 a1a3 f4e5 a3e3 e5f6 e3e4 b5d3 e4f4 f6g5\"} 115... Kc5
+{-2.99/14 2.376s, tl=10.244s, latency=0.000s, n=539289960, sd=30, nps=226973000,
+hashfull=998, tbhits=0, pv=\"c6c5 c4f1 a3a2 f2e3 a2a1 f1d3 c5d6 a5a6 d6e5 d3e2
+a1a3 e3d2 e5d6 e2b5\"} 116. Bf1 {+12.23/23 2.166s, tl=2.000s, latency=1.114s,
+n=127487615, sd=183, nps=121185945, hashfull=846, tbhits=8614033, pv=\"c4f1 c5c6
+f1e2 a3a1 a7a8 a1a3 e2f3 c6c5 f3b7 a3a2 f2f3 a2a3 f3g4 a3b3 a8b8 b3b4 g4f5 b4d4
+f5e5 d4d5 e5e4 d5d4 e4e3 d4c4 b8c8 c5b4 c8a8 c4c3 e3f2 c3d3 f2e2 d3d4 e2f3 b4b5
+f3f2 d4d1 b7f3 d1c1 f3e2 b5b4 f2g3 c1g1 g3f4 b4c3 f4f3 g1e1 a8c8 c3d2 c8d8 d2c3
+a5a6 e1a1 d8d7 c3b4 d7b7 b4c5 f3e3 a1a4 e2d3 a4a3 e3e4 a3a5 d3b5 a5a3 e4e5 a3e3
+e5f5 e3f3 f5g5 f3g3 g5h4 g3f3 b5e2 f3f4 h4g5 f4e4 e2d3 e4d4 d3b5 d4d5 g5f6 d5d6
+f6e5 d6d5 e5f4\"} 116... Ra4 {-2.08/13 2.338s, tl=9.906s, latency=0.000s,
+n=550592536, sd=35, nps=235497000, hashfull=998, tbhits=0, pv=\"a3a4 a5a6 c5c6
+a7a8 c6c7 f2e3 c7b6\"} 117. Kf3 {+12.12/21 2.160s, tl=2.000s, latency=0.001s,
+n=263343993, sd=163, nps=121974985, hashfull=892, tbhits=18840981, pv=\"f2f3
+a4a1 f1d3 a1d1 f3e3 d1c1 a5a6 c5c6 a7b7 c1d1 d3e4 c6d6 e3e2 d1a1 e4d3 d6c6 e2f3
+a1a3 f3e3 c6c5 e3e2 a3a2 e2d1 a2a1 d1d2 c5d6 d2e3 a1a5 e3f4 d6c6 d3e2 c6d6 e2b5
+a5a1 f4f3 a1h1 f3g2 h1h4 b7d7 d6e5 d7e7 e5f6 e7b7 f6e5 b5c6 h4g4 g2f3 g4d4 f3e2
+e5d6 e2e3 d4g4 c6b5 g4g3 e3d4 g3a3 b5d3 a3a5 d4e3 a5e5 e3f3 e5d5 d3e2 d5a5 e2b5
+d6c5 f3e3 a5a3 e3e2 a3a2 e2e1 a2a1 e1d2 a1a2 d2d1 a2a1 d1c2 c5d6 c2b2 a1a5 b2b3
+a5a1 b3c3 a1c1 c3d3 c1d1 d3e2 d1d5 e2e1 d5e5 e1d2 e5d5 d2c1 d5d4 c1c2 d6e5 c2c3
+e5d5 b7f7 d5e5 f7e7 e5d5 e7e6 d5e6 c3d4 e6f5 d4c5 f5f4 b5c6 f4e3 c5d6 e3d4
+c6b5\"} 117... Ra1 {-5.16/14 1.452s, tl=10.454s, latency=0.000s, n=340774887,
+sd=28, nps=234693000, hashfull=998, tbhits=0, pv=\"a4a1 f1d3 c5c6 f3e3 a1a4 a5a6
+c6c5 a7g7 a4a1 g7d7 a1a4 d3f1 a4a1\"} 118. Bd3 {+12.12/19 1.146s, tl=2.854s,
+latency=0.001s, n=139985197, sd=161, nps=122257813, hashfull=815,
+tbhits=8674156, pv=\"f1d3 a1d1 f3e3 d1c1 a7a8 c1e1 e3d2 e1a1 d3e2 a1a2 d2e3 a2a3
+e3e4 a3a2 e2d3 a2a3 e4e3 a3a1 e3f4 a1a3 f4e4 a3a2 a8a7 a2a4 e4e3 a4a3 a5a6 a3a2
+a7c7 c5d6 c7b7 a2a5 d3b5 a5a3 e3e4 d6c5 e4f4 c5d6 f4f5 a3h3 f5g5 h3h8 g5g4 h8h2
+g4g3 h2h8 g3f2 h8h2 f2e3 h2h3 e3d2 h3h2 d2d3 h2h3 d3e4 h3a3 e4f4 a3a1 f4f5 d6c5
+f5f6 a1d1 f6e7 d1e1 e7d8 e1e4 b5d7 e4d4 b7b5 c5d6 b5b6 d6c5 b6b7 d4e4 d8c7 e4c4
+c7c8 c5d4 b7c7 c4c3 c7c3 d4e5 c3c5 e5d6 c5d5 d6d5 c8c7 d5d4 c7d6 d4e4 d7c6 e4e3
+d6d5 e3d2 c6b5 d2e3 d5c5\"} 118... Ra4 {-4.45/14 2.359s, tl=10.095s,
+latency=0.000s, n=560741341, sd=31, nps=237702000, hashfull=998, tbhits=0,
+pv=\"a1a4 f3e3 a4a3 e3e4 a3a1 a5a6 a1a4 e4e5\"} 119. Ke3 {+12.12/20 2.318s,
+tl=2.536s, latency=1.366s, n=116182953, sd=152, nps=122040917, hashfull=871,
+tbhits=7415525, pv=\"f3e3 a4a3 e3e4 a3a4 e4f3 c5c6 f3e3 c6c5 a5a6 a4a2 a7c7 c5d5
+c7b7 d5c6 d3e2 a2a3 e3d4 a3a5 e2b5 c6d6 b5d3 a5a4 d4e3 a4a3 e3e2 a3a2 e2f3 a2a3
+f3e4 a3a2 e4f4 a2a5 d3b5 a5a3 f4e4 d6c5 e4f5 a3a1 f5f6 a1d1 f6e7 d1e1 e7d8 e1e4
+d8c7 e4d4 b5d7 d4e4 b7b5 c5c4 c7b6 c4d4 b5b4 d4e3 b4e4 e3e4 b6c5 e4e3 c5c6\"}
+119... Ra3 {-9.74/15 2.323s, tl=9.772s, latency=0.001s, n=553527776, sd=32,
+nps=238384000, hashfull=998, tbhits=0, pv=\"a4a3 a5a6 c5c6 a7b7 c6d5 e3f4 a3a4
+f4g5 d5d4 d3b5 a4a1 a6a7 d4e5 b7e7 e5d6\"} 120. a6 {+11.99/18 2.258s, tl=2.278s,
+latency=0.365s, n=244645898, sd=157, nps=129237135, hashfull=869,
+tbhits=14677633, pv=\"a5a6 c5c6 a7b7 c6d6 e3d2 d6d5 d2c2 d5d4 d3b5 a3c3 c2b2
+c3f3 b7d7 d4e5 b5c4 f3f2 b2b3 f2g2 d7d5 e5f4 d5d4 f4e3 d4d7 e3f4 b3a4 f4e5 a4b4
+g2g3 d7d5 e5f6 d5d6 f6e5 d6d7 g3f3 d7d5 e5f4 d5d4 f4g5 d4e4 g5f6 e4e8 f6g5 e8g8
+g5f4 g8f8 f4g3 f8f3 g3f3 b4c5 f3e4 c5b6 e4e5 c4f7\"} 120... Kc6 {-11.41/14
+2.062s, tl=9.710s, latency=0.000s, n=496055304, sd=30, nps=240569000,
+hashfull=998, tbhits=0, pv=\"c5c6 a7b7 c6d5 e3f4 a3a4 f4f3 d5d4 b7d7 d4c5 d7c7
+c5d5 d3b5 a4a5 a6a7 d5d6 c7h7 a5b5\"} 121. Kd4 {+12.04/19 2.219s, tl=2.059s,
+latency=0.617s, n=214845326, sd=117, nps=134110690, hashfull=825,
+tbhits=11104473, pv=\"e3d4 c6d6 a7b7 a3a4 d4e3 a4a3 e3d2 a3a2 d2c1 a2a1 c1c2
+a1a4 c2b2 d6e5 d3b5 a4d4 b5c4 d4d2 b2c3 d2d1 c4d3 d1e1 c3c2 e1a1 d3b5 e5d6 c2b2
+a1g1 b7d7 d6e5 d7f7 g1g2 b2a3 g2g3 a3b4 g3g4 b5c4 e5d4 f7d7 d4e5 b4b5 g4f4 b5c5
+f4g4 c4d5 g4a4 c5b6 a4f4 b6a5 f4f5 a5b5 f5f4 d7e7 e5d4 e7f7 d4d3 f7f4 d3e2 d5c4
+e2e3 f4f5 e3d4 f5f3 d4e4 b5c5 e4f3 c4f7 f3e3 f7b3\"} 121... Ra4+ {-17.61/23
+2.286s, tl=9.424s, latency=0.001s, n=526720244, sd=45, nps=230512000,
+hashfull=998, tbhits=0, pv=\"a3a4 d3c4 a4a1 a7h7 a1a5 h7b7 a5a4 b7e7 a4a3 e7e6
+c6c7 e6f6 a3a5 f6f7 c7c6 f7g7 a5a1 g7h7 a1a5 h7f7 a5a1\"} 122. Ke3 {+12.04/16
+1.822s, tl=2.237s, latency=0.000s, n=235004529, sd=147, nps=128981629,
+hashfull=907, tbhits=12941349, pv=\"d4e3 a4g4 a7e7 g4a4 e7b7 c6d5 d3b5 a4a3 e3d2
+d5d6 d2c1 a3a1 c1b2 a1g1 b2c3 g1g3 c3b4 g3g5 b7d7 d6e5 b5d3 g5g4 b4b5 g4f4 d3c4
+f4f3 c4d5 f3f4 d7f7 f4g4 d5c4 g4h4 f7d7 h4f4 d7c7 f4d4 b5b4 d4f4 c7e7 e5d4 e7d7
+d4e5 d7h7 f4f3 h7e7 e5d6 e7g7 d6e5 g7f7 f3h3 f7e7 e5d4 c4f1 h3g3 e7h7 d4e5 f1e2
+e5d4 h7d7 d4e5 d7e7 e5f4 e2f1 g3g4 f1d3 f4g5 d3c4 g4f4 e7g7 g5h6 g7f7 f4e4 f7b7
+e4f4 b4a4 h6g5 a4b5 f4f3 b7e7 f3f5 c4d5 f5f4 e7g7 g5h6 g7f7 f4g4 b5a5 g4h4 f7b7
+h6g6 b7b1 g6g5 b1h1 g5f5 h1h4 f5e5 h4f4 e5f4 d5g2 f4f5 g2e4 f5g5 e4d3 g5f4 d3b5
+f4e5 b5a4 e5f4 a4b3 f4e3 b3c4\"} 122... Kd5 {-6.69/13 2.257s, tl=9.167s,
+latency=0.000s, n=516694764, sd=30, nps=228929000, hashfull=998, tbhits=0,
+pv=\"c6d5 a7d7 d5c6 d7f7 a4a3 f7b7 a3a5 d3b5 c6c5 a6a7 a5a3 e3e2\"} 123. Rb7
+{+12.04/18 2.212s, tl=2.025s, latency=0.810s, n=182222054, sd=115,
+nps=129972934, hashfull=856, tbhits=9840292, pv=\"a7b7 a4a3 e3e2 a3a2 e2d1 a2a3
+d1c2 d5d4 b7d7 d4c5 d7c7 c5d6 c7b7 a3a4 c2b2 d6e5 d3b5 a4d4 b2c2 d4b4 c2c3 b4g4
+b7f7 g4g3 c3c4 g3g4 c4c5 g4g3 b5c4 g3c3 c5b4 c3h3 f7d7 e5f6 c4d5 h3h4 b4a5 f6e5
+d5b3 h4f4 d7f7 f4g4 f7c7 g4f4 c7b7 f4f8 a5b5 f8f4 b7f7 f4g4 f7h7 g4f4 h7g7 f4d4
+g7c7 d4f4 b3f7 f4f5 f7d5 f5f4 c7c5 e5d4 c5c4 d4e3 c4f4 e3f4 d5c4 f4e3 b5c5 e3f4
+c4d5 f4e5 d5g8 e5e4 g8f7\"} 123... Ra3 {-10.43/16 1.744s, tl=9.423s,
+latency=0.000s, n=429751550, sd=34, nps=246417000, hashfull=998, tbhits=0,
+pv=\"a4a3 b7b5 d5e6 e3d4 e6f6 b5b8 f6g5 b8f8 g5g4 d3b5 g4g5 d4c5 a3c3 c5b6\"}
+124. Kd2 {+12.04/19 2.173s, tl=2.000s, latency=0.000s, n=272944516, sd=120,
+nps=125607232, hashfull=922, tbhits=16320925, pv=\"e3d2 a3a2 d2c3 d5c6 c3b3 a2a1
+b3b2 a1g1 d3b5 c6d6 b7d7 d6e5 b5f1 g1g4 d7e7 e5f4 f1d3 g4g2 b2a3 g2g3 e7h7 f4e5
+a3a4 g3g4 d3c4 e5d6 a4b4 g4f4 h7f7 f4h4 f7g7 d6e5 b4c5 e5f4 g7f7 f4g5 f7d7 h4f4
+d7g7 g5h5 g7e7 h5g5 c4e6 g5g6 e7d7 g6g5 d7d5 g5h6 c5b5 h6g6 d5d7 g6g5 d7e7 g5g6
+b5a5 g6g5 e7g7 g5h6 g7c7 h6g5 c7d7 f4f5 d7d5 f5e5 d5e5 g5f4 e6c4 f4e5 c4d3 e5f6
+a5a4\"} 124... Kd4 {-9.73/15 2.256s, tl=9.167s, latency=0.000s, n=573885956,
+sd=30, nps=254382000, hashfull=998, tbhits=0, pv=\"d5d4 b7d7 d4e5 a6a7 a3a1 d7b7
+e5f4 d2c2 f4g5 b7h7 a1a2 c2b3\"} 125. Rd7+ {+12.04/19 2.163s, tl=2.000s,
+latency=0.575s, n=207673441, sd=117, nps=130776726, hashfull=870,
+tbhits=11208483, pv=\"b7d7 d4c5 d7c7 c5d6 c7b7 a3a2 d2c1 a2a1 c1b2 a1a4 d3b5
+a4g4 b2b3 g4g2 b7d7 d6e5 b5d3 g2g3 b3b4 g3g4 d3c4 g4h4 b4a3 h4h3 a3b2 h3h2 b2c3
+h2h3 c4d3 h3g3 d7f7 g3h3 f7h7 h3g3 h7h5 e5d6 h5h6 d6e5 h6e6 e5f4 e6e4 f4g5 c3c4
+g5f5 e4e8 f5f4 e8f8 f4e5 f8f7 g3g4 c4c5 g4a4 c5b6 e5d6 d3b5 a4b4 f7d7 d6e5 d7e7
+e5d4 b6a5 d4c5 e7e5 c5d6 a5b4 d6e5 b4c5 e5e4 b5c6 e4e3 c6d5 e3f4 d5c4\"} 125...
+Ke5 {-8.27/16 2.231s, tl=8.936s, latency=0.001s, n=577109628, sd=33,
+nps=258793000, hashfull=998, tbhits=0, pv=\"d4e5 a6a7 e5e6 d3b5 a3a5 d7c7 e6d5
+d2c3 a5a1 c3b2\"} 126. Bb5 {+12.04/15 2.169s, tl=2.000s, latency=1.906s,
+n=32865358, sd=91, nps=124963338, hashfull=0, tbhits=1633493, pv=\"d3b5 a3a2
+d2c3 a2a3 c3b2 a3f3 b2b1 f3a3 d7f7 e5e6 b1b2 e6f7 b2a3 f7e6 b5c4 e6e5 a3b4 e5f4
+b4c5 f4e3 c4b5 e3e4 b5c6 e4e5 c5b6 e5d4 c6b5\"} 126... Ra1 {-8.56/15 0.983s,
+tl=9.953s, latency=0.000s, n=246027690, sd=29, nps=250282000, hashfull=998,
+tbhits=0, pv=\"a3a1 d2c2 e5f6 d7b7 f6g5 c2b3 a1b1 b3a2 b1c1 a6a7 c1c8\"} 127.
+Ke3 {+11.63/14 2.163s, tl=2.000s, latency=0.043s, n=277465356, sd=154,
+nps=130879884, hashfull=880, tbhits=15785105, pv=\"d2e3 a1a3 e3d2 a3a1 d7h7 a1a2
+d2c1 a2a1 c1b2 a1d1 h7e7 e5f6 e7d7 d1g1 d7h7 g1g2 b2b3 f6e5 b3a3 g2g3 a3b2 g3f3
+b2c2 f3f2 c2c3 f2f3 b5d3 f3g3 h7h5 e5d6 h5h6 d6e5 h6e6 e5f4 e6e4 f4g5 e4a4 g5f6
+c3b3 g3g2 a4f4 f6e5 f4f5 e5d6 f5f7 d6e5 b3b4 g2g4 b4c5 g4a4 f7e7 e5f6 e7d7 f6e5
+d3b5 a4a3 c5b4 a3a1 a6a7 a1a2 b5a6 a2b2 b4c3 b2a2 a6b5 a2g2 c3b3 g2g8 b5c6 g8g3
+b3b2\"} 127... Ra5 {-8.67/14 2.309s, tl=9.644s, latency=0.001s, n=562499412,
+sd=32, nps=243717000, hashfull=998, tbhits=0, pv=\"a1a5 b5c4 a5a3 d7d3 a3a1 d3d5
+e5f6 d5d6 f6f5 e3d4 f5g5 c4b5\"} 128. Kd3 {+11.54/12 2.163s, tl=2.000s,
+latency=2.128s, n=813827, sd=17, nps=23252200, hashfull=0, tbhits=30660,
+pv=\"e3d3 a5a3 d3d2 a3a1 d2c2 a1a2 c2b3 a2g2 b3c3 g2g3 b5d3\"} 128... Rxb5
+{-6.45/17 0.956s, tl=10.688s, latency=0.000s, n=218679440, sd=29, nps=228744000,
+hashfull=998, tbhits=0, pv=\"a5b5 d3c4 b5a5 a6a7 e5e6 d7g7 e6f6 g7c7 f6e6 c4b4
+a5a1 c7h7 e6d6\"} 129. Kc3 {+11.21/18 1.811s, tl=2.189s, latency=0.000s,
+n=306873374, sd=105, nps=169449681, hashfull=815, tbhits=7163092, pv=\"d3c3 b5c5
+c3b4 c5c6 b4b5 c6g6 d7h7 g6g5 b5b4 g5g4 b4c5 g4f4 c5b6 f4f5 h7c7 f5f6 b6b7 f6f5
+c7c5 e5e4 c5f5 e4f5 b7c6 f5e5 c6c5 e5f6 c5d5 f6f5 d5c4 f5f4 c4c5 f4f5 c5d5 f5f4
+d5e6 f4e4 e6d6 e4f4 d6c6\"} 129... Ra5 {-6.18/17 2.382s, tl=10.306s,
+latency=0.001s, n=598397827, sd=34, nps=251322000, hashfull=998, tbhits=0,
+pv=\"b5a5 a6a7 a5a4 c3b3 a4a1 b3c4 a1a5 c4b4 a5a1 b4b5 e5e6 d7h7 e6f5 b5b6\"}
+130. a7 {+10.96/17 2.135s, tl=2.054s, latency=0.001s, n=305825922, sd=141,
+nps=143311116, hashfull=944, tbhits=9016865, pv=\"a6a7 a5a4 c3b3 a4a1 b3b4 e5e4
+b4b5 a1a3 b5b6 e4f4 d7d5 a3b3 b6a6 b3b1 d5h5 f4e3 h5h3 e3d2 h3h7 b1a1 a6b7 d2e3
+h7e7 e3d4 e7d7 d4e5 b7b8 e5e6 d7h7 e6f6 b8b7 f6g6 h7h8 a1b1 b7c6 b1c1 c6b5 c1b1
+b5c5 b1c1 c5b4 c1b1 b4c3 b1c1 c3b3 g6g5 h8d8 c1c5 b3b4 g5f4 b4c5 f4f3 a7a8q f3e3
+d8e8 e3f2 c5d4 f2g3 e8f8 g3h2\"} 130... Ra1 {-2.44/16 2.344s, tl=9.962s,
+latency=0.000s, n=582230149, sd=35, nps=248391000, hashfull=998, tbhits=0,
+pv=\"a5a1 c3c4 e5e6 d7h7 e6f5 h7b7 f5g6 c4d4 a1a5\"} 131. Kb4 {+38.49/17 2.177s,
+tl=2.000s, latency=1.921s, n=40350761, sd=71, nps=157620160, hashfull=0,
+tbhits=711690, pv=\"c3b4 e5f5 b4c5 f5e5 d7h7 e5f5 c5b6 f5e4 h7h5 a1a3 h5a5 a3b3
+b6c7 b3c3 c7b7 c3b3 b7a6 e4f4 a5d5 b3b1 d5b5 b1a1 a6b7 f4f3 b7b8 f3f4 b5b7 f4e5
+b7h7 e5f6 b8b7 a1b1 b7a6 b1a1 a6b6 f6g6 h7d7 g6f6 b6b7 f6e5 b7b8 e5e6 d7c7 a1a3
+c7h7 a3b3 b8c7\"} 131... Ke6 {-5.37/16 1.787s, tl=10.175s, latency=0.000s,
+n=429676172, sd=36, nps=240445000, hashfull=998, tbhits=0, pv=\"e5e6 d7h7 e6f6
+b4b5 f6f5 b5b6 a1b1 b6c7 b1c1 c7d6 c1a1 h7b7\"} 132. Rh7 {+11.09/15 1.410s,
+tl=2.590s, latency=0.001s, n=210488850, sd=147, nps=149388821, hashfull=859,
+tbhits=5001000, pv=\"d7h7 e6f6 b4b5 f6g5 b5c6 g5f6 c6b6 f6e5 b6b7 a1b1 b7c7 b1a1
+h7h5 e5f4 c7b6 f4f3 b6b7 f3e4\"} 132... Rb1+ {-7.28/16 2.331s, tl=9.844s,
+latency=0.001s, n=540662091, sd=47, nps=232043000, hashfull=998, tbhits=0,
+pv=\"a1b1 b4c5 b1d1 h7h6 e6e7 c5b4 d1b1 b4a5 b1c1 h6h4 e7e6\"} 133. Kc5
+{+10.60/13 2.273s, tl=2.317s, latency=2.150s, n=15376870, sd=59, nps=125015203,
+hashfull=0, tbhits=264929, pv=\"b4c5 b1a1 c5b6 e6f6 h7h5 a1a4 h5a5 a4b4 b6c6
+b4c4 c6d5 c4b4 d5c5 b4b1 a7a8q b1e1 c5c4 e1c1 c4d3 c1d1 d3c4\"} 133... Ra1
+{-2.81/15 1.787s, tl=10.057s, latency=0.000s, n=423938893, sd=44, nps=237234000,
+hashfull=998, tbhits=0, pv=\"b1a1 c5b6 a1b1 b6c7 b1c1 c7b7 c1b1 b7c6 b1c1 c6b5
+c1b1 b5a6 b1a1 a6b6 a1b1 b6c7\"} 134. Kb6 {+11.13/18 1.765s, tl=2.552s,
+latency=0.001s, n=239862110, sd=113, nps=135976252, hashfull=907,
+tbhits=6711300, pv=\"c5b6 e6f6 h7h5 f6e6 h5a5 a1b1 a5b5 b1a1 b6b7 e6f6 b5b4 f6f5
+b4b6 f5f4 b6b5 a1a2 b5b1 f4f3 b1b6 a2a5 b6f6 f3g4 f6f7 g4g5 f7c7 g5f6 c7c6 f6f5
+c6c8 f5e5 b7b6 a5a4 c8e8 e5f6 e8f8 f6g7 f8b8 a4b4 b6c6 b4c4 c6d5 c4c1 a7a8q c1d1
+d5e4 d1e1 e4d4 e1d1 d4c3 d1c1 c3d2 c1d1 d2d1 g7f7 d1e2 f7e6 e2d3 e6f5 d3d4\"}
+134... Rb1+ {-1.14/14 1.266s, tl=10.791s, latency=0.001s, n=341876609, sd=47,
+nps=270258000, hashfull=998, tbhits=0, pv=\"a1b1 b6c6 b1a1 c6b7 a1b1 b7a6 b1a1
+a6b6 a1b1 b6c6 b1a1 h7h6 e6e5\"} 135. Kc6 {+10.60/15 2.264s, tl=2.288s,
+latency=1.925s, n=44874034, sd=74, nps=132371781, hashfull=0, tbhits=1180643,
+pv=\"b6c6 b1a1 c6b7 e6d6 h7h5 a1e1 h5h6 d6e7 h6a6 e1b1 b7c6 b1c1 c6d5 c1d1 d5e4
+d1e1 e4f4 e1f1 f4g4 f1g1 g4h3 g1h1 h3g2 h1e1 g2f2 e1e6 a6e6 e7e6 a7a8q e6e5 f2e3
+e5e6 e3d3\"} 135... Ra1 {-1.62/15 1.259s, tl=11.532s, latency=0.000s,
+n=349893006, sd=45, nps=277913000, hashfull=998, tbhits=0, pv=\"b1a1 c6b7 a1b1
+b7c8 b1c1 c8b8 c1b1 h7b7 b1g1 b7b6 e6e5 b6b5 e5f4 b8b7 g1a1 b5b4 f4f5 a7a8q a1a8
+b7a8 f5g5 b4b5 g5f4\"} 136. Kb7 {+11.17/15 2.215s, tl=2.073s, latency=1.391s,
+n=112960619, sd=133, nps=137088129, hashfull=598, tbhits=3006278, pv=\"c6b7 e6d6
+h7h6 d6d7 h6a6 a1b1 a6b6 b1a1 b6b2 d7e6 b7b8 e6e5 b2b6 a1a5 b8b7 e5f4 b6g6 f4f5
+g6h6 f5g5 h6h8 g5f4 b7b8 f4g3 h8h7 a5b5 h7b7 b5a5 b7c7 g3f4 c7e7 f4g5 e7e8 g5f4
+e8d8 a5b5 b8c7 b5a5 d8f8 f4g5 c7b7 g5g6 f8e8 g6f5 e8e2 f5f4 e2b2 f4g5 b2g2 g5f6
+g2g4 f6f5 g4g8 f5f6 b7b6 a5a3 g8b8 a3b3 b6c6 b3c3 c6b5 c3b3 b5c5 b3c3 c5b4 c3c1
+a7a8q c1b1 b4c3 b1c1 c3d4\"} 136... Rb1+ {-1.12/15 1.573s, tl=11.959s,
+latency=0.000s, n=417070889, sd=45, nps=265143000, hashfull=998, tbhits=0,
+pv=\"a1b1 b7c7 b1a1 c7b8 e6f5 b8b7 a1b1 b7a8 b1a1 a8b8 f5f4 h7h5 f4e3 h5f5 a1a7
+b8a7 e3d4 f5a5\"} 137. Kc6 {+11.21/15 2.179s, tl=2.000s, latency=1.393s,
+n=115688990, sd=126, nps=147187010, hashfull=752, tbhits=2626298, pv=\"b7c6 b1a1
+c6b6 a1b1 b6a6 b1a1 a6b7 a1b1 b7c8 b1a1 c8b8 e6f6 h7b7 a1a3 b7b6 f6g5 b8b7 a3a5
+b6d6 g5f4 d6g6 f4f5 g6g8 f5f6 g8h8 a5c5 h8e8 c5a5 e8c8 f6e5 c8h8 e5f4 h8g8 f4f3
+g8f8 f3e3 f8e8 e3f2 e8d8 a5c5 d8h8 f2g3 a7a8q c5b5 b7c6 b5b1 h8g8 g3f2 g8f8 f2g3
+c6c5 b1c1 c5d4 c1d1 d4e3 d1e1 e3d2 g3h3 d2e1 h3g4 e1d2\"} 137... Ra1 {-0.26/15
+2.270s, tl=11.689s, latency=0.000s, n=641161172, sd=40, nps=282449000,
+hashfull=998, tbhits=0, pv=\"b1a1 c6b6 a1b1 b6c7 b1a1 c7b7 e6f5 h7h5 f5g6 h5c5
+g6f7 c5f5 f7e6 f5f4 e6d6 f4e4 a1b1 b7a6\"} 138. Kb7 {+11.05/14 2.162s,
+tl=2.000s, latency=2.040s, n=15317465, sd=57, nps=125552991, hashfull=0,
+tbhits=224479, pv=\"c6b7 a1b1 b7c7 b1a1 c7b8 e6f6 h7h8 f6g7 h8h5 a1b1 b8c8\"}
+138... Rb1+ {-0.85/16 1.817s, tl=11.872s, latency=0.000s, n=512437956, sd=34,
+nps=282024000, hashfull=998, tbhits=0, pv=\"a1b1 b7c7 b1c1 c7b8 c1b1 h7b7 b1a1
+b7b5 e6d7 b5d5 d7c6 d5h5 a1b1 b8c8 b1a1 h5h6 c6d5 c8b7 a1a7 b7a7 d5d4 h6h5 d4e4
+h5b5 e4d4 a7b7\"} 139. Kc8 {+11.14/15 2.168s, tl=2.000s, latency=0.996s,
+n=164079140, sd=117, nps=139999266, hashfull=843, tbhits=4349349, pv=\"b7c8 b1a1
+c8b8 e6f6 h7h5 a1b1 b8c7 b1c1 c7b6 c1b1 h5b5 b1a1 b6b7 a1a2 b7b8 a2a1 b5b6 f6f7
+b8b7 a1a5 b6b1 a5c5 b1b4 c5a5 b4c4 f7f6 c4g4 f6f5 g4g7 f5f4 g7f7 f4g5 f7h7 g5g6
+h7c7 g6f6 c7c3 f6g5 c3c2 g5f4 c2g2 f4f3 g2g8 f3f4 g8f8 f4g5 f8c8 a5b5 b7a6 b5b4
+c8c5 g5f4 c5b5 b4a4 a6b7 a4a2 b5b1 a2a5 b1d1 a5c5 d1d6 f4e5 d6d2 e5f6 d2b2 c5a5
+b2e2 a5b5 b7a6 b5b4 e2a2 b4f4 a2a5 f4a4 a5a4 f6f5 a6b6 f5f6 a4a2 f6e5 a7a8q e5f4
+a2a4 f4e5 a4a5 e5f4 a5b5\"} 139... Ra1 {-0.08/16 2.026s, tl=11.846s,
+latency=0.001s, n=563592512, sd=33, nps=278317000, hashfull=998, tbhits=0,
+pv=\"b1a1 c8b8 a1a7 b8a7 e6f5 h7h4 f5e6 h4a4 e6e5 a4b4 e5d6 b4e4 d6d5 e4a4\"}
+140. Kb8 {+11.13/18 1.512s, tl=2.488s, latency=0.001s, n=215530306, sd=122,
+nps=142640837, hashfull=870, tbhits=5306734, pv=\"c8b8 e6f6 h7h6 f6g7 h6b6 g7f7
+b8b7 a1a5 b6b3 f7f6 b3c3 f6g5 c3h3 g5f4 h3h7 a5c5 h7f7 f4e3 f7e7 e3f4 e7e8 c5a5
+e8h8 f4g5 h8h2 g5g6 h2g2 g6f6 g2g4 f6f5 g4h4 f5g5 h4h7 g5g6 h7h3 g6f6 h3d3 a5b5
+b7a6 b5b4 d3f3 f6g7 f3g3 g7f6 g3g8 f6f5 g8h8 b4a4 a6b7 f5g5 h8e8 a4a5 e8e7 g5f6
+e7d7 f6f5 d7g7 f5f4 g7g6 a5c5 g6e6 f4g3 e6d6 c5a5 d6a6 a5b5 a6b6 b5a5 b6g6 g3f4
+g6e6 f4f5 e6a6 a5c5 a7a8q c5c4 a6a3 c4e4 b7b6 e4e6 b6c5 e6e5 c5d4 e5e4 a8e4 f5f6
+a3a2 f6g7\"} 140... Ke5 {-0.07/17 2.498s, tl=11.348s, latency=0.000s,
+n=704033834, sd=36, nps=281839000, hashfull=998, tbhits=0, pv=\"e6e5 h7h5 e5d4
+h5h4 d4d3 a7a8r a1a8 b8a8 d3c3 h4h3 c3d4 a8b7 d4e5 h3h4 e5d5 h4a4 d5d6 b7a8
+d6d5\"} 141. Rh6 {+11.14/15 2.254s, tl=2.234s, latency=1.700s, n=80324764,
+sd=102, nps=144990548, hashfull=725, tbhits=1650996, pv=\"h7h6 a1b1 b8c7 b1a1
+c7b7 a1b1 h6b6 b1a1 b7b8 a1a5 b6b1 e5f6 b8b7 a5a2 b1f1 f6g5 f1f2 a2a5 f2f8 a5a4
+f8e8 a4a5 e8c8 a5b5 b7a6 b5b4 a6a5 b4b3 a5a4 b3b2 c8g8 g5f5 a4a3 b2d2 g8f8 f5e5
+a3b4 d2b2 b4c4 b2c2 c4b3 e5d4 f8d8 d4e3 b3c2 e3f4 a7a8q f4e3 c2b3 e3f2 b3c4 f2g1
+c4c5 g1f2 d8g8\"} 141... Rxa7 {-0.15/18 1.955s, tl=11.393s, latency=0.000s,
+n=562012861, sd=39, nps=287474000, hashfull=998, tbhits=0, pv=\"a1a7 h6h5 e5f4
+b8a7 f4e4 h5h4 e4f5 a7b7 f5g5 h4d4 g5f6 d4b4 f6e7 b4e4 e7f6 e4a4\"} 142. Kxa7
+{+M63/28 0.406s, tl=3.828s, latency=0.000s, n=76635861, sd=90, nps=188758278,
+hashfull=0, tbhits=80232, pv=\"b8a7 e5f4 a7b6 f4g5 h6d6 g5f4 b6b5 f4e3 d6e6 e3f4
+b5c5 f4f5 e6d6 f5e5 d6c6 e5e4 c6h6 e4f5 c5d4 f5g5 h6a6 g5f4 a6f6 f4g4 d4e4 g4g3
+f6e6 g3g4 e6g6 g4h5 g6d6 h5g4 d6c6 g4g5 c6b6 g5g4 b6d6 g4g3 d6f6 g3g2 f6g6 g2f2
+g6g4 f2e2 g4g2 e2f1 e4f3 f1e1 g2f2 e1d1 f2e2 d1c1 f3e3 c1b1 e3d4 b1a1 d4c3 a1b1
+e2e1 b1a2 e1f1 a2a3 f1a1\"} 142... Kf5 {0.00/19 2.165s, tl=11.228s,
+latency=0.000s, n=642533961, sd=31, nps=296782000, hashfull=998, tbhits=0,
+pv=\"e5f5 h6h5 f5e4 h5h4 e4e5 h4b4 e5d5 b4h4 d5e5\"} 143. Kb6 {+M51/20 0.347s,
+tl=5.481s, latency=0.001s, n=57744154, sd=94, nps=166890618, hashfull=0,
+tbhits=0, pv=\"a7b6 f5f4 b6c5 f4e5 h6d6 e5e4 d6e6 e4f5 c5d5 f5f4 e6f6 f4e3 f6a6
+e3f4 a6e6 f4f5 e6c6 f5f4 d5d4 f4f5 c6a6 f5f4 a6d6 f4f5 d6c6 f5f4 c6f6 f4g5 d4e5
+g5g4 e5e4 g4g3 f6g6 g3f2 g6g8 f2e2 g8g2 e2f1 g2c2 f1e1 e4e3 e1f1 c2b2 f1g1 e3f3
+g1h1 b2b1 h1h2 b1f1 h2h3 f1h1\"} 143... Kf4 {-0.22/19 2.089s, tl=11.139s,
+latency=0.000s, n=608216925, sd=31, nps=291152000, hashfull=998, tbhits=0,
+pv=\"f5f4 h6h4 f4e3 h4b4 e3d3 b6c6 d3e2 b4b3 e2f2 c6d5 f2g2 d5d6 g2f2 b3a3 f2e2
+d6d5\"} 144. Kc5 {+M31/45 0.282s, tl=7.199s, latency=0.001s, n=47516828, sd=79,
+nps=169099032, hashfull=0, tbhits=0, pv=\"b6c5 f4e5 c5c4 e5e4 h6h5 e4e3 h5e5
+e3f3 c4d4 f3f4 e5d5 f4f3 d5f5 f3g4 d4e4 g4g3 e4e3 g3g4 f5b5 g4g3 b5g5 g3h4 e3f4
+h4h3 g5g6 h3h2 f4f3 h2h1 f3f2 h1h2 g6h6\"} 144... Ke5 {-81.96/25 2.021s,
+tl=11.118s, latency=0.000s, n=543338176, sd=35, nps=268846000, hashfull=998,
+tbhits=0, pv=\"f4e5 c5c4 e5f5 c4d4 f5g5 h6e6 g5f5 e6a6 f5f4 a6f6 f4g5 d4e5 g5g4
+e5e4 g4g3 f6f3 g3g4 f3a3 g4g5 a3a6 g5g4 a6b6 g4g3 b6f6\"} 145. Rh4 {+M25/55
+0.744s, tl=8.455s, latency=0.001s, n=145024079, sd=41, nps=195187185,
+hashfull=92, tbhits=0, pv=\"h6h4 e5f6 c5d5 f6g5 h4c4 g5f6 c4f4 f6g5 d5e5 g5g6
+e5e6 g6g5 f4e4 g5g6 e4g4 g6h5 e6f5 h5h6 f5f6 h6h7 g4h4 h7g8 h4h3 g8f8 h3h8\"}
+145... Kf5 {-M50/27 2.420s, tl=10.698s, latency=0.001s, n=608236186, sd=36,
+nps=251441000, hashfull=998, tbhits=0, pv=\"e5f5 c5d6 f5g5 h4a4 g5f6 a4f4 f6g6
+d6e6 g6g5 f4e4 g5g6 e4d4 g6g5 d4a4 g5g6 a4g4 g6h5 g4g1 h5h4 e6f5 h4h3 f5f4 h3h2
+g1g4\"} 146. Kd6 {+M23/50 0.400s, tl=10.055s, latency=0.001s, n=80771671, sd=37,
+nps=202435265, hashfull=0, tbhits=0, pv=\"c5d6 f5g5 h4b4 g5f5 b4d4 f5f6 d4d5
+f6f7 d5f5 f7g7 d6e6 g7g6 f5a5 g6g7 a5g5 g7h6 e6f6 h6h7 g5h5 h7g8 h5h4 g8f8
+h4h8\"} 146... Kg5 {-M24/31 2.383s, tl=10.315s, latency=0.000s, n=583621569,
+sd=33, nps=244910000, hashfull=998, tbhits=0, pv=\"f5g5 h4b4 g5f5 b4a4 f5f6 a4f4
+f6g5 d6e5 g5g6 e5e6 g6g5 f4d4 g5g6 d4g4 g6h5 e6f5 h5h6 f5f6 h6h7 g4g1 h7h8
+f6f7\"} 147. Rb4 {+M21/57 0.376s, tl=11.679s, latency=0.000s, n=78169160, sd=33,
+nps=207896702, hashfull=0, tbhits=0, pv=\"h4b4 g5f5 b4d4 f5f6 d4d5 f6f7 d5f5
+f7g7 d6e6 g7g6 f5a5 g6g7 a5g5 g7h6 e6f6 h6h7 g5h5 h7g8 h5h4 g8f8 h4h8\"} 147...
+Kf5 {-M18/33 2.345s, tl=9.970s, latency=0.001s, n=652630333, sd=36,
+nps=278425000, hashfull=998, tbhits=0, pv=\"g5f5 b4a4 f5g6 a4a5 g6f6 d6d7 f6g7
+d7e6 g7g6 e6e7 g6g7 a5a6 g7h8 e7f7 h8h7 a6f6 h7h8\"} 148. Rd4 {+M17/68 0.402s,
+tl=13.277s, latency=0.000s, n=82913417, sd=23, nps=206252281, hashfull=0,
+tbhits=0, pv=\"b4d4 f5f6 d4d5 f6f7 d5f5 f7g7 d6e7 g7g6 f5e5 g6g7 e5e6 g7h8 e7f7
+h8h7 e6f6 h7h8 f6h6\"} 148... Kg6 {-M16/35 1.047s, tl=10.923s, latency=0.006s,
+n=338908098, sd=31, nps=325560000, hashfull=998, tbhits=0, pv=\"f5g6 d6e6 g6g5
+d4e4 g5g6 e4g4 g6h5 e6f5 h5h6 f5f6 h6h7 g4h4 h7g8 h4h5 g8f8\"} 149. Ke6 {+M15/75
+0.420s, tl=14.857s, latency=0.001s, n=83116284, sd=23, nps=198368219,
+hashfull=0, tbhits=0, pv=\"d6e6 g6g5 d4c4 g5g6 c4g4 g6h5 e6f5 h5h6 f5f6 h6h7
+g4e4 h7g8 e4h4 g8f8 h4h8\"} 149... Kg5 {-M14/48 2.018s, tl=10.905s,
+latency=0.006s, n=710255255, sd=33, nps=353009000, hashfull=998, tbhits=0,
+pv=\"g6g5 d4c4 g5g6 c4c5 g6g7 c5g5 g7h6 e6f6 h6h7 g5f5 h7g8 f6g6 g8h8\"} 150.
+Rc4 {+M13/87 0.650s, tl=16.207s, latency=0.001s, n=126726639, sd=13,
+nps=195264466, hashfull=136, tbhits=0, pv=\"d4c4 g5g6 c4g4 g6h5 e6f5 h5h6 f5f6
+h6h7 g4e4 h7g8 e4h4 g8f8 h4h8\"} 150... Kg6 {-M12/70 0.994s, tl=11.911s,
+latency=0.006s, n=303420355, sd=12, nps=307105000, hashfull=998, tbhits=0,
+pv=\"g5g6 c4c5 g6g7 c5g5 g7h6 e6f6 h6h7 f6f7 h7h6 g5b5 h6h7\"} 151. Rg4+
+{+M11/99 0.573s, tl=17.634s, latency=0.000s, n=110827411, sd=11, nps=193416075,
+hashfull=68, tbhits=0, pv=\"c4g4 g6h5 e6f5 h5h6 f5f6 h6h7 g4e4 h7g8 e4h4 g8f8
+h4h8\"} 151... Kh5 {-M10/95 1.256s, tl=12.655s, latency=0.006s, n=319700595,
+sd=10, nps=255760000, hashfull=998, tbhits=0, pv=\"g6h5 e6f5 h5h6 f5f6 h6h7 g4h4
+h7g8 h4h5 g8f8\"} 152. Kf5 {+M9/95 0.500s, tl=19.134s, latency=0.000s,
+n=82776022, sd=9, nps=165552044, hashfull=29, tbhits=0, pv=\"e6f5 h5h6 f5f6 h6h7
+g4e4 h7g8 e4h4 g8f8 h4h8\"} 152... Kh6 {-M8/120 1.289s, tl=13.366s,
+latency=0.006s, n=314025275, sd=8, nps=244758000, hashfull=998, tbhits=0,
+pv=\"h5h6 f5f6 h6h7 g4h4 h7g8 h4h5 g8f8\"} 153. Kf6 {+M7/133 5.252s, tl=15.882s,
+latency=5.038s, n=32008337, sd=7, nps=149571668, hashfull=0, tbhits=0, pv=\"f5f6
+h6h7 g4e4 h7g8 e4h4 g8f8 h4h8\"} 153... Kh7 {-M6/149 1.870s, tl=13.496s,
+latency=0.006s, n=445944260, sd=6, nps=239240000, hashfull=998, tbhits=0,
+pv=\"h6h7 g4h4 h7g8 h4h5 g8f8\"} 154. Re4 {+M5/87 4.662s, tl=13.220s,
+latency=4.622s, n=2308570, sd=5, nps=57714250, hashfull=0, tbhits=0, pv=\"g4e4
+h7g8 e4h4 g8f8 h4h8\"} 154... Kh8 {-M4/155 2.663s, tl=12.833s, latency=0.000s,
+n=642837783, sd=4, nps=241396000, hashfull=998, tbhits=0, pv=\"h7h8 f6g6 h8g8\"}
+155. Kg6 {+M3/199 0.067s, tl=15.153s, latency=0.001s, n=6980637, sd=3,
+nps=105767227, hashfull=0, tbhits=0, pv=\"f6g6 h8g8 e4e8\"} 155... Kg8 {-M2/255
+0.032s, tl=14.801s, latency=0.005s, n=781445, sd=2, nps=28942000, hashfull=998,
+tbhits=0, pv=\"h8g8\"} 156. Re8# {+M1/199 0.044s, tl=17.109s, latency=0.000s,
+n=958000, sd=1, nps=21772727, hashfull=0, tbhits=0, pv=\"e4e8\", White mates}
+1-0

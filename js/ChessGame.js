@@ -5721,7 +5721,7 @@ updateEngineLevel() {
             5: { uciElo: 2000, depth: 6 },
             6: { uciElo: 2300, depth: 10 },
             7: { uciElo: 2700, depth: 14 },
-            8: { uciElo: 3200, depth: 18 }
+            8: { uciElo: 3000, depth: 18 }
         };
 
         const settings = difficultyMap[level] || difficultyMap[8];
