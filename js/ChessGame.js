@@ -1,4 +1,4 @@
-import { INITIAL_FEN, FILES, RANKS, ICON_BOOK_SVG, SETTINGS_ICON_IMG, VARIANT_STARTING_FENS, nnueMap } from './constants.js';
+import {INITIAL_FEN,FILES, RANKS, ICON_BOOK_SVG, SETTINGS_ICON_IMG, VARIANT_STARTING_FENS, nnueMap } from './constants.js';
 import { MoveNode } from './MoveNode.js';
 export class ChessGame {
     #engine;
@@ -22,10 +22,7 @@ constructor() {
         // 🌟 FIX 1: Establish a strict default engine context on boot
         this.mode = 'analysis'; 
         
-        let startingFen = INITIAL_FEN;
-        if (typeof VARIANT_STARTING_FENS !== 'undefined') {
-            startingFen = VARIANT_STARTING_FENS[this.gameMode] || INITIAL_FEN;
-        }
+        let startingFen = this.#getStartingFen(this.gameMode);
 
         if (typeof localStorage !== 'undefined') {
             // 🌟 FIX 2: Stop pulling the old corrupted global key! 
@@ -220,6 +217,12 @@ getReader() {
             }))
         });
     }
+#getStartingFen(mode = this.gameMode) {
+    if (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[mode]) {
+        return VARIANT_STARTING_FENS[mode];
+    }
+    return INITIAL_FEN;
+}
 #getPly(node) {
         let ply = 0;
         let curr = node;
@@ -572,10 +575,19 @@ return FILES[f] + (8 - r);
                 const candidate = bookCandidates[Math.floor(Math.random() * bookCandidates.length)];
                 
                 if (window.sfWorker && level >= 3) {
+                    const thresholds = {
+                        3: -300,
+                        4: -200,
+                        5: -150,
+                        6: -100,
+                        7: -50,
+                        8: -25
+                    };
+
                     this.verifyingBookMove = candidate;
                     this.verifyingBookScore = null;
                     this.verifyingBookType = null;
-                    this.verifyingBookThreshold = -150; 
+                    this.verifyingBookThreshold = thresholds[level] || -150; 
                     
                     window.sfWorker.postMessage('stop');
                     window.sfWorker.postMessage('position fen ' + fen);
@@ -598,7 +610,7 @@ return FILES[f] + (8 - r);
                 1: { uciElo: 1000 }, 2: { uciElo: 1200 },
                 3: { uciElo: 1500 }, 4: { uciElo: 1800 },
                 5: { uciElo: 2100 }, 6: { uciElo: 2400 },
-                7: { uciElo: 2700 }, 8: { uciElo: 3200 }
+                7: { uciElo: 2700 }, 8: { uciElo: 3000 }
             };
             const settings = difficultyMap[level] || difficultyMap[8];
             
@@ -884,7 +896,6 @@ return move.san;
             else{            window.sfWorker.postMessage('setoption name Threads value ' + threads);
                 
             window.sfWorker.postMessage('setoption name Hash value 1024');}
-
             window.sfWorker.postMessage('setoption name MultiPV value 3');
             window.sfWorker.postMessage('setoption name Move Overhead value 10');
             window.sfWorker.postMessage('setoption name UCI_LimitStrength value false');
@@ -938,7 +949,7 @@ return move.san;
                 const candidate = this.verifyingBookMove;
                 const score = this.verifyingBookScore;
                 const type = this.verifyingBookType;
-                const threshold = this.verifyingBookThreshold !== undefined ? this.verifyingBookThreshold : -150;
+                const threshold = this.verifyingBookThreshold;
                 
                 this.verifyingBookMove = null;
                 this.verifyingBookScore = null;
@@ -954,9 +965,46 @@ return move.san;
                         else if (type === 'cp' && (score === null || score < threshold)) isBadMove = true;
 
                         if (isBadMove) {
-                            console.log(`%c[BOT] Book move ${candidate} rejected. Recalculating...`, "color:#fa412d");
-                            this.#triggerBotMove(true); 
-                        } else {
+                            console.log(`%c[BOT] Book move ${candidate} rejected. Searching for best engine move...`, "color:#fa412d");
+                            const difficultyMap = {
+                                1: { uciElo: 1000 }, 2: { uciElo: 1200 },
+                                3: { uciElo: 1500 }, 4: { uciElo: 1800 },
+                                5: { uciElo: 2100 }, 6: { uciElo: 2400 },
+                                7: { uciElo: 2700 }, 8: { uciElo: 3000 }
+                            };
+                            const level = this.botLevel || 8;
+                            // 1. Clear the book-verifying state so it doesn't trigger again
+                            this.verifyingBookMove = null;
+                            this.verifyingBookScore = null;
+                            this.verifyingBookType = null;
+                            this.verifyingBookThreshold = null;
+
+                            // 2. Force the engine to re-calculate the best move for the CURRENT position
+                            const fen = this.#engine.fen();
+                            const settings = difficultyMap[level] || difficultyMap[8];
+
+                            if (window.sfWorker) {
+                                // Reset engine state and apply specific configuration
+                                window.sfWorker.postMessage('stop');
+                                window.sfWorker.postMessage('setoption name MultiPV value 1');
+                                
+                                if (this.activeEngineType === 'fairy') {
+                                    const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
+                                    window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
+                                } else {
+                                    window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+                                }
+                                
+                                window.sfWorker.postMessage('setoption name UCI_LimitStrength value true');
+                                window.sfWorker.postMessage(`setoption name UCI_Elo value ${settings.uciElo}`);
+                                
+                                // 3. Set the position and tell the engine to find the best move
+                                window.sfWorker.postMessage('position fen ' + fen);
+                                window.sfWorker.postMessage(`go movetime ${this.currentBotThinkTime}`);
+                            }
+
+                            return; // Stop processing this 'bestmove' message
+                        }else {
                             console.log(`%c[BOT] Book move ${candidate} verified.`, "color:#96bc4b");
                             this.#executeBotMoveWithDelay(candidate);
                         }
@@ -1202,9 +1250,7 @@ return move.san;
         }
 
         // Clean slate fallback block if no previous snapshot data was saved
-        let startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode]) 
-            ? VARIANT_STARTING_FENS[this.gameMode] 
-            : INITIAL_FEN;
+        let startFen = this.#getStartingFen(this.gameMode);
             
         this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, this.gameMode);
         this.rootNode = new MoveNode(startFen, null);
@@ -2276,7 +2322,7 @@ return move.san;
             if (!hasManualVariation) return ""; 
         }
         
-        let parentFen = node.fen || (typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+        let parentFen = node.fen || this.#getStartingFen();        
         let fenParts = parentFen.split(' ');
         let moveColor = fenParts[1] || 'w'; 
         let mNum = parseInt(fenParts[5] || 1, 10);
@@ -4401,189 +4447,182 @@ parseArrowsAndCircles(node, comment) {
         }
     }
 loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
-        if (typeof pgn === 'string' && !isInternalLoad) {
-            let detectedMode = 'classical';
-            const variantMatch = pgn.match(/\[Variant\s+"([^"]+)"\]/i);
-            const ruleVariantMatch = pgn.match(/\[RuleVariants\s+"([^"]+)"\]/i);
-            
-            if (variantMatch && variantMatch[1]) {
-                const rawVariant = variantMatch[1].toLowerCase().replace(/[-_ ]/g, ''); 
-                const modeMap = {
-                    'standard': 'classical', 'classical': 'classical',
-                    'chess960': 'chess960', 'fischerandom': 'chess960',
-                    '3check': '3check', 'threecheck': '3check',
-                    'antichess': 'antichess', 'giveaway': 'antichess', 'losers': 'antichess',
-                    'atomic': 'atomic', 'horde': 'horde', 'kingofthehill': 'kingofthehill', 
-                    'koth': 'kingofthehill', 'racingkings': 'racingkings', 'crazyhouse': 'crazyhouse',
-                    'bughouse': 'bughouse', 'duck': 'duck', 'duckchess': 'duck', 'chaturanga': 'chaturanga',
-                    'placement': 'placement', 'alice': 'alice', 'alicechess': 'alice',
-                    'spell': 'spell', 'spellchess': 'spell' 
-                };
-                if (modeMap[rawVariant]) detectedMode = modeMap[rawVariant];
-            }
+    if (typeof pgn === 'string' && !isInternalLoad) {
+        let detectedMode = 'classical';
+        const variantMatch = pgn.match(/\[Variant\s+"([^"]+)"\]/i);
+        const ruleVariantMatch = pgn.match(/\[RuleVariants\s+"([^"]+)"\]/i);
+        
+        if (variantMatch && variantMatch[1]) {
+            const rawVariant = variantMatch[1].toLowerCase().replace(/[-_ ]/g, ''); 
+            const modeMap = {
+                'standard': 'classical', 'classical': 'classical',
+                'chess960': 'chess960', 'fischerandom': 'chess960',
+                '3check': '3check', 'threecheck': '3check',
+                'antichess': 'antichess', 'giveaway': 'antichess', 'losers': 'antichess',
+                'atomic': 'atomic', 'horde': 'horde', 'kingofthehill': 'kingofthehill', 
+                'koth': 'kingofthehill', 'racingkings': 'racingkings', 'crazyhouse': 'crazyhouse',
+                'bughouse': 'bughouse', 'duck': 'duck', 'duckchess': 'duck', 'chaturanga': 'chaturanga',
+                'placement': 'placement', 'alice': 'alice', 'alicechess': 'alice',
+                'spell': 'spell', 'spellchess': 'spell' 
+            };
+            if (modeMap[rawVariant]) detectedMode = modeMap[rawVariant];
+        }
 
-            // ✨ FIX 1: Detect Chess.com 4PC sub-variants (Chess960 & Spell)
-            if (ruleVariantMatch && ruleVariantMatch[1]) {
-                const rules = ruleVariantMatch[1].toLowerCase();
-                if (rules.includes('chess960')) detectedMode = 'chess960';
-                if (rules.includes('spell')) detectedMode = 'spell';
+        if (ruleVariantMatch && ruleVariantMatch[1]) {
+            const rules = ruleVariantMatch[1].toLowerCase();
+            if (rules.includes('chess960')) detectedMode = 'chess960';
+            if (rules.includes('spell')) detectedMode = 'spell';
+        }
+        
+        if (this.gameMode !== detectedMode) {
+            this.setGameMode(detectedMode, false, true); 
+            if (typeof document !== 'undefined') {
+                const variantSelect = document.getElementById('analysisVariantSelect');
+                if (variantSelect) variantSelect.value = detectedMode;
             }
-            
-            if (this.gameMode !== detectedMode) {
-                this.setGameMode(detectedMode, false, true); 
+        }
+    }
+
+    this.isLoadingPGN = true;
+    const timerId = `PGN_Load_${Date.now()}`;
+    console.time(timerId);
+
+    if (window.sfWorker) window.sfWorker.postMessage('stop');
+
+    const backups = { ui: {}, game: {}, console: {} };
+    const silence = (obj, method, storage) => {
+        if (obj && typeof obj[method] === 'function') {
+            storage[method] = obj[method];
+            obj[method] = () => {};
+        }
+    };
+    if (this.#ui) {
+        ['updateHistory', 'renderBoard', 'renderArrows', 'renderHeaders', 'highlightLastMove', 'updateClocks', 'updateStatus', 'scrollToActiveMove', 'showNotification', 'updatePuzzleStats', 'updatePlayerNames', 'displayMetadata','renderCharts'].forEach(m => silence(this.#ui, m, backups.ui));
+    }
+    ['updateStockfish', 'triggerMoveSound', 'checkGameState', 'onMove', 'attemptPremove', 'saveToLocalStorage'].forEach(m => silence(this, m, backups.game));
+    ['log', 'info', 'warn', 'debug'].forEach(m => silence(console, m, backups.console));
+
+    try {
+        this.moveList = [];
+        this.history = [];
+        this.fens = [];
+        this.pgnHeaders = {};
+
+        this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
+        this.#board = Array(64).fill(null);
+
+        const headerRegex = /\[([A-Za-z0-9_]+)\s+"([^"]*)"\]/g;
+        let match;
+        while ((match = headerRegex.exec(pgn)) !== null) {
+            this.pgnHeaders[match[1]] = match[2];
+        }
+
+        if (this.pgnHeaders['StartFen4']) {
+            let boardStr = this.pgnHeaders['StartFen4'].split('- ').pop();
+            let rows = boardStr.split('/');
+            let fenRows = [];
+            for (let r of rows) {
+                let cells = r.trim().split(',');
+                if (cells.every(c => c === 'x')) continue;
+                let validCells = cells.filter(c => c !== 'x');
+                if (validCells.length === 0) continue;
                 
-                if (typeof document !== 'undefined') {
-                    const variantSelect = document.getElementById('analysisVariantSelect');
-                    if (variantSelect) variantSelect.value = detectedMode;
-                }
-            }
-        }
-
-        this.isLoadingPGN = true;
-        const timerId = `PGN_Load_${Date.now()}`;
-        console.time(timerId);
-
-        if (window.sfWorker) window.sfWorker.postMessage('stop');
-
-        const backups = { ui: {}, game: {}, console: {} };
-        const silence = (obj, method, storage) => {
-            if (obj && typeof obj[method] === 'function') {
-                storage[method] = obj[method];
-                obj[method] = () => {};
-            }
-        };
-        if (this.#ui) {
-            ['updateHistory', 'renderBoard', 'renderArrows', 'renderHeaders', 'highlightLastMove', 'updateClocks', 'updateStatus', 'scrollToActiveMove', 'showNotification', 'updatePuzzleStats', 'updatePlayerNames', 'displayMetadata','renderCharts'].forEach(m => silence(this.#ui, m, backups.ui));
-        }
-        ['updateStockfish', 'triggerMoveSound', 'checkGameState', 'onMove', 'attemptPremove', 'saveToLocalStorage'].forEach(m => silence(this, m, backups.game));
-        ['log', 'info', 'warn', 'debug'].forEach(m => silence(console, m, backups.console));
-
-        try {
-            this.moveList = [];
-            this.history = [];
-            this.fens = [];
-            this.pgnHeaders = {};
-
-            this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
-            this.#board = Array(64).fill(null);
-
-            const headerRegex = /\[([A-Za-z0-9_]+)\s+"([^"]*)"\]/g;
-            let match;
-            while ((match = headerRegex.exec(pgn)) !== null) {
-                this.pgnHeaders[match[1]] = match[2];
-            }
-
-            // ✨ FIX 2: Translate the massive 14x14 "StartFen4" into a perfect 8x8 FEN!
-            if (this.pgnHeaders['StartFen4']) {
-                let boardStr = this.pgnHeaders['StartFen4'].split('- ').pop();
-                let rows = boardStr.split('/');
-                let fenRows = [];
-                for (let r of rows) {
-                    let cells = r.trim().split(',');
-                    if (cells.every(c => c === 'x')) continue; // Skip invisible top/bottom walls
-                    let validCells = cells.filter(c => c !== 'x'); // Strip side walls
-                    if (validCells.length === 0) continue;
-                    
-                    let fenRow = '';
-                    let emptyCount = 0;
-                    for (let c of validCells) {
-                        if (!isNaN(c)) {
-                            emptyCount += parseInt(c, 10);
-                        } else if (c.length === 2) {
-                            if (emptyCount > 0) { fenRow += emptyCount; emptyCount = 0; }
-                            let color = c[0]; 
-                            let piece = c[1]; 
-                            // Yellow = Black, Red = White
-                            fenRow += color === 'y' ? piece.toLowerCase() : piece.toUpperCase();
-                        } else {
-                            if (emptyCount > 0) { fenRow += emptyCount; emptyCount = 0; }
-                            fenRow += c; 
-                        }
-                    }
-                    if (emptyCount > 0) { fenRow += emptyCount; }
-                    fenRows.push(fenRow);
-                }
-                this.pgnHeaders['FEN'] = fenRows.join('/') + " w KQkq - 0 1";
-            }
-
-            if (isInternalLoad) {
-                this.pgnHeaders['Variant'] = this.gameMode === 'classical' ? 'Standard' : this.gameMode;
-            }
-
-            let moveTextRaw = pgn.replace(/\[[A-Za-z0-9_]+\s+"[^"]*"\]/g, '').trim();
-
-            // ✨ FIX 3: Translate 14x14 PGN coordinates (f5-f7) back to 8x8 coordinates (c2c4)!
-            if (this.pgnHeaders['StartFen4'] || this.gameMode === 'spell') {
-                const to8x8 = (coord) => {
-                    if (!coord || coord.length < 2) return coord;
-                    let f = String.fromCharCode(coord.charCodeAt(0) - 3); 
-                    let r = parseInt(coord.slice(1), 10) - 3;             
-                    return f + r;
-                };
-
-                let tokens = moveTextRaw.split(/\s+/);
-                let newTokens = [];
-
-                for (let i = 0; i < tokens.length; i++) {
-                    let t = tokens[i];
-                    if (t.includes('.') || t === '..' || t.match(/^(1-0|0-1|1\/2-1\/2|\*)$/)) {
-                        newTokens.push(t); continue; 
-                    }
-
-                    let spellMatch = t.match(/^(freeze|jump)@([a-n]\d+)&(.*)$/);
-                    let moveStr = t;
-                    
-                    if (spellMatch) {
-                        // Extract the spell into a distinct pseudo-move before the actual move!
-                        newTokens.push(`S${spellMatch[1]}@${to8x8(spellMatch[2])}`); 
-                        moveStr = spellMatch[3];
-                    }
-
-                    // Translate formats like Qg4xg7, Nh4xNg6, Kj4-k4, Be4-d5
-                    let ccMatch = moveStr.match(/^([A-Z]?)([a-n]\d+)[-x]([A-Z]?)([a-n]\d+)(=[A-Za-z])?([+#]?)$/);
-                    if (ccMatch) {
-                        // Engine loves strict algebraic pairs (e.g. c2c4) so we skip the piece letters
-                        newTokens.push(to8x8(ccMatch[2]) + to8x8(ccMatch[4]) + (ccMatch[5] ? ccMatch[5].replace('=', '').toLowerCase() : ''));
+                let fenRow = '';
+                let emptyCount = 0;
+                for (let c of validCells) {
+                    if (!isNaN(c)) {
+                        emptyCount += parseInt(c, 10);
+                    } else if (c.length === 2) {
+                        if (emptyCount > 0) { fenRow += emptyCount; emptyCount = 0; }
+                        let color = c[0]; 
+                        let piece = c[1]; 
+                        fenRow += color === 'y' ? piece.toLowerCase() : piece.toUpperCase();
                     } else {
-                        // Fallback perfectly preserves things like standard O-O castling!
-                        newTokens.push(moveStr); 
+                        if (emptyCount > 0) { fenRow += emptyCount; emptyCount = 0; }
+                        fenRow += c; 
                     }
                 }
+                if (emptyCount > 0) { fenRow += emptyCount; }
+                fenRows.push(fenRow);
+            }
+            this.pgnHeaders['FEN'] = fenRows.join('/') + " w KQkq - 0 1";
+        }
+
+        if (isInternalLoad) {
+            this.pgnHeaders['Variant'] = this.gameMode === 'classical' ? 'Standard' : this.gameMode;
+        }
+
+        let moveTextRaw = pgn.replace(/\[[A-Za-z0-9_]+\s+"[^"]*"\]/g, '').trim();
+
+        // 🌟 FIX 1: THE SMART REGEX BRIDGE
+        // Transforms instances like "Fz@d5 Bc5" into "Fz@d5_Bc5".
+        // This ensures the custom split(/\s+/) and charCodeAt loops treat it as an unbroken string!
+        moveTextRaw = moveTextRaw.replace(/([A-Za-z]+@[a-h][1-8])\s+([A-Za-z0-9+#=O\-]+)/g, "$1_$2");
+
+        if (this.pgnHeaders['StartFen4'] || this.gameMode === 'spell') {
+            const to8x8 = (coord) => {
+                if (!coord || coord.length < 2) return coord;
+                let f = String.fromCharCode(coord.charCodeAt(0) - 3); 
+                let r = parseInt(coord.slice(1), 10) - 3;            
+                return f + r;
+            };
+
+            let tokens = moveTextRaw.split(/\s+/);
+            let newTokens = [];
+
+            for (let i = 0; i < tokens.length; i++) {
+                let t = tokens[i];
+                if (t.includes('.') || t === '..' || t.match(/^(1-0|0-1|1\/2-1\/2|\*)$/)) {
+                    newTokens.push(t); continue; 
+                }
+
+                let spellMatch = t.match(/^(freeze|jump)@([a-n]\d+)&(.*)$/);
+                let moveStr = t;
                 
-                moveTextRaw = newTokens.join(' ');
-            }
+                if (spellMatch) {
+                    newTokens.push(`S${spellMatch[1]}@${to8x8(spellMatch[2])}`); 
+                    moveStr = spellMatch[3];
+                }
 
-            let initialTime = 600;
-            this.timeIncrement = 0;
-            
-            if (this.pgnHeaders['TimeControl']) {
-                const parts = this.pgnHeaders['TimeControl'].split('+');
-                const parsed = parseFloat(parts[0]);
-                if (!isNaN(parsed)) initialTime = parsed;
-                if (parts.length > 1) {
-                    const inc = parseFloat(parts[1]);
-                    if (!isNaN(inc)) this.timeIncrement = inc;
+                let ccMatch = moveStr.match(/^([A-Z]?)([a-n]\d+)[-x]([A-Z]?)([a-n]\d+)(=[A-Za-z])?([+#]?)$/);
+                if (ccMatch) {
+                    newTokens.push(to8x8(ccMatch[2]) + to8x8(ccMatch[4]) + (ccMatch[5] ? ccMatch[5].replace('=', '').toLowerCase() : ''));
+                } else {
+                    newTokens.push(moveStr); 
                 }
             }
-            
-            this.currentWTime = this.currentBTime = initialTime;
+            moveTextRaw = newTokens.join(' ');
+        }
 
-            let startFen = this.pgnHeaders['FEN'];
-            if (!startFen) {
-                startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode]) 
-                    ? VARIANT_STARTING_FENS[this.gameMode] 
-                    : INITIAL_FEN;
-                    
-                if (this.gameMode === 'chess960' && typeof this.generateChess960FEN === 'function') {
-                    startFen = this.generateChess960FEN();
-                }
+        let initialTime = 600;
+        this.timeIncrement = 0;
+        
+        if (this.pgnHeaders['TimeControl']) {
+            const parts = this.pgnHeaders['TimeControl'].split('+');
+            const parsed = parseFloat(parts[0]);
+            if (!isNaN(parsed)) initialTime = parsed;
+            if (parts.length > 1) {
+                const inc = parseFloat(parts[1]);
+                if (!isNaN(inc)) this.timeIncrement = inc;
             }
+        }
+        
+        this.currentWTime = this.currentBTime = initialTime;
 
-            this.rootNode = new MoveNode(startFen, null);
-            this.rootNode.clock = { w: initialTime, b: initialTime };
+        let startFen = this.pgnHeaders['FEN'];
+        if (!startFen) {
+            startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode]) 
+                ? VARIANT_STARTING_FENS[this.gameMode] 
+                : INITIAL_FEN;
+            if (this.gameMode === 'chess960' && typeof this.generateChess960FEN === 'function') {
+                startFen = this.generateChess960FEN();
+            }
+        }
 
-            this.currentNode = this.rootNode;
-            this.loadFEN(this.rootNode.fen, this.gameMode, true);
+        this.rootNode = new MoveNode(startFen, null);
+        this.rootNode.clock = { w: initialTime, b: initialTime };
+        this.currentNode = this.rootNode;
+        this.loadFEN(this.rootNode.fen, this.gameMode, true);
 
             const wName = (this.pgnHeaders['White'] || "").toLowerCase();
             const bName = (this.pgnHeaders['Black'] || "").toLowerCase();
@@ -4650,19 +4689,36 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
 
             const originalMakeMove = this.makeMove.bind(this);
             this.makeMove = (move, promo, batchMode, pgnText, muteEngine, isAutoReply) => {
-                // Ignore whatever the token parser requests, force Batch = true, Mute = true!
-                return originalMakeMove(move, promo, true, pgnText, true, true);
+                
+                // 🌟 FIX 2: RESTORE THE SPACE
+                // Swaps "Fz@d5_Bc5" back into "Fz@d5 Bc5" right before it hits the engine.
+                if (typeof move === 'string') {
+                    move = move.replace(/([A-Za-z]+@[a-h][1-8])_([A-Za-z0-9+#=O\-]+)/, "$1 $2");
+                }
+
+                // Execute original move logic
+                let result = originalMakeMove(move, promo, true, pgnText, true, true);
+                
+                // 🌟 FIX 3: REPAIRED UNREACHABLE CODE
+                // Your original code placed `return` right above this IF block, so this never ran! 
+                // Moved the `return` statement to the bottom so SAN logic successfully fires.
+                if (typeof move === 'string' && move.includes('@') && this.currentNode) {
+                    if (this.currentNode.moveSan && !this.currentNode.moveSan.includes('@')) {
+                        this.currentNode.moveSan = move;
+                    }
+                }
+                
+                return result; 
             };
 
             // Run the heavy parser
             if (typeof this.#parsePGNTokens === 'function') this.#parsePGNTokens(tokens, 0);
 
-            // ✨ Restore normal functionality immediately after it finishes
-            this.makeMove = originalMakeMove;
-            
-        } catch (e) {
-            backups.console.error("PGN Parsing Error:", e);
-        }
+        this.makeMove = originalMakeMove;
+        
+    } catch (e) {
+        backups.console.error("PGN Parsing Error:", e);
+    }
         finally {
             this.isLoadingPGN = false;
             this.clearPremoves();
@@ -5042,12 +5098,33 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         if (this.#engine && this.#engine.game_over()) return null;
         const ui = (typeof window !== 'undefined' && this.#ui) ? this.#ui : null;
         
-        // ✨ STRING INTERCEPT: Automatically converts PGN strings (from loadPGN) into magic!
-        if (typeof move === 'string' && move.includes('@') && this.gameMode === 'spell') {
-            const isFreeze = move.startsWith('Fz');
-            const targetStr = move.split('@')[1];
-            const targetSq = (8 - parseInt(targetStr[1])) * 8 + (targetStr.charCodeAt(0) - 97);
-            move = { isSpell: true, spellType: isFreeze ? 'freeze' : 'jump', target: targetSq };
+        // ✨ FIX 1: BUFFER SPELLS ON PGN RELOAD
+        // When loadPGN fires "Fz@f7", we buffer it and wait for the piece move to arrive!
+        if (typeof move === 'string') {
+            if (this.gameMode === 'spell' && move.includes('@') && move.match(/^[FJ]z?p?@/)) {
+                const isFreeze = move.startsWith('Fz');
+                const targetStr = move.split('@')[1];
+                const targetSq = (8 - parseInt(targetStr[1])) * 8 + (targetStr.charCodeAt(0) - 97);
+                
+                // Save it and abort. Don't process a turn yet!
+                this._pendingReloadSpell = { 
+                    isSpell: true, 
+                    spellType: isFreeze ? 'freeze' : 'jump', 
+                    target: targetSq, 
+                    spellSan: move 
+                };
+                return null; 
+            }
+        }
+
+        // ✨ FIX 2: ATTACH BUFFERED SPELL TO INCOMING MOVE
+        // The piece move arrives as an object. We inject the spell data here.
+        if (this._pendingReloadSpell && typeof move === 'object') {
+            move.isSpell = true;
+            move.spellType = this._pendingReloadSpell.spellType;
+            move.target = this._pendingReloadSpell.target;
+            move.spellSan = this._pendingReloadSpell.spellSan;
+            this._pendingReloadSpell = null; // clear it
         }
         
         if (!this.isChess960 && move && move.from !== undefined && move.to !== undefined && !move.isSpell && this.#engine) {
@@ -5078,19 +5155,23 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
 
         const promotion = (promo && promo.length === 1) ? promo.toLowerCase() : undefined;
 
-         if (batchMode) {
+        if (batchMode) {
             const batchObj = {};
+            // ✨ FIX 3: Removed "else if". We now process BOTH Spell and Piece move into the same batchObj!
             if (move.isSpell) {
                 batchObj.isSpell = true; 
                 batchObj.spellType = move.spellType; 
                 batchObj.target = typeof move.target === 'number' ? this.#indexToSquare(move.target) : move.target;
-            } else if (move.from === '@' || move.drop) {
-                batchObj.from = '@';
-                batchObj.drop = move.drop || move.piece;
-                batchObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
-            } else {
-                batchObj.from = typeof move.from === 'number' ? this.#indexToSquare(move.from) : move.from;
-                batchObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
+            } 
+            if (move.from !== undefined && move.to !== undefined) {
+                if (move.from === '@' || move.drop) {
+                    batchObj.from = '@';
+                    batchObj.drop = move.drop || move.piece;
+                    batchObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
+                } else {
+                    batchObj.from = typeof move.from === 'number' ? this.#indexToSquare(move.from) : move.from;
+                    batchObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
+                }
             }
             batchObj.promotion = promotion || 'q';
             if (move.duck_sq !== undefined) {
@@ -5102,7 +5183,24 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             const newFen = this.#engine.fen();
             this.#reconcileBoardIds(newFen, move);
             
-            this.#addMoveToTree(newFen, pgnText || result.san, move.to, {
+            let finalSan = pgnText || result.san;
+            
+            if (move.duck_sq !== undefined) {
+                let duckStr = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
+                finalSan = `${finalSan}@${duckStr}`;
+            }
+
+            if (move.isSpell) {
+                let targetStr = typeof move.target === 'number' ? this.#indexToSquare(move.target) : move.target;
+                move.spellSan = `${move.spellType === 'freeze' ? 'Fz' : 'Jp'}@${targetStr}`;
+                
+                // Prevent duplication: Only prepend if it doesn't already exist
+                if (!finalSan.startsWith('Fz@') && !finalSan.startsWith('Jp@')) {
+                    finalSan = `${move.spellSan} ${finalSan}`;
+                }
+            }
+            
+            this.#addMoveToTree(newFen, finalSan, move.to, {
                 from: move.from, to: move.to, flags: result.flags, color: result.color
             }, false);
             
@@ -5115,17 +5213,21 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         }
 
         const moveObj = {};
+        // ✨ FIX 5: Same as batchMode, remove "else if" so normal mode allows Spell + Piece Move!
         if (move.isSpell) {
             moveObj.isSpell = true; 
             moveObj.spellType = move.spellType; 
             moveObj.target = typeof move.target === 'number' ? this.#indexToSquare(move.target) : move.target;
-        } else if (move.from === '@' || move.drop) {
-            moveObj.from = '@';
-            moveObj.drop = move.drop || move.piece;
-            moveObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
-        } else {
-            moveObj.from = typeof move.from === 'number' ? this.#indexToSquare(move.from) : move.from;
-            moveObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
+        } 
+        if (move.from !== undefined && move.to !== undefined) {
+            if (move.from === '@' || move.drop) {
+                moveObj.from = '@';
+                moveObj.drop = move.drop || move.piece;
+                moveObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
+            } else {
+                moveObj.from = typeof move.from === 'number' ? this.#indexToSquare(move.from) : move.from;
+                moveObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
+            }
         }
         if (promotion) moveObj.promotion = promotion;
         if (move.duck_sq !== undefined) {
@@ -5191,8 +5293,25 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             color: result.color 
         };
         
-        console.log(`🌳 [TREE APPEND] Current mode: '${this.mode}', Appending FEN: ${newFen.split(' ')[0]}`);
-        this.#addMoveToTree(newFen, result.san, moveData.to, moveData, true);
+        // ✨ FIX 6: Same combined SAN fix for normal mode history tracking
+        let finalSan = result.san;
+        
+        if (move.duck_sq !== undefined) {
+            let duckStr = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
+            finalSan = `${finalSan}@${duckStr}`;
+        }
+        
+        if (move.isSpell) {
+            let targetStr = typeof move.target === 'number' ? this.#indexToSquare(move.target) : move.target;
+            move.spellSan = `${move.spellType === 'freeze' ? 'Fz' : 'Jp'}@${targetStr}`;
+            
+            if (!finalSan.startsWith('Fz@') && !finalSan.startsWith('Jp@')) {
+                finalSan = `${move.spellSan} ${finalSan}`;
+            }
+        }
+        
+        console.log(`🌳 [TREE APPEND] Current mode: '${this.mode}', Appending Move: ${finalSan}`);
+        this.#addMoveToTree(newFen, finalSan, moveData.to, moveData, true);
         
         if (this.currentNode) this.currentNode.timeSpent = timeSpent;
 
@@ -5721,7 +5840,7 @@ updateEngineLevel() {
             5: { uciElo: 2000, depth: 6 },
             6: { uciElo: 2300, depth: 10 },
             7: { uciElo: 2700, depth: 14 },
-            8: { uciElo: 3000, depth: 18 }
+            8: { uciElo: 3200, depth: 18 }
         };
 
         const settings = difficultyMap[level] || difficultyMap[8];

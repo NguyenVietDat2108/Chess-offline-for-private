@@ -2844,7 +2844,13 @@ executeMove(move, animate = true, overridePromo = null) {
                 }, 100);
             }
         }
-        
+        if (this.pendingSpell) {
+        move.isSpell = true;
+        move.spellType = this.pendingSpell.spellType;
+        move.target = this.pendingSpell.target;
+        move.spellSan = this.pendingSpell.san; // We pass the SAN prefix
+        this.pendingSpell = null; // Clear it so it doesn't duplicate
+        }
         const isDrop = move.from === '@';
         let destIdx = move.to !== undefined ? move.to : move.target;
         if (typeof destIdx === 'string') {
@@ -4075,41 +4081,44 @@ renderTreeRecursive(node, container, moveNum) {
         let mainIdx = 0; 
         let mainChild = node.children[mainIdx];
         
+        // Check if this node is the Move following a Spell parent
+        let isSpellMove = node.isSpell; 
         let parentFen = node.fen || (typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
         let fenParts = parentFen.split(' ');
         let moveColor = fenParts[1] || 'w';
         let mNum = parseInt(fenParts[5] || 1, 10);
 
         let row = container.lastElementChild;
-        let isNewRowNeeded = true;
-        
-        // Only reuse the row if it matches the EXACT move number!
-        if (row && row.classList.contains('move-row') && row.dataset.mNum == mNum) {
-            isNewRowNeeded = false;
+        let targetCell;
+
+        // IF it's a spell-move, we don't need a new row or move-num, 
+        // we use the existing row/cell from the previous render step.
+        if (isSpellMove) {
+            // Find the cell we just populated in the previous step
+            targetCell = moveColor === 'w' ? row.querySelector('.white-cell') : row.querySelector('.black-cell');
+        } else {
+            // Standard Row/Cell creation logic
+            let isNewRowNeeded = true;
+            if (row && row.classList.contains('move-row') && row.dataset.mNum == mNum) {
+                isNewRowNeeded = false;
+            }
+
+            if (isNewRowNeeded) {
+                row = document.createElement('div'); 
+                row.className = 'move-row';
+                row.dataset.mNum = mNum;
+                let num = document.createElement('div'); 
+                num.className = 'move-num'; 
+                num.innerText = mNum + "."; 
+                
+                let wCell = document.createElement('div'); wCell.className = 'move-cell white-cell';
+                let bCell = document.createElement('div'); bCell.className = 'move-cell black-cell';
+
+                row.appendChild(num); row.appendChild(wCell); row.appendChild(bCell);
+                container.appendChild(row);
+            }
+            targetCell = moveColor === 'w' ? row.querySelector('.white-cell') : row.querySelector('.black-cell');
         }
-
-        if (isNewRowNeeded) {
-            row = document.createElement('div'); 
-            row.className = 'move-row';
-            row.dataset.mNum = mNum; // Store the move number directly on the row
-            
-            let num = document.createElement('div'); 
-            num.className = 'move-num'; 
-            num.innerText = mNum + "."; 
-            
-            // 🔥 THE ONE-CELL FIX: Create dedicated column wrappers!
-            // This prevents consecutive Spell moves from breaking the CSS grid layout.
-            let wCell = document.createElement('div'); wCell.className = 'move-cell white-cell';
-            let bCell = document.createElement('div'); bCell.className = 'move-cell black-cell';
-
-            row.appendChild(num);
-            row.appendChild(wCell);
-            row.appendChild(bCell);
-            container.appendChild(row);
-        }
-
-        // Send the move directly to the White or Black cell!
-        let targetCell = moveColor === 'w' ? row.querySelector('.white-cell') : row.querySelector('.black-cell');
         
         let moveUI = typeof this.createMoveSpanSafe === 'function' ? this.createMoveSpanSafe(mainChild) : this.createPlyDiv(mainChild);
         targetCell.appendChild(moveUI);
@@ -4438,7 +4447,9 @@ renderVariationLine(node, container) {
             
             span.className = `var-move ${isActive ? 'active' : ''}`; 
             span.dataset.id = curr.id; 
-            span.style.cssText = "display: inline-block;margin: 2px 1px; border-radius: 4px; cursor: pointer;text-align: center;";
+            
+            // 🔥 FAT HITBOX FIX: Converts the tiny inline text into a comfortable, finger-friendly button block!
+            span.style.cssText = "display: inline-block; border-radius: 4px; cursor: pointer;; text-align: center;";
             
             span.innerText = txt ? `${txt} ${curr.moveSan}` : curr.moveSan;
 
@@ -7444,20 +7455,18 @@ toggleSpell(spellType, colorRequest) {
         this.renderHeaders(); 
     }
 castSpell(spellType, targetSq) {
-        // ✨ We no longer manually subtract mana here! The engine handles the math automatically 
-        // when it processes the pseudo-move we send it below.
-        this.activeSpell = null;
-        
-        // ✨ Create a pseudo-move object for the engine
-        const spellMove = {
-            isSpell: true,
-            spellType: spellType,
-            target: targetSq
-        };
-        
-        this.executeMove(spellMove, true);
-        
-        // Update the headers to visually remove the spent mana charges
-        this.renderHeaders();
-    }
+    this.activeSpell = null;
+    
+    // ✨ STORE THE SPELL AS PENDING INSTEAD OF EXECUTING
+    this.pendingSpell = {
+        isSpell: true,
+        spellType: spellType,
+        target: targetSq,
+        san: `${spellType === 'freeze' ? 'Fz' : (spellType === 'jump' ? 'Jp' : 'Sp')}@${targetSq}`
+    };
+
+    // Update visuals to show the spell is "selected" (or waiting)
+    this.renderHeaders();
+    this.renderBoard(false); 
+}
 }

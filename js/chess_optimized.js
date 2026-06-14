@@ -256,25 +256,26 @@ var Chess = function(fen, gameMode = 'classical') {
             }
         }
         
-        // ✨ SPELL CHESS FEN PARSER: Restore the Mana and Ice Blocks!
+        // ✨ SPELL CHESS FEN PARSER: Restore the Mana, Ice Blocks, AND Jump State!
         if (s.gameMode === 'spell') {
             let spellMatch = fen.match(/\[S:([^\]]+)\]/);
             if (spellMatch) {
                 let p = spellMatch[1].split(',');
+                // FEN format: [S:frozen_lo, frozen_hi, jump_sq, mana_w_f, mana_w_j, mana_b_f, mana_b_j]
                 s.frozen = { lo: parseInt(p[0]) || 0, hi: parseInt(p[1]) || 0 };
+                s.jump_sq = parseInt(p[2]) === undefined ? -1 : parseInt(p[2]); // <-- ADDED THIS
                 s.mana = {
                     w: { freeze: parseInt(p[2]), jump: parseInt(p[3]) },
                     b: { freeze: parseInt(p[4]), jump: parseInt(p[5]) }
                 };
             } else {
                 s.frozen = { lo: 0, hi: 0 };
-                // ✨ FIX: Set default cooldowns to 0 so spells are ready immediately!
+                s.jump_sq = -1; // Default
                 s.mana = { w: {freeze: 0, jump: 0}, b: {freeze: 0, jump: 0} };
             }
         }
         return s;
     }
-    
     function generate_fen(targetState) {
         var s = targetState || currentState; 
         var empty = 0, fen = ""; // ✨ V8 handles += extremely fast using internal ConsStrings!
@@ -318,7 +319,7 @@ var Chess = function(fen, gameMode = 'classical') {
             var pocketStr = "";
             for (var i = 0; i < s.pocket.w.length; i++) pocketStr += PIECE_TO_CHAR[s.pocket.w[i]].toUpperCase();
             for (var i = 0; i < s.pocket.b.length; i++) pocketStr += PIECE_TO_CHAR[s.pocket.b[i]];
-            if (pocketStr !== "") finalFen = finalFen.replace(fen, fen + "[" + pocketStr + "]");
+            finalFen = finalFen.replace(fen, fen + "[" + pocketStr + "]");
         }
         if (s.gameMode === '3check') {
             finalFen += " +" + s.checks.w + "+" + s.checks.b;
@@ -913,7 +914,7 @@ var Chess = function(fen, gameMode = 'classical') {
         let occAllL = occUsL | occThemL;
         let occAllH = occUsH | occThemH;
         
-        let emptyL = ~occAllL, emptyH = ~occAllH;
+        
         if (state.gameMode === 'spell' && state.jump_sq !== undefined && state.jump_sq !== -1) {
         if (state.jump_sq < 32) occAllL &= ~(1 << state.jump_sq);
         else occAllH &= ~(1 << (state.jump_sq - 32));
@@ -923,7 +924,7 @@ var Chess = function(fen, gameMode = 'classical') {
             if (state.duck_sq < 32) { occUsL |= (1 << state.duck_sq); occAllL |= (1 << state.duck_sq); }
             else { occUsH |= (1 << (state.duck_sq - 32)); occAllH |= (1 << (state.duck_sq - 32)); }
         }
-
+        let emptyL = ~occAllL, emptyH = ~occAllH;
         let pL = bb_lo[us*6+PAWN], pH = bb_hi[us*6+PAWN];
 
         let sL, sH;
@@ -1660,11 +1661,15 @@ var Chess = function(fen, gameMode = 'classical') {
                                 let rMask = rSq < 32 ? (1<<rSq) : (1<<(rSq-32));
                                 if (mySameL & rMask || mySameH & rMask) {
                                     let emptyPath = true;
+                                    
+                                    // ✨ THE FIX: Calculate the actual 'sq' variable and use 'sq < 32'
                                     for(let i=5; i<=6; i++) {
-                                        let sMask = i < 32 ? (1<<(rank*8+i)) : (1<<((rank*8+i)-32));
-                                        let occSameS = i < 32 ? (occSameL & sMask) : (occSameH & sMask);
+                                        let sq = rank * 8 + i; 
+                                        let sMask = sq < 32 ? (1<<sq) : (1<<(sq-32));
+                                        let occSameS = sq < 32 ? (occSameL & sMask) : (occSameH & sMask);
                                         if (occSameS) emptyPath = false;
                                     }
+                                    
                                     if (emptyPath && !is_attacked(state, rank*8+5, them) && !is_attacked(state, rank*8+6, them)) {
                                         let kdMask = (rank*8+6) < 32 ? (1<<(rank*8+6)) : (1<<((rank*8+6)-32));
                                         let rdMask = (rank*8+5) < 32 ? (1<<(rank*8+5)) : (1<<((rank*8+5)-32));
@@ -2334,53 +2339,62 @@ return {
         move: function(o) {
             if (!o) return null;
             if (this.game_over()) return null;
-            
-            if (typeof o === 'object' && o.isSpell) {
-                let targetEngineIdx = typeof o.target === 'string' ? str_to_sq(o.target) : o.target;
-                
-                var nextState = apply_spell(currentState, o.spellType, targetEngineIdx);
-                currentState = nextState;
-                history.push(currentState);
-                
-                var targetSqStr = typeof o.target === 'string' ? o.target : sq_str(targetEngineIdx);
-                
-                return {
-                    color: currentState.turn === WHITE ? 'w' : 'b',
-                    flags: 's',
-                    from: '@',
-                    to: targetSqStr,
-                    piece: 's',
-                    san: (o.spellType === 'freeze' ? 'Fz@' : 'Jp@') + targetSqStr,
-                    isSpell: true
+
+            if (typeof o === 'string') {
+            // ✨ FIX 1: Support both spaces AND underscores bridging from the PGN tokenizer!
+            let combinedMatch = o.match(/^(Fz|Jp|Sfreeze|Sjump)@([a-h][1-8]|[0-9]+)[\s_]+(.+)$/i);
+            if (combinedMatch) {
+                let rawTarget = combinedMatch[2];
+                let targetAlg = isNaN(rawTarget) ? rawTarget : sq_str(parseInt(rawTarget)); 
+                o = {
+                    isSpell: true,
+                    spellType: combinedMatch[1].toLowerCase().includes('fz') || combinedMatch[1].toLowerCase().includes('freeze') ? 'freeze' : 'jump',
+                    target: targetAlg,
+                    chessMove: combinedMatch[3]
                 };
             }
+        }
 
+            let isSpellMove = (typeof o === 'object' && o.isSpell);
+
+            if (isSpellMove) {
+                let targetEngineIdx = typeof o.target === 'number' ? o.target : (isNaN(o.target) ? str_to_sq(o.target) : parseInt(o.target));
+                currentState = apply_spell(currentState, o.spellType, targetEngineIdx);
+            }
+            let input = (isSpellMove && o.chessMove) ? o.chessMove : o;
+            
             var m = null;
             var nag = "";
             var clean_san = null;
             var explicit_duck = -1;
             
-            if (typeof o === 'string') {
-                // ✨ PGN STRING SPELL HANDLER: Catch the translated strings (e.g. "Sfreeze@b4")
-                let spellMatch = o.match(/^S(freeze|jump)@([a-h][1-8])$/);
+            if (typeof input === 'string') {
+                // Standalone spell parsing fallback
+                let spellMatch = input.match(/^S?(freeze|jump|Fz|Jp)@([a-h][1-8]|[0-9]+)$/i);
                 if (spellMatch) {
-                    let targetSq = str_to_sq(spellMatch[2]);
-                    var nextState = apply_spell(currentState, spellMatch[1], targetSq);
-                    currentState = nextState;
-                    history.push(currentState);
-                    
-                    return {
-                        color: currentState.turn === WHITE ? 'w' : 'b',
-                        flags: 's',
-                        from: '@',
-                        to: spellMatch[2],
-                        piece: 's',
-                        san: (spellMatch[1] === 'freeze' ? 'Fz@' : 'Jp@') + spellMatch[2],
-                        isSpell: true
-                    };
-                }
+                let type = spellMatch[1].toLowerCase().includes('fz') || spellMatch[1].toLowerCase().includes('freeze') ? 'freeze' : 'jump';
+                let sqStr = spellMatch[2];
+                let sq = isNaN(sqStr) ? str_to_sq(sqStr) : parseInt(sqStr);
+                let algStr = isNaN(sqStr) ? sqStr : sq_str(sq);
+                
+                var nextState = apply_spell(currentState, type, sq);
+                currentState = nextState;
+                history.push(currentState);
+                
+                return {
+                    color: currentState.turn === WHITE ? 'w' : 'b',
+                    flags: 's',
+                    from: '@',
+                    to: algStr,
+                    piece: 's',
+                    san: (type === 'freeze' ? 'Fz@' : 'Jp@') + algStr,
+                    isSpell: true,
+                    spellType: type,
+                    target: algStr
+                };
+            }
 
-                var parsed = parse_nag(o);
+                var parsed = parse_nag(input);
                 nag = parsed.nag;
                 clean_san = parsed.clean;
                 
@@ -2399,7 +2413,6 @@ return {
                         if (fsMatch) { clean_san = fsMatch[1]; explicit_duck = str_to_sq(fsMatch[2]); }
                     }
                 } else if ((currentState.gameMode === 'crazyhouse' || currentState.gameMode === 'bughouse'|| currentState.gameMode === 'placement') && clean_san.includes('@')) {
-                    // ✨ ENGINE DROP PARSER (e.g., P@e4)
                     let parts = clean_san.split('@');
                     let pTypeStr = parts[0].toLowerCase();
                     let pType = CHAR_TO_PIECE[pTypeStr.charAt(pTypeStr.length - 1)]; 
@@ -2407,7 +2420,7 @@ return {
                     m = pType | (toSq << 6) | (BITS.DROP << 12);
                     let legals = generate_moves(currentState, {legal: true});
                     if (!legals.includes(m)) m = null;
-                    clean_san = null; // Important: Clear to skip standard parsing!
+                    clean_san = null;
                 }
                 
                 if (clean_san) {
@@ -2420,25 +2433,24 @@ return {
                     } else { m = tr(currentState, clean_san); }
                 }
             } else {
-                if (o.from === '@' || o.drop) {
-                    // ✨ UI DROP PARSER
-                    let pTypeStr = typeof o.drop === 'string' ? o.drop : o.piece;
+                if (input.from === '@' || input.drop) {
+                    let pTypeStr = typeof input.drop === 'string' ? input.drop : input.piece;
                     let pType = CHAR_TO_PIECE[pTypeStr.toLowerCase()];
-                    let t = (typeof o.to === 'number') ? o.to : str_to_sq(o.to);
+                    let t = (typeof input.to === 'number') ? input.to : str_to_sq(input.to);
                     m = pType | (t << 6) | (BITS.DROP << 12);
                     let legals = generate_moves(currentState, {legal: true});
                     if (!legals.includes(m)) m = null;
                 } else {
-                    let f = (typeof o.from === 'number') ? o.from : str_to_sq(o.from);
-                    let t = (typeof o.to === 'number') ? o.to : str_to_sq(o.to);
-                    m = build_move_direct(currentState, f, t, o.promotion); 
-                    if (currentState.gameMode === 'duck' && o.duck_sq !== undefined) {
-                        explicit_duck = (typeof o.duck_sq === 'number') ? o.duck_sq : str_to_sq(o.duck_sq);
+                    let f = (typeof input.from === 'number') ? input.from : str_to_sq(input.from);
+                    let t = (typeof input.to === 'number') ? input.to : str_to_sq(input.to);
+                    m = build_move_direct(currentState, f, t, input.promotion); 
+                    if (currentState.gameMode === 'duck' && input.duck_sq !== undefined) {
+                        explicit_duck = (typeof input.duck_sq === 'number') ? input.duck_sq : str_to_sq(input.duck_sq);
                     }
                 }
             }
             
-            if (m === null) { error("INVALID_MOVE", o); return null; }
+            if (m === null) { error("INVALID_MOVE", input); return null; }
             
             if (currentState.gameMode === 'duck') {
                 let duckToUse = (explicit_duck !== -1) ? explicit_duck : currentState.duck_sq;
@@ -2446,28 +2458,40 @@ return {
                 m = (m & 0x3FFFFF) | (duckToUse << 22);
             }
             
-            // ✨ LEAK 1 FIXED: Pass clean_san instead of null so it stops regenerating SAN dynamically!
             var ret = to_obj(currentState, m, nag, clean_san); 
             
+            // Pass metadata up for ChessGame.js to build the string!
+           if (isSpellMove) {
+                ret.isSpell = true;
+                ret.spellType = o.spellType;
+                ret.target = o.target; 
+
+                // ✨ FIX 2: Natively inject the Spell cast into the engine's SAN output!
+                let prefix = o.spellType === 'freeze' ? 'Fz' : 'Jp';
+                let targetStr = typeof o.target === 'number' ? sq_str(o.target) : o.target;
+                ret.spellSan = `${prefix}@${targetStr}`;
+                
+                // Prepend so the PGN tree gets the full "Fz@d5 Bc5" naturally without UI wrappers
+                if (!ret.san.startsWith('Fz@') && !ret.san.startsWith('Jp@')) {
+                    ret.san = `${ret.spellSan} ${ret.san}`;
+                }
+            }
+            
             if (currentState.gameMode === 'duck') {
-                // Ensure duck string safely extracts from SQ_STR if available, or compute fallback
                 let dIdx = (m >>> 22) & 0x3F;
                 let duckSqStr = ['a','b','c','d','e','f','g','h'][dIdx & 7] + (8 - (dIdx >> 3)); 
-                let baseUci = ret.from + ret.to + (ret.promotion ? ret.promotion : '');
-                ret.uci = baseUci + ',' + ret.to + duckSqStr;
+                ret.uci = ret.from + ret.to + (ret.promotion ? ret.promotion : '') + ',' + ret.to + duckSqStr;
             } else if ((currentState.gameMode === 'crazyhouse' || currentState.gameMode === 'bughouse'|| currentState.gameMode === 'placement') && (((m >>> 12) & 0xFF) & BITS.DROP)) {
                 let pType = m & 0x3F;
-                ret.uci = PIECE_TO_CHAR[pType].toUpperCase() + '@' + ret.to;
+                ret.uci = PIECE_TO_CHAR[pType].toUpperCase() + '@' + ret.to; 
             } else {
                 ret.uci = ret.from + ret.to + (ret.promotion ? ret.promotion : '');
             }
             
             var nextState = apply_move(currentState, m);
-            
             var isVariantWin = check_variant_win(nextState) !== null;
             var isCheck = is_checked(nextState, nextState.turn);
 
-            // ✨ LEAK 2 FIXED: Only generate legal moves if the King is actually in check!
             if (isVariantWin) {
                 ret.san += "#";
             } else if (isCheck) {
