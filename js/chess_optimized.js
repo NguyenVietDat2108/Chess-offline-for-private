@@ -165,11 +165,15 @@ var Chess = function(fen, gameMode = 'classical') {
             c.mana = s.mana ? { 
                 w: { freeze: s.mana.w.freeze, jump: s.mana.w.jump }, 
                 b: { freeze: s.mana.b.freeze, jump: s.mana.b.jump } 
-            } : { w: {freeze: 0, jump: 0}, b: {freeze: 0, jump: 0} }; // 0 means READY
+            } : { w: {freeze: 0, jump: 0}, b: {freeze: 0, jump: 0} }; 
             c.active_spells = s.active_spells ? { 
                 frozen_timer: s.active_spells.frozen_timer, 
                 jump_timer: s.active_spells.jump_timer 
             } : { frozen_timer: 0, jump_timer: 0 };
+            c.spell_uses = s.spell_uses ? {
+                w: { freeze: s.spell_uses.w.freeze, jump: s.spell_uses.w.jump },
+                b: { freeze: s.spell_uses.b.freeze, jump: s.spell_uses.b.jump }
+            } : { w: {freeze: 5, jump: 2}, b: {freeze: 5, jump: 2} };
         }
         if (s.gameMode === 'alice') {
             c.alice_b = s.alice_b ? { lo: s.alice_b.lo, hi: s.alice_b.hi } : { lo: 0, hi: 0 };
@@ -256,22 +260,28 @@ var Chess = function(fen, gameMode = 'classical') {
             }
         }
         
-        // ✨ SPELL CHESS FEN PARSER: Restore the Mana, Ice Blocks, AND Jump State!
+        // ✨ SPELL CHESS FEN PARSER: Restore Mana, Ice Blocks, Jump State, AND Uses Left!
         if (s.gameMode === 'spell') {
             let spellMatch = fen.match(/\[S:([^\]]+)\]/);
             if (spellMatch) {
                 let p = spellMatch[1].split(',');
-                // FEN format: [S:frozen_lo, frozen_hi, jump_sq, mana_w_f, mana_w_j, mana_b_f, mana_b_j]
+                // FEN format: [S:frozen_lo, frozen_hi, jump_sq, mana_w_f, mana_w_j, mana_b_f, mana_b_j, w_f_left, w_j_left, b_f_left, b_j_left]
                 s.frozen = { lo: parseInt(p[0]) || 0, hi: parseInt(p[1]) || 0 };
-                s.jump_sq = parseInt(p[2]) === undefined ? -1 : parseInt(p[2]); // <-- ADDED THIS
+                s.jump_sq = isNaN(parseInt(p[2])) ? -1 : parseInt(p[2]); // Fixed index
                 s.mana = {
-                    w: { freeze: parseInt(p[2]), jump: parseInt(p[3]) },
-                    b: { freeze: parseInt(p[4]), jump: parseInt(p[5]) }
+                    w: { freeze: parseInt(p[3]) || 0, jump: parseInt(p[4]) || 0 }, // Fixed indices
+                    b: { freeze: parseInt(p[5]) || 0, jump: parseInt(p[6]) || 0 }
+                };
+                // Parse the remaining limits with backwards compatibility
+                s.spell_uses = {
+                    w: { freeze: p.length > 7 ? parseInt(p[7]) : 5, jump: p.length > 8 ? parseInt(p[8]) : 2 },
+                    b: { freeze: p.length > 9 ? parseInt(p[9]) : 5, jump: p.length > 10 ? parseInt(p[10]) : 2 }
                 };
             } else {
                 s.frozen = { lo: 0, hi: 0 };
                 s.jump_sq = -1; // Default
                 s.mana = { w: {freeze: 0, jump: 0}, b: {freeze: 0, jump: 0} };
+                s.spell_uses = { w: {freeze: 5, jump: 2}, b: {freeze: 5, jump: 2} };
             }
         }
         return s;
@@ -327,11 +337,19 @@ var Chess = function(fen, gameMode = 'classical') {
         if (s.gameMode === 'spell') {
             const frozL = s.frozen ? s.frozen.lo : 0;
             const frozH = s.frozen ? s.frozen.hi : 0;
-            const wF = s.mana ? s.mana.w.freeze : 2;
-            const wJ = s.mana ? s.mana.w.jump : 2;
-            const bF = s.mana ? s.mana.b.freeze : 2;
-            const bJ = s.mana ? s.mana.b.jump : 2;
-            finalFen += ` [S:${frozL},${frozH},${wF},${wJ},${bF},${bJ}]`;
+            const jmSq  = s.jump_sq !== undefined ? s.jump_sq : -1; // Added missing jump_sq
+            const wF = s.mana ? s.mana.w.freeze : 0;
+            const wJ = s.mana ? s.mana.w.jump : 0;
+            const bF = s.mana ? s.mana.b.freeze : 0;
+            const bJ = s.mana ? s.mana.b.jump : 0;
+            
+            // Append the 4 usage limits
+            const wFl = s.spell_uses ? s.spell_uses.w.freeze : 5;
+            const wJl = s.spell_uses ? s.spell_uses.w.jump : 2;
+            const bFl = s.spell_uses ? s.spell_uses.b.freeze : 5;
+            const bJl = s.spell_uses ? s.spell_uses.b.jump : 2;
+            
+            finalFen += ` [S:${frozL},${frozH},${jmSq},${wF},${wJ},${bF},${bJ},${wFl},${wJl},${bFl},${bJl}]`;
         }
         return finalFen;
     }
@@ -1593,7 +1611,6 @@ var Chess = function(fen, gameMode = 'classical') {
             let bMaskL = isB ? state.alice_b.lo : ~state.alice_b.lo;
             let bMaskH = isB ? state.alice_b.hi : ~state.alice_b.hi;
             
-            // ✨ V8 LOVES THIS: Clean loops!
             let occAllL = 0, occAllH = 0;
             for(let i=0; i<12; i++) { occAllL|=state.bb_lo[i]; occAllH|=state.bb_hi[i]; }
             
@@ -1661,8 +1678,6 @@ var Chess = function(fen, gameMode = 'classical') {
                                 let rMask = rSq < 32 ? (1<<rSq) : (1<<(rSq-32));
                                 if (mySameL & rMask || mySameH & rMask) {
                                     let emptyPath = true;
-                                    
-                                    // ✨ THE FIX: Calculate the actual 'sq' variable and use 'sq < 32'
                                     for(let i=5; i<=6; i++) {
                                         let sq = rank * 8 + i; 
                                         let sMask = sq < 32 ? (1<<sq) : (1<<(sq-32));
@@ -2340,27 +2355,31 @@ return {
             if (!o) return null;
             if (this.game_over()) return null;
 
+            // ✨ FIX 1: Capture the active color BEFORE any spell or piece move flips the turn!
+            let activeColor = currentState.turn === WHITE ? 'w' : 'b';
+
             if (typeof o === 'string') {
-            // ✨ FIX 1: Support both spaces AND underscores bridging from the PGN tokenizer!
-            let combinedMatch = o.match(/^(Fz|Jp|Sfreeze|Sjump)@([a-h][1-8]|[0-9]+)[\s_]+(.+)$/i);
-            if (combinedMatch) {
-                let rawTarget = combinedMatch[2];
-                let targetAlg = isNaN(rawTarget) ? rawTarget : sq_str(parseInt(rawTarget)); 
-                o = {
-                    isSpell: true,
-                    spellType: combinedMatch[1].toLowerCase().includes('fz') || combinedMatch[1].toLowerCase().includes('freeze') ? 'freeze' : 'jump',
-                    target: targetAlg,
-                    chessMove: combinedMatch[3]
-                };
+                let combinedMatch = o.match(/^(Fz|Jp|Sfreeze|Sjump)@([a-h][1-8]|[0-9]+)[\s_]+(.+)$/i);
+                if (combinedMatch) {
+                    let rawTarget = combinedMatch[2];
+                    let targetAlg = isNaN(rawTarget) ? rawTarget : sq_str(parseInt(rawTarget)); 
+                    o = {
+                        isSpell: true,
+                        spellType: combinedMatch[1].toLowerCase().includes('fz') || combinedMatch[1].toLowerCase().includes('freeze') ? 'freeze' : 'jump',
+                        target: targetAlg,
+                        chessMove: combinedMatch[3]
+                    };
+                }
             }
-        }
 
             let isSpellMove = (typeof o === 'object' && o.isSpell);
 
             if (isSpellMove) {
                 let targetEngineIdx = typeof o.target === 'number' ? o.target : (isNaN(o.target) ? str_to_sq(o.target) : parseInt(o.target));
+                // apply_spell creates a state transition, but doesn't handle piece moves
                 currentState = apply_spell(currentState, o.spellType, targetEngineIdx);
             }
+            
             let input = (isSpellMove && o.chessMove) ? o.chessMove : o;
             
             var m = null;
@@ -2372,27 +2391,36 @@ return {
                 // Standalone spell parsing fallback
                 let spellMatch = input.match(/^S?(freeze|jump|Fz|Jp)@([a-h][1-8]|[0-9]+)$/i);
                 if (spellMatch) {
-                let type = spellMatch[1].toLowerCase().includes('fz') || spellMatch[1].toLowerCase().includes('freeze') ? 'freeze' : 'jump';
-                let sqStr = spellMatch[2];
-                let sq = isNaN(sqStr) ? str_to_sq(sqStr) : parseInt(sqStr);
-                let algStr = isNaN(sqStr) ? sqStr : sq_str(sq);
-                
-                var nextState = apply_spell(currentState, type, sq);
-                currentState = nextState;
-                history.push(currentState);
-                
-                return {
-                    color: currentState.turn === WHITE ? 'w' : 'b',
-                    flags: 's',
-                    from: '@',
-                    to: algStr,
-                    piece: 's',
-                    san: (type === 'freeze' ? 'Fz@' : 'Jp@') + algStr,
-                    isSpell: true,
-                    spellType: type,
-                    target: algStr
-                };
-            }
+                    let type = spellMatch[1].toLowerCase().includes('fz') || spellMatch[1].toLowerCase().includes('freeze') ? 'freeze' : 'jump';
+                    let sqStr = spellMatch[2];
+                    let sq = isNaN(sqStr) ? str_to_sq(sqStr) : parseInt(sqStr);
+                    let algStr = isNaN(sqStr) ? sqStr : sq_str(sq);
+                    
+                    var nextState = apply_spell(currentState, type, sq);
+                    
+                    // ✨ FIX 2: Safely clone and decrement for standalone spells
+                    let oldUses = currentState.spell_uses || { w: {freeze:5, jump:2}, b: {freeze:5, jump:2} };
+                    nextState.spell_uses = { 
+                        w: { ...oldUses.w }, 
+                        b: { ...oldUses.b } 
+                    };
+                    nextState.spell_uses[activeColor][type] = Math.max(0, nextState.spell_uses[activeColor][type] - 1);
+                    
+                    currentState = nextState;
+                    history.push(currentState);
+                    
+                    return {
+                        color: currentState.turn === WHITE ? 'w' : 'b',
+                        flags: 's',
+                        from: '@',
+                        to: algStr,
+                        piece: 's',
+                        san: (type === 'freeze' ? 'Fz@' : 'Jp@') + algStr,
+                        isSpell: true,
+                        spellType: type,
+                        target: algStr
+                    };
+                }
 
                 var parsed = parse_nag(input);
                 nag = parsed.nag;
@@ -2433,6 +2461,7 @@ return {
                     } else { m = tr(currentState, clean_san); }
                 }
             } else {
+                // UI Object parsing
                 if (input.from === '@' || input.drop) {
                     let pTypeStr = typeof input.drop === 'string' ? input.drop : input.piece;
                     let pType = CHAR_TO_PIECE[pTypeStr.toLowerCase()];
@@ -2460,18 +2489,15 @@ return {
             
             var ret = to_obj(currentState, m, nag, clean_san); 
             
-            // Pass metadata up for ChessGame.js to build the string!
-           if (isSpellMove) {
+            if (isSpellMove) {
                 ret.isSpell = true;
                 ret.spellType = o.spellType;
                 ret.target = o.target; 
 
-                // ✨ FIX 2: Natively inject the Spell cast into the engine's SAN output!
                 let prefix = o.spellType === 'freeze' ? 'Fz' : 'Jp';
                 let targetStr = typeof o.target === 'number' ? sq_str(o.target) : o.target;
                 ret.spellSan = `${prefix}@${targetStr}`;
                 
-                // Prepend so the PGN tree gets the full "Fz@d5 Bc5" naturally without UI wrappers
                 if (!ret.san.startsWith('Fz@') && !ret.san.startsWith('Jp@')) {
                     ret.san = `${ret.spellSan} ${ret.san}`;
                 }
@@ -2489,6 +2515,20 @@ return {
             }
             
             var nextState = apply_move(currentState, m);
+
+            // ✨ FIX 3: Re-inject spell limits into the new state AFTER apply_move!
+            // apply_move guarantees a fresh clean board state, so we must manually carry over custom vars!
+            let oldUses = currentState.spell_uses || { w: {freeze:5, jump:2}, b: {freeze:5, jump:2} };
+            nextState.spell_uses = { 
+                w: { ...oldUses.w }, 
+                b: { ...oldUses.b } 
+            };
+
+            // ✨ FIX 4: Decrement the combined spell using the correct activeColor!
+            if (isSpellMove) {
+                nextState.spell_uses[activeColor][o.spellType] = Math.max(0, nextState.spell_uses[activeColor][o.spellType] - 1);
+            }
+
             var isVariantWin = check_variant_win(nextState) !== null;
             var isCheck = is_checked(nextState, nextState.turn);
 
@@ -2714,6 +2754,11 @@ return {
         },
         jump_sq: function() { 
             return currentState.jump_sq !== undefined ? currentState.jump_sq : -1; 
+        },
+        spell_uses: function() {
+            return currentState.spell_uses 
+                ? { w: { ...currentState.spell_uses.w }, b: { ...currentState.spell_uses.b } } 
+                : { w: { freeze: 5, jump: 2 }, b: { freeze: 5, jump: 2 } };
         },
     };
 }

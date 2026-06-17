@@ -1459,19 +1459,25 @@ renderHeaders() {
 
         const state = this.#game ? this.#game.getReader() : null;
 
-        // ✨ FIX: Update cache key to include Spell properties! 
-        // Otherwise, the headers won't redraw when you click a spell or spend mana!
+        // ✨ Get spell uses directly from engine state
+        const engineUses = (this.#game && this.#game.engine && typeof this.#game.engine.spell_uses === 'function') 
+            ? this.#game.engine.spell_uses() 
+            : { w: { freeze: 5, jump: 2 }, b: { freeze: 5, jump: 2 } };
+
+        // ✨ FIX: Update cache key to include spellUses! 
+        // Otherwise, the headers won't redraw when you spend a charge!
         const cacheKey = JSON.stringify({ 
             topData, botData, flipped: this.flipped, avatars: this.avatars,
             activeSpell: this.activeSpell, 
-            mana: state ? state.mana : null, 
+            mana: state ? state.mana : null,
+            spellUses: engineUses, 
             gameMode: state ? state.gameMode : null
         });
         
         if (this._lastHeadersCache === cacheKey) return;
         this._lastHeadersCache = cacheKey;
 
-        const isoToCountryName = { "us": "United States", "gb": "United Kingdom", "vn": "Vietnam" }; // Simplified for space
+        const isoToCountryName = { "us": "United States", "gb": "United Kingdom", "vn": "Vietnam" }; 
 
         const updateSlot = (index, data, color) => {
             const rawName = data.name || (color === 'w' ? "White" : "Black");
@@ -1526,7 +1532,6 @@ renderHeaders() {
         updateSlot(1, botData, botColor);
         if (typeof this.updateClocks === 'function') this.updateClocks();
 
-        // ✨ SYNC THE NEW PLAYER HEADER SPELL ICONS & BARS!
         const spellsTop = document.getElementById('spells-top');
         const spellsBottom = document.getElementById('spells-bottom');
 
@@ -1534,67 +1539,56 @@ renderHeaders() {
             if (spellsTop) spellsTop.style.display = 'flex';
             if (spellsBottom) spellsBottom.style.display = 'flex';
             
-            // Extract remaining uses directly from the engine's FEN data
-            const fen = this.#game?.currentNode?.fen || '';
-            const spellMatch = fen.match(/'spells':\((.*?)\)/);
-            let spellArrays = [];
-            if (spellMatch) {
-                spellArrays = spellMatch[1].split("','").map(s => s.replace(/'/g, ''));
-            }
-            
             if (state.mana) {
-                const updateIcon = (spellType, colorClass, isTop) => {
-                    const prefix = isTop ? 'top' : 'bottom';
-                    const iconEl = document.getElementById(`spell-${prefix}-${spellType}`);
-                    const countEl = document.getElementById(`spell-${prefix}-${spellType}-count`);
-                    const bar1 = document.getElementById(`spell-${prefix}-${spellType}-bar-1`);
-                    const bar2 = document.getElementById(`spell-${prefix}-${spellType}-bar-2`);
-                    const bar3 = document.getElementById(`spell-${prefix}-${spellType}-bar-3`);
+              const updateIcon = (spellType, colorClass, isTop) => {
+            const prefix = isTop ? 'top' : 'bottom';
+            const iconEl = document.getElementById(`spell-${prefix}-${spellType}`);
+            const countEl = document.getElementById(`spell-${prefix}-${spellType}-count`);
+            const bar1 = document.getElementById(`spell-${prefix}-${spellType}-bar-1`);
+            const bar2 = document.getElementById(`spell-${prefix}-${spellType}-bar-2`);
+            const bar3 = document.getElementById(`spell-${prefix}-${spellType}-bar-3`);
 
-                    if (!iconEl) return;
+            if (!iconEl) return;
 
-                    // 1. Get current cooldown charges (0 to 3)
-                    let cd = state.mana[colorClass][spellType] !== undefined ? state.mana[colorClass][spellType] : 3;
+            // ✨ FIX 1: Restore the strict 3-charge expectation to match the engine!
+            let cd = (state.mana && state.mana[colorClass] && state.mana[colorClass][spellType] !== undefined)
+                ? state.mana[colorClass][spellType]
+                : 3;
 
-                    // 2. Parse remaining uses from FEN string (White=0, Black=2)
-                    let uses = spellType === 'freeze' ? 5 : 2; 
-                    if (spellArrays.length > 0) {
-                        const colorIdx = colorClass === 'w' ? 0 : 2;
-                        const spellStr = spellArrays[colorIdx] || '';
-                        const match = spellStr.match(new RegExp(`${spellType}_\\dx(\\d+)`));
-                        if (match) uses = parseInt(match[1], 10);
-                    }
+            // Read remaining uses purely from the engine FEN.
+            let uses = engineUses[colorClass][spellType];
 
-                    // 3. Update Badge
-                    if (countEl) {
-                        countEl.innerText = uses;
-                        countEl.style.display = uses > 0 ? 'block' : 'none';
-                    }
+            // Update Badge
+            if (countEl) {
+                countEl.innerText = uses;
+                countEl.style.display = uses > 0 ? 'block' : 'none';
+            }
 
-                    // 4. Update Icon Grayscale (Only colorize if ready AND has uses)
-                    const isReady = cd >= 3 && uses > 0;
-                    iconEl.style.opacity = isReady ? '1' : '0.4';
-                    iconEl.style.filter = isReady ? 'none' : 'grayscale(100%)';
-                    
-                    if (this.activeSpell === spellType && state.turn === colorClass) {
-                        iconEl.style.borderColor = '#00ffff';
-                        iconEl.style.boxShadow = '0 0 8px #00ffff';
-                    } else {
-                        iconEl.style.borderColor = '#555';
-                        iconEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.6)';
-                    }
+            // ✨ FIX 2: Icon only lights up when charge hits 3
+            const isReady = cd >= 3 && uses > 0;
+            iconEl.style.opacity = isReady ? '1' : '0.4';
+            iconEl.style.filter = isReady ? 'none' : 'grayscale(100%)';
+            
+            if (this.activeSpell === spellType && state.turn === colorClass) {
+                iconEl.style.borderColor = '#00ffff';
+                iconEl.style.boxShadow = '0 0 8px #00ffff';
+            } else {
+                iconEl.style.borderColor = '#555';
+                iconEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.6)';
+            }
 
-                    // 5. Update Recharge Segment Bars
-                    const drawBar = (bar, threshold) => {
-                        if (bar) {
-                            bar.style.backgroundColor = cd >= threshold ? '#82b41d' : '#444';
-                            bar.style.boxShadow = cd >= threshold ? '0 0 4px #82b41d' : 'none';
-                        }
-                    };
-                    drawBar(bar1, 1);
-                    drawBar(bar2, 2);
-                    drawBar(bar3, 3);
-                };
+            // ✨ FIX 3: Always draw and evaluate all 3 bars!
+            const drawBar = (bar, threshold) => {
+                if (bar) {
+                    bar.style.display = 'block'; // Force all 3 bars to be visible
+                    bar.style.backgroundColor = cd >= threshold ? '#82b41d' : '#444';
+                    bar.style.boxShadow = cd >= threshold ? '0 0 4px #82b41d' : 'none';
+                }
+            };
+            drawBar(bar1, 1);
+            drawBar(bar2, 2);
+            drawBar(bar3, 3);
+        };
 
                 const topColor = this.flipped ? 'w' : 'b';
                 const botColor = this.flipped ? 'b' : 'w';
@@ -1609,7 +1603,6 @@ renderHeaders() {
             if (spellsBottom) spellsBottom.style.display = 'none';
         }
 
-        // ✨ FORCE-KILL THE OLD SPELL BAR CONTAINER
         const oldSpellBar = document.getElementById('spellBarContainer');
         if (oldSpellBar) {
             oldSpellBar.style.display = 'none';
@@ -2916,7 +2909,7 @@ executeMove(move, animate = true, overridePromo = null) {
         this.updateHistory();
         this.updateClocks();
         this.renderArrows();
-
+        this.renderHeaders();
         const overlay = document.getElementById('promotion-overlay');
         if(overlay) overlay.style.display = 'none';
     }
@@ -5304,7 +5297,8 @@ finishEditor() {
             }
         }
         
-        this.showNotification("Board updated from Editor.", "Success", "✅");}
+        this.showNotification("Board updated from Editor.", "Success", "✅");
+}
 flipBoard() {
         this.flipped = !this.flipped;
         this.renderBoard(true);
@@ -7423,10 +7417,11 @@ toggleSpell(spellType, colorRequest) {
             return;
         }
 
-        // Prevent casting if out of uses
-        const prefix = colorRequest === (this.flipped ? 'w' : 'b') ? 'top' : 'bottom';
-        const countEl = document.getElementById(`spell-${prefix}-${spellType}-count`);
-        const usesLeft = countEl ? parseInt(countEl.innerText) : 1;
+        const engineUses = (this.#game && this.#game.engine && typeof this.#game.engine.spell_uses === 'function') 
+            ? this.#game.engine.spell_uses() 
+            : { w: { freeze: 5, jump: 2 }, b: { freeze: 5, jump: 2 } };
+            
+        const usesLeft = engineUses[colorRequest][spellType];
         
         if (usesLeft <= 0) {
             if (typeof this.showNotification === 'function') {
@@ -7455,18 +7450,18 @@ toggleSpell(spellType, colorRequest) {
         this.renderHeaders(); 
     }
 castSpell(spellType, targetSq) {
-    this.activeSpell = null;
-    
-    // ✨ STORE THE SPELL AS PENDING INSTEAD OF EXECUTING
-    this.pendingSpell = {
-        isSpell: true,
-        spellType: spellType,
-        target: targetSq,
-        san: `${spellType === 'freeze' ? 'Fz' : (spellType === 'jump' ? 'Jp' : 'Sp')}@${targetSq}`
-    };
+        this.activeSpell = null;
+        
+        // STORE THE SPELL AS PENDING INSTEAD OF EXECUTING
+        this.pendingSpell = {
+            isSpell: true,
+            spellType: spellType,
+            target: targetSq,
+            san: `${spellType === 'freeze' ? 'Fz' : (spellType === 'jump' ? 'Jp' : 'Sp')}@${targetSq}`
+        };
 
-    // Update visuals to show the spell is "selected" (or waiting)
-    this.renderHeaders();
-    this.renderBoard(false); 
-}
+        // Update visuals to show the spell is "selected" (or waiting)
+        this.renderHeaders();
+        this.renderBoard(false); 
+    }
 }

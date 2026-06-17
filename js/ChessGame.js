@@ -22,6 +22,11 @@ constructor() {
         // 🌟 FIX 1: Establish a strict default engine context on boot
         this.mode = 'analysis'; 
         
+        // Ensure the engine is set to the correct variant ruleset immediately
+        if (this.#engine && typeof this.#engine.setGameMode === 'function') {
+            this.#engine.setGameMode(this.gameMode);
+        }
+        
         let startingFen = this.#getStartingFen(this.gameMode);
 
         if (typeof localStorage !== 'undefined') {
@@ -163,18 +168,28 @@ getReader() {
         }
 
         const frozenSquares = new Array(64).fill(false);
-        const frozenObj = (this.#engine && typeof this.#engine.frozen === 'function') 
-            ? this.#engine.frozen() 
-            : { lo: 0, hi: 0 };
 
-        for (let i = 0; i < 64; i++) {
-            // UI Index (i) to Engine Index conversion (Flip rank)
-            const engineIdx = (7 - Math.floor(i / 8)) * 8 + (i % 8);
-            
-            // Check the bit in the lo (0-31) or hi (32-63) 32-bit integers
-            const isFrozen = engineIdx < 32 ? (frozenObj.lo & (1 << engineIdx)) : (frozenObj.hi & (1 << (engineIdx - 32)));
-            
-            if (isFrozen) frozenSquares[i] = true;
+        // ✨ SPELL CHESS FIX: Spells only last 1 turn!
+        // By reading directly from the SAN of the move that just happened,
+        // we guarantee the Freeze effect vanishes on the very next ply,
+        // completely detaching it from the engine's internal cooldown tracker!
+        if (this.gameMode === 'spell' && this.currentNode && this.currentNode.moveSan) {
+            const freezeMatch = this.currentNode.moveSan.match(/Fz@([a-h][1-8])/);
+            if (freezeMatch) {
+                const centerIdx = this.#squareToIndex(freezeMatch[1]);
+                if (centerIdx !== -1) {
+                    const cRank = Math.floor(centerIdx / 8);
+                    const cFile = centerIdx % 8;
+                    // Map the 3x3 Freeze Area
+                    for (let r = cRank - 1; r <= cRank + 1; r++) {
+                        for (let f = cFile - 1; f <= cFile + 1; f++) {
+                            if (r >= 0 && r <= 7 && f >= 0 && f <= 7) {
+                                frozenSquares[r * 8 + f] = true;
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         return Object.freeze({
@@ -793,7 +808,7 @@ return move.san;
             if (loaded) {
                 isOver = tempChess.isGameOver ? tempChess.isGameOver() : tempChess.game_over?.();
                 isMate = tempChess.isCheckmate ? tempChess.isCheckmate() : tempChess.in_checkmate?.();
-                tTurn = tempTurn = tempChess.turn();
+                tTurn = tempChess.turn();
             }
         } catch(e) { }
 
@@ -1205,7 +1220,10 @@ return move.san;
             this.gameMode = state.variant || 'classical';
             
             // Re-instantiate engine instance scratchpad to dump cached states
-            this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, this.gameMode);
+            this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
+            if (this.#engine && typeof this.#engine.setGameMode === 'function') {
+                this.#engine.setGameMode(this.gameMode);
+            }
             
             this.history = [];
             this.moveList = [];
@@ -1252,7 +1270,10 @@ return move.san;
         // Clean slate fallback block if no previous snapshot data was saved
         let startFen = this.#getStartingFen(this.gameMode);
             
-        this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, this.gameMode);
+        this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
+        if (this.#engine && typeof this.#engine.setGameMode === 'function') {
+            this.#engine.setGameMode(this.gameMode);
+        }
         this.rootNode = new MoveNode(startFen, null);
         this.currentNode = this.rootNode;
         this.history = [];
@@ -2475,6 +2496,66 @@ return move.san;
             this.history.push(node.fen);
         });
     }
+#translate4PCtoStandard(str) {
+        // Maps files d-k to a-h, and ranks 4-11 to 1-8
+        return str.replace(/([d-k])(14|13|12|11|10|[4-9])/g, (match, file, rank) => {
+            const standardFile = String.fromCharCode('a'.charCodeAt(0) + (file.charCodeAt(0) - 'd'.charCodeAt(0)));
+            const standardRank = parseInt(rank, 10) - 3;
+            return standardFile + standardRank;
+        });
+    }
+#normalizeVariantToken(token, isFFA) {
+        let moveData = {
+            raw: token,
+            cleaned: token,
+            spell: null,
+            duck: null,
+            drop: null
+        };
+
+        // 1. Handle Setup Chess / Placement Drops (e.g., @0_rPd2)
+        const dropMatch = token.match(/^([RNBQK])?@\d+_[ry]([RNBQKP])([a-h][1-8])/);
+        if (dropMatch) {
+            moveData.drop = { piece: dropMatch[2], square: dropMatch[3] };
+            moveData.cleaned = `${dropMatch[2]}@${dropMatch[3]}`;
+            return moveData;
+        }
+
+        // 2. Extract Spell Actions (e.g., freeze@h6&)
+        const spellMatch = token.match(/(freeze|jump)@([a-k][0-9]+)/);
+        if (spellMatch) {
+            let spellSq = spellMatch[2];
+            if (isFFA) spellSq = this.#translate4PCtoStandard(spellSq);
+            moveData.spell = { type: spellMatch[1], square: spellSq };
+            token = token.replace(/(freeze|jump)@([a-k][0-9]+)&?/, '');
+        }
+
+        // 3. Extract Duck Placements (e.g., &Θ-h9 or &Θh9-h5)
+        const duckMatch = token.match(/&Θ(?:[a-k][0-9]+-)?([a-k][0-9]+)/);
+        if (duckMatch) {
+            let duckSq = duckMatch[1];
+            if (isFFA) duckSq = this.#translate4PCtoStandard(duckSq);
+            moveData.duck = { square: duckSq };
+            token = token.replace(/&Θ.*/, '');
+        }
+
+        // 4. Translate 4PC coordinates to Standard 8x8 space & Convert to LAN
+        if (isFFA) {
+            token = this.#translate4PCtoStandard(token);
+            
+            // Retain full algebraic LAN format (e.g. Bf8-b4+ or Ke1xf2)
+            const lanMatch = token.match(/^([A-Z]?)([a-h][1-8])([-x])([A-Z]?)([a-h][1-8])(=[A-Za-z])?([+#]?)$/);
+            if (lanMatch) {
+                // lanMatch[1]: Piece, lanMatch[2]: From, lanMatch[3]: Action (- or x)
+                // lanMatch[4]: Captured Piece (ignored), lanMatch[5]: To
+                // lanMatch[6]: Promo, lanMatch[7]: Check/Mate
+                token = (lanMatch[1] || '') + lanMatch[2] + lanMatch[3] + lanMatch[5] + (lanMatch[6] ? lanMatch[6].toUpperCase() : '') + (lanMatch[7] || '');
+            }
+        }
+
+        moveData.cleaned = token;
+        return moveData;
+    }
     
 //Public API calling
 saveState(stateName) { this.#saveState(stateName); }
@@ -2488,11 +2569,54 @@ validateFen(fen) {
 switchMode(targetMode) {
         this.#changeMode(targetMode);
     }
+switchToAnalysis() {
+        if (!this.currentPuzzle) return;
+
+        // 1. Load the headers for the engine
+        this.pgnHeaders = {
+            "Event": `Chess Puzzle #${this.currentPuzzle.id}`,
+            "FEN": this.initialPuzzleFEN,
+            "SetUp": "1"
+        };
+
+        // 2. EXPLICIT OVERWRITE: Push the puzzle data safely into the Analysis memory slot
+        if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
+        this.tabMemory['analysis'] = {
+            rootNode: this.rootNode,
+            currentNode: this.currentNode,
+            history: [...this.history],
+            moveList: [...this.moveList],
+            headers: { ...this.pgnHeaders },
+            wTime: this.whiteTime,
+            bTime: this.blackTime
+        };
+
+        // 3. Switch the internal game state over
+        this.mode = 'analysis';
+        this.gameOver = false;
+
+        // Save to localStorage to persist the switch
+        if (typeof this.#saveState === 'function') {
+            this.#saveState('analysis');
+        }
+
+        // 4. Send command to the UI to physically switch the tab
+        if (this.#ui) {
+            if (typeof this.#ui.displayMetadata === 'function') {
+                this.#ui.displayMetadata(this.pgnHeaders);
+            }
+            if (typeof this.#ui.updateHistory === 'function') {
+                this.#ui.updateHistory(true);
+            }
+            if (typeof this.#ui.switchTab === 'function') {
+                this.#ui.switchTab('analysis');
+            }
+        }
+    }
 editBoard(idx, piece) {
         if (this.mode !== 'editor') return;
         this.#board[idx] = piece ? { ...piece } : null;
         if (typeof this.syncEngineToBoard === 'function') this.syncEngineToBoard();
-        
         if (typeof this.generateFEN === 'function') {
             const newFen = this.generateFEN();
             if (this.currentNode) this.currentNode.fen = newFen;
@@ -4447,182 +4571,197 @@ parseArrowsAndCircles(node, comment) {
         }
     }
 loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
-    if (typeof pgn === 'string' && !isInternalLoad) {
-        let detectedMode = 'classical';
-        const variantMatch = pgn.match(/\[Variant\s+"([^"]+)"\]/i);
-        const ruleVariantMatch = pgn.match(/\[RuleVariants\s+"([^"]+)"\]/i);
-        
-        if (variantMatch && variantMatch[1]) {
-            const rawVariant = variantMatch[1].toLowerCase().replace(/[-_ ]/g, ''); 
-            const modeMap = {
-                'standard': 'classical', 'classical': 'classical',
-                'chess960': 'chess960', 'fischerandom': 'chess960',
-                '3check': '3check', 'threecheck': '3check',
-                'antichess': 'antichess', 'giveaway': 'antichess', 'losers': 'antichess',
-                'atomic': 'atomic', 'horde': 'horde', 'kingofthehill': 'kingofthehill', 
-                'koth': 'kingofthehill', 'racingkings': 'racingkings', 'crazyhouse': 'crazyhouse',
-                'bughouse': 'bughouse', 'duck': 'duck', 'duckchess': 'duck', 'chaturanga': 'chaturanga',
-                'placement': 'placement', 'alice': 'alice', 'alicechess': 'alice',
-                'spell': 'spell', 'spellchess': 'spell' 
-            };
-            if (modeMap[rawVariant]) detectedMode = modeMap[rawVariant];
-        }
+        if (typeof pgn === 'string' && !isInternalLoad) {
+            let detectedMode = 'classical';
+            const variantMatch = pgn.match(/\[Variant\s+"([^"]+)"\]/i);
+            const ruleVariantMatch = pgn.match(/\[RuleVariants\s+"([^"]+)"\]/i);
+            
+            if (variantMatch && variantMatch[1]) {
+                const rawVariant = variantMatch[1].toLowerCase().replace(/[-_ ]/g, ''); 
+                const modeMap = {
+                    'standard': 'classical', 'classical': 'classical',
+                    'chess960': 'chess960', 'fischerandom': 'chess960',
+                    '3check': '3check', 'threecheck': '3check',
+                    'antichess': 'antichess', 'giveaway': 'antichess', 'losers': 'antichess',
+                    'atomic': 'atomic', 'horde': 'horde', 'kingofthehill': 'kingofthehill', 
+                    'koth': 'kingofthehill', 'racingkings': 'racingkings', 'crazyhouse': 'crazyhouse',
+                    'bughouse': 'bughouse', 'duck': 'duck', 'duckchess': 'duck', 'chaturanga': 'chaturanga',
+                    'placement': 'placement', 'alice': 'alice', 'alicechess': 'alice',
+                    'spell': 'spell', 'spellchess': 'spell' 
+                };
+                if (modeMap[rawVariant]) detectedMode = modeMap[rawVariant];
+            }
 
-        if (ruleVariantMatch && ruleVariantMatch[1]) {
-            const rules = ruleVariantMatch[1].toLowerCase();
-            if (rules.includes('chess960')) detectedMode = 'chess960';
-            if (rules.includes('spell')) detectedMode = 'spell';
-        }
-        
-        if (this.gameMode !== detectedMode) {
-            this.setGameMode(detectedMode, false, true); 
-            if (typeof document !== 'undefined') {
-                const variantSelect = document.getElementById('analysisVariantSelect');
-                if (variantSelect) variantSelect.value = detectedMode;
+            if (ruleVariantMatch && ruleVariantMatch[1]) {
+                const rules = ruleVariantMatch[1].toLowerCase();
+                if (rules.includes('chess960')) detectedMode = 'chess960';
+                if (rules.includes('spell')) detectedMode = 'spell';
+            }
+            
+            if (this.gameMode !== detectedMode) {
+                this.setGameMode(detectedMode, false, true); 
+                if (typeof document !== 'undefined') {
+                    const variantSelect = document.getElementById('analysisVariantSelect');
+                    if (variantSelect) variantSelect.value = detectedMode;
+                }
             }
         }
-    }
 
-    this.isLoadingPGN = true;
-    const timerId = `PGN_Load_${Date.now()}`;
-    console.time(timerId);
+        this.isLoadingPGN = true;
+        const timerId = `PGN_Load_${Date.now()}`;
+        console.time(timerId);
 
-    if (window.sfWorker) window.sfWorker.postMessage('stop');
+        if (window.sfWorker) window.sfWorker.postMessage('stop');
 
-    const backups = { ui: {}, game: {}, console: {} };
-    const silence = (obj, method, storage) => {
-        if (obj && typeof obj[method] === 'function') {
-            storage[method] = obj[method];
-            obj[method] = () => {};
+        const backups = { ui: {}, game: {}, console: {} };
+        const silence = (obj, method, storage) => {
+            if (obj && typeof obj[method] === 'function') {
+                storage[method] = obj[method];
+                obj[method] = () => {};
+            }
+        };
+        if (this.#ui) {
+            ['updateHistory', 'renderBoard', 'renderArrows', 'renderHeaders', 'highlightLastMove', 'updateClocks', 'updateStatus', 'scrollToActiveMove', 'showNotification', 'updatePuzzleStats', 'updatePlayerNames', 'displayMetadata','renderCharts'].forEach(m => silence(this.#ui, m, backups.ui));
         }
-    };
-    if (this.#ui) {
-        ['updateHistory', 'renderBoard', 'renderArrows', 'renderHeaders', 'highlightLastMove', 'updateClocks', 'updateStatus', 'scrollToActiveMove', 'showNotification', 'updatePuzzleStats', 'updatePlayerNames', 'displayMetadata','renderCharts'].forEach(m => silence(this.#ui, m, backups.ui));
-    }
-    ['updateStockfish', 'triggerMoveSound', 'checkGameState', 'onMove', 'attemptPremove', 'saveToLocalStorage'].forEach(m => silence(this, m, backups.game));
-    ['log', 'info', 'warn', 'debug'].forEach(m => silence(console, m, backups.console));
+        ['updateStockfish', 'triggerMoveSound', 'checkGameState', 'onMove', 'attemptPremove', 'saveToLocalStorage'].forEach(m => silence(this, m, backups.game));
+        ['info', 'warn', 'debug'].forEach(m => silence(console, m, backups.console));
 
-    try {
-        this.moveList = [];
-        this.history = [];
-        this.fens = [];
-        this.pgnHeaders = {};
+        try {
+            this.moveList = [];
+            this.history = [];
+            this.fens = [];
+            this.pgnHeaders = {};
 
-        this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
-        this.#board = Array(64).fill(null);
+            this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
+            this.#board = Array(64).fill(null);
 
-        const headerRegex = /\[([A-Za-z0-9_]+)\s+"([^"]*)"\]/g;
-        let match;
-        while ((match = headerRegex.exec(pgn)) !== null) {
-            this.pgnHeaders[match[1]] = match[2];
-        }
+            const headerRegex = /\[([A-Za-z0-9_]+)\s+"([^"]*)"\]/g;
+            let match;
+            while ((match = headerRegex.exec(pgn)) !== null) {
+                this.pgnHeaders[match[1]] = match[2];
+            }
 
-        if (this.pgnHeaders['StartFen4']) {
-            let boardStr = this.pgnHeaders['StartFen4'].split('- ').pop();
-            let rows = boardStr.split('/');
-            let fenRows = [];
-            for (let r of rows) {
-                let cells = r.trim().split(',');
-                if (cells.every(c => c === 'x')) continue;
-                let validCells = cells.filter(c => c !== 'x');
-                if (validCells.length === 0) continue;
+            if (this.pgnHeaders['StartFen4'] && this.pgnHeaders['StartFen4'] !== '2PC') {
+                let rawStartFen = this.pgnHeaders['StartFen4'];
+                let boardStr = rawStartFen;
                 
-                let fenRow = '';
-                let emptyCount = 0;
-                for (let c of validCells) {
-                    if (!isNaN(c)) {
-                        emptyCount += parseInt(c, 10);
-                    } else if (c.length === 2) {
-                        if (emptyCount > 0) { fenRow += emptyCount; emptyCount = 0; }
-                        let color = c[0]; 
-                        let piece = c[1]; 
-                        fenRow += color === 'y' ? piece.toLowerCase() : piece.toUpperCase();
-                    } else {
-                        if (emptyCount > 0) { fenRow += emptyCount; emptyCount = 0; }
-                        fenRow += c; 
+                // Safely extract the board matrix (the part containing slashes)
+                // Format is often: "Rules - JSON - Board" or "Rules-JSON}-Board"
+                let braceIdx = rawStartFen.lastIndexOf('}');
+                if (braceIdx !== -1) {
+                    let dashAfterBrace = rawStartFen.indexOf('-', braceIdx);
+                    if (dashAfterBrace !== -1) {
+                        boardStr = rawStartFen.substring(dashAfterBrace + 1);
                     }
-                }
-                if (emptyCount > 0) { fenRow += emptyCount; }
-                fenRows.push(fenRow);
-            }
-            this.pgnHeaders['FEN'] = fenRows.join('/') + " w KQkq - 0 1";
-        }
-
-        if (isInternalLoad) {
-            this.pgnHeaders['Variant'] = this.gameMode === 'classical' ? 'Standard' : this.gameMode;
-        }
-
-        let moveTextRaw = pgn.replace(/\[[A-Za-z0-9_]+\s+"[^"]*"\]/g, '').trim();
-
-        // 🌟 FIX 1: THE SMART REGEX BRIDGE
-        // Transforms instances like "Fz@d5 Bc5" into "Fz@d5_Bc5".
-        // This ensures the custom split(/\s+/) and charCodeAt loops treat it as an unbroken string!
-        moveTextRaw = moveTextRaw.replace(/([A-Za-z]+@[a-h][1-8])\s+([A-Za-z0-9+#=O\-]+)/g, "$1_$2");
-
-        if (this.pgnHeaders['StartFen4'] || this.gameMode === 'spell') {
-            const to8x8 = (coord) => {
-                if (!coord || coord.length < 2) return coord;
-                let f = String.fromCharCode(coord.charCodeAt(0) - 3); 
-                let r = parseInt(coord.slice(1), 10) - 3;            
-                return f + r;
-            };
-
-            let tokens = moveTextRaw.split(/\s+/);
-            let newTokens = [];
-
-            for (let i = 0; i < tokens.length; i++) {
-                let t = tokens[i];
-                if (t.includes('.') || t === '..' || t.match(/^(1-0|0-1|1\/2-1\/2|\*)$/)) {
-                    newTokens.push(t); continue; 
-                }
-
-                let spellMatch = t.match(/^(freeze|jump)@([a-n]\d+)&(.*)$/);
-                let moveStr = t;
-                
-                if (spellMatch) {
-                    newTokens.push(`S${spellMatch[1]}@${to8x8(spellMatch[2])}`); 
-                    moveStr = spellMatch[3];
-                }
-
-                let ccMatch = moveStr.match(/^([A-Z]?)([a-n]\d+)[-x]([A-Z]?)([a-n]\d+)(=[A-Za-z])?([+#]?)$/);
-                if (ccMatch) {
-                    newTokens.push(to8x8(ccMatch[2]) + to8x8(ccMatch[4]) + (ccMatch[5] ? ccMatch[5].replace('=', '').toLowerCase() : ''));
                 } else {
-                    newTokens.push(moveStr); 
+                    let chunks = rawStartFen.split('-');
+                    boardStr = chunks.find(c => c.includes('/')) || chunks[chunks.length - 1];
+                }
+
+                let rows = boardStr.split('/');
+                let fenRows = [];
+                for (let r of rows) {
+                    let cells = r.trim().split(',');
+                    if (cells.every(c => c === 'x')) continue;
+                    let validCells = cells.filter(c => c !== 'x');
+                    if (validCells.length === 0) continue;
+                    
+                    let fenRow = '';
+                    let emptyCount = 0;
+                    for (let c of validCells) {
+                        if (!isNaN(c)) {
+                            emptyCount += parseInt(c, 10);
+                        } else if (c.length === 2) {
+                            if (emptyCount > 0) { fenRow += emptyCount; emptyCount = 0; }
+                            let color = c[0]; 
+                            let piece = c[1]; 
+                            // 'y' maps to black (lowercase), 'r' maps to white (uppercase)
+                            fenRow += color === 'y' ? piece.toLowerCase() : piece.toUpperCase();
+                        } else {
+                            if (emptyCount > 0) { fenRow += emptyCount; emptyCount = 0; }
+                            fenRow += c; 
+                        }
+                    }
+                    if (emptyCount > 0) { fenRow += emptyCount; }
+                    fenRows.push(fenRow);
+                }
+                
+                // Construct the standard FEN string
+                let newFen = fenRows.join('/') + " w KQkq - 0 1";
+                
+                // Inject the default Spell variables so the engine doesn't crash on boot
+                if (this.gameMode === 'spell') {
+                    newFen += " [S:0,0,-1,0,0,0,0,5,2,5,2]";
+                }
+                
+                this.pgnHeaders['FEN'] = newFen;
+            }
+
+            if (isInternalLoad) {
+                this.pgnHeaders['Variant'] = this.gameMode === 'classical' ? 'Standard' : this.gameMode;
+            }
+
+            let moveTextRaw = pgn.replace(/\[[A-Za-z0-9_]+\s+"[^"]*"\]/g, '').trim();
+
+            // 🚀 VARIANT NORMALIZATION BRIDGE
+            let isFFA = this.pgnHeaders['Variant'] === 'FFA' || !!this.pgnHeaders['StartFen4'];
+            let tokensArray = moveTextRaw.split(/\s+/);
+            let newTokensArray = [];
+
+            for (let t of tokensArray) {
+                if (t.includes('.') || t === '..' || t.match(/^(1-0|0-1|1\/2-1\/2|\*)$/)) {
+                    newTokensArray.push(t); 
+                    continue;
+                }
+
+                let moveData = this.#normalizeVariantToken(t, isFFA);
+                console.log("MoveData in spell chess:",moveData);
+                let moveStr = moveData.cleaned;
+
+                if (moveData.spell) {
+                    // Inject directly into the format your lexer treats as unbroken
+                    moveStr = `S${moveData.spell.type}@${moveData.spell.square}_${moveData.cleaned}`;
+                } else if (moveData.duck) {
+                    // Append duck target cleanly 
+                    moveStr = `${moveData.cleaned}@${moveData.duck.square}`;
+                }
+
+                newTokensArray.push(moveStr);
+            }
+            moveTextRaw = newTokensArray.join(' ');
+
+            // 🌟 FIX 1: THE SMART REGEX BRIDGE
+            moveTextRaw = moveTextRaw.replace(/([A-Za-z]+@[a-h][1-8])\s+([A-Za-z0-9+#=O\-]+)/g, "$1_$2");
+
+            let initialTime = 600;
+            this.timeIncrement = 0;
+            
+            if (this.pgnHeaders['TimeControl']) {
+                const parts = this.pgnHeaders['TimeControl'].split('+');
+                const parsed = parseFloat(parts[0]);
+                if (!isNaN(parsed)) initialTime = parsed;
+                if (parts.length > 1) {
+                    const inc = parseFloat(parts[1]);
+                    if (!isNaN(inc)) this.timeIncrement = inc;
                 }
             }
-            moveTextRaw = newTokens.join(' ');
-        }
+            
+            this.currentWTime = this.currentBTime = initialTime;
 
-        let initialTime = 600;
-        this.timeIncrement = 0;
-        
-        if (this.pgnHeaders['TimeControl']) {
-            const parts = this.pgnHeaders['TimeControl'].split('+');
-            const parsed = parseFloat(parts[0]);
-            if (!isNaN(parsed)) initialTime = parsed;
-            if (parts.length > 1) {
-                const inc = parseFloat(parts[1]);
-                if (!isNaN(inc)) this.timeIncrement = inc;
+            let startFen = this.pgnHeaders['FEN'];
+            if (!startFen) {
+                startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode]) 
+                    ? VARIANT_STARTING_FENS[this.gameMode] 
+                    : INITIAL_FEN;
+                if (this.gameMode === 'chess960' && typeof this.generateChess960FEN === 'function') {
+                    startFen = this.generateChess960FEN();
+                }
             }
-        }
-        
-        this.currentWTime = this.currentBTime = initialTime;
 
-        let startFen = this.pgnHeaders['FEN'];
-        if (!startFen) {
-            startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode]) 
-                ? VARIANT_STARTING_FENS[this.gameMode] 
-                : INITIAL_FEN;
-            if (this.gameMode === 'chess960' && typeof this.generateChess960FEN === 'function') {
-                startFen = this.generateChess960FEN();
-            }
-        }
-
-        this.rootNode = new MoveNode(startFen, null);
-        this.rootNode.clock = { w: initialTime, b: initialTime };
-        this.currentNode = this.rootNode;
-        this.loadFEN(this.rootNode.fen, this.gameMode, true);
+            this.rootNode = new MoveNode(startFen, null);
+            this.rootNode.clock = { w: initialTime, b: initialTime };
+            this.currentNode = this.rootNode;
+            this.loadFEN(this.rootNode.fen, this.gameMode, true);
 
             const wName = (this.pgnHeaders['White'] || "").toLowerCase();
             const bName = (this.pgnHeaders['Black'] || "").toLowerCase();
@@ -4691,17 +4830,13 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             this.makeMove = (move, promo, batchMode, pgnText, muteEngine, isAutoReply) => {
                 
                 // 🌟 FIX 2: RESTORE THE SPACE
-                // Swaps "Fz@d5_Bc5" back into "Fz@d5 Bc5" right before it hits the engine.
                 if (typeof move === 'string') {
                     move = move.replace(/([A-Za-z]+@[a-h][1-8])_([A-Za-z0-9+#=O\-]+)/, "$1 $2");
                 }
 
-                // Execute original move logic
                 let result = originalMakeMove(move, promo, true, pgnText, true, true);
                 
                 // 🌟 FIX 3: REPAIRED UNREACHABLE CODE
-                // Your original code placed `return` right above this IF block, so this never ran! 
-                // Moved the `return` statement to the bottom so SAN logic successfully fires.
                 if (typeof move === 'string' && move.includes('@') && this.currentNode) {
                     if (this.currentNode.moveSan && !this.currentNode.moveSan.includes('@')) {
                         this.currentNode.moveSan = move;
@@ -4714,31 +4849,27 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             // Run the heavy parser
             if (typeof this.#parsePGNTokens === 'function') this.#parsePGNTokens(tokens, 0);
 
-        this.makeMove = originalMakeMove;
-        
-    } catch (e) {
-        backups.console.error("PGN Parsing Error:", e);
-    }
+            this.makeMove = originalMakeMove;
+            
+        } catch (e) {
+            backups.console.error("PGN Parsing Error:", e);
+        }
         finally {
             this.isLoadingPGN = false;
             this.clearPremoves();
             this.premoveQueue = []; 
             
             if (!isInternalLoad) {
-            // If the user manually imported a PGN, we WANT to switch to Analysis mode
-            // (Unless they are in a Study or Puzzle, which have their own rules).
-            if (this.mode !== 'study' && this.mode !== 'puzzle') {
-                this.mode = 'analysis';
-                this.gameOver = false;
-                
-                // 🚀 FORCE UI SWITCH: Tell the UI to physically move to the Analysis tab
-                // so the user actually sees the board and move list change.
-                if (this.#ui && typeof this.#ui.switchTab === 'function') {
-                    this.#ui.switchTab('analysis');
+                if (this.mode !== 'study' && this.mode !== 'puzzle') {
+                    this.mode = 'analysis';
+                    this.gameOver = false;
+                    
+                    if (this.#ui && typeof this.#ui.switchTab === 'function') {
+                        this.#ui.switchTab('analysis');
+                    }
+                    else if (typeof this.#saveState === 'function') this.#saveState('analysis');
                 }
-                else if (typeof this.#saveState === 'function') this.#saveState('analysis');
             }
-        }
             
             this.isPaused = false; 
             this.pgn = "";
@@ -4776,7 +4907,6 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
 
                         this.#ui.displayMetadata(this.pgnHeaders);
                         
-                        // --- ACCURATE CHESS.COM COUNTRY MAP ---
                         const chesscomCountryMap = {
                             "2": "us", "3": "ca", "4": "ar", "5": "be", "9": "af",
                             "10": "al", "11": "ad", "12": "ai", "13": "ag", "14": "am", "15": "aw", "17": "au", "18": "at", "19": "bs",
@@ -4846,7 +4976,7 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             }
             console.timeEnd(timerId);
         }
-}
+    }
 getNagInfo(nag) {
         if (!nag) return null;
         let nags = nag.toString().split(',').map(n => n.trim().replace('$', ''));
@@ -5398,6 +5528,7 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
                         
                         if (this.#ui && botRes) {
                             this.#ui.renderBoard(true); 
+                            if (typeof this.#ui.renderHeaders === 'function') this.#ui.renderHeaders(); // ✨ FIX 5: Sync the Bot's spells/mana!
                             if (!this.isAnalysisMode) setTimeout(() => this.attemptPremove(), 100);
                         }
                     }
