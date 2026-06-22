@@ -16,7 +16,7 @@ export const VARIANT_STARTING_FENS = {
     'racingkings': '8/8/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1',
     'placement': '8/8/8/8/8/8/8/8[RNBQKBNRPPPPPPPPrnbqkbnrpppppppp] w KQkq - 0 1',
     'alice': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-    'spell': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 [S:0,0,-1,0,0,0,0,5,2,5,2]',
+    'spell': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 [S:0,0,0,0,5,2,5,2,-1,0,-1,0,-1,0,-1,0]',
 };
 export const nnueMap = {
     '3check': '3check-cb5f517c228b.nnue',

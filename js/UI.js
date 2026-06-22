@@ -1477,7 +1477,46 @@ renderHeaders() {
         if (this._lastHeadersCache === cacheKey) return;
         this._lastHeadersCache = cacheKey;
 
-        const isoToCountryName = { "us": "United States", "gb": "United Kingdom", "vn": "Vietnam" }; 
+        const isoToCountryName = {
+            "us": "United States", "ca": "Canada", "ar": "Argentina", "be": "Belgium", "af": "Afghanistan",
+            "al": "Albania", "ad": "Andorra", "ai": "Anguilla", "ag": "Antigua and Barbuda", "am": "Armenia",
+            "aw": "Aruba", "au": "Australia", "at": "Austria", "bs": "Bahamas", "bh": "Bahrain", "bb": "Barbados",
+            "xx": "International", "bz": "Belize", "bm": "Bermuda", "bo": "Bolivia", "ba": "Bosnia and Herzegovina",
+            "br": "Brazil", "bg": "Bulgaria", "es-cn": "Canary Islands", "ky": "Cayman Islands", "cl": "Chile",
+            "cn": "China", "co": "Colombia", "cr": "Costa Rica", "hr": "Croatia", "cu": "Cuba", "cw": "Curaçao",
+            "cy": "Cyprus", "cz": "Czech Republic", "dk": "Denmark", "dm": "Dominica", "do": "Dominican Republic",
+            "ec": "Ecuador", "eg": "Egypt", "sv": "El Salvador", "ee": "Estonia", "fk": "Falkland Islands",
+            "fo": "Faroe Islands", "fj": "Fiji", "fi": "Finland", "fr": "France", "ge": "Georgia", "de": "Germany",
+            "gi": "Gibraltar", "gr": "Greece", "gl": "Greenland", "gd": "Grenada", "gp": "Guadeloupe", "gu": "Guam",
+            "gt": "Guatemala", "gg": "Guernsey", "gy": "Guyana", "ht": "Haiti", "hn": "Honduras", "hk": "Hong Kong",
+            "hu": "Hungary", "is": "Iceland", "in": "India", "id": "Indonesia", "ir": "Iran", "iq": "Iraq",
+            "ie": "Ireland", "im": "Isle of Man", "il": "Israel", "it": "Italy", "jm": "Jamaica", "jp": "Japan",
+            "je": "Jersey", "jo": "Jordan", "kz": "Kazakhstan", "ki": "Kiribati", "kw": "Kuwait", "lv": "Latvia",
+            "lb": "Lebanon", "li": "Liechtenstein", "lt": "Lithuania", "lu": "Luxembourg", "mo": "Macau",
+            "mk": "North Macedonia", "my": "Malaysia", "mt": "Malta", "mq": "Martinique", "md": "Moldova",
+            "mx": "Mexico", "mc": "Monaco", "ms": "Montserrat", "nr": "Nauru", "np": "Nepal", "nl": "Netherlands",
+            "nz": "New Zealand", "ni": "Nicaragua", "no": "Norway", "om": "Oman", "pk": "Pakistan", "pa": "Panama",
+            "pg": "Papua New Guinea", "py": "Paraguay", "pe": "Peru", "ph": "Philippines", "pl": "Poland",
+            "pt": "Portugal", "pr": "Puerto Rico", "ro": "Romania", "ru": "Russia", "kn": "Saint Kitts and Nevis",
+            "lc": "Saint Lucia", "pm": "Saint Pierre and Miquelon", "sm": "San Marino", "sa": "Saudi Arabia",
+            "sg": "Singapore", "sk": "Slovakia", "si": "Slovenia", "sb": "Solomon Islands", "za": "South Africa",
+            "gs": "South Georgia", "sr": "Suriname", "se": "Sweden", "ch": "Switzerland", "tw": "Taiwan",
+            "th": "Thailand", "to": "Tonga", "tt": "Trinidad and Tobago", "tr": "Turkey", "tm": "Turkmenistan",
+            "tv": "Tuvalu", "ua": "Ukraine", "ae": "United Arab Emirates", "uy": "Uruguay", "uz": "Uzbekistan",
+            "vu": "Vanuatu", "va": "Vatican City", "ve": "Venezuela", "vn": "Vietnam", "ye": "Yemen",
+            "as": "American Samoa", "vc": "Saint Vincent and the Grenadines", "az": "Azerbaijan", "mn": "Mongolia",
+            "sy": "Syria", "gb-eng": "England", "mh": "Marshall Islands", "gb-sct": "Scotland", "es": "Spain",
+            "gb": "United Kingdom", "vi": "U.S. Virgin Islands", "gb-wls": "Wales", "kr": "South Korea",
+            "kg": "Kyrgyzstan", "bd": "Bangladesh", "sd": "Sudan", "bj": "Benin", "bt": "Bhutan", "bw": "Botswana",
+            "bn": "Brunei", "bi": "Burundi", "kh": "Cambodia", "cm": "Cameroon", "cv": "Cape Verde",
+            "cf": "Central African Republic", "td": "Chad", "cg": "Republic of the Congo", "ci": "Ivory Coast",
+            "dj": "Djibouti", "gq": "Equatorial Guinea", "ga": "Gabon", "gh": "Ghana", "ke": "Kenya", "la": "Laos",
+            "lr": "Liberia", "mg": "Madagascar", "ma": "Morocco", "mz": "Mozambique", "mm": "Myanmar",
+            "na": "Namibia", "ne": "Niger", "ng": "Nigeria", "qa": "Qatar", "rw": "Rwanda", "ws": "Samoa",
+            "st": "Sao Tome and Principe", "sn": "Senegal", "sl": "Sierra Leone", "so": "Somalia", "lk": "Sri Lanka",
+            "sz": "Eswatini", "tj": "Tajikistan", "tz": "Tanzania", "tl": "East Timor", "tg": "Togo", "tn": "Tunisia",
+            "ug": "Uganda", "zm": "Zambia", "zw": "Zimbabwe", "dz": "Algeria", "mr": "Mauritania"
+        };
 
         const updateSlot = (index, data, color) => {
             const rawName = data.name || (color === 'w' ? "White" : "Black");
@@ -2477,6 +2516,8 @@ redrawGhostPiece() {
         }
     }
 startDrag(e, idx, piece) {
+    console.log(`\n✋ --- PIECE DRAG INITIATED ---`);
+        console.log(`[UI] Grabbing piece: ${piece.color}${piece.type} at UI index: ${idx}`);
         const state = this.#game ? this.#game.getReader() : null;
         if (!state) return;
         
@@ -2838,11 +2879,11 @@ executeMove(move, animate = true, overridePromo = null) {
             }
         }
         if (this.pendingSpell) {
-        move.isSpell = true;
-        move.spellType = this.pendingSpell.spellType;
-        move.target = this.pendingSpell.target;
-        move.spellSan = this.pendingSpell.san; // We pass the SAN prefix
-        this.pendingSpell = null; // Clear it so it doesn't duplicate
+            move.isSpell = true;
+            move.spellType = this.pendingSpell.spellType || this.pendingSpell.type;
+            move.target = this.pendingSpell.target !== undefined ? this.pendingSpell.target : this.pendingSpell.square;
+            move.spellSan = this.pendingSpell.san; 
+            this.pendingSpell = null; 
         }
         const isDrop = move.from === '@';
         let destIdx = move.to !== undefined ? move.to : move.target;
@@ -3006,7 +3047,47 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         }
 
         const squares = this.squaresLayer.children;
-        
+        let frozenClusters = new Map();
+        if (state.gameMode === 'spell' && state.frozenSquares) {
+            let visited = new Set();
+            for (let i = 0; i < 64; i++) {
+                if (state.frozenSquares[i] && !visited.has(i)) {
+                    let cluster = [];
+                    let q = [i];
+                    visited.add(i);
+                    while(q.length > 0) {
+                        let curr = q.shift();
+                        cluster.push(curr);
+                        let r = Math.floor(curr/8), c = curr%8;
+                        // Check all 8 directions for connected ice
+                        let neighbors = [curr-8, curr+8, curr-1, curr+1, curr-9, curr-7, curr+7, curr+9];
+                        for (let n of neighbors) {
+                            if (n >= 0 && n < 64 && state.frozenSquares[n] && !visited.has(n)) {
+                                let nr = Math.floor(n/8), nc = n%8;
+                                if (Math.abs(nr-r) <= 1 && Math.abs(nc-c) <= 1) {
+                                    visited.add(n);
+                                    q.push(n);
+                                }
+                            }
+                        }
+                    }
+                    // Find the Bounding Box of this block
+                    let minR = 8, maxR = -1, minC = 8, maxC = -1;
+                    for (let sq of cluster) {
+                        let r = Math.floor(sq/8), c = sq%8;
+                        if (r < minR) minR = r;
+                        if (r > maxR) maxR = r;
+                        if (c < minC) minC = c;
+                        if (c > maxC) maxC = c;
+                    }
+                    let W = maxC - minC + 1;
+                    let H = maxR - minR + 1;
+                    for (let sq of cluster) {
+                        frozenClusters.set(sq, { minR, minC, W, H });
+                    }
+                }
+            }
+        }
         for (let v = 0; v < 64; v++) {
             let r_vis = Math.floor(v / 8); 
             let c_vis = v % 8;
@@ -3020,13 +3101,105 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             sq.dataset.index = logical_i; 
             sq.innerHTML = '';
 
-             if (state.gameMode === 'spell' && state.frozenSquares && state.frozenSquares[logical_i]) {
+             // ✨ Safe Cleanup
+            sq.classList.remove('frozen');
+            let oldIce = sq.querySelector('.spell-ice');
+            if (oldIce) oldIce.remove();
+            let oldPortal = sq.querySelector('.spell-portal');
+            if (oldPortal) oldPortal.remove();
+
+            // ✨ SEAMLESS 3x3 FREEZE BLOCK (MAXIMUM CRYSTALLINE DENSITY + DEEP COLD BLUE)
+            if (state.gameMode === 'spell' && state.frozenSquares && state.frozenSquares[logical_i]) {
                 sq.classList.add('frozen');
                 let ice = document.createElement('div');
-                ice.style.cssText = `position:absolute; top:0; left:0; width:100%; height:100%; background:url('./assets/tabs-icon/freeze.3455552f.png') center/cover; opacity:0.65; pointer-events:none; z-index:20; mix-blend-mode: screen; filter: hue-rotate(180deg) brightness(1.5);`; 
+                ice.className = 'spell-ice';
+                
+                let mapping = frozenClusters.get(logical_i);
+                if (mapping) {
+                    let r_log = Math.floor(logical_i / 8);
+                    let c_log = logical_i % 8;
+                    
+                    let x_offset = c_log - mapping.minC;
+                    let y_offset = r_log - mapping.minR;
+                    
+                    let vis_x = this.flipped ? (mapping.W - 1) - x_offset : x_offset;
+                    let vis_y = this.flipped ? (mapping.H - 1) - y_offset : y_offset;
+                    
+                    let bgX = mapping.W > 1 ? (vis_x / (mapping.W - 1)) * 100 : 50;
+                    let bgY = mapping.H > 1 ? (vis_y / (mapping.H - 1)) * 100 : 50;
+                    
+                    // ✨ Hyper-Dense Vector Snowflake (16 Arms, 120+ Frost Needles)
+                    let svgSnowFlower = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><filter id='glow'><feGaussianBlur stdDeviation='1.2' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><g id='branch'><line x1='50' y1='50' x2='50' y2='0' stroke='%23fff' stroke-width='1.5' stroke-linecap='round'/><path d='M 50 6 L 30 26 M 50 6 L 70 26 M 50 14 L 28 36 M 50 14 L 72 36 M 50 22 L 32 40 M 50 22 L 68 40 M 50 30 L 38 42 M 50 30 L 62 42 M 50 38 L 42 46 M 50 38 L 58 46' stroke='%230af' stroke-width='1' fill='none' stroke-linecap='round'/><path d='M 50 10 L 40 20 M 50 10 L 60 20 M 50 18 L 36 32 M 50 18 L 64 32 M 50 26 L 40 36 M 50 26 L 60 36 M 50 34 L 44 40 M 50 34 L 56 40' stroke='%23fff' stroke-width='0.6' fill='none' stroke-linecap='round'/></g><g id='spike'><line x1='50' y1='50' x2='50' y2='10' stroke='%2308f' stroke-width='1.2' stroke-linecap='round'/><path d='M 50 16 L 38 28 M 50 16 L 62 28 M 50 26 L 42 34 M 50 26 L 58 34 M 50 36 L 46 40 M 50 36 L 54 40' stroke='%234df' stroke-width='0.8' fill='none' stroke-linecap='round'/></g></defs><g filter='url(%23glow)'><polygon points='50,15 75,25 85,50 75,75 50,85 25,75 15,50 25,25' fill='rgba(0,60,150,0.5)'/><use href='%23branch' transform='rotate(0 50 50)'/><use href='%23branch' transform='rotate(45 50 50)'/><use href='%23branch' transform='rotate(90 50 50)'/><use href='%23branch' transform='rotate(135 50 50)'/><use href='%23branch' transform='rotate(180 50 50)'/><use href='%23branch' transform='rotate(225 50 50)'/><use href='%23branch' transform='rotate(270 50 50)'/><use href='%23branch' transform='rotate(315 50 50)'/><use href='%23spike' transform='rotate(22.5 50 50)'/><use href='%23spike' transform='rotate(67.5 50 50)'/><use href='%23spike' transform='rotate(112.5 50 50)'/><use href='%23spike' transform='rotate(157.5 50 50)'/><use href='%23spike' transform='rotate(202.5 50 50)'/><use href='%23spike' transform='rotate(247.5 50 50)'/><use href='%23spike' transform='rotate(292.5 50 50)'/><use href='%23spike' transform='rotate(337.5 50 50)'/><polygon points='50,25 68,32 75,50 68,68 50,75 32,68 25,50 32,32' fill='rgba(0,150,255,0.4)' stroke='%23fff' stroke-width='1.5'/><polygon points='50,35 61,39 65,50 61,61 50,65 39,61 35,50 39,39' fill='rgba(150,240,255,0.6)' stroke='%230af' stroke-width='1.5'/><circle cx='50' cy='50' r='8' fill='%23fff'/><circle cx='50' cy='50' r='3' fill='%230bf'/></g></svg>`;
+
+                    let bgSize = `${mapping.W * 100}% ${mapping.H * 100}%`;
+                    let bgPos = `${bgX}% ${bgY}%`;
+
+                    // 🧊 6 Layers of Ice: Vector Star + 2 Frost Ray Arrays + Core Depth + 2 Crystal Fracture Layers
+                    ice.style.cssText = `
+                        position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+                        background-image: 
+                            url("${svgSnowFlower}"),
+                            repeating-conic-gradient(from 0deg at 50% 50%, transparent 0deg, transparent 3deg, rgba(200, 240, 255, 0.3) 4deg, transparent 5deg),
+                            repeating-conic-gradient(from 1.5deg at 50% 50%, transparent 0deg, transparent 5deg, rgba(50, 150, 255, 0.25) 6deg, transparent 7deg),
+                            radial-gradient(circle at 50% 50%, rgba(40, 180, 255, 0.6) 0%, rgba(10, 60, 160, 0.85) 45%, rgba(2, 10, 30, 0.98) 100%),
+                            repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255, 255, 255, 0.15) 6px, transparent 7px),
+                            repeating-linear-gradient(-45deg, transparent, transparent 9px, rgba(100, 200, 255, 0.15) 10px, transparent 11px);
+                        background-size: ${bgSize}, ${bgSize}, ${bgSize}, ${bgSize}, ${bgSize}, ${bgSize};
+                        background-position: ${bgPos}, ${bgPos}, ${bgPos}, ${bgPos}, ${bgPos}, ${bgPos};
+                        opacity: 0.95; pointer-events: none; z-index: 20; 
+                        backdrop-filter: blur(5px) brightness(0.5);
+                        animation: iceCrystallize 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards, icePulse 2.5s infinite alternate ease-in-out 0.5s;
+                        box-sizing: border-box;
+                    `;
+                    
+                    let rad = '10px';
+                    if (vis_x === 0 && vis_y === 0) ice.style.borderTopLeftRadius = rad;
+                    if (vis_x === mapping.W - 1 && vis_y === 0) ice.style.borderTopRightRadius = rad;
+                    if (vis_x === 0 && vis_y === mapping.H - 1) ice.style.borderBottomLeftRadius = rad;
+                    if (vis_x === mapping.W - 1 && vis_y === mapping.H - 1) ice.style.borderBottomRightRadius = rad;
+
+                    let shadows = [];
+                    let glowOuter = 'rgba(0, 120, 255, 0.9)'; 
+                    let glowInner = 'rgba(100, 220, 255, 0.6)';
+                    let borderStr = '1px solid rgba(150, 240, 255, 0.8)';
+                    
+                    if (vis_y === 0) { shadows.push(`inset 0 10px 12px -5px ${glowOuter}, inset 0 2px 3px ${glowInner}`); ice.style.borderTop = borderStr; }
+                    if (vis_y === mapping.H - 1) { shadows.push(`inset 0 -10px 12px -5px ${glowOuter}, inset 0 -2px 3px ${glowInner}`); ice.style.borderBottom = borderStr; }
+                    if (vis_x === 0) { shadows.push(`inset 10px 0 12px -5px ${glowOuter}, inset 2px 0 3px ${glowInner}`); ice.style.borderLeft = borderStr; }
+                    if (vis_x === mapping.W - 1) { shadows.push(`inset -10px 0 12px -5px ${glowOuter}, inset -2px 0 3px ${glowInner}`); ice.style.borderRight = borderStr; }
+                    
+                    if (shadows.length > 0) ice.style.boxShadow = shadows.join(', ');
+                }
+                
+                if (!document.getElementById('ice-anim-style')) {
+                    let style = document.createElement('style'); style.id = 'ice-anim-style';
+                    style.innerHTML = `
+                        @keyframes iceCrystallize { 
+                            0% { opacity: 0; transform: scale(0.8) rotate(-5deg); filter: brightness(2); backdrop-filter: blur(0px); } 
+                            100% { opacity: 0.95; transform: scale(1) rotate(0deg); filter: brightness(1); backdrop-filter: blur(5px) brightness(0.5); } 
+                        }
+                        @keyframes icePulse {
+                            0% { filter: brightness(1) drop-shadow(0 0 2px rgba(0, 100, 255, 0.3)); }
+                            100% { filter: brightness(1.25) drop-shadow(0 0 15px rgba(0, 180, 255, 0.9)); }
+                        }
+                    `;
+                    document.head.appendChild(style);
+                }
                 sq.appendChild(ice);
             }
 
+            // ✨ JUMP PORTAL
+            if (state.gameMode === 'spell' && state.jump_sq !== undefined && state.jump_sq === logical_i) {
+                let portal = document.createElement('div');
+                portal.className = 'spell-portal';
+                portal.style.cssText = `position:absolute; top:10%; left:10%; width:80%; height:80%; background:radial-gradient(circle, rgba(0,0,0,0.95) 30%, rgba(138,43,226,0.8) 60%, transparent 85%); border-radius:50%; pointer-events:none; z-index:15; box-shadow: inset 0 0 10px #000, 0 0 20px #8a2be2; animation: pulsePortal 2s infinite alternate;`;
+                if (!document.getElementById('portal-anim-style')) {
+                    let style = document.createElement('style'); style.id = 'portal-anim-style';
+                    style.innerHTML = `@keyframes pulsePortal { 0% { transform: scale(0.95); opacity: 0.8; } 100% { transform: scale(1.05); opacity: 1; } }`;
+                    document.head.appendChild(style);
+                }
+                sq.appendChild(portal);
+            }
             if (this.coordsPosition === 'inside') {
                 const rankVal = 8 - r_log;
                 const fileVal = ['a','b','c','d','e','f','g','h'][c_log];
@@ -3094,10 +3267,11 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 };
 
                 sq.onmousedown = (e) => {
-                    if (e.button !== 0) return; // Only left click
+                    if (e.button !== 0) return; 
                     e.preventDefault();
                     e.stopPropagation();
-                    
+                    console.log(`\n🔮 --- SPELL CAST INITIATED ---`);
+                    console.log(`[UI] Casting '${this.activeSpell}' on UI index: ${logical_i}`);
                     this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
                     
                     if (typeof this.castSpell === 'function') {
@@ -5485,13 +5659,6 @@ exportEmbed() {
             this.showNotification("Embed HTML copied to clipboard!", "Copied", "📋");
         });
     }
-generateGIF() {
-        if (typeof window.createChessGif === 'function') {
-            window.createChessGif(this.#game);
-        } else {
-            this.showNotification("GIF module not loaded.", "Error", "❌");
-        }
-    }
 initSidebarResizers() {
         const sidebar = document.getElementById('mainSidebar'); 
         const handleW = document.getElementById('resizeSidebarW');
@@ -5645,10 +5812,26 @@ handleMouseDown(e) {
 
         if (e.button === 2) { 
             e.preventDefault(); e.stopPropagation();
+            
+            // ✨ FIX: Cancel Spell Draft on right click
+            if (this.pendingSpell) {
+                this.pendingSpell = null;
+                if (this.#game && typeof this.#game.cancelDraft === 'function') this.#game.cancelDraft();
+                this.renderBoard(false);
+            }
+
             if (state.premoves.length > 0) { this.#game.clearPremoves(); this.renderBoard(false); return; }
             const sq = this.getSquareFromCoords(e.clientX, e.clientY);
             if (sq !== -1) { this.isRightClick = true; this.arrowDragStart = sq; }
         } else if (e.button === 0) { 
+            
+            // ✨ FIX: Cancel Spell Draft on blank left click
+            if (this.pendingSpell) {
+                this.pendingSpell = null;
+                if (this.#game && typeof this.#game.cancelDraft === 'function') this.#game.cancelDraft();
+                this.renderBoard(false);
+            }
+
             if (state.arrows.length > 0 || state.circles.length > 0) { this.#game.clearAnnotations(); this.renderArrows(); }
             if (state.premoves.length > 0) { this.#game.clearPremoves(); this.renderBoard(false); }
             if (this.selectedSq !== null) { this.selectedSq = null; this.legalMoves = []; this.renderBoard(false); }
@@ -6213,16 +6396,36 @@ generateGIF() {
         if (!this.#game) return;
         const state = this.#game.getReader();
         const originalNodeId = state.activeNodeId;
-        const animCheckbox = document.getElementById('enableAnimations'); const wasAnimating = animCheckbox ? animCheckbox.checked : false;
+        const animCheckbox = document.getElementById('enableAnimations'); 
+        const wasAnimating = animCheckbox ? animCheckbox.checked : false;
         
-        if (animCheckbox && wasAnimating) { animCheckbox.checked = false; if (typeof this.toggleAnimations === 'function') this.toggleAnimations(); }
+        if (animCheckbox && wasAnimating) { 
+            animCheckbox.checked = false; 
+            if (typeof this.toggleAnimations === 'function') this.toggleAnimations(); 
+        }
 
-        // Securely navigate game using the API
-        this.#game.goToStart();
+        // ✨ THE FIX: Bypass the visual rewind animation lock entirely!
+        this._isExecutingMove = false;
+        if (this._startAnimTimeout) {
+            clearTimeout(this._startAnimTimeout);
+            this._startAnimTimeout = null;
+        }
+        
+        // Force the engine to the start position instantly
+        this.#game.currentNode = this.#game.rootNode;
+        this.#game.loadFEN(this.#game.rootNode.fen, this.#game.gameMode, true);
+        
+        this.clearGhostPiece();
+        document.querySelectorAll('.square').forEach(sq => {
+            sq.classList.remove('last-move', 'highlight-w', 'highlight-b', 'selected', 'selected-w', 'selected-b', 'in-check');
+        });
+        
         this.renderBoard(false);
 
         const captureFrameLoop = async () => {
-            await new Promise(r => setTimeout(r, 50));
+            // Wait 100ms to ensure the browser has painted the DOM updates to the screen
+            await new Promise(r => setTimeout(r, 100));
+            
             await this._drawBoardToCanvas(canvas, ctx);
             gif.addFrame(canvas, { delay: gifDelay, copy: true });
             
@@ -6231,13 +6434,22 @@ generateGIF() {
             if (moved) {
                 captureFrameLoop();
             } else {
-                gif.addFrame(canvas, { delay: 2000, copy: true }); previewArea.innerHTML = "Encoding frames...<br>Please wait.";
-                this.#game.goToNodeId(originalNodeId); this.renderBoard(false);
-                if (animCheckbox && wasAnimating) { animCheckbox.checked = true; if (typeof this.toggleAnimations === 'function') this.toggleAnimations(); }
+                gif.addFrame(canvas, { delay: 2000, copy: true }); 
+                previewArea.innerHTML = "Encoding frames...<br>Please wait.";
+                
+                this.#game.goToNodeId(originalNodeId); 
+                this.renderBoard(false);
+                
+                if (animCheckbox && wasAnimating) { 
+                    animCheckbox.checked = true; 
+                    if (typeof this.toggleAnimations === 'function') this.toggleAnimations(); 
+                }
                 gif.render();
             }
         };
-        setTimeout(captureFrameLoop, 400);
+        
+        // Start capture immediately since we bypassed the rewind animation
+        setTimeout(captureFrameLoop, 100);
     }
 exportEmbed() { 
         if (!this.#game) return;
@@ -7452,16 +7664,22 @@ toggleSpell(spellType, colorRequest) {
 castSpell(spellType, targetSq) {
         this.activeSpell = null;
         
-        // STORE THE SPELL AS PENDING INSTEAD OF EXECUTING
-        this.pendingSpell = {
-            isSpell: true,
-            spellType: spellType,
-            target: targetSq,
-            san: `${spellType === 'freeze' ? 'Fz' : (spellType === 'jump' ? 'Jp' : 'Sp')}@${targetSq}`
-        };
+        // ✨ Push the draft straight to the engine! It will update physics instantly.
+        let res = this.#game.draftSpell(spellType, targetSq);
 
-        // Update visuals to show the spell is "selected" (or waiting)
-        this.renderHeaders();
-        this.renderBoard(false); 
+        if (res) {
+            this.pendingSpell = {
+                isSpell: true,
+                spellType: spellType,
+                target: targetSq,
+                san: res.san
+            };
+            this.renderBoard(false);
+            this.renderHeaders(); 
+        } else {
+            if (typeof this.showNotification === 'function') {
+                this.showNotification('Invalid spell target!', 'Error', '❌');
+            }
+        }
     }
 }

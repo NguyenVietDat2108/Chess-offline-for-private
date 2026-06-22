@@ -161,15 +161,18 @@ var Chess = function(fen, gameMode = 'classical') {
         }
         if (s.gameMode === 'spell') {
             c.frozen = s.frozen ? { lo: s.frozen.lo, hi: s.frozen.hi } : { lo: 0, hi: 0 };
-            c.jump_sq = s.jump_sq !== undefined ? s.jump_sq : -1;
             c.mana = s.mana ? { 
                 w: { freeze: s.mana.w.freeze, jump: s.mana.w.jump }, 
                 b: { freeze: s.mana.b.freeze, jump: s.mana.b.jump } 
             } : { w: {freeze: 0, jump: 0}, b: {freeze: 0, jump: 0} }; 
+            
             c.active_spells = s.active_spells ? { 
-                frozen_timer: s.active_spells.frozen_timer, 
-                jump_timer: s.active_spells.jump_timer 
-            } : { frozen_timer: 0, jump_timer: 0 };
+                w_frozen_sq: s.active_spells.w_frozen_sq, w_frozen_timer: s.active_spells.w_frozen_timer,
+                b_frozen_sq: s.active_spells.b_frozen_sq, b_frozen_timer: s.active_spells.b_frozen_timer,
+                w_jump_sq: s.active_spells.w_jump_sq, w_jump_timer: s.active_spells.w_jump_timer,
+                b_jump_sq: s.active_spells.b_jump_sq, b_jump_timer: s.active_spells.b_jump_timer
+            } : { w_frozen_sq:-1, w_frozen_timer:0, b_frozen_sq:-1, b_frozen_timer:0, w_jump_sq:-1, w_jump_timer:0, b_jump_sq:-1, b_jump_timer:0 };
+            
             c.spell_uses = s.spell_uses ? {
                 w: { freeze: s.spell_uses.w.freeze, jump: s.spell_uses.w.jump },
                 b: { freeze: s.spell_uses.b.freeze, jump: s.spell_uses.b.jump }
@@ -260,29 +263,43 @@ var Chess = function(fen, gameMode = 'classical') {
             }
         }
         
-        // ✨ SPELL CHESS FEN PARSER: Restore Mana, Ice Blocks, Jump State, AND Uses Left!
         if (s.gameMode === 'spell') {
             let spellMatch = fen.match(/\[S:([^\]]+)\]/);
             if (spellMatch) {
                 let p = spellMatch[1].split(',');
-                // FEN format: [S:frozen_lo, frozen_hi, jump_sq, mana_w_f, mana_w_j, mana_b_f, mana_b_j, w_f_left, w_j_left, b_f_left, b_j_left]
-                s.frozen = { lo: parseInt(p[0]) || 0, hi: parseInt(p[1]) || 0 };
-                s.jump_sq = isNaN(parseInt(p[2])) ? -1 : parseInt(p[2]); // Fixed index
-                s.mana = {
-                    w: { freeze: parseInt(p[3]) || 0, jump: parseInt(p[4]) || 0 }, // Fixed indices
-                    b: { freeze: parseInt(p[5]) || 0, jump: parseInt(p[6]) || 0 }
-                };
-                // Parse the remaining limits with backwards compatibility
-                s.spell_uses = {
-                    w: { freeze: p.length > 7 ? parseInt(p[7]) : 5, jump: p.length > 8 ? parseInt(p[8]) : 2 },
-                    b: { freeze: p.length > 9 ? parseInt(p[9]) : 5, jump: p.length > 10 ? parseInt(p[10]) : 2 }
-                };
+                if (p.length >= 16) {
+                    s.mana = { w: { freeze: parseInt(p[0])||0, jump: parseInt(p[1])||0 }, b: { freeze: parseInt(p[2])||0, jump: parseInt(p[3])||0 } };
+                    s.spell_uses = { w: { freeze: parseInt(p[4])||0, jump: parseInt(p[5])||0 }, b: { freeze: parseInt(p[6])||0, jump: parseInt(p[7])||0 } };
+                    s.active_spells = {
+                        w_frozen_sq: parseInt(p[8]), w_frozen_timer: parseInt(p[9]),
+                        b_frozen_sq: parseInt(p[10]), b_frozen_timer: parseInt(p[11]),
+                        w_jump_sq: parseInt(p[12]), w_jump_timer: parseInt(p[13]),
+                        b_jump_sq: parseInt(p[14]), b_jump_timer: parseInt(p[15])
+                    };
+                } else {
+                    // Backwards Compatibility for Old PGNs
+                    s.mana = { w: { freeze: parseInt(p[3])||0, jump: parseInt(p[4])||0 }, b: { freeze: parseInt(p[5])||0, jump: parseInt(p[6])||0 } };
+                    s.spell_uses = {
+                        w: { freeze: p.length > 7 ? parseInt(p[7]) : 5, jump: p.length > 8 ? parseInt(p[8]) : 2 },
+                        b: { freeze: p.length > 9 ? parseInt(p[9]) : 5, jump: p.length > 10 ? parseInt(p[10]) : 2 }
+                    };
+                    s.active_spells = {
+                        w_frozen_sq: -1, w_frozen_timer: 0, b_frozen_sq: -1, b_frozen_timer: 0,
+                        w_jump_sq: isNaN(parseInt(p[2])) ? -1 : parseInt(p[2]), w_jump_timer: p.length > 12 ? parseInt(p[12]) : 0,
+                        b_jump_sq: -1, b_jump_timer: 0
+                    };
+                    if (parseInt(p[0]) !== 0 || parseInt(p[1]) !== 0) {
+                        s.active_spells.w_frozen_timer = p.length > 11 ? parseInt(p[11]) : 1;
+                        s.frozen = { lo: parseInt(p[0])||0, hi: parseInt(p[1])||0 };
+                    }
+                }
             } else {
                 s.frozen = { lo: 0, hi: 0 };
-                s.jump_sq = -1; // Default
                 s.mana = { w: {freeze: 0, jump: 0}, b: {freeze: 0, jump: 0} };
                 s.spell_uses = { w: {freeze: 5, jump: 2}, b: {freeze: 5, jump: 2} };
+                s.active_spells = { w_frozen_sq:-1, w_frozen_timer:0, b_frozen_sq:-1, b_frozen_timer:0, w_jump_sq:-1, w_jump_timer:0, b_jump_sq:-1, b_jump_timer:0 };
             }
+            rebuild_spell_caches(s);
         }
         return s;
     }
@@ -335,21 +352,25 @@ var Chess = function(fen, gameMode = 'classical') {
             finalFen += " +" + s.checks.w + "+" + s.checks.b;
         }
         if (s.gameMode === 'spell') {
-            const frozL = s.frozen ? s.frozen.lo : 0;
-            const frozH = s.frozen ? s.frozen.hi : 0;
-            const jmSq  = s.jump_sq !== undefined ? s.jump_sq : -1; // Added missing jump_sq
             const wF = s.mana ? s.mana.w.freeze : 0;
             const wJ = s.mana ? s.mana.w.jump : 0;
             const bF = s.mana ? s.mana.b.freeze : 0;
             const bJ = s.mana ? s.mana.b.jump : 0;
             
-            // Append the 4 usage limits
             const wFl = s.spell_uses ? s.spell_uses.w.freeze : 5;
             const wJl = s.spell_uses ? s.spell_uses.w.jump : 2;
             const bFl = s.spell_uses ? s.spell_uses.b.freeze : 5;
             const bJl = s.spell_uses ? s.spell_uses.b.jump : 2;
             
-            finalFen += ` [S:${frozL},${frozH},${jmSq},${wF},${wJ},${bF},${bJ},${wFl},${wJl},${bFl},${bJl}]`;
+            const act = s.active_spells || { 
+                w_frozen_sq:-1, w_frozen_timer:0, 
+                b_frozen_sq:-1, b_frozen_timer:0, 
+                w_jump_sq:-1, w_jump_timer:0, 
+                b_jump_sq:-1, b_jump_timer:0 
+            };
+
+            // ✨ THE FIX: Output the full 16-parameter array so nothing is ever lost on reload!
+            finalFen += ` [S:${wF},${wJ},${bF},${bJ},${wFl},${wJl},${bFl},${bJl},${act.w_frozen_sq},${act.w_frozen_timer},${act.b_frozen_sq},${act.b_frozen_timer},${act.w_jump_sq},${act.w_jump_timer},${act.b_jump_sq},${act.b_jump_timer}]`;
         }
         return finalFen;
     }
@@ -465,14 +486,13 @@ var Chess = function(fen, gameMode = 'classical') {
         }
         if (next.gameMode === 'spell') {
             if (next.active_spells) {
-                if (next.active_spells.frozen_timer > 0) {
-                    next.active_spells.frozen_timer--;
-                    if (next.active_spells.frozen_timer === 0) next.frozen = {lo: 0, hi: 0};
-                }
-                if (next.active_spells.jump_timer > 0) {
-                    next.active_spells.jump_timer--;
-                    if (next.active_spells.jump_timer === 0) next.jump_sq = -1;
-                }
+                // Decrement the split timers independently
+                if (next.active_spells.w_frozen_timer > 0) next.active_spells.w_frozen_timer--;
+                if (next.active_spells.b_frozen_timer > 0) next.active_spells.b_frozen_timer--;
+                if (next.active_spells.w_jump_timer > 0) next.active_spells.w_jump_timer--;
+                if (next.active_spells.b_jump_timer > 0) next.active_spells.b_jump_timer--;
+                
+                if (typeof rebuild_spell_caches === 'function') rebuild_spell_caches(next);
             }
             if (next.mana) {
                 if (next.mana.w.freeze > 0) next.mana.w.freeze--;
@@ -656,39 +676,67 @@ var Chess = function(fen, gameMode = 'classical') {
         }
         return next;
     }
-    function apply_spell(state, spellType, targetSq) {
-        let next = clone_state(state);
-        let us = next.turn;
+    function rebuild_spell_caches(s) {
+        if (s.gameMode !== 'spell' || !s.active_spells) return;
         
-        if (!next.active_spells) next.active_spells = { frozen_timer: 0, jump_timer: 0 };
-        
-        if (spellType === 'freeze') {
-            let r = targetSq >> 3, c = targetSq & 7;
-            let freezeL = 0, freezeH = 0;
+        let fL = 0, fH = 0;
+        let isLegacyFreeze = false;
+
+        const addFreeze = (sq) => {
+            if (sq === -1 || isNaN(sq)) return;
+            let r = sq >> 3, c = sq & 7;
             for (let dr = -1; dr <= 1; dr++) {
                 for (let dc = -1; dc <= 1; dc++) {
                     let nr = r + dr, nc = c + dc;
                     if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
-                        let sq = nr * 8 + nc;
-                        if (sq < 32) freezeL |= (1 << sq);
-                        else freezeH |= (1 << (sq - 32));
+                        let idx = nr * 8 + nc;
+                        if (idx < 32) fL |= (1 << idx); else fH |= (1 << (idx - 32));
                     }
                 }
             }
-            next.frozen = { lo: freezeL, hi: freezeH };
-            next.active_spells.frozen_timer = 2; // Lasts for your move AND the opponent's response
-        } 
-        else if (spellType === 'jump') {
-            next.jump_sq = targetSq;
-            next.active_spells.jump_timer = 2;
+        };
+
+        // Check White's Timer
+        if (s.active_spells.w_frozen_timer > 0) {
+            if (s.active_spells.w_frozen_sq === -1) isLegacyFreeze = true;
+            else addFreeze(s.active_spells.w_frozen_sq);
+        }
+        // Check Black's Timer
+        if (s.active_spells.b_frozen_timer > 0) {
+            if (s.active_spells.b_frozen_sq === -1) isLegacyFreeze = true;
+            else addFreeze(s.active_spells.b_frozen_sq);
+        }
+        if (isLegacyFreeze && s.frozen && (s.frozen.lo !== 0 || s.frozen.hi !== 0)) {
+            return; 
+        }
+        
+        // Apply the new melted/updated bitboards
+        s.frozen = { lo: fL, hi: fH };
+    }
+    function apply_spell(state, spellType, targetSq) {
+        let next = clone_state(state);
+        let us = next.turn;
+        let colorPrefix = us === WHITE ? 'w_' : 'b_';
+
+        if (!next.active_spells || next.active_spells.w_frozen_timer === undefined) {
+            next.active_spells = { w_frozen_sq:-1, w_frozen_timer:0, b_frozen_sq:-1, b_frozen_timer:0, w_jump_sq:-1, w_jump_timer:0, b_jump_sq:-1, b_jump_timer:0 };
         }
 
-        // Put on cooldown (6 plies = 3 full turns)
+        // Apply safely to the specific color's independent memory bank
+        if (spellType === 'freeze') {
+            next.active_spells[`${colorPrefix}frozen_sq`] = targetSq;
+            next.active_spells[`${colorPrefix}frozen_timer`] = 2; // Lasts 1 full turn cycle
+        } else if (spellType === 'jump') {
+            next.active_spells[`${colorPrefix}jump_sq`] = targetSq;
+            next.active_spells[`${colorPrefix}jump_timer`] = 2;
+        }
+
+        rebuild_spell_caches(next);
+
         let myColor = us === WHITE ? 'w' : 'b';
         if (!next.mana) next.mana = { w: {freeze: 0, jump: 0}, b: {freeze: 0, jump: 0} };
         next.mana[myColor][spellType] = 6; 
 
-        // ✨ CRITICAL FIX: DO NOT FLIP THE TURN! Spells are free actions.
         return next;
     }
     // --------------------------------------------------------
@@ -748,7 +796,7 @@ var Chess = function(fen, gameMode = 'classical') {
     function is_attacked(state, sq, by_color) {
         var bb_lo = state.bb_lo, bb_hi = state.bb_hi;
         // ✨ OPTIMIZED FAST-PATH FOR STANDARD CHESS
-        if (state.gameMode !== 'alice' && state.gameMode !== 'duck' && state.gameMode !== 'chaturanga') {
+        if (state.gameMode !== 'alice' && state.gameMode !== 'duck' && state.gameMode !== 'chaturanga' && state.gameMode !== 'spell') {
             if (sq < 32) {
                 if (PAWN_LO[by_color^1][sq] & bb_lo[by_color*6+PAWN]) return true;
             } else {
@@ -760,9 +808,15 @@ var Chess = function(fen, gameMode = 'classical') {
             var occL=0, occH=0;
             // ✨ V8 LOVES THIS: Short, predictable loops
             for(let i=0; i<12; i++) { occL|=bb_lo[i]; occH|=bb_hi[i]; }
-            if (state.gameMode === 'spell' && state.jump_sq !== undefined && state.jump_sq !== -1) {
-            if(state.jump_sq < 32) occL &= ~(1<<state.jump_sq); else occH &= ~(1<<(state.jump_sq-32));
+            
+            // ✨ FIX: Fast-path dual jump mask
+            if (state.gameMode === 'spell' && state.active_spells) {
+                let jW = state.active_spells.w_jump_timer > 0 ? state.active_spells.w_jump_sq : -1;
+                let jB = state.active_spells.b_jump_timer > 0 ? state.active_spells.b_jump_sq : -1;
+                if (jW !== -1) { if(jW < 32) occL &= ~(1<<jW); else occH &= ~(1<<(jW-32)); }
+                if (jB !== -1) { if(jB < 32) occL &= ~(1<<jB); else occH &= ~(1<<(jB-32)); }
             }
+            
             let sliders = (bb_lo[by_color*6+QUEEN]|bb_lo[by_color*6+ROOK]|bb_lo[by_color*6+BISHOP]);
             let slidersH = (bb_hi[by_color*6+QUEEN]|bb_hi[by_color*6+ROOK]|bb_hi[by_color*6+BISHOP]);
 
@@ -810,10 +864,15 @@ var Chess = function(fen, gameMode = 'classical') {
             if (state.duck_sq < 32) occL |= (1 << state.duck_sq);
             else occH |= (1 << (state.duck_sq - 32));
         }
-        if (state.gameMode === 'spell' && state.jump_sq !== undefined && state.jump_sq !== -1) {
-            if (state.jump_sq < 32) occL &= ~(1 << state.jump_sq);
-            else occH &= ~(1 << (state.jump_sq - 32));
+        
+        // ✨ FIX: Slow-path dual jump mask
+        if (state.gameMode === 'spell' && state.active_spells) {
+            let jW = state.active_spells.w_jump_timer > 0 ? state.active_spells.w_jump_sq : -1;
+            let jB = state.active_spells.b_jump_timer > 0 ? state.active_spells.b_jump_sq : -1;
+            if (jW !== -1) { if (jW < 32) occL &= ~(1 << jW); else occH &= ~(1 << (jW - 32)); }
+            if (jB !== -1) { if (jB < 32) occL &= ~(1 << jB); else occH &= ~(1 << (jB - 32)); }
         }
+        
         if (state.gameMode === 'alice') {
             occL &= bMaskL; occH &= bMaskH;
         }
@@ -915,16 +974,6 @@ var Chess = function(fen, gameMode = 'classical') {
         let bb_lo = new Int32Array(state.bb_lo);
         let bb_hi = new Int32Array(state.bb_hi);
 
-        // 1. FREEZE SPELL: Mask the pieces directly in our local array
-        if (state.gameMode === 'spell' && state.frozen) {
-            let freeL = ~state.frozen.lo;
-            let freeH = ~state.frozen.hi;
-            for(let i=0; i<12; i++) {
-                bb_lo[i] &= freeL;
-                bb_hi[i] &= freeH;
-            }
-        }
-
         let occUsL = 0, occUsH = 0, occThemL = 0, occThemH = 0;
         for(let i=us*6; i<us*6+6; i++) { occUsL|=bb_lo[i]; occUsH|=bb_hi[i]; }
         for(let i=them*6; i<them*6+6; i++) { occThemL|=bb_lo[i]; occThemH|=bb_hi[i]; }
@@ -932,11 +981,13 @@ var Chess = function(fen, gameMode = 'classical') {
         let occAllL = occUsL | occThemL;
         let occAllH = occUsH | occThemH;
         
-        
-        if (state.gameMode === 'spell' && state.jump_sq !== undefined && state.jump_sq !== -1) {
-        if (state.jump_sq < 32) occAllL &= ~(1 << state.jump_sq);
-        else occAllH &= ~(1 << (state.jump_sq - 32));
-            }
+        // ✨ FIX: Main generator dual jump mask
+        if (state.gameMode === 'spell' && state.active_spells) {
+            let jW = state.active_spells.w_jump_timer > 0 ? state.active_spells.w_jump_sq : -1;
+            let jB = state.active_spells.b_jump_timer > 0 ? state.active_spells.b_jump_sq : -1;
+            if (jW !== -1) { if (jW < 32) occAllL &= ~(1 << jW); else occAllH &= ~(1 << (jW - 32)); }
+            if (jB !== -1) { if (jB < 32) occAllL &= ~(1 << jB); else occAllH &= ~(1 << (jB - 32)); }
+        }
 
         if (state.gameMode === 'duck' && state.duck_sq !== -1) {
             if (state.duck_sq < 32) { occUsL |= (1 << state.duck_sq); occAllL |= (1 << state.duck_sq); }
@@ -1090,8 +1141,21 @@ var Chess = function(fen, gameMode = 'classical') {
         }
 
         let final_moves = [];
+        let fL = (state.gameMode === 'spell' && state.frozen) ? state.frozen.lo : 0;
+        let fH = (state.gameMode === 'spell' && state.frozen) ? state.frozen.hi : 0;
+
         for (let i = 0; i < moves.length; i++) {
             let m = moves[i];
+
+            // ✨ FIX 1: Pieces CAN move INTO frozen squares! We only block moves FROM frozen squares.
+            if (fL || fH) {
+                let from = m & 0x3F;
+                let fromMaskL = from < 32 ? (1<<from) : 0;
+                let fromMaskH = from >= 32 ? (1<<(from-32)) : 0;
+                
+                if ((fromMaskL & fL) || (fromMaskH & fH)) continue;
+            }
+
             if (options && options.square) {
                 if ((m & 0x3F) !== ((options.square.charCodeAt(1)-49)*8 + (options.square.charCodeAt(0)-97))) continue;
             }
@@ -1826,8 +1890,9 @@ var Chess = function(fen, gameMode = 'classical') {
         var them = us ^ 1, captured = state.board[to] !== -1 && (state.board[to]>>3)===them;
         var flags = BITS.NORMAL;
         var promoInt = 0;
-        if (promo) { promoInt = typeof promo === 'string' ? CHAR_TO_PIECE[promo.toLowerCase()] : promo; }
 
+        // ✨ THE FIX: ONLY assign promoInt if it's ACTUALLY a pawn promoting!
+        // This prevents UI drag-and-drop mechanics from poisoning Bishop/Knight moves with promo="q"
         if (piece === PAWN) {
             var diff = us === WHITE ? to - from : from - to;
             if (diff % 8 !== 0) {
@@ -1836,7 +1901,7 @@ var Chess = function(fen, gameMode = 'classical') {
             } else {
                 if (captured) return null;
                 if (diff === 16) {
-                    if (state.gameMode === 'chaturanga') return null; // No double push!
+                    if (state.gameMode === 'chaturanga') return null; 
                     flags = BITS.BIG_PAWN;
                 }
             }
@@ -1846,7 +1911,8 @@ var Chess = function(fen, gameMode = 'classical') {
                 if (state.gameMode === 'chaturanga') {
                     promoInt = QUEEN; 
                 } else {
-                    if (!promoInt) promoInt = QUEEN;
+                    if (promo) { promoInt = typeof promo === 'string' ? CHAR_TO_PIECE[promo.toLowerCase()] : promo; }
+                    else { promoInt = QUEEN; }
                 }
             }
         } else if (piece === KING) {
@@ -1890,7 +1956,7 @@ var Chess = function(fen, gameMode = 'classical') {
             return null;
         }
 
-        // Original variant slow path
+        // Original variant slow path (Used by Spell, Atomic, Duck, etc.)
         var next = apply_move(state, m);
         
         if (state.gameMode === 'racingkings') {
@@ -1971,7 +2037,11 @@ var Chess = function(fen, gameMode = 'classical') {
                 var isStandardDouble = Math.floor(to / 8) === (us===WHITE?3:4);
                 var isHordeDouble = (state.gameMode === 'horde' && us === WHITE && Math.floor(to / 8) === 2);
                 
-                if ((isStandardDouble || isHordeDouble) && from2 >= 0 && from2 < 64 && (state.board[from2]&7) === PAWN && state.board[mid]===-1 && state.board[from1]===-1) {
+                let midEmpty = (state.board[mid] === -1) || (state.gameMode === 'spell' && state.active_spells && 
+                    ((state.active_spells.w_jump_timer > 0 && state.active_spells.w_jump_sq === mid) || 
+                     (state.active_spells.b_jump_timer > 0 && state.active_spells.b_jump_sq === mid)));
+                
+                if ((isStandardDouble || isHordeDouble) && from2 >= 0 && from2 < 64 && (state.board[from2]&7) === PAWN && midEmpty) {
                     if(from2<32) candL |= (1<<from2); else candH |= (1<<(from2-32));
                 }
             }
@@ -1979,7 +2049,6 @@ var Chess = function(fen, gameMode = 'classical') {
             if (type === KNIGHT) { candL=KNIGHT_LO[to]; candH=KNIGHT_HI[to]; }
             else if (type === KING) { candL=KING_LO[to]; candH=KING_HI[to]; }
             else if (state.gameMode === 'chaturanga' && type === BISHOP) {
-                // ✨ Alfil SAN parsing
                 let r = to >> 3, c = to & 7;
                 [[2,2],[2,-2],[-2,2],[-2,-2]].forEach(d => {
                     let cr = r + d[0], cc = c + d[1];
@@ -1987,7 +2056,6 @@ var Chess = function(fen, gameMode = 'classical') {
                 });
             }
             else if (state.gameMode === 'chaturanga' && type === QUEEN) {
-                // ✨ Ferz SAN parsing
                 let r = to >> 3, c = to & 7;
                 [[1,1],[1,-1],[-1,1],[-1,-1]].forEach(d => {
                     let cr = r + d[0], cc = c + d[1];
@@ -2011,13 +2079,20 @@ var Chess = function(fen, gameMode = 'classical') {
                         let idx = from*64+to;
                         let oL = occL, oH = occH;
 
-                        // ✨ FAST PATH OVERRIDE for ALICE CHESS
                         if (state.gameMode === 'alice') {
                             let isB = from < 32 ? (state.alice_b.lo & (1<<from)) : (state.alice_b.hi & (1<<(from-32)));
                             let bMaskL = isB ? state.alice_b.lo : ~state.alice_b.lo;
                             let bMaskH = isB ? state.alice_b.hi : ~state.alice_b.hi;
                             oL &= bMaskL; 
                             oH &= bMaskH;
+                        }
+                        
+                        // ✨ FIX: Dynamic Dual-Jump Masking for the SAN Text Parser
+                        if (state.gameMode === 'spell' && state.active_spells) {
+                            let jW = state.active_spells.w_jump_timer > 0 ? state.active_spells.w_jump_sq : -1;
+                            let jB = state.active_spells.b_jump_timer > 0 ? state.active_spells.b_jump_sq : -1;
+                            if (jW !== -1) { if (jW < 32) oL &= ~(1 << jW); else oH &= ~(1 << (jW - 32)); }
+                            if (jB !== -1) { if (jB < 32) oL &= ~(1 << jB); else oH &= ~(1 << (jB - 32)); }
                         }
 
                         if (((BETWEEN_LO[idx]&oL)|(BETWEEN_HI[idx]&oH))===0) {
@@ -2346,16 +2421,59 @@ return {
             }
             return true;
         },
-        moves: function(o) {
-            if (this.game_over()) return [];
+        // ✨ NATIVE DRAFT API: Applies a temporary spell to the board physics interactively
+        draft_spell: function(spellType, targetSq) {
+            if (!this._draftBackup) {
+                this._draftBackup = currentState; // Save real state
+            }
+            let sq = typeof targetSq === 'number' ? targetSq : (isNaN(targetSq) ? str_to_sq(targetSq) : parseInt(targetSq));
+            // Apply spell to the BACKUP state, overriding any previous drafts seamlessly
+            currentState = apply_spell(this._draftBackup, spellType, sq); 
+            return { isStandaloneSpell: true, san: (spellType === 'freeze' ? 'Fz@' : 'Jp@') + sq_str(sq) };
+        },
+        cancel_draft: function() {
+            if (this._draftBackup) {
+                currentState = this._draftBackup; // Revert physics
+                this._draftBackup = null;
+                return true;
+            }
+            return false;
+        },
+        draft_spell: function(spellType, targetSq) {
+            console.log(`[ENGINE API] draft_spell called. Target: ${targetSq}`);
+            if (!this._draftBackup) {
+                this._draftBackup = currentState; 
+            }
+            let sq = typeof targetSq === 'number' ? targetSq : (isNaN(targetSq) ? str_to_sq(targetSq) : parseInt(targetSq));
+            
+            console.log(`[ENGINE API] Parsed engine index: ${sq} (${sq_str(sq)})`);
+            
+            currentState = apply_spell(this._draftBackup, spellType, sq); 
+            console.log(`[ENGINE API] State jump_sq is now: ${currentState.jump_sq}`);
+            
+            return { isStandaloneSpell: true, san: (spellType === 'freeze' ? 'Fz@' : 'Jp@') + sq_str(sq) };
+        },
+        cancel_draft: function() {
+            if (this._draftBackup) {
+                console.log(`[ENGINE API] Draft cancelled. Reverting physics.`);
+                currentState = this._draftBackup; 
+                this._draftBackup = null;
+                return true;
+            }
+            return false;
+        },
+        moves: function(o, ignoreGameOver = false) {
+            console.log(`[ENGINE API] moves() called. Current State jump_sq = ${currentState.jump_sq}`);
+            if (!ignoreGameOver && this.game_over()) return [];
             var ms = generate_moves(currentState, o); 
             return (o && o.verbose) ? ms.map(m=>to_obj(currentState,m)) : ms.map(m=>get_san(currentState,m)); 
         },
-        move: function(o) {
-            if (!o) return null;
-            if (this.game_over()) return null;
+        move: function(o, ignoreGameOver = false) {
+            this.cancel_draft(); // ✨ ALWAYS revert draft before processing a permanent move!
 
-            // ✨ FIX 1: Capture the active color BEFORE any spell or piece move flips the turn!
+            if (!o) return null;
+            if (!ignoreGameOver && this.game_over()) return null;
+
             let activeColor = currentState.turn === WHITE ? 'w' : 'b';
 
             if (typeof o === 'string') {
@@ -2372,12 +2490,18 @@ return {
                 }
             }
 
-            let isSpellMove = (typeof o === 'object' && o.isSpell);
+            let isSpellMove = (typeof o === 'object' && (o.isSpell || o.spellType || o.type));
 
             if (isSpellMove) {
-                let targetEngineIdx = typeof o.target === 'number' ? o.target : (isNaN(o.target) ? str_to_sq(o.target) : parseInt(o.target));
-                // apply_spell creates a state transition, but doesn't handle piece moves
-                currentState = apply_spell(currentState, o.spellType, targetEngineIdx);
+                let sType = o.spellType || o.type;
+                let tVal = o.target !== undefined ? o.target : o.square;
+                let targetEngineIdx = typeof tVal === 'number' ? tVal : (isNaN(tVal) ? str_to_sq(tVal) : parseInt(tVal));
+                
+                currentState = apply_spell(currentState, sType, targetEngineIdx);
+                
+                let oldUses = currentState.spell_uses || { w: {freeze:5, jump:2}, b: {freeze:5, jump:2} };
+                currentState.spell_uses = { w: { ...oldUses.w }, b: { ...oldUses.b } };
+                currentState.spell_uses[activeColor][sType] = Math.max(0, currentState.spell_uses[activeColor][sType] - 1);
             }
             
             let input = (isSpellMove && o.chessMove) ? o.chessMove : o;
@@ -2398,12 +2522,8 @@ return {
                     
                     var nextState = apply_spell(currentState, type, sq);
                     
-                    // ✨ FIX 2: Safely clone and decrement for standalone spells
                     let oldUses = currentState.spell_uses || { w: {freeze:5, jump:2}, b: {freeze:5, jump:2} };
-                    nextState.spell_uses = { 
-                        w: { ...oldUses.w }, 
-                        b: { ...oldUses.b } 
-                    };
+                    nextState.spell_uses = { w: { ...oldUses.w }, b: { ...oldUses.b } };
                     nextState.spell_uses[activeColor][type] = Math.max(0, nextState.spell_uses[activeColor][type] - 1);
                     
                     currentState = nextState;
@@ -2446,8 +2566,17 @@ return {
                     let pType = CHAR_TO_PIECE[pTypeStr.charAt(pTypeStr.length - 1)]; 
                     let toSq = str_to_sq(parts[1].replace(/[^a-h1-8]/g, ''));
                     m = pType | (toSq << 6) | (BITS.DROP << 12);
+                    
                     let legals = generate_moves(currentState, {legal: true});
-                    if (!legals.includes(m)) m = null;
+                    if (!legals.includes(m)) {
+                        // ✨ PLACEMENT FIX: Authorize drops (like Kings) that Crazyhouse generators ignore!
+                        if (currentState.gameMode === 'placement' && currentState.board[toSq] === -1) {
+                            let r = toSq >> 3;
+                            if (pType === PAWN && (r === 0 || r === 7)) m = null; // Pawns can't be on 1st/8th
+                            else if (currentState.reserve && currentState.reserve[activeColor] && currentState.reserve[activeColor][pType] > 0) { } 
+                            else m = null;
+                        } else m = null;
+                    }
                     clean_san = null;
                 }
                 
@@ -2457,8 +2586,26 @@ return {
                         let t = str_to_sq(clean_san.substring(2,4));
                         let p = clean_san.length === 5 ? clean_san[4] : null;
                         m = build_move_direct(currentState, f, t, p);
+
+                        // ✨ DUCK FIX: Encode the duck square BEFORE validating!
+                        if (currentState.gameMode === 'duck' && explicit_duck !== -1 && m !== null) {
+                            m = (m & 0x3FFFFF) | (explicit_duck << 22);
+                        }
+
+                        // ✨ ENGINE SECURITY FIX: Always verify the fast-built move against the legal generator!
+                        let legals = generate_moves(currentState, {legal: true});
+                        if (!legals.includes(m)) m = null;
+                        
                         clean_san = null;
-                    } else { m = tr(currentState, clean_san); }
+                    } else { 
+                        m = tr(currentState, clean_san); 
+                        // ✨ DUCK FIX: Encode for text parsing too just in case
+                        if (currentState.gameMode === 'duck' && explicit_duck !== -1 && m !== null) {
+                            if (((m >>> 22) & 0x3F) === 0) {
+                                m = (m & 0x3FFFFF) | (explicit_duck << 22);
+                            }
+                        }
+                    }
                 }
             } else {
                 // UI Object parsing
@@ -2467,27 +2614,53 @@ return {
                     let pType = CHAR_TO_PIECE[pTypeStr.toLowerCase()];
                     let t = (typeof input.to === 'number') ? input.to : str_to_sq(input.to);
                     m = pType | (t << 6) | (BITS.DROP << 12);
+                    
                     let legals = generate_moves(currentState, {legal: true});
-                    if (!legals.includes(m)) m = null;
+                    
+                    if (!legals.includes(m)) {
+                        // ✨ PLACEMENT FIX: Use the engine's internal 'pocket' array
+                        if (currentState.gameMode === 'placement' && currentState.board[t] === -1) {
+                            let r = t >> 3;
+                            if (pType === PAWN && (r === 0 || r === 7)) {
+                                m = null; // Pawns can't be dropped on the 1st or 8th rank
+                            } else if (currentState.pocket && currentState.pocket[activeColor] && currentState.pocket[activeColor].includes(pType)) {
+                                // ✅ VALID PLACEMENT DROP! Keep 'm' intact so the move executes.
+                            } else {
+                                m = null; // Piece not in pocket
+                            }
+                        } else {
+                            m = null; // Not Placement mode, reject normally
+                        }
+                    }
                 } else {
                     let f = (typeof input.from === 'number') ? input.from : str_to_sq(input.from);
                     let t = (typeof input.to === 'number') ? input.to : str_to_sq(input.to);
                     m = build_move_direct(currentState, f, t, input.promotion); 
+                    
                     if (currentState.gameMode === 'duck' && input.duck_sq !== undefined) {
                         explicit_duck = (typeof input.duck_sq === 'number') ? input.duck_sq : str_to_sq(input.duck_sq);
+                        // ✨ DUCK FIX: Encode the duck square BEFORE validating!
+                        if (m !== null && explicit_duck !== -1) {
+                            m = (m & 0x3FFFFF) | (explicit_duck << 22);
+                        }
                     }
+
+                    // ✨ ENGINE SECURITY FIX: Always verify the fast-built move against the legal generator!
+                    let legals = generate_moves(currentState, {legal: true});
+                    if (!legals.includes(m)) m = null;
                 }
             }
             
             if (m === null) { error("INVALID_MOVE", input); return null; }
             
             if (currentState.gameMode === 'duck') {
-                let duckToUse = (explicit_duck !== -1) ? explicit_duck : currentState.duck_sq;
-                if (duckToUse === -1) duckToUse = 0; 
-                m = (m & 0x3FFFFF) | (duckToUse << 22);
+                if (((m >>> 22) & 0x3F) === 0) {
+                    let duckToUse = currentState.duck_sq !== -1 ? currentState.duck_sq : 0; 
+                    m = (m & 0x3FFFFF) | (duckToUse << 22);
+                }
             }
             
-            var ret = to_obj(currentState, m, nag, clean_san); 
+            var ret = to_obj(currentState, m, nag, clean_san);
             
             if (isSpellMove) {
                 ret.isSpell = true;
@@ -2516,18 +2689,11 @@ return {
             
             var nextState = apply_move(currentState, m);
 
-            // ✨ FIX 3: Re-inject spell limits into the new state AFTER apply_move!
-            // apply_move guarantees a fresh clean board state, so we must manually carry over custom vars!
             let oldUses = currentState.spell_uses || { w: {freeze:5, jump:2}, b: {freeze:5, jump:2} };
             nextState.spell_uses = { 
                 w: { ...oldUses.w }, 
                 b: { ...oldUses.b } 
             };
-
-            // ✨ FIX 4: Decrement the combined spell using the correct activeColor!
-            if (isSpellMove) {
-                nextState.spell_uses[activeColor][o.spellType] = Math.max(0, nextState.spell_uses[activeColor][o.spellType] - 1);
-            }
 
             var isVariantWin = check_variant_win(nextState) !== null;
             var isCheck = is_checked(nextState, nextState.turn);
@@ -2627,6 +2793,13 @@ return {
         },
         insufficient_material: function() {
             var s = currentState;
+
+            // ✨ PLACEMENT FIX: Safely check the 'pocket' arrays!
+            if ((s.gameMode === 'placement' || s.gameMode === 'crazyhouse' || s.gameMode === 'bughouse') && s.pocket) {
+                // If there are ANY pieces left to drop, it is mathematically impossible to be insufficient material!
+                if (s.pocket.w.length > 0 || s.pocket.b.length > 0) return false; 
+            }
+
             var num_pieces = 0, num_knights = 0, num_bishops = 0, sum_bishop_colors = 0;
 
             for (var i = 0; i < 64; i++) {
@@ -2648,9 +2821,8 @@ return {
             
             if (num_pieces === 2) return true; 
             
-            // A lone Knight or Bishop can easily deliver checks, 
-            // so they are NOT insufficient! The game must go on!(Although with a knight it's a theoritical draw)
-            if (s.gameMode === '3check' || s.gameMode === 'antichess'||s.gameMode === 'atomic') return false;
+            // A lone Knight or Bishop can easily deliver checks, so they are NOT insufficient!
+            if (s.gameMode === '3check' || s.gameMode === 'antichess' || s.gameMode === 'atomic') return false;
             if (s.gameMode === 'chaturanga') {
                 if (num_pieces === 2) return true; // Only K vs K is a draw
                 return false; 
@@ -2670,6 +2842,19 @@ return {
                     if (wk >= 56 && bk >= 56) return true;
                 }
             }
+
+            // ✨ PLACEMENT FIX: Prevent empty boards from triggering a "Stalemate" draw
+            let hasPocket = false;
+            if ((currentState.gameMode === 'placement' || currentState.gameMode === 'crazyhouse' || currentState.gameMode === 'bughouse') && currentState.pocket) {
+                if (currentState.pocket.w.length > 0 || currentState.pocket.b.length > 0) hasPocket = true; 
+            }
+
+            if (hasPocket) {
+                // If we have pieces, we can drop them. It is NOT a stalemate or insufficient material.
+                // But it CAN still be a draw by 50-move rule or 3-fold repetition.
+                return currentState.half_moves >= 100 || this.in_threefold_repetition();
+            }
+
             return currentState.half_moves >= 100 || this.in_stalemate() || this.in_threefold_repetition() || this.insufficient_material(); 
         },
         game_over: function() { 
@@ -2753,7 +2938,11 @@ return {
             } : { w: {freeze: 3, jump: 3}, b: {freeze: 3, jump: 3} };
         },
         jump_sq: function() { 
-            return currentState.jump_sq !== undefined ? currentState.jump_sq : -1; 
+            if (currentState.active_spells) {
+                if (currentState.active_spells.w_jump_timer > 0) return currentState.active_spells.w_jump_sq;
+                if (currentState.active_spells.b_jump_timer > 0) return currentState.active_spells.b_jump_sq;
+            }
+            return -1; 
         },
         spell_uses: function() {
             return currentState.spell_uses 

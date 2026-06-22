@@ -8,7 +8,7 @@ export class ChessGame {
     #_isBooting;
     #ui;
     #callbacks;
-    SUSPENDED_VARIANTS = ['bughouse'];
+    SUSPENDED_VARIANTS = ['bughouse','placement'];
 constructor() {
         this.#callbacks = {};
         this.#ui = null;
@@ -158,36 +158,48 @@ get currentLiveFen() {
         return this.generateFEN();
     }
 getReader() {
-        // ✨ DUCK CHESS: Read the duck square directly from the engine memory!
+        // ✨ 1. DUCK CHESS TRANSLATOR
         let engineDuck = (this.#engine && typeof this.#engine.get_duck_sq === 'function') ? this.#engine.get_duck_sq() : -1;
         let uiDuckSq = -1;
         if (engineDuck !== -1 && engineDuck !== undefined && engineDuck !== null) {
-            let file = engineDuck % 8;
-            let rank = Math.floor(engineDuck / 8);
-            uiDuckSq = (7 - rank) * 8 + file;
+            let algStr = this.#engineIndexToSquare(engineDuck); // Get String (e.g. "e3")
+            uiDuckSq = this.#squareToIndex(algStr);             // Safely convert to UI Index
         }
-
         const frozenSquares = new Array(64).fill(false);
+        let jumpSquare = -1;
 
-        // ✨ SPELL CHESS FIX: Spells only last 1 turn!
-        // By reading directly from the SAN of the move that just happened,
-        // we guarantee the Freeze effect vanishes on the very next ply,
-        // completely detaching it from the engine's internal cooldown tracker!
-        if (this.gameMode === 'spell' && this.currentNode && this.currentNode.moveSan) {
-            const freezeMatch = this.currentNode.moveSan.match(/Fz@([a-h][1-8])/);
-            if (freezeMatch) {
-                const centerIdx = this.#squareToIndex(freezeMatch[1]);
-                if (centerIdx !== -1) {
-                    const cRank = Math.floor(centerIdx / 8);
-                    const cFile = centerIdx % 8;
-                    // Map the 3x3 Freeze Area
-                    for (let r = cRank - 1; r <= cRank + 1; r++) {
-                        for (let f = cFile - 1; f <= cFile + 1; f++) {
-                            if (r >= 0 && r <= 7 && f >= 0 && f <= 7) {
-                                frozenSquares[r * 8 + f] = true;
+        if (this.gameMode === 'spell' && this.#engine) {
+            
+            // ✨ 2. FREEZE SPELL TRANSLATOR
+            if (typeof this.#engine.frozen === 'function') {
+                const f = this.#engine.frozen();
+                if (f && (f.lo !== 0 || f.hi !== 0)) {
+                    for (let i = 0; i < 64; i++) {
+                        let isFrozen = false;
+                        if (i < 32) { 
+                            if ((f.lo >>> i) & 1) isFrozen = true; 
+                        } else { 
+                            if ((f.hi >>> (i - 32)) & 1) isFrozen = true; 
+                        }
+                        if (isFrozen) {
+                            let algStr = this.#engineIndexToSquare(i); 
+                            let uiIdx = this.#squareToIndex(algStr);
+                            
+                            if (uiIdx !== -1 && uiIdx !== undefined) {
+                                frozenSquares[uiIdx] = true;
                             }
                         }
                     }
+                }
+            }
+            
+            // ✨ 3. JUMP SPELL TRANSLATOR
+            if (typeof this.#engine.jump_sq === 'function') {
+                let js = this.#engine.jump_sq();
+                if (js !== -1) {
+                    let algStr = this.#engineIndexToSquare(js);
+                    let parsed = this.#squareToIndex(algStr);
+                    if (parsed !== -1) jumpSquare = parsed;
                 }
             }
         }
@@ -224,6 +236,7 @@ getReader() {
             mana: this.#engine && typeof this.#engine.mana === 'function' ? this.#engine.mana() : null,
             frozenSquares: Object.freeze(frozenSquares), 
             frozen: this.#engine && typeof this.#engine.frozen === 'function' ? this.#engine.frozen() : null,
+            jump_sq: jumpSquare,
             duck_sq: uiDuckSq, 
             studyTitle: this.studyTitle,
             activeChapterIndex: this.activeChapterIndex,
@@ -469,6 +482,11 @@ let r = Math.floor(idx / 8);
 let f = idx % 8;
 return FILES[f] + (8 - r);
 }
+#engineIndexToSquare(idx) {
+        let r = Math.floor(idx / 8);
+        let f = idx % 8;
+        return FILES[f] + (r + 1); 
+    }
 #triggerBotMove(ignoreBook = false) {
         const now = Date.now();
         if (this._lastBotTrigger && (now - this._lastBotTrigger < 100)) return;
@@ -1790,32 +1808,60 @@ return move.san;
         let wWarningPlayed = false;
         let bWarningPlayed = false;
 
+        // Track the exact timestamp so the clock doesn't drift
+        let lastTime = Date.now();
+
+        // ✨ Run the loop every 50ms (20 frames per second) for buttery smooth decimal ticking!
         this.#timerInterval = setInterval(() => {
+            let now = Date.now();
+            let deltaSeconds = (now - lastTime) / 1000; // Calculate exact fraction of a second passed
+            lastTime = now;
+
             if (this.gameOver || this.isEditing || this.isAnalysisMode || this.isPaused || !this.isPlayingLiveGame) {
-                return;
+                return; // Paused, do not subtract time
             }
+            
             const liveTurn = this.currentLiveTurn;
 
             if (liveTurn === 'w') {
-                this.whiteTime = Math.max(0, this.whiteTime - 1);
-                if (this.whiteTime === 10 && !wWarningPlayed) {
+                // Subtract the exact fraction of a second
+                this.whiteTime = Math.max(0, this.whiteTime - deltaSeconds);
+                
+                // Play sound when dropping below 10 seconds
+                if (this.whiteTime <= 10 && this.whiteTime > 0 && !wWarningPlayed) {
                     this.#emit('soundTriggered', { type: 'lowtime' });
                     wWarningPlayed = true;
                 }
-                if (this.whiteTime <= 0) this.#endGame('timeout', 'b'); 
+                
+                if (this.whiteTime <= 0) {
+                    if (this.#engine && typeof this.#engine.insufficient_material === 'function' && this.#engine.insufficient_material()) {
+                        this.#endGame('1/2-1/2', 'Draw vs Insufficient Material');
+                    } else {
+                        this.#endGame('0-1', 'Black wins on time'); 
+                    }
+                }
             } else { 
-                this.blackTime = Math.max(0, this.blackTime - 1);
-                if (this.blackTime === 10 && !bWarningPlayed) {
+                this.blackTime = Math.max(0, this.blackTime - deltaSeconds);
+                
+                if (this.blackTime <= 10 && this.blackTime > 0 && !bWarningPlayed) {
                     this.#emit('soundTriggered', { type: 'lowtime' });
                     bWarningPlayed = true;
                 }
-                if (this.blackTime <= 0) this.#endGame('timeout', 'w'); 
+                
+                if (this.blackTime <= 0) {
+                    if (this.#engine && typeof this.#engine.insufficient_material === 'function' && this.#engine.insufficient_material()) {
+                        this.#endGame('1/2-1/2', 'Draw vs Insufficient Material');
+                    } else {
+                        this.#endGame('1-0', 'White wins on time'); 
+                    }
+                }
             }
             
+            // Push the rapidly updating decimals to the UI
             if (typeof window !== 'undefined' && this.#ui && typeof this.#ui.updateClocks === 'function') {
                 this.#ui.updateClocks();
             }
-        }, 1000);
+        }, 50); 
     }
 #loadCurrentPuzzle() {
         if (this.puzzleIndex >= this.puzzleQueue.length) {
@@ -1846,7 +1892,12 @@ return move.san;
                 currentNode: pRoot,
                 history: [],
                 moveList: [],
-                headers: {},
+                // ✨ FIX: Properly inject headers in the background buffer!
+                headers: {
+                    "Event": `Chess Puzzle #${p.id || 'Unknown'}`,
+                    "FEN": p.fen,
+                    "SetUp": "1"
+                },
                 wTime: 600,
                 bTime: 600
             };
@@ -1859,7 +1910,7 @@ return move.san;
             // DO NOT call this.#saveState('puzzle') because that grabs global variables!
             // Just sync to localStorage directly so it's ready when they click back to the tab.
             localStorage.setItem('chess_state_puzzle', JSON.stringify({
-                fen: p.fen, pgn: "", headers: {}, wTime: 600, bTime: 600, activeNodeId: pRoot.id
+                fen: p.fen, pgn: "", headers: this.tabMemory['puzzle'].headers, wTime: 600, bTime: 600, activeNodeId: pRoot.id
             }));
             
             return; // Abort visual rendering to protect the active Analysis tab!
@@ -1868,7 +1919,15 @@ return move.san;
         // Normal Execution
         this.history = [];  
         this.pgn = "";  
-        this.pgnHeaders = {}; 
+        
+        // ✨ THE FIX: We MUST inject the puzzle FEN into the headers so the exporter knows it doesn't start from standard position!
+        this.pgnHeaders = {
+            "Event": `Chess Puzzle #${p.id || 'Unknown'}`,
+            "Site": "Chess.com",
+            "FEN": p.fen,
+            "SetUp": "1"
+        }; 
+        
         this.rootNode = new MoveNode(p.fen, null);
         this.currentNode = this.rootNode;
         
@@ -2513,15 +2572,17 @@ return move.san;
             drop: null
         };
 
-        // 1. Handle Setup Chess / Placement Drops (e.g., @0_rPd2)
-        const dropMatch = token.match(/^([RNBQK])?@\d+_[ry]([RNBQKP])([a-h][1-8])/);
+        // 1. Handle Setup Chess / Placement Drops
+        const dropMatch = token.match(/^([RNBQK])?@\d+_[ry]([RNBQKP])([a-k][0-9]+)/);
         if (dropMatch) {
-            moveData.drop = { piece: dropMatch[2], square: dropMatch[3] };
-            moveData.cleaned = `${dropMatch[2]}@${dropMatch[3]}`;
+            let dropSq = dropMatch[3];
+            if (isFFA) dropSq = this.#translate4PCtoStandard(dropSq);
+            moveData.drop = { piece: dropMatch[2], square: dropSq };
+            moveData.cleaned = `${dropMatch[2]}@${dropSq}`;
             return moveData;
         }
 
-        // 2. Extract Spell Actions (e.g., freeze@h6&)
+        // 2. Extract Spell Actions
         const spellMatch = token.match(/(freeze|jump)@([a-k][0-9]+)/);
         if (spellMatch) {
             let spellSq = spellMatch[2];
@@ -2530,7 +2591,7 @@ return move.san;
             token = token.replace(/(freeze|jump)@([a-k][0-9]+)&?/, '');
         }
 
-        // 3. Extract Duck Placements (e.g., &Θ-h9 or &Θh9-h5)
+        // 3. Extract Duck Placements
         const duckMatch = token.match(/&Θ(?:[a-k][0-9]+-)?([a-k][0-9]+)/);
         if (duckMatch) {
             let duckSq = duckMatch[1];
@@ -2539,17 +2600,16 @@ return move.san;
             token = token.replace(/&Θ.*/, '');
         }
 
-        // 4. Translate 4PC coordinates to Standard 8x8 space & Convert to LAN
+        // 4. Translate 4PC coordinates to Standard 8x8 Strict UCI
         if (isFFA) {
             token = this.#translate4PCtoStandard(token);
             
-            // Retain full algebraic LAN format (e.g. Bf8-b4+ or Ke1xf2)
+            // Convert full LAN to UCI (e.g., Bf8-b4+ -> f8b4)
             const lanMatch = token.match(/^([A-Z]?)([a-h][1-8])([-x])([A-Z]?)([a-h][1-8])(=[A-Za-z])?([+#]?)$/);
             if (lanMatch) {
-                // lanMatch[1]: Piece, lanMatch[2]: From, lanMatch[3]: Action (- or x)
-                // lanMatch[4]: Captured Piece (ignored), lanMatch[5]: To
-                // lanMatch[6]: Promo, lanMatch[7]: Check/Mate
-                token = (lanMatch[1] || '') + lanMatch[2] + lanMatch[3] + lanMatch[5] + (lanMatch[6] ? lanMatch[6].toUpperCase() : '') + (lanMatch[7] || '');
+                token = lanMatch[2] + lanMatch[5] + (lanMatch[6] ? lanMatch[6].replace('=', '').toLowerCase() : '');
+            } else if (/^[a-h][1-8]-[a-h][1-8]/.test(token)) {
+                token = token.replace('-', ''); // Fallback conversion for simple hyphens
             }
         }
 
@@ -2572,14 +2632,18 @@ switchMode(targetMode) {
 switchToAnalysis() {
         if (!this.currentPuzzle) return;
 
-        // 1. Load the headers for the engine
+        // 1. SILENTLY GENERATE THE FULL PGN OF THE SOLVED PUZZLE!
+        // We must do this *before* we switch tabs, otherwise we lose the move history.
+        let solvedPgn = typeof this.generatePGN === 'function' ? this.generatePGN() : "";
+
+        // 2. Load the headers for the engine
         this.pgnHeaders = {
             "Event": `Chess Puzzle #${this.currentPuzzle.id}`,
             "FEN": this.initialPuzzleFEN,
             "SetUp": "1"
         };
 
-        // 2. EXPLICIT OVERWRITE: Push the puzzle data safely into the Analysis memory slot
+        // 3. EXPLICIT OVERWRITE: Push the puzzle data safely into the Analysis memory slot
         if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
         this.tabMemory['analysis'] = {
             rootNode: this.rootNode,
@@ -2588,28 +2652,35 @@ switchToAnalysis() {
             moveList: [...this.moveList],
             headers: { ...this.pgnHeaders },
             wTime: this.whiteTime,
-            bTime: this.blackTime
+            bTime: this.blackTime,
+            pgn: solvedPgn // ✨ INJECT THE GENERATED PGN HERE!
         };
 
-        // 3. Switch the internal game state over
+        // 4. Switch the internal game state over
         this.mode = 'analysis';
         this.gameOver = false;
 
-        // Save to localStorage to persist the switch
+        // 5. Save to localStorage to persist the switch
         if (typeof this.#saveState === 'function') {
             this.#saveState('analysis');
         }
 
-        // 4. Send command to the UI to physically switch the tab
+        // 6. Send command to the UI to physically switch the tab
         if (this.#ui) {
             if (typeof this.#ui.displayMetadata === 'function') {
                 this.#ui.displayMetadata(this.pgnHeaders);
             }
-            if (typeof this.#ui.updateHistory === 'function') {
-                this.#ui.updateHistory(true);
-            }
             if (typeof this.#ui.switchTab === 'function') {
                 this.#ui.switchTab('analysis');
+            }
+            
+            // ✨ THE FIX: Force the engine to parse the solved PGN we generated in Step 1!
+            if (solvedPgn && typeof this.loadPGN === 'function') {
+                this.loadPGN(solvedPgn, false, true);
+            }
+            
+            if (typeof this.#ui.updateHistory === 'function') {
+                this.#ui.updateHistory(true);
             }
         }
     }
@@ -2690,11 +2761,30 @@ updateComment(nodeId, text) {
             if (typeof window !== 'undefined' && this.#ui && typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory();
         }
     }
-getLegalMoves(squareIdx) {
-        if (!this.#engine) return [];
-        if (this.#engine.game_over()) return [];
+draftSpell(spellType, targetSq) {
+        // We MUST translate the raw UI index into an algebraic string so the engine doesn't misinterpret it!
+        let algSq = typeof targetSq === 'number' ? this.#indexToSquare(targetSq) : targetSq;
         
-        const moves = this.#engine.moves({ verbose: true });
+        if (this.#engine && typeof this.#engine.draft_spell === 'function') {
+            let res = this.#engine.draft_spell(spellType, algSq);
+            
+            // ✨ FIX: Fire board updated so UI redraws to show the frozen squares!
+            this.#emit('boardUpdated', { skipEngine: true });
+            
+            return res;
+        }
+        return null;
+    }
+cancelDraft() {
+        if (this.#engine && typeof this.#engine.cancel_draft === 'function') {
+            this.#engine.cancel_draft();
+        }
+    }
+getLegalMoves(squareIdx) {
+        console.log(`[CHESSGAME] Requesting legal moves for UI squareIdx: ${squareIdx}`);
+        if (!this.#engine) return [];
+        
+        const moves = this.#engine.moves({ verbose: true }, true);
         
         let mapped = moves.map(m => {
             let out = {
@@ -2704,22 +2794,21 @@ getLegalMoves(squareIdx) {
                 promotion: m.promotion,
                 isCapture: m.flags.includes('c') || m.flags.includes('e')
             };
-            // 🔥 FIX: Pass the duck square natively to the UI!
-            if (m.duck_sq !== undefined) {
-                out.duck_sq = this.#squareToIndex(m.duck_sq);
-            }
+            if (m.duck_sq !== undefined) out.duck_sq = this.#squareToIndex(m.duck_sq);
             return out;
         });
 
         if (squareIdx !== undefined && squareIdx !== null && squareIdx !== 'w' && squareIdx !== 'b') {
             const sqInt = parseInt(squareIdx, 10);
             if (!isNaN(sqInt) && sqInt >= 0 && sqInt <= 63) {
-                return mapped.filter(m => m.from === sqInt);
+                let filtered = mapped.filter(m => m.from === sqInt);
+                console.log(`[CHESSGAME] Returned ${filtered.length} legal moves to UI:`, filtered);
+                return filtered;
             }
         }
-        
         return mapped; 
     }
+
 consumePremove() {
         if (this.premoveQueue.length > 0) this.premoveQueue.shift();
     }
@@ -2769,8 +2858,11 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
 
         const oldMode = this.gameMode;
         const isSuspended = this.isVariantSuspended(mode);
-        if (!isInitialLoad && !skipStorage && this.currentNode && this.currentNode !== this.rootNode) {
-            const confirmReset = confirm(`Changing the variant to ${mode.toUpperCase()} will reset the current board and clear the move history.\n\nContinue?`);
+        const oldIsSuspended = this.isVariantSuspended(oldMode);
+        
+        // ✨ SMART WARNING: Only warn if the user is about to abandon an unsavable Sandboxed game!
+        if (!isInitialLoad && !skipStorage && oldIsSuspended && this.currentNode && this.currentNode !== this.rootNode) {
+            const confirmReset = confirm(`You are leaving a Suspended Variant (${oldMode.toUpperCase()}).\nBecause it runs in isolated memory, your current board will be permanently lost.\n\nContinue?`);
             
             if (!confirmReset) {
                 if (typeof document !== 'undefined') {
@@ -2781,8 +2873,11 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             }
         }
 
+        // ✨ SMART BACKUP: Only save to LocalStorage if the variant we are leaving is officially supported and stable
         if (!isInitialLoad && !skipStorage && this.gameMode && oldMode !== mode) {
-            this.saveVariantState(this.gameMode);
+            if (!oldIsSuspended) {
+                this.saveVariantState(this.gameMode);
+            }
         }
 
         this.gameMode = mode;
@@ -2801,7 +2896,7 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             let safeSkipStorage = skipStorage || isSuspended; 
             
             if (!safeSkipStorage) {
-                // 🌟 THE CRITICAL REPAIR: Pull variant text strictly from the matching tab namespace prefix!
+                // 🌟 Pull variant text strictly from the matching tab namespace prefix!
                 const tabContext = (this.mode === 'local' || this.mode === 'bot' || this.mode === 'play') ? 'play' : (this.mode || 'analysis');
                 const savedPgn = typeof localStorage !== 'undefined' ? localStorage.getItem(`chess_${tabContext}_variant_pgn_${mode}`) : null;
                 
@@ -2819,7 +2914,7 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
                         startFen = this.generateChess960FEN();
                     }
                     
-                    // 🌟 FIX 3: Removed newGame/resetGame to prevent context mutation. Manually clear state.
+                    // Manually clear state for new variant.
                     this.history = [];
                     this.moveList = [];
                     this.pgnHeaders = {};
@@ -2831,7 +2926,7 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             } else if (isSuspended) {
                 let startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[mode]) ? VARIANT_STARTING_FENS[mode] : INITIAL_FEN;
                 
-                // 🌟 FIX 3: Pure memory wipe for suspended variants as well.
+                // Pure memory wipe for suspended variants
                 this.history = [];
                 this.moveList = [];
                 this.pgnHeaders = {};
@@ -2856,7 +2951,6 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             this.gameMode = 'classical';
             this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, 'classical');
             
-            // 🌟 FIX 3: Apply the wipe to the error fallback block.
             this.history = [];
             this.moveList = [];
             this.pgnHeaders = {};
@@ -4624,7 +4718,7 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             ['updateHistory', 'renderBoard', 'renderArrows', 'renderHeaders', 'highlightLastMove', 'updateClocks', 'updateStatus', 'scrollToActiveMove', 'showNotification', 'updatePuzzleStats', 'updatePlayerNames', 'displayMetadata','renderCharts'].forEach(m => silence(this.#ui, m, backups.ui));
         }
         ['updateStockfish', 'triggerMoveSound', 'checkGameState', 'onMove', 'attemptPremove', 'saveToLocalStorage'].forEach(m => silence(this, m, backups.game));
-        ['info', 'warn', 'debug'].forEach(m => silence(console, m, backups.console));
+        ['log', 'info', 'warn', 'debug'].forEach(m => silence(console, m, backups.console));
 
         try {
             this.moveList = [];
@@ -4641,12 +4735,11 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 this.pgnHeaders[match[1]] = match[2];
             }
 
-            if (this.pgnHeaders['StartFen4'] && this.pgnHeaders['StartFen4'] !== '2PC') {
+            if (this.pgnHeaders['StartFen4']) {
+            if (this.pgnHeaders['StartFen4'] !== '2PC') {
                 let rawStartFen = this.pgnHeaders['StartFen4'];
                 let boardStr = rawStartFen;
                 
-                // Safely extract the board matrix (the part containing slashes)
-                // Format is often: "Rules - JSON - Board" or "Rules-JSON}-Board"
                 let braceIdx = rawStartFen.lastIndexOf('}');
                 if (braceIdx !== -1) {
                     let dashAfterBrace = rawStartFen.indexOf('-', braceIdx);
@@ -4675,7 +4768,6 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                             if (emptyCount > 0) { fenRow += emptyCount; emptyCount = 0; }
                             let color = c[0]; 
                             let piece = c[1]; 
-                            // 'y' maps to black (lowercase), 'r' maps to white (uppercase)
                             fenRow += color === 'y' ? piece.toLowerCase() : piece.toUpperCase();
                         } else {
                             if (emptyCount > 0) { fenRow += emptyCount; emptyCount = 0; }
@@ -4686,16 +4778,23 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                     fenRows.push(fenRow);
                 }
                 
-                // Construct the standard FEN string
-                let newFen = fenRows.join('/') + " w KQkq - 0 1";
-                
-                // Inject the default Spell variables so the engine doesn't crash on boot
-                if (this.gameMode === 'spell') {
-                    newFen += " [S:0,0,-1,0,0,0,0,5,2,5,2]";
+                // Do NOT overwrite the FEN if the PGN already provided one with spell charges
+                if (!this.pgnHeaders['FEN']) {
+                    let newFen = fenRows.join('/') + " w KQkq - 0 1";
+                    if (this.gameMode === 'spell') {
+                        newFen += " [S:0,0,0,0,5,2,5,2,-1,0,-1,0,-1,0,-1,0]";
+                    }
+                    this.pgnHeaders['FEN'] = newFen;
                 }
-                
-                this.pgnHeaders['FEN'] = newFen;
             }
+            
+            // ✨ THE SANITIZATION FIX: Erase the 14x14 tags from memory so they never export!
+            delete this.pgnHeaders['StartFen4'];
+            if (this.pgnHeaders['Variant'] === 'FFA') {
+                let formattedMode = this.gameMode === 'chess960' ? 'Chess960' : this.gameMode.charAt(0).toUpperCase() + this.gameMode.slice(1);
+                this.pgnHeaders['Variant'] = formattedMode;
+            }
+        }
 
             if (isInternalLoad) {
                 this.pgnHeaders['Variant'] = this.gameMode === 'classical' ? 'Standard' : this.gameMode;
@@ -4704,7 +4803,18 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             let moveTextRaw = pgn.replace(/\[[A-Za-z0-9_]+\s+"[^"]*"\]/g, '').trim();
 
             // 🚀 VARIANT NORMALIZATION BRIDGE
-            let isFFA = this.pgnHeaders['Variant'] === 'FFA' || !!this.pgnHeaders['StartFen4'];
+            let isFFA = false;
+            
+            // ✨ DYNAMIC DETECTION: Even if an old exported PGN has a broken 'FFA' header, 
+            // we ONLY translate if the text actually contains Chess.com's raw 14x14 syntax!
+            const has4PCCoords = /[i-k][0-9]+/i.test(moveTextRaw) || /[a-z](9|10|11|12|13|14)\b/i.test(moveTextRaw);
+            const hasChessComLAN = /[a-k][0-9]+-[a-k][0-9]+/i.test(moveTextRaw); // e.g. f10-f8
+            const hasChessComDuck = /&Θ/.test(moveTextRaw);
+            
+            if (has4PCCoords || hasChessComLAN || hasChessComDuck) {
+                isFFA = true;
+            }
+
             let tokensArray = moveTextRaw.split(/\s+/);
             let newTokensArray = [];
 
@@ -4715,14 +4825,12 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 }
 
                 let moveData = this.#normalizeVariantToken(t, isFFA);
-                console.log("MoveData in spell chess:",moveData);
                 let moveStr = moveData.cleaned;
 
                 if (moveData.spell) {
-                    // Inject directly into the format your lexer treats as unbroken
-                    moveStr = `S${moveData.spell.type}@${moveData.spell.square}_${moveData.cleaned}`;
+                    const spellPrefix = moveData.spell.type === 'freeze' ? 'Fz' : 'Jp';
+                    moveStr = `${spellPrefix}@${moveData.spell.square}_${moveData.cleaned}`;
                 } else if (moveData.duck) {
-                    // Append duck target cleanly 
                     moveStr = `${moveData.cleaned}@${moveData.duck.square}`;
                 }
 
@@ -5247,13 +5355,17 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             }
         }
 
-        // ✨ FIX 2: ATTACH BUFFERED SPELL TO INCOMING MOVE
-        // The piece move arrives as an object. We inject the spell data here.
-        if (this._pendingReloadSpell && typeof move === 'object') {
-            move.isSpell = true;
-            move.spellType = this._pendingReloadSpell.spellType;
-            move.target = this._pendingReloadSpell.target;
-            move.spellSan = this._pendingReloadSpell.spellSan;
+        // ✨ FIX: ATTACH BUFFERED SPELL TO INCOMING MOVE (STRING OR OBJECT)
+        if (this._pendingReloadSpell) {
+            if (typeof move === 'object') {
+                move.isSpell = true;
+                move.spellType = this._pendingReloadSpell.spellType;
+                move.target = this._pendingReloadSpell.target;
+                move.spellSan = this._pendingReloadSpell.spellSan;
+            } else if (typeof move === 'string') {
+                // If it's a string, seamlessly join them (Jp@d2_Bxe1)
+                move = `${this._pendingReloadSpell.spellSan}_${move}`;
+            }
             this._pendingReloadSpell = null; // clear it
         }
         
@@ -5314,11 +5426,6 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             this.#reconcileBoardIds(newFen, move);
             
             let finalSan = pgnText || result.san;
-            
-            if (move.duck_sq !== undefined) {
-                let duckStr = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
-                finalSan = `${finalSan}@${duckStr}`;
-            }
 
             if (move.isSpell) {
                 let targetStr = typeof move.target === 'number' ? this.#indexToSquare(move.target) : move.target;
@@ -5343,12 +5450,12 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         }
 
         const moveObj = {};
-        // ✨ FIX 5: Same as batchMode, remove "else if" so normal mode allows Spell + Piece Move!
         if (move.isSpell) {
             moveObj.isSpell = true; 
-            moveObj.spellType = move.spellType; 
-            moveObj.target = typeof move.target === 'number' ? this.#indexToSquare(move.target) : move.target;
-        } 
+            moveObj.spellType = move.spellType || move.type; 
+            let tVal = move.target !== undefined ? move.target : move.square;
+            moveObj.target = typeof tVal === 'number' ? this.#indexToSquare(tVal) : tVal;
+        }
         if (move.from !== undefined && move.to !== undefined) {
             if (move.from === '@' || move.drop) {
                 moveObj.from = '@';
@@ -5364,12 +5471,17 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             moveObj.duck_sq = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
         }
 
-        const result = this.#engine.move(moveObj);
+        const result = this.#engine.move(moveObj, !!moveObj.isSpell);
         if (!result) {
             console.error(`[MAKE MOVE] Engine rejected move!`, moveObj);
             return null;
         }
-
+        if (result.isStandaloneSpell) {
+            if (this.#ui) {
+                this.#emit('boardUpdated', { skipEngine: true });
+            }
+            return result;
+        }
         let soundFired = false;
         const fireSound = () => {
             if (!soundFired && !muteEngine && !isAutoReply) {
@@ -5425,11 +5537,6 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         
         // ✨ FIX 6: Same combined SAN fix for normal mode history tracking
         let finalSan = result.san;
-        
-        if (move.duck_sq !== undefined) {
-            let duckStr = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
-            finalSan = `${finalSan}@${duckStr}`;
-        }
         
         if (move.isSpell) {
             let targetStr = typeof move.target === 'number' ? this.#indexToSquare(move.target) : move.target;
