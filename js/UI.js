@@ -387,6 +387,10 @@ init() {
             if (analysisPanel) analysisPanel.style.display = 'flex';
             if (studySidebar) studySidebar.style.display = 'none';
             if (mainContainer) mainContainer.style.justifyContent = 'flex-start';
+            const variantSelect = document.getElementById('analysisVariantSelect');
+            if (variantSelect && this.#game && this.#game.gameMode) {
+                variantSelect.value = this.#game.gameMode;
+            }
         } else if (stateMode === 'study') {
             if (analysisPanel) analysisPanel.style.display = 'none';
             if (studySidebar) studySidebar.style.display = 'flex';
@@ -435,7 +439,16 @@ init() {
         const engineBtn = document.querySelector('.engine-toggle-btn');
         if (engineBtn) {
             engineBtn.style.display = isEditor ? 'none' : '';
-            if (isPuzzle && this.#game && this.#game.getReader && !this.#game.getReader().isGameOver && this.#game.getReader().puzzle && this.#game.getReader().puzzle.active) {
+            
+            // ✨ THE FIX: Sync the tab visuals to respect the solved flag!
+            let isUnfinishedPuzzle = false;
+            if (isPuzzle && this.#game) {
+                if (!this.#game.gameOver && !this.#game.puzzleSolved) {
+                    isUnfinishedPuzzle = true;
+                }
+            }
+
+            if (isUnfinishedPuzzle) {
                 engineBtn.style.opacity = '0.5'; engineBtn.style.cursor = 'not-allowed';
             } else {
                 engineBtn.style.opacity = '1'; engineBtn.style.cursor = 'pointer';
@@ -551,86 +564,105 @@ initThemeButtons() {
         });
     }
 switchTab(tabName) {
-    if (!tabName) return;
-    if (typeof this.hideGameOver === 'function') this.hideGameOver();
-    const lowerTab = tabName.toLowerCase();
+        if (!tabName) return;
+        if (typeof this.hideGameOver === 'function') this.hideGameOver();
+        const lowerTab = tabName.toLowerCase();
 
-    if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('chess_last_tab', lowerTab);
-    }
-
-    if (this.#game) {
-        // 1. VALIDATE EXITING EDITOR
-        if (this.#game.mode === 'editor' && lowerTab !== 'editor') {
-            const fenInput = document.getElementById('fenInput');
-            const currentFen = fenInput ? fenInput.value : (typeof this.#game.generateFEN === 'function' ? this.#game.generateFEN() : "");
-            if (!this.#validateEditorExit(currentFen)) return; 
-        }
-
-        // 2. PREP FOR ENTERING EDITOR
-        if (lowerTab === 'editor') {
-            // Save the FEN for the 'Cancel' logic
-            this.originalEditorFen = typeof this.#game.generateFEN === 'function' ? this.#game.generateFEN() : (this.#game.currentNode ? this.#game.currentNode.fen : "");
-
-            // ✨ THE FIX: Export Analysis/Play PGN to the Editor Textarea
-            const pgnInput = document.getElementById('editorPgnInput');
-            if (pgnInput) {
-                // We grab the PGN NOW before handleTabSwitch wipes the current history
-                const currentPgn = typeof this.#game.generatePGN === 'function' ? this.#game.generatePGN() : "";
-                pgnInput.value = currentPgn;
+        // ✨ ROOT FIX: Prevent custom variant physics from bleeding into puzzle analysis!
+        if (lowerTab === 'analysis' && this.#game && this.#game.mode === 'puzzle') {
+            // 1. Force the engine safely back to standard chess rules
+            if (typeof this.#game.setGameMode === 'function') {
+                this.#game.setGameMode('classical', false, true);
+            }
+            
+            // 2. Erase the custom variant from memory so the tab restorer doesn't immediately corrupt it again
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('chess_last_variant', 'classical');
+            }
+            
+            // 3. Visually force the dropdown back to Classical
+            const variantSelect = document.getElementById('analysisVariantSelect');
+            if (variantSelect) {
+                variantSelect.value = 'classical';
             }
         }
 
-        // 3. EXECUTE THE ENGINE SWAP (This clears/restores memory slots)
-        if (typeof this.#game.handleTabSwitch === 'function') {
-            this.#game.handleTabSwitch(lowerTab);
-        } else if (typeof this.#game.switchMode === 'function') {
-            this.#game.switchMode(lowerTab);
-        }
-    }
-
-    // --- Visual Updates ---
-    const state = this.#game ? this.#game.getReader() : { mode: lowerTab, isLive: false };
-    this.#applyTabVisuals(state.mode, lowerTab);
-
-    if (state.headers) {
-        this.displayMetadata(state.headers);
-        const wLabel = (state.headers['White'] || 'White') + (state.headers['WhiteElo'] ? ` (${state.headers['WhiteElo']})` : '');
-        const bLabel = (state.headers['Black'] || 'Black') + (state.headers['BlackElo'] ? ` (${state.headers['BlackElo']})` : '');
-        
-        if (this.updatePgnAvatars) this.updatePgnAvatars(state.headers['White'], state.headers['Black'], this.#game ? this.#game.isEngineMatch : false, true);
-        if (this.updatePlayerNames) {
-            if (this.flipped) this.updatePlayerNames(wLabel, bLabel);
-            else this.updatePlayerNames(bLabel, wLabel);
-        }
-        this.renderHeaders();
-        if (this.updateClocks) this.updateClocks();
-        if (state.mode === 'analysis' && this.toggleReviewButton) this.toggleReviewButton(true);
-    }
-
-    if (this.#game) {
-        this.updateHistory(true);
-        this.renderBoard(false);
-
-        if (state.mode !== 'play' && window.engineAnalysing) {
-            if (this.#game.updateStockfish) this.#game.updateStockfish();
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('chess_last_tab', lowerTab);
         }
 
-        if (state.mode === 'analysis' || state.mode === 'study') {
-            const engineLinesBox = document.getElementById('engine-lines-box');
-            if (engineLinesBox) engineLinesBox.innerHTML = '';
-            if (this.renderCharts) {
-                this._lastChartedFen = null;
-                requestAnimationFrame(() => this.renderCharts(true));
+        if (this.#game) {
+            // 1. VALIDATE EXITING EDITOR
+            if (this.#game.mode === 'editor' && lowerTab !== 'editor') {
+                const fenInput = document.getElementById('fenInput');
+                const currentFen = fenInput ? fenInput.value : (typeof this.#game.generateFEN === 'function' ? this.#game.generateFEN() : "");
+                if (!this.#validateEditorExit(currentFen)) return; 
+            }
+
+            // 2. PREP FOR ENTERING EDITOR
+            if (lowerTab === 'editor') {
+                // Save the FEN for the 'Cancel' logic
+                this.originalEditorFen = typeof this.#game.generateFEN === 'function' ? this.#game.generateFEN() : (this.#game.currentNode ? this.#game.currentNode.fen : "");
+
+                // ✨ THE FIX: Export Analysis/Play PGN to the Editor Textarea
+                const pgnInput = document.getElementById('editorPgnInput');
+                if (pgnInput) {
+                    // We grab the PGN NOW before handleTabSwitch wipes the current history
+                    const currentPgn = typeof this.#game.generatePGN === 'function' ? this.#game.generatePGN() : "";
+                    pgnInput.value = currentPgn;
+                }
+            }
+
+            // 3. EXECUTE THE ENGINE SWAP (This clears/restores memory slots)
+            if (typeof this.#game.handleTabSwitch === 'function') {
+                this.#game.handleTabSwitch(lowerTab);
+            } else if (typeof this.#game.switchMode === 'function') {
+                this.#game.switchMode(lowerTab);
             }
         }
-    }
 
-    setTimeout(() => {
-        if (this.resizeApp) this.resizeApp();
-        if (this.safeResizeCharts) this.safeResizeCharts();
-    }, 10);
-}
+        // --- Visual Updates ---
+        const state = this.#game ? this.#game.getReader() : { mode: lowerTab, isLive: false };
+        this.#applyTabVisuals(state.mode, lowerTab);
+
+        if (state.headers) {
+            this.displayMetadata(state.headers);
+            const wLabel = (state.headers['White'] || 'White') + (state.headers['WhiteElo'] ? ` (${state.headers['WhiteElo']})` : '');
+            const bLabel = (state.headers['Black'] || 'Black') + (state.headers['BlackElo'] ? ` (${state.headers['BlackElo']})` : '');
+            
+            if (this.updatePgnAvatars) this.updatePgnAvatars(state.headers['White'], state.headers['Black'], this.#game ? this.#game.isEngineMatch : false, true);
+            if (this.updatePlayerNames) {
+                if (this.flipped) this.updatePlayerNames(wLabel, bLabel);
+                else this.updatePlayerNames(bLabel, wLabel);
+            }
+            this.renderHeaders();
+            if (this.updateClocks) this.updateClocks();
+            if (state.mode === 'analysis' && this.toggleReviewButton) this.toggleReviewButton(true);
+        }
+
+        if (this.#game) {
+            this.updateHistory(true);
+            this.renderBoard(false);
+
+            if (state.mode !== 'play' && window.engineAnalysing) {
+                if (this.#game.updateStockfish) this.#game.updateStockfish();
+            }
+
+            if (state.mode === 'analysis' || state.mode === 'study') {
+                const engineLinesBox = document.getElementById('engine-lines-box');
+                if (engineLinesBox) engineLinesBox.innerHTML = '';
+                if (this.renderCharts) {
+                    this._lastChartedFen = null;
+                    requestAnimationFrame(() => this.renderCharts(true));
+                }
+            }
+        }
+
+        setTimeout(() => {
+            if (this.resizeApp) this.resizeApp();
+            if (this.safeResizeCharts) this.safeResizeCharts();
+        }, 10);
+    }
 async loadCustomPieces() {
         if (!window.showDirectoryPicker) {
             this.showNotification("Your browser does not support folder access. Please use Chrome, Edge, or Opera.", "Not Supported", "⚠️");
@@ -1273,15 +1305,20 @@ toggleAnimations() {
     }
 toggleEngine(forceOff = false) {
         const isLiveGame = this.#game && this.#game.isPlayingLiveGame;
-        const isPuzzle = this.#game && this.#game.mode === 'puzzle' && !this.#game.gameOver;
+        
+        // ✨ THE FIX: We use the new variable that respects the puzzleSolved flag!
+        const isUnfinishedPuzzle = this.#game && 
+                                   this.#game.mode === 'puzzle' && 
+                                   !this.#game.gameOver && 
+                                   !this.#game.puzzleSolved;
 
         if (forceOff) {
             window.engineAnalysing = false;
         } else if (isLiveGame) {
-            this.showNotification("Engine assistance is disabled during active play.", "Action Restricted", "🚫");
+            if (typeof this.showNotification === 'function') this.showNotification("Engine assistance is disabled during active play.", "Action Restricted", "🚫");
             window.engineAnalysing = false;
-        } else if (isPuzzle) {
-            this.showNotification("Solve the puzzle first!", "Action Restricted", "❌");
+        } else if (isUnfinishedPuzzle) { 
+            if (typeof this.showNotification === 'function') this.showNotification("Solve the puzzle first!", "Action Restricted", "❌");
             window.engineAnalysing = false;
         } else {
             window.engineAnalysing = !window.engineAnalysing;
@@ -2269,20 +2306,72 @@ getAnnotationDotColor(node) {
         return colorMap[cName] || cName;
     }
 initKeyboardEvents() {
+        // --- 1. KEY DOWN LISTENER ---
         document.addEventListener('keydown', (e) => {
-            const activeTag = document.activeElement.tagName.toLowerCase();
+            // GLOBAL SAFEGUARD: Ignore all shortcuts if typing in a text box
+            const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
             if (['input', 'textarea', 'select'].includes(activeTag)) return;
 
             const settings = document.getElementById('settingsPanel');
             if (settings && settings.classList.contains('visible')) {
-                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return; 
+                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code) || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) return; 
             }
 
+            // SPACEBAR LOGIC: Blindfold Peek
+            if (e.code === 'Space') {
+                e.preventDefault(); // Stop the spacebar from scrolling the page down
+                if (this.blindfoldMode && !this.isPeeking) {
+                    this.isPeeking = true;
+                    if (typeof this.renderBoard === 'function') this.renderBoard(false);
+                }
+                return;
+            }
+
+            // ARROW KEYS LOGIC (With 85ms Throttle and Audio Scrubbing)
             if (this.#game) {
-                if (e.key === 'ArrowLeft') this.#game.stepBack();
-                else if (e.key === 'ArrowRight') this.#game.stepForward();
-                else if (e.key === 'ArrowUp') { e.preventDefault(); this.#game.goToStart(); } 
-                else if (e.key === 'ArrowDown') { e.preventDefault(); this.#game.goToEnd(); }
+                const now = performance.now();
+                if (!this._lastArrowPress) this._lastArrowPress = 0;
+
+                if (e.key === 'ArrowRight') {
+                    if (now - this._lastArrowPress < 85) return;
+                    this._lastArrowPress = now;
+                    
+                    this.#game.isScrubbing = true;
+                    clearTimeout(this._scrubTimeout);
+                    this._scrubTimeout = setTimeout(() => { this.#game.isScrubbing = false; }, 200); 
+                    
+                    if (typeof this.#game.stepForward === 'function') this.#game.stepForward();
+                } 
+                else if (e.key === 'ArrowLeft') {
+                    if (now - this._lastArrowPress < 85) return;
+                    this._lastArrowPress = now;
+                    
+                    this.#game.isScrubbing = true;
+                    clearTimeout(this._scrubTimeout);
+                    this._scrubTimeout = setTimeout(() => { this.#game.isScrubbing = false; }, 200);
+                    
+                    if (typeof this.#game.stepBack === 'function') this.#game.stepBack();
+                }
+                else if (e.key === 'ArrowUp') { 
+                    e.preventDefault(); 
+                    if (typeof this.#game.goToStart === 'function') this.#game.goToStart(); 
+                }
+                else if (e.key === 'ArrowDown') { 
+                    e.preventDefault(); 
+                    if (typeof this.#game.goToEnd === 'function') this.#game.goToEnd(); 
+                }
+            }
+        });
+
+        // --- 2. KEY UP LISTENER ---
+        document.addEventListener('keyup', (e) => {
+            const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+            if (['input', 'textarea', 'select'].includes(activeTag)) return;
+
+            // SPACEBAR LOGIC: Release Blindfold Peek
+            if (e.code === 'Space' && this.blindfoldMode && this.isPeeking) {
+                this.isPeeking = false;
+                if (typeof this.renderBoard === 'function') this.renderBoard(false);
             }
         });
     }
@@ -3626,40 +3715,46 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             }
 
             if (animate && (positionChanged || forceAnimate) && (!isNew || forceAnimate)) {
+                // 1. Instantly snap to the starting position with NO transition
                 el.style.transition = 'none'; 
                 el.style.transform = startTransform;
                 
-                el.getBoundingClientRect(); 
+                // 2. Force layout recalculation (safer than getBoundingClientRect)
+                void el.offsetWidth; 
                 
-                el.style.transition = ''; 
-                
-                el.classList.add('animating');
-                if (isCastlingMove) el.classList.add('castling-jump');
+                // ✨ THE FIX: Force Windows 11 to physically paint the start position 
+                // before calculating the destination!
+                requestAnimationFrame(() => {
+                    el.style.transition = ''; 
+                    
+                    el.classList.add('animating');
+                    if (isCastlingMove) el.classList.add('castling-jump');
 
-                el.style.transitionDuration = `${isCastlingMove ? castleDuration : moveDuration}ms`;
-                
-                el.style.transform = targetTransform; 
+                    el.style.transitionDuration = `${isCastlingMove ? castleDuration : moveDuration}ms`;
+                    
+                    el.style.transform = targetTransform; 
 
-                const sqEl = this.squaresLayer.querySelector(`[data-index="${p.idx}"]`);
-                if (isMovedPiece && sqEl) {
-                    let wave = document.createElement('div');
-                    wave.className = 'shockwave'; 
-                    let waveColor = p.color === 'w' ? 'rgba(56, 189, 248, 0.6)' : 'rgba(250, 65, 45, 0.6)';
-                    wave.style.cssText = `position:absolute; top:0; left:0; width:100%; height:100%; border-radius:50%; box-shadow: 0 0 20px 8px ${waveColor}; transform: scale(0); animation: shockwaveAnim 0.4s ease-out; pointer-events:none; z-index:5;`;
-                    if (!document.getElementById('sw-style')) {
-                        let style = document.createElement('style'); style.id = 'sw-style';
-                        style.innerHTML = `@keyframes shockwaveAnim { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }`;
-                        document.head.appendChild(style);
+                    const sqEl = this.squaresLayer.querySelector(`[data-index="${p.idx}"]`);
+                    if (isMovedPiece && sqEl) {
+                        let wave = document.createElement('div');
+                        wave.className = 'shockwave'; 
+                        let waveColor = p.color === 'w' ? 'rgba(56, 189, 248, 0.6)' : 'rgba(250, 65, 45, 0.6)';
+                        wave.style.cssText = `position:absolute; top:0; left:0; width:100%; height:100%; border-radius:50%; box-shadow: 0 0 20px 8px ${waveColor}; transform: scale(0); animation: shockwaveAnim 0.4s ease-out; pointer-events:none; z-index:5;`;
+                        if (!document.getElementById('sw-style')) {
+                            let style = document.createElement('style'); style.id = 'sw-style';
+                            style.innerHTML = `@keyframes shockwaveAnim { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }`;
+                            document.head.appendChild(style);
+                        }
+                        sqEl.appendChild(wave);
+                        setTimeout(() => wave.remove(), 400);
                     }
-                    sqEl.appendChild(wave);
-                    setTimeout(() => wave.remove(), 400);
-                }
 
-                el.dataset.animTimeout = setTimeout(() => {
-                    el.classList.remove('animating', 'castling-jump');
-                    el.style.transition = 'none';
-                    el.style.transitionDuration = ''; 
-                }, isCastlingMove ? castleDuration + 50 : moveDuration + 50);
+                    el.dataset.animTimeout = setTimeout(() => {
+                        el.classList.remove('animating', 'castling-jump');
+                        el.style.transition = 'none';
+                        el.style.transitionDuration = ''; 
+                    }, isCastlingMove ? castleDuration + 50 : moveDuration + 50);
+                });
 
             } else {
                 el.style.transition = 'none';
@@ -6096,22 +6191,6 @@ getAnnotationDotColor(node) {
         const colorMap = { 'green': '#15781B', 'red': '#882020', 'blue': '#003088', 'orange': '#e68f00', 'theme': themeAccent };
         return colorMap[cName] || cName;
     }
-initKeyboardEvents() {
-        document.addEventListener('keydown', (e) => {
-            const activeTag = document.activeElement.tagName.toLowerCase();
-            if (['input', 'textarea', 'select'].includes(activeTag)) return;
-            const settings = document.getElementById('settingsPanel');
-            if (settings && settings.classList.contains('visible')) {
-                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return; 
-            }
-            if (this.#game) {
-                if (e.key === 'ArrowLeft') this.#game.stepBack();
-                else if (e.key === 'ArrowRight') this.#game.stepForward();
-                else if (e.key === 'ArrowUp') { e.preventDefault(); this.#game.goToStart(); }
-                else if (e.key === 'ArrowDown') { e.preventDefault(); this.#game.goToEnd(); }
-            }
-        });
-    }
 toggleSettings() { document.getElementById('settingsPanel').classList.toggle('visible'); }
 updatePuzzleStats() {
         if (!this.#game) return;
@@ -6378,78 +6457,136 @@ async _drawBoardToCanvas(canvas, ctx) {
         await Promise.all(drawPromises);
     }
 generateGIF() { 
-        const previewArea = document.getElementById('gifPreviewArea'); if (!previewArea) return;
-        if (typeof window.GIF === 'undefined') { previewArea.innerHTML = "<span style='color: #fa412d;'>Error: gif.js library missing!</span>"; return; }
-        previewArea.innerHTML = "Initializing capture... <br>(Do not close modal)";
+        const previewArea = document.getElementById('gifPreviewArea'); 
+        if (!previewArea) return;
+        if (typeof window.GIF === 'undefined') { 
+            previewArea.innerHTML = "<span style='color: #fa412d;'>Error: gif.js library missing!</span>"; 
+            return; 
+        }
+        previewArea.innerHTML = "Recording exact UI frames... <br>(Please do not click the board)";
         
-        const gifSize = 400; const gifDelay = 600;
-        const canvas = document.createElement('canvas'); canvas.width = gifSize; canvas.height = gifSize; const ctx = canvas.getContext('2d');
-        const gif = new window.GIF({ workers: 2, quality: 10, width: gifSize, height: gifSize, workerScript: './js/gif.worker.js', background: '#ffffff', transparent: null });
+        const gifSize = 400; 
         
-        gif.on('progress', function(p) { previewArea.innerHTML = `Encoding: ${Math.round(p * 100)}%`; });
+        const gif = new window.GIF({ 
+            workers: 2, quality: 10, width: gifSize, height: gifSize, 
+            workerScript: './js/gif.worker.js', background: '#ffffff', transparent: null 
+        });
+        
+        gif.on('progress', function(p) { previewArea.innerHTML = `Encoding Video: ${Math.round(p * 100)}%`; });
         gif.on('finished', function(blob) {
-            const url = URL.createObjectURL(blob); previewArea.innerHTML = `<img src="${url}" style="width:100%; height:100%; object-fit:contain;">`;
-            const a = document.createElement('a'); a.href = url; const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, ""); a.download = `chess_game_${dateStr}.gif`;
+            const url = URL.createObjectURL(blob); 
+            previewArea.innerHTML = `<img src="${url}" style="width:100%; height:100%; object-fit:contain;">`;
+            const a = document.createElement('a'); a.href = url; 
+            const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, ""); 
+            a.download = `chess_game_${dateStr}.gif`;
             document.body.appendChild(a); a.click(); document.body.removeChild(a);
         });
 
         if (!this.#game) return;
-        const state = this.#game.getReader();
-        const originalNodeId = state.activeNodeId;
-        const animCheckbox = document.getElementById('enableAnimations'); 
-        const wasAnimating = animCheckbox ? animCheckbox.checked : false;
-        
-        if (animCheckbox && wasAnimating) { 
-            animCheckbox.checked = false; 
-            if (typeof this.toggleAnimations === 'function') this.toggleAnimations(); 
-        }
 
-        // ✨ THE FIX: Bypass the visual rewind animation lock entirely!
-        this._isExecutingMove = false;
-        if (this._startAnimTimeout) {
-            clearTimeout(this._startAnimTimeout);
-            this._startAnimTimeout = null;
+        // 1. SAVE USER STATE
+        const originalNodeId = this.#game.currentNode ? this.#game.currentNode.id : null;
+        const originalMode = this.#game.mode;
+
+        // 2. ISOLATE ENGINE FROM BOTS
+        this.#game.mode = 'analysis'; 
+
+        // 3. DISABLE CSS SLIDING (Force instant teleportation for crisp snapshots)
+        let styleOverride = document.getElementById('gif-anim-killer');
+        if (!styleOverride) {
+            styleOverride = document.createElement('style');
+            styleOverride.id = 'gif-anim-killer';
+            styleOverride.innerHTML = `
+                .piece, .square, .highlight-w, .highlight-b, .last-move, .in-check {
+                    transition: none !important;
+                    animation: none !important;
+                    transform-origin: center !important;
+                }
+            `;
+            document.head.appendChild(styleOverride);
         }
+        void document.body.offsetHeight; // Force CSS apply immediately
+
+        // ✨ 4. HIJACK RENDER TO DISABLE JS SLIDING
+        // We let your UI draw the tails and highlights normally, but we FORCE animate to false!
+        const originalRenderBoard = this.renderBoard;
+        this.renderBoard = (animate, ...args) => {
+            this._isExecutingMove = false; 
+            originalRenderBoard.call(this, false, ...args); 
+        };
+
+        // 5. SILENT REWIND TO START
+        // Bypasses main.js locks by walking the history tree backward silently.
+        let curr = this.#game.currentNode;
+        while (curr && curr.parent) {
+            curr = curr.parent;
+        }
+        this.#game.currentNode = curr;
+        this.#game.loadFEN(curr.fen, this.#game.gameMode, true);
         
-        // Force the engine to the start position instantly
-        this.#game.currentNode = this.#game.rootNode;
-        this.#game.loadFEN(this.#game.rootNode.fen, this.#game.gameMode, true);
-        
+        // Wipe drag artifacts
         this.clearGhostPiece();
         document.querySelectorAll('.square').forEach(sq => {
-            sq.classList.remove('last-move', 'highlight-w', 'highlight-b', 'selected', 'selected-w', 'selected-b', 'in-check');
+            sq.classList.remove('selected', 'selected-w', 'selected-b', 'last-move');
         });
         
+        // Render the clean Start Position natively
         this.renderBoard(false);
 
+        let isFirstFrame = true;
+
         const captureFrameLoop = async () => {
-            // Wait 100ms to ensure the browser has painted the DOM updates to the screen
-            await new Promise(r => setTimeout(r, 100));
-            
-            await this._drawBoardToCanvas(canvas, ctx);
-            gif.addFrame(canvas, { delay: gifDelay, copy: true });
-            
-            // Advance pure logic
+            // A) DOM SETTLE DELAY
+            // Give the browser exactly 250ms to perfectly paint your UI (tails, highlights, CSS)
+            await new Promise(r => setTimeout(r, 250));
+
+            // ✨ B) UNIQUE CANVAS (Fixes gif.js memory corruption bug)
+            const frameCanvas = document.createElement('canvas'); 
+            frameCanvas.width = gifSize; frameCanvas.height = gifSize; 
+            const frameCtx = frameCanvas.getContext('2d', { willReadFrequently: true });
+
+            // C) NATIVE SNAPSHOT
+            // Because we use your native draw method, the fidelity is 100% perfect!
+            await this._drawBoardToCanvas(frameCanvas, frameCtx);
+
+            // ✨ D) FRAME DUPLICATION (Fixes Viewer skipping Move 1)
+            if (isFirstFrame) {
+                // Force the Windows viewer to pause by physically printing the Start Position 3 times!
+                gif.addFrame(frameCanvas, { delay: 400, copy: true });
+                gif.addFrame(frameCanvas, { delay: 400, copy: true });
+                gif.addFrame(frameCanvas, { delay: 400, copy: true });
+                isFirstFrame = false;
+            } else {
+                gif.addFrame(frameCanvas, { delay: 600, copy: true });
+            }
+
+            // E) ADVANCE NATIVELY
+            // stepForward triggers your UI to naturally apply the last-move highlights and tails!
             const moved = this.#game.stepForward();
+
             if (moved) {
                 captureFrameLoop();
             } else {
-                gif.addFrame(canvas, { delay: 2000, copy: true }); 
-                previewArea.innerHTML = "Encoding frames...<br>Please wait.";
+                // GAME OVER
+                gif.addFrame(frameCanvas, { delay: 3000, copy: true }); // Hold Checkmate
+                previewArea.innerHTML = "Processing final GIF...<br>Please wait.";
                 
-                this.#game.goToNodeId(originalNodeId); 
-                this.renderBoard(false);
-                
-                if (animCheckbox && wasAnimating) { 
-                    animCheckbox.checked = true; 
-                    if (typeof this.toggleAnimations === 'function') this.toggleAnimations(); 
+                // 🌟 RESTORE EVERYTHING
+                if (styleOverride) styleOverride.remove();
+                this.renderBoard = originalRenderBoard;
+                this.#game.mode = originalMode;
+
+                if (originalNodeId && typeof this.#game.goToNodeId === 'function') {
+                    this.#game.goToNodeId(originalNodeId, false);
                 }
+                
+                this.renderBoard(true);
                 gif.render();
             }
         };
-        
-        // Start capture immediately since we bypassed the rewind animation
-        setTimeout(captureFrameLoop, 100);
+
+        // START!
+        captureFrameLoop();
     }
 exportEmbed() { 
         if (!this.#game) return;

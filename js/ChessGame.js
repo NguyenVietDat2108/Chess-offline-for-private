@@ -899,7 +899,10 @@ return move.san;
                 return;
             }
 
-            const isAnalysingOrStudy = (this.mode === 'analysis' || this.mode === 'study');
+            // ✨ THE FIX: We must allow 'puzzle' mode to pass the gatekeeper!
+            // Without this, the engine gets 'readyok' but never receives the 'go depth' command.
+            const isAnalysingOrStudy = (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'puzzle');
+            
             if (isAnalysingOrStudy && window.engineAnalysing && this._pendingFen) {
                 const targetFen = this._pendingFen;
                 this.analyzingNode = this._pendingNode;
@@ -910,7 +913,9 @@ return move.san;
             return; 
         }
 
-        const isAnalysingOrStudy = (this.mode === 'analysis' || this.mode === 'study');
+        // ✨ THE FIX: Ensure early engine logs don't break the puzzle engine!
+        const isAnalysingOrStudy = (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'puzzle');
+        
         if (isAnalysingOrStudy && window.engineAnalysing && !window.engineReady && (line.startsWith('info') || line.startsWith('bestmove'))) {
             return; 
         }
@@ -924,11 +929,13 @@ return move.san;
         if (line === 'uciok') {
             let threads = Math.floor(navigator.hardwareConcurrency - 1);
             if (threads < 1) threads = 1;
-            if (this.gameMode === 'alice' || this.gameMode === 'spell') {window.sfWorker.postMessage('setoption name Threads value 1');
-                                                                        window.sfWorker.postMessage('setoption name Hash value 32');}
-            else{            window.sfWorker.postMessage('setoption name Threads value ' + threads);
-                
-            window.sfWorker.postMessage('setoption name Hash value 1024');}
+            if (this.gameMode === 'alice' || this.gameMode === 'spell') {
+                window.sfWorker.postMessage('setoption name Threads value 1');
+                window.sfWorker.postMessage('setoption name Hash value 32');
+            } else {            
+                window.sfWorker.postMessage('setoption name Threads value ' + threads);
+                window.sfWorker.postMessage('setoption name Hash value 1024');
+            }
             window.sfWorker.postMessage('setoption name MultiPV value 3');
             window.sfWorker.postMessage('setoption name Move Overhead value 10');
             window.sfWorker.postMessage('setoption name UCI_LimitStrength value false');
@@ -1006,18 +1013,15 @@ return move.san;
                                 7: { uciElo: 2700 }, 8: { uciElo: 3000 }
                             };
                             const level = this.botLevel || 8;
-                            // 1. Clear the book-verifying state so it doesn't trigger again
                             this.verifyingBookMove = null;
                             this.verifyingBookScore = null;
                             this.verifyingBookType = null;
                             this.verifyingBookThreshold = null;
 
-                            // 2. Force the engine to re-calculate the best move for the CURRENT position
                             const fen = this.#engine.fen();
                             const settings = difficultyMap[level] || difficultyMap[8];
 
                             if (window.sfWorker) {
-                                // Reset engine state and apply specific configuration
                                 window.sfWorker.postMessage('stop');
                                 window.sfWorker.postMessage('setoption name MultiPV value 1');
                                 
@@ -1030,14 +1034,11 @@ return move.san;
                                 
                                 window.sfWorker.postMessage('setoption name UCI_LimitStrength value true');
                                 window.sfWorker.postMessage(`setoption name UCI_Elo value ${settings.uciElo}`);
-                                
-                                // 3. Set the position and tell the engine to find the best move
                                 window.sfWorker.postMessage('position fen ' + fen);
                                 window.sfWorker.postMessage(`go movetime ${this.currentBotThinkTime}`);
                             }
-
-                            return; // Stop processing this 'bestmove' message
-                        }else {
+                            return; 
+                        } else {
                             console.log(`%c[BOT] Book move ${candidate} verified.`, "color:#96bc4b");
                             this.#executeBotMoveWithDelay(candidate);
                         }
@@ -1056,8 +1057,6 @@ return move.san;
                                 fallbackUCI = (choice.drop || choice.piece).toUpperCase() + '@' + choice.to;
                             } else {
                                 fallbackUCI = choice.from + choice.to + (choice.promotion || '');
-                                
-                                // 🔥 DUCK CHESS FALLBACK FIX: Pick a random empty square!
                                 if (this.gameMode === 'duck') {
                                     let emptySqs = [];
                                     for (let i = 0; i < 64; i++) {
@@ -1100,14 +1099,11 @@ return move.san;
                     let res = tempValidator.move(m);
                     if (!res) break; 
                     
-                    validSan.push(res.san); // The short version for PGN text (e.g., "Nf3")
-                    validFull.push(res);    // The full object for the arrow (contains .from and .to)
+                    validSan.push(res.san); 
+                    validFull.push(res);    
                 }
                 
-                // 1. Give the PGN text box the short version it wants
                 rawMoves = validSan; 
-                
-                // 2. Attach the FULL version to the array so the arrow doesn't break!
                 rawMoves.bestMoveFull = validFull[0]; 
             }
             if (rawMoves.length === 0) return;
@@ -1160,10 +1156,8 @@ return move.san;
                         targetNode.pv = '';
                     }
                 
-                
                 if (window.engineAnalysing && targetNode === this.currentNode) {
                     const nps = line.match(/nps (\d+)/);
-                    // ✨ UPGRADE: Broadcast all engine visual data out to the Controller
                     this.#emit('engineEval', {
                         type, score, depth,
                         nps: nps ? nps[1] : '-',
@@ -1545,14 +1539,18 @@ return move.san;
                     let moveText = token;
                     let attachedNag = "";
                     
-                    const sanRegex = /^([KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?(?:@[a-h][1-8])?[\+#]?|O-O-O(?:@[a-h][1-8])?[\+#]?|O-O(?:@[a-h][1-8])?[\+#]?)(.*)$/;
+                    // ✨ THE PROMOTION FIX ✨
+                    // We extract the pure chess move (including =Q) first, and then capture any 
+                    // trailing annotations (!, ?, !!, etc.) into the attachedNag group.
+                    const sanRegex = /^([KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?(?:@[a-h][1-8])?[\+#]?|[a-h][1-8](?:=[QRBN])?[\+#]?|O-O-O(?:@[a-h][1-8])?[\+#]?|O-O(?:@[a-h][1-8])?[\+#]?)(.*)$/;
                     let match = token.match(sanRegex);
                     
-                    if (match && match[2]) { 
+                    if (match && match[1]) { 
                         moveText = match[1]; 
                         attachedNag = match[2]; 
                     } else {
-                        let fallbackMatch = token.match(/^([a-zA-Z0-9\+#\-@]+?)([!?[\]=±∓∞⩲⩱]|\+\-|\-\+|\+\/-|-\/\+)+$/);
+                        // Fallback: Ensure '=' inside a promotion doesn't get ripped off and treated as a draw evaluation!
+                        let fallbackMatch = token.match(/^([a-zA-Z0-9\+#\-@=]+?)([!?[\]±∓∞⩲⩱]|\+\-|\-\+|\+\/-|-\/\+)+$/);
                         if (fallbackMatch) {
                             moveText = fallbackMatch[1];
                             attachedNag = fallbackMatch[2];
@@ -1563,14 +1561,32 @@ return move.san;
                     const uciMatch = engineInput.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
                     if (uciMatch) engineInput = { from: uciMatch[1], to: uciMatch[2], promotion: uciMatch[3] };
 
-                    let moveObj = this.#engine.move(engineInput);
-                    let isIllegal = !moveObj;
+                    let moveObj = null;
+                    const originalError = console.error;
+                    console.error = () => {}; 
                     
-                    if (isIllegal && engineInput.endsWith('+')) {
-                        moveObj = this.#engine.move(engineInput.slice(0, -1));
-                        if (moveObj) { isIllegal = false; moveText = engineInput.slice(0, -1); }
+                    try {
+                        moveObj = this.#engine.move(engineInput);
+                    } catch(e) {
+                        moveObj = null;
                     }
 
+                    // Fallback 1: Strip trailing '+' if engine stylistically rejects it
+                    if (!moveObj && typeof engineInput === 'string' && engineInput.endsWith('+')) {
+                        try { moveObj = this.#engine.move(engineInput.slice(0, -1)); } catch(e) {}
+                        if (moveObj) moveText = engineInput.slice(0, -1);
+                    }
+                    
+                    // Fallback 2: Handle standard PGN 'b8=Q' to strict engine 'b8Q'
+                    if (!moveObj && typeof engineInput === 'string' && engineInput.includes('=')) {
+                       let cleanSan = engineInput.replace('=', '');
+                       try { moveObj = this.#engine.move(cleanSan); } catch(e) {}
+                       if (moveObj) moveText = cleanSan;
+                    }
+
+                    console.error = originalError;
+                    
+                    let isIllegal = !moveObj;
                     if (isIllegal) moveObj = { san: moveText, from: -1, to: -1, flags: '', color: this.#engine.turn(), piece: '' };
 
                     const newNode = new MoveNode(this.#engine.fen(), moveObj.san);
@@ -1608,7 +1624,6 @@ return move.san;
 #addPVToNode(node, pvString) {
         if (!pvString || !node) return;
 
-        // Save state so the main parser doesn't lose its place
         let savedNode = this.currentNode;
         let savedFen = this.#engine.fen();
 
@@ -1618,28 +1633,33 @@ return move.san;
         let startNode = node;
         let loadFen = node.fen;
 
-        // Auto-detect if the PV starts from the parent node (Standard for Engine/CCC PGNs)
         if (node.parent) {
             try {
                 this.#engine.load(node.parent.fen);
                 let firstMoveText = moves[0].replace(/[?!]+$/, '');
                 let uciMatch = firstMoveText.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
                 let testInput = firstMoveText;
-                
                 if (uciMatch) {
                     testInput = { from: uciMatch[1], to: uciMatch[2] };
                     if (uciMatch[3]) testInput.promotion = uciMatch[3].toLowerCase();
                 }
+                
+                let moveObj = null;
+                const originalError = console.error;
+                console.error = () => {};
+                try { moveObj = this.#engine.move(testInput); } catch(e) {}
+                console.error = originalError;
 
-                // If the first PV move is legal from the parent position, branch from the parent!
-                if (this.#engine.move(testInput)) {
+                if (moveObj) {
                     startNode = node.parent;
                     loadFen = node.parent.fen;
+                    this.#engine.undo(); 
+                } else {
+                    this.#engine.load(loadFen); 
                 }
             } catch(e) {}
         }
 
-        // Set the engine to the correct branching point
         this.currentNode = startNode;
         try { this.#engine.load(loadFen); } catch(e) { return; }
 
@@ -1654,8 +1674,13 @@ return move.san;
                 if (uM[3]) eInput.promotion = uM[3].toLowerCase();
             }
 
-            let moveObj = this.#engine.move(eInput);
-            if (!moveObj) break; // Illegal PV move aborts the line silently
+            let moveObj = null;
+            const originalError = console.error;
+            console.error = () => {};
+            try { moveObj = this.#engine.move(eInput); } catch(e) {}
+            console.error = originalError;
+
+            if (!moveObj) break;
 
             let moveData = {
                 from: typeof this.#squareToIndex === 'function' ? this.#squareToIndex(moveObj.from) : -1,
@@ -1666,7 +1691,6 @@ return move.san;
             this.#addMoveToTree(this.#engine.fen(), moveObj.san, moveData.to, moveData);
         }
 
-        // Restore everything
         this.currentNode = savedNode;
         try { this.#engine.load(savedFen); } catch(e) {}
     }
@@ -1959,9 +1983,24 @@ return move.san;
 
         this.currentPuzzle = p;
         this.mode = 'puzzle';
+
+        // ✨ THE FIX: Protect the global gameMode from being permanently overwritten!
+        const protectedMode = this.gameMode; 
+
+        if (this.#engine && typeof this.#engine.setGameMode === 'function') {
+            this.#engine.setGameMode('classical');
+        }
+
         this.gameOver = false;
+        this.puzzleSolved = false;
+        this.currentPuzzleFailed = false;
         this.initialPuzzleFEN = p.fen;
-        this.loadFEN(p.fen);
+        
+        // Load the puzzle using standard rules
+        this.loadFEN(p.fen, 'classical'); 
+        
+        // Instantly restore the global mode so tab switching and FEN generation doesn't break!
+        this.gameMode = protectedMode;
         
         const opponentColor = this.#engine.turn();
         const wantFlipped = (opponentColor === 'w');
@@ -2073,6 +2112,11 @@ return move.san;
             if (hintBtn) hintBtn.style.display ="none";
             if (resetPuzzleBtn) resetPuzzleBtn.style.display ="none";
             if (analysisBtn) analysisBtn.style.display ="block";
+            const engineBtn = document.querySelector('.engine-toggle-btn');
+            if (engineBtn) { 
+                engineBtn.style.opacity = '1'; 
+                engineBtn.style.cursor = 'pointer'; 
+            }
             // NO mode switching!
         }
     }
@@ -2081,43 +2125,45 @@ return move.san;
         this.puzzleStrikes++; 
 
         const isRush = ['3min', '5min', 'survival'].includes(this.puzzleMode);
-
         if (isRush) {
-            this.gameOver = true; 
+            this.gameOver = true;
         } else {
-            this.gameOver = false; 
+            this.gameOver = false;
         }
 
         const puzRating = (this.currentPuzzle && this.currentPuzzle.rating) ? parseInt(this.currentPuzzle.rating) : 1200;
         let loss = 10;
         if (this.calculateRatingChange) {
             loss = this.calculateRatingChange(this.userPuzzleRating, puzRating, false);
-            this.userPuzzleRating += loss; 
+            this.userPuzzleRating += loss;
         } else {
             this.userPuzzleRating -= loss;
         }
 
         if (typeof this.#ui !== 'undefined') {
             this.#ui.updateStatus(`Puzzle Failed.`);
-            
             if (!isRush) {
                 this.#ui.showNotification(`Wrong Move! Try again. ❌`, 'Incorrect');
                 const nextBtn = document.getElementById('nextPuzzleBtn');
                 if (nextBtn) nextBtn.style.display = 'block';
                 const analysisBtn = document.getElementById('analysisBtn');
                 if (analysisBtn) analysisBtn.style.display = 'block';
-                // NO mode switching!
             }
             if (this.#ui.updatePuzzleStats) this.#ui.updatePuzzleStats();
         }
 
+        // ✨ THE FIX: Explicitly keep the engine locked on failure!
+        // The user must solve it or use the "Show Solution" button.
         const engineBtn = document.querySelector('.engine-toggle-btn');
-        if (engineBtn) { engineBtn.style.opacity = '1'; engineBtn.style.cursor = 'pointer'; }
+        if (engineBtn) { 
+            engineBtn.style.opacity = '0.5'; 
+            engineBtn.style.cursor = 'not-allowed'; 
+        }
 
         if (isRush) {
             if (this.puzzleStrikes >= 3) {
                 this.endPuzzleRun("3 Strikes - You're Out!");
-                return; 
+                return;
             }
             const skipDelay = (this.puzzleMode === 'survival') ? 1000 : 400;
             setTimeout(() => {
@@ -2686,11 +2732,27 @@ switchToAnalysis() {
     }
 editBoard(idx, piece) {
         if (this.mode !== 'editor') return;
-        this.#board[idx] = piece ? { ...piece } : null;
+        
+        let finalPiece = null;
+        if (piece) {
+            finalPiece = { ...piece };
+            if (!finalPiece.id) {
+                finalPiece.id = typeof this.getUID === 'function' ? this.getUID() : 'p_' + Math.random().toString(36).substr(2, 9);
+            }
+        }
+
+        this.#board[idx] = finalPiece;
+        
         if (typeof this.syncEngineToBoard === 'function') this.syncEngineToBoard();
         if (typeof this.generateFEN === 'function') {
             const newFen = this.generateFEN();
             if (this.currentNode) this.currentNode.fen = newFen;
+            
+            // Just update the FEN header natively
+            if (!this.pgnHeaders) this.pgnHeaders = {};
+            this.pgnHeaders['FEN'] = newFen;
+            this.pgnHeaders['SetUp'] = '1';
+
             const fenInput = document.getElementById('fenInput');
             if (fenInput) fenInput.value = newFen;
             if (typeof localStorage !== 'undefined') localStorage.setItem('chess_state_editor_fen', newFen);
@@ -2822,15 +2884,15 @@ restoreAnalysisState() {
 saveVariantState(modeToSave) {
         if (!modeToSave) return;
         
-        console.group(`💾 [SAVE REQUEST] Triggered for variant: ${modeToSave}`);
-        console.log(`Current active this.mode: '${this.mode}'`);
-        console.trace("🔍 CALL STACK FOR SAVE:"); // THIS WILL REVEAL THE ROGUE CALLER!
+        //console.group(`💾 [SAVE REQUEST] Triggered for variant: ${modeToSave}`);
+        //console.log(`Current active this.mode: '${this.mode}'`);
+        //console.trace("🔍 CALL STACK FOR SAVE:"); // THIS WILL REVEAL THE ROGUE CALLER!
 
-        if (this.isVariantSuspended && this.isVariantSuspended(modeToSave)) {
-            console.warn(`[Sandbox] ${modeToSave} is suspended. Aborted.`);
-            console.groupEnd();
-            return;
-        }
+        //if (this.isVariantSuspended && this.isVariantSuspended(modeToSave)) {
+            //console.warn(`[Sandbox] ${modeToSave} is suspended. Aborted.`);
+            //console.groupEnd();
+            //return;
+        //}
 
         let pgnToSave = '';
         if (typeof this.generatePGN === 'function') {
@@ -2843,8 +2905,8 @@ saveVariantState(modeToSave) {
             const tabContext = (this.mode === 'local' || this.mode === 'bot' || this.mode === 'play') ? 'play' : (this.mode || 'analysis');
             const targetKey = `chess_${tabContext}_variant_pgn_${modeToSave}`;
             
-            console.log(`🔑 WRITING TO STORAGE KEY: => ${targetKey}`);
-            console.log(`📄 PGN SNAPSHOT (First 100 chars): ${pgnToSave.substring(0, 100).replace(/\n/g, ' ')}...`);
+            //console.log(`🔑 WRITING TO STORAGE KEY: => ${targetKey}`);
+            //console.log(`📄 PGN SNAPSHOT (First 100 chars): ${pgnToSave.substring(0, 100).replace(/\n/g, ' ')}...`);
             
             localStorage.setItem(targetKey, pgnToSave);
         } else {
@@ -2878,6 +2940,38 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             if (!oldIsSuspended) {
                 this.saveVariantState(this.gameMode);
             }
+        }
+
+        // ✨ THE OFFLINE MEMORY FIX ✨
+        // If you change the variant while playing a Puzzle, we intercept the change,
+        // route it to the offline Analysis memory slot, and abort! This ensures the Puzzle 
+        // doesn't get destroyed, but the Analysis tab wakes up in the new variant!
+        if (this.mode === 'puzzle' || this.mode === 'puzzles' || this.mode === 'study') {
+            this.gameMode = mode; 
+            if (!skipStorage && !isSuspended && typeof localStorage !== 'undefined') {
+                localStorage.setItem('chess_last_variant', mode); 
+            }
+            
+            const savedPgn = typeof localStorage !== 'undefined' ? localStorage.getItem(`chess_analysis_variant_pgn_${mode}`) : null;
+            let startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[mode]) ? VARIANT_STARTING_FENS[mode] : INITIAL_FEN;
+            if (mode === 'chess960' && typeof this.generateChess960FEN === 'function') startFen = this.generateChess960FEN();
+
+            if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
+            
+            this.tabMemory['analysis'] = {
+                variant: mode,
+                mode: 'analysis',
+                fen: savedPgn ? "" : startFen,
+                pgn: savedPgn || "",
+                headers: {},
+                history: [],
+                moveList: []
+            };
+            
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('chess_tab_snapshot_analysis', JSON.stringify(this.tabMemory['analysis']));
+            }
+            return; // 🛑 Abort before destroying the active Puzzle engine!
         }
 
         this.gameMode = mode;
@@ -3610,6 +3704,10 @@ async fetchPuzzles(min, max, count = 5) {
         }
     }
 async startPuzzleSession(mode = 'rush') {
+        if (this.#engine && typeof this.#engine.setGameMode === 'function') {
+            this.#engine.setGameMode('classical');
+        }
+
         this.puzzleMode = mode;
         this.puzzleScore = 0;
         this.puzzleIndex = 0;
@@ -3742,12 +3840,21 @@ retryPuzzle() {
             this.puzzleCursor = 0;
             this.gameOver = false;
             
-            this.loadFEN(this.initialPuzzleFEN);
-            this.#ui.renderBoard(true);
-            this.#ui.updateHistory();
+            // ✨ THE FIX: Apply the same protection shield during retries
+            const protectedMode = this.gameMode;
+            if (this.#engine && typeof this.#engine.setGameMode === 'function') {
+                this.#engine.setGameMode('classical');
+            }
+            
+            this.loadFEN(this.initialPuzzleFEN, 'classical');
+            
+            this.gameMode = protectedMode;
+
+            if (this.#ui && typeof this.#ui.renderBoard === 'function') this.#ui.renderBoard(true);
+            if (this.#ui && typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory();
             
             setTimeout(() => {
-            const setupMove = this.puzzleSolution[0];
+                const setupMove = this.puzzleSolution[0];
             if (setupMove) {
                 const from = this.#squareToIndex(setupMove.substring(0, 2));
                 const to = this.#squareToIndex(setupMove.substring(2, 4));
@@ -3780,15 +3887,11 @@ resetEngineDefault() {
         this.initEngine(null, null);
         this.#ui.showNotification("Restored Default Latest Stockfish", "System", "🔄");
 }
-stepBack() {
+stepBack(animate = true) {
         if (!this.currentNode || !this.currentNode.parent) return false;
         
         const undoneNode = this.currentNode;
         this.currentNode = this.currentNode.parent;
-        
-        // ✨ THE ULTIMATE FIX: Force the path back to the mainline!
-        // When you use the Left Arrow to back out of a variation to the branch point, 
-        // the engine instantly forgets the subline so that pressing Right Arrow takes you down the main game!
         this.currentNode.selectedChildIndex = 0;
         
         this.#engine.load(this.currentNode.fen);
@@ -3808,21 +3911,18 @@ stepBack() {
             };
         }
 
-        this.#emit('boardUpdated', { animate: true, overrideMove: reverseMove });
+        this.#emit('boardUpdated', { animate: animate, overrideMove: reverseMove });
         
-        // ✨ FIX: Play a standard click when stepping backward
-        this.#emit('soundTriggered', { type: 'move-self' });
+        // Mute sounds when rapidly capturing GIFs
+        if (animate) this.#emit('soundTriggered', { type: 'move-self' });
         return true;
     }
-stepForward() {
+stepForward(animate = true) {
         if (!this.currentNode || this.currentNode.children.length === 0) return false;
         
-        // Follow the index (which is now mathematically guaranteed to be 0 unless clicked)
         const nextNode = this.currentNode.children[this.currentNode.selectedChildIndex || 0];
         
         this.currentNode = nextNode;
-        
-        // ✨ Wipe the future memory too, just to be absolutely bulletproof!
         this.currentNode.selectedChildIndex = 0;
         
         this.#engine.load(nextNode.fen);
@@ -3832,65 +3932,54 @@ stepForward() {
             this.#reconcileBoardIds(nextNode.fen, nextNode.lastMove);
         }
         
-        this.#emit('boardUpdated', { animate: true, overrideMove: nextNode.lastMove });
+        // ✨ ROOT CAUSE FIX: Pass the dynamic animate flag!
+        this.#emit('boardUpdated', { animate: animate, overrideMove: nextNode.lastMove });
         
-        // ✨ FIX: Analyze the move we just stepped into for Captures/Checks!
-        if (nextNode.lastMove) {
+        if (nextNode.lastMove && animate) {
             this.triggerMoveSound(nextNode.lastMove);
         }
         return true;
     }
-goToStart() {
-    if (!this.rootNode) return false;
+goToStart(animate = true) {
+        if (!this.rootNode) return false;
 
-    const startFen = this.rootNode.fen;
+        const startFen = this.rootNode.fen;
+        const previousBoardSnapshot = this.#board.map(p => p ? { ...p } : null);
 
-    // 1. Snapshot the board state BEFORE it gets overwritten by loadFEN
-    // We map the pieces to ensure we have a deep enough copy of the references
-    const previousBoardSnapshot = this.#board.map(p => p ? { ...p } : null);
+        this.currentNode = this.rootNode;
+        this.loadFEN(startFen, this.gameMode, true); 
 
-    // 2. Update the logical engine state
-    this.currentNode = this.rootNode;
-    
-    // Note: loadFEN will internally update this.#board to the starting position
-    this.loadFEN(startFen, this.gameMode, true); 
+        this.#emit('fenChanged', { fen: startFen });
+        
+        // ✨ ROOT CAUSE FIX
+        this.#emit('boardUpdated', { 
+            isGoToStart: true, 
+            targetFen: startFen, 
+            previousBoard: previousBoardSnapshot,
+            animate: animate 
+        });
 
-    // 3. Sync UI elements (like the FEN text box)
-    this.#emit('fenChanged', { fen: startFen });
-    
-    // 4. Trigger the visual animation via the App Switchboard
-    // We pass 'isGoToStart' so ChessApp knows to call ui.animateToStartPosition
-    this.#emit('boardUpdated', { 
-        isGoToStart: true, 
-        targetFen: startFen, 
-        previousBoard: previousBoardSnapshot,
-        animate: false // prevents the standard renderer from jumping the gun
-    });
-
-    // 5. Optional sound feedback
-    this.#emit('soundTriggered', { type: 'move-self' });
-
-    return true;
-}
-goToEnd() {
+        if (animate) this.#emit('soundTriggered', { type: 'move-self' });
+        return true;
+    }
+goToEnd(animate = true) {
         if (!this.rootNode) return false;
         let curr = this.rootNode;
         while (curr.children.length > 0) curr = curr.children[curr.selectedChildIndex || 0];
         
         this.currentNode = curr;
-        
-        // ✨ FIX: Complete wipe & load for safety
         this.loadFEN(this.currentNode.fen, this.gameMode, true);
         
-        this.#emit('boardUpdated', { animate: false });
+        // ✨ ROOT CAUSE FIX
+        this.#emit('boardUpdated', { animate: animate });
         
-        // ✨ FIX: Play sound of the final move
-        if (this.currentNode.lastMove) this.triggerMoveSound(this.currentNode.lastMove);
-        else this.#emit('soundTriggered', { type: 'move-self' });
-        
+        if (animate) {
+            if (this.currentNode.lastMove) this.triggerMoveSound(this.currentNode.lastMove);
+            else this.#emit('soundTriggered', { type: 'move-self' });
+        }
         return true;
     }
-goToNodeId(id) {
+goToNodeId(id, animate = true) {
         let target = null;
         const search = (node) => {
             if (node.id === id) { target = node; return; }
@@ -3901,9 +3990,6 @@ goToNodeId(id) {
         if (target) {
             this.currentNode = target;
             
-            // ✨ THE ULTIMATE FIX: Clear the variation memory for the entire forward path!
-            // This guarantees that when you click back to a mainline move, the Right Arrow 
-            // doesn't get hijacked by a previously explored sub-variation!
             let resetNode = target;
             while (resetNode) {
                 resetNode.selectedChildIndex = 0;
@@ -3919,11 +4005,13 @@ goToNodeId(id) {
                 curr = curr.parent;
             }
             
-            this.#emit('boardUpdated', { animate: false });
+            // ✨ ROOT CAUSE FIX
+            this.#emit('boardUpdated', { animate: animate });
             
-            if (this.currentNode.lastMove) this.triggerMoveSound(this.currentNode.lastMove);
-            else this.#emit('soundTriggered', { type: 'move-self' });
-            
+            if (animate) {
+                if (this.currentNode.lastMove) this.triggerMoveSound(this.currentNode.lastMove);
+                else this.#emit('soundTriggered', { type: 'move-self' });
+            }
             return true;
         }
         return false;
@@ -4412,6 +4500,19 @@ startAnalysisMode(transferGame = false) {
             pgnToTransfer = typeof this.generatePGN === 'function' ? this.generatePGN() : "";
         }
         
+        // ✨ ROOT FIX: Force standard rules when analyzing a puzzle to stop variant bleed-over!
+        if (previousMode === 'puzzle') {
+            this.setGameMode('classical', false, true);
+            
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('chess_last_variant', 'classical');
+            }
+            if (typeof document !== 'undefined') {
+                const variantSelect = document.getElementById('analysisVariantSelect');
+                if (variantSelect) variantSelect.value = 'classical';
+            }
+        }
+
         const savedHeaders = { ...this.pgnHeaders };
 
         // 3. Delegate the safe memory swap to UI & handleTabSwitch
@@ -4725,14 +4826,23 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             this.history = [];
             this.fens = [];
             this.pgnHeaders = {};
-
-            this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
+            this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, this.gameMode);
+            if (this.#engine && typeof this.#engine.setGameMode === 'function') {
+                this.#engine.setGameMode(this.gameMode);
+            }
             this.#board = Array(64).fill(null);
 
             const headerRegex = /\[([A-Za-z0-9_]+)\s+"([^"]*)"\]/g;
             let match;
             while ((match = headerRegex.exec(pgn)) !== null) {
                 this.pgnHeaders[match[1]] = match[2];
+            }
+
+            // ✨ ROOT LOGIC FIX 1: Detect 4-Player Chess directly from the headers!
+            // Do this BEFORE the headers get sanitized/deleted below.
+            let isFFA = false;
+            if (this.pgnHeaders['Variant'] === 'FFA' || this.pgnHeaders['StartFen4']) {
+                isFFA = true;
             }
 
             if (this.pgnHeaders['StartFen4']) {
@@ -4803,16 +4913,21 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             let moveTextRaw = pgn.replace(/\[[A-Za-z0-9_]+\s+"[^"]*"\]/g, '').trim();
 
             // 🚀 VARIANT NORMALIZATION BRIDGE
-            let isFFA = false;
-            
-            // ✨ DYNAMIC DETECTION: Even if an old exported PGN has a broken 'FFA' header, 
-            // we ONLY translate if the text actually contains Chess.com's raw 14x14 syntax!
-            const has4PCCoords = /[i-k][0-9]+/i.test(moveTextRaw) || /[a-z](9|10|11|12|13|14)\b/i.test(moveTextRaw);
-            const hasChessComLAN = /[a-k][0-9]+-[a-k][0-9]+/i.test(moveTextRaw); // e.g. f10-f8
-            const hasChessComDuck = /&Θ/.test(moveTextRaw);
-            
-            if (has4PCCoords || hasChessComLAN || hasChessComDuck) {
-                isFFA = true;
+            if (!isFFA) {
+                const cleanTextForFFA = typeof moveTextRaw === 'string' ? moveTextRaw.replace(/\{[^}]*\}/g, '') : '';
+                
+                // Matches coordinates that strictly DO NOT EXIST on a standard 8x8 board:
+                // 1. Files i, j, k, l, m, n (e.g., "i4", "Nj11", "Rk8")
+                const has14x14Files = /\b[KQRBN]?[i-n]([1-9]|1[0-4])\b/.test(cleanTextForFFA);
+                // 2. Ranks 9, 10, 11, 12, 13, 14 (e.g., "h10", "Bg10", "f10")
+                const has14x14Ranks = /\b[KQRBN]?[a-n](9|10|11|12|13|14)\b/.test(cleanTextForFFA);
+                // 3. Chess.com Variant specific markers
+                const hasChessComDuck = /&Θ/.test(cleanTextForFFA);
+                const hasSpellDrop = /(freeze|jump)@/.test(cleanTextForFFA);
+                
+                if (has14x14Files || has14x14Ranks || hasChessComDuck || hasSpellDrop) {
+                    isFFA = true;
+                }
             }
 
             let tokensArray = moveTextRaw.split(/\s+/);
@@ -5149,9 +5264,27 @@ exportPGN() {
         const formatMenu = document.getElementById('pgnFormatSelect');
         const exportFormat = formatMenu ? formatMenu.value : 'both';
         
-        const pgnData = this.generatePGN(exportFormat); 
+        let pgnData = "";
+
+        // ✨ THE FIX: Read the active Analysis PGN from the text box!
+        // When you switch to the Editor tab, the game switches memory contexts.
+        // But the UI perfectly pastes the Analysis game's PGN into the editorPgnInput box.
+        // We MUST export that box's value instead of the Editor's separate memory!
+        if (this.mode === 'editor') {
+            const editorPgnBox = document.getElementById('editorPgnInput');
+            if (editorPgnBox && editorPgnBox.value.trim() !== '') {
+                pgnData = editorPgnBox.value;
+            } else {
+                pgnData = this.generatePGN(exportFormat);
+            }
+        } else {
+            pgnData = this.generatePGN(exportFormat); 
+        }
+
         if (!pgnData) {
-            this.#ui.showNotification("No PGN data to export.","Export Failed","⚠️");
+            if (this.#ui && typeof this.#ui.showNotification === 'function') {
+                this.#ui.showNotification("No PGN data to export.","Export Failed","⚠️");
+            }
             return;
         }
 
@@ -5168,8 +5301,8 @@ exportPGN() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         
-        if (this.showNotification) {
-            this.showNotification("PGN file downloaded successfully.", "Export Complete", "📥");
+        if (this.#ui && typeof this.#ui.showNotification === 'function') {
+            this.#ui.showNotification("PGN file downloaded successfully.", "Export Complete", "📥");
         }
     }
 addPremove(move) {
@@ -5420,8 +5553,20 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
                 batchObj.duck_sq = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
             }
 
-            const result = this.#engine.move(batchObj);
+            const originalError = console.error;
+            console.error = () => {};
+
+            let result = null;
+            try {
+                result = this.#engine.move(batchObj);
+            } catch(e) {
+                result = null;
+            }
+
+            console.error = originalError;
+            
             if (!result) return null;
+            
             const newFen = this.#engine.fen();
             this.#reconcileBoardIds(newFen, move);
             
@@ -5471,9 +5616,34 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             moveObj.duck_sq = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
         }
 
-        const result = this.#engine.move(moveObj, !!moveObj.isSpell);
+        const originalError = console.error;
+        console.error = () => {};
+
+        let result = null;
+        try {
+            result = this.#engine.move(moveObj, !!moveObj.isSpell);
+        } catch(e) {
+            result = null;
+        }
+
+        if (!result && move.san) {
+            let fallbackSan = move.san;
+            if (promotion && fallbackSan.includes('=')) {
+                // If the user picked a different piece in the UI modal, update the SAN
+                fallbackSan = fallbackSan.substring(0, fallbackSan.indexOf('=') + 1) + promotion.toUpperCase();
+            }
+            try { result = this.#engine.move(fallbackSan, { sloppy: true }); } catch(e) {}
+        }
+        if (!result && moveObj.from && moveObj.to) {
+            // Nuclear fallback: Raw UCI string (e.g., 'g2g1q')
+            const rawUci = moveObj.from + moveObj.to + (promotion || '');
+            try { result = this.#engine.move(rawUci, { sloppy: true }); } catch(e) {}
+        }
+
+        console.error = originalError;
+
         if (!result) {
-            console.error(`[MAKE MOVE] Engine rejected move!`, moveObj);
+            console.error(`[MAKE MOVE] Engine completely rejected move!`, moveObj, move);
             return null;
         }
         if (result.isStandaloneSpell) {
@@ -7054,6 +7224,8 @@ triggerMoveSound(move) {
         const theme = (typeof window !== 'undefined' && window.SoundManager) ? window.SoundManager.currentSet : 'unknown';
         console.log(`🔊 [SOUND] Normal | Type: ${type} | Flags: ${flags} | Square: ${move.to} | Theme: ${theme}`);
 
-        this.#emit('soundTriggered', { type, destSquare: move.to });
+        if (!this.isScrubbing) {
+            this.#emit('soundTriggered', { type, destSquare: move.to });
+        }
     }
 }
