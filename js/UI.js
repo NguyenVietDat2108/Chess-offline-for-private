@@ -2327,7 +2327,7 @@ initKeyboardEvents() {
                 return;
             }
 
-            // ARROW KEYS LOGIC (With 85ms Throttle and Audio Scrubbing)
+            // ARROW KEYS LOGIC (Clean 85ms throttle, no muting!)
             if (this.#game) {
                 const now = performance.now();
                 if (!this._lastArrowPress) this._lastArrowPress = 0;
@@ -2335,21 +2335,11 @@ initKeyboardEvents() {
                 if (e.key === 'ArrowRight') {
                     if (now - this._lastArrowPress < 85) return;
                     this._lastArrowPress = now;
-                    
-                    this.#game.isScrubbing = true;
-                    clearTimeout(this._scrubTimeout);
-                    this._scrubTimeout = setTimeout(() => { this.#game.isScrubbing = false; }, 200); 
-                    
                     if (typeof this.#game.stepForward === 'function') this.#game.stepForward();
                 } 
                 else if (e.key === 'ArrowLeft') {
                     if (now - this._lastArrowPress < 85) return;
                     this._lastArrowPress = now;
-                    
-                    this.#game.isScrubbing = true;
-                    clearTimeout(this._scrubTimeout);
-                    this._scrubTimeout = setTimeout(() => { this.#game.isScrubbing = false; }, 200);
-                    
                     if (typeof this.#game.stepBack === 'function') this.#game.stepBack();
                 }
                 else if (e.key === 'ArrowUp') { 

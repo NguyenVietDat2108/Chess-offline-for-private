@@ -3913,8 +3913,13 @@ stepBack(animate = true) {
 
         this.#emit('boardUpdated', { animate: animate, overrideMove: reverseMove });
         
-        // Mute sounds when rapidly capturing GIFs
-        if (animate) this.#emit('soundTriggered', { type: 'move-self' });
+        // ✨ ROOT FIX: Debounce the audio queue!
+        if (animate) {
+            if (this._audioDebounce) clearTimeout(this._audioDebounce);
+            this._audioDebounce = setTimeout(() => {
+                this.#emit('soundTriggered', { type: 'move-self' });
+            }, 25);
+        }
         return true;
     }
 stepForward(animate = true) {
@@ -3932,7 +3937,6 @@ stepForward(animate = true) {
             this.#reconcileBoardIds(nextNode.fen, nextNode.lastMove);
         }
         
-        // ✨ ROOT CAUSE FIX: Pass the dynamic animate flag!
         this.#emit('boardUpdated', { animate: animate, overrideMove: nextNode.lastMove });
         
         if (nextNode.lastMove && animate) {
@@ -3951,7 +3955,6 @@ goToStart(animate = true) {
 
         this.#emit('fenChanged', { fen: startFen });
         
-        // ✨ ROOT CAUSE FIX
         this.#emit('boardUpdated', { 
             isGoToStart: true, 
             targetFen: startFen, 
@@ -3959,7 +3962,13 @@ goToStart(animate = true) {
             animate: animate 
         });
 
-        if (animate) this.#emit('soundTriggered', { type: 'move-self' });
+        // ✨ ROOT FIX: Debounce the audio queue!
+        if (animate) {
+            if (this._audioDebounce) clearTimeout(this._audioDebounce);
+            this._audioDebounce = setTimeout(() => {
+                this.#emit('soundTriggered', { type: 'move-self' });
+            }, 25);
+        }
         return true;
     }
 goToEnd(animate = true) {
@@ -3970,12 +3979,17 @@ goToEnd(animate = true) {
         this.currentNode = curr;
         this.loadFEN(this.currentNode.fen, this.gameMode, true);
         
-        // ✨ ROOT CAUSE FIX
         this.#emit('boardUpdated', { animate: animate });
         
         if (animate) {
             if (this.currentNode.lastMove) this.triggerMoveSound(this.currentNode.lastMove);
-            else this.#emit('soundTriggered', { type: 'move-self' });
+            else {
+                // ✨ ROOT FIX: Debounce the audio queue!
+                if (this._audioDebounce) clearTimeout(this._audioDebounce);
+                this._audioDebounce = setTimeout(() => {
+                    this.#emit('soundTriggered', { type: 'move-self' });
+                }, 25);
+            }
         }
         return true;
     }
@@ -4005,12 +4019,17 @@ goToNodeId(id, animate = true) {
                 curr = curr.parent;
             }
             
-            // ✨ ROOT CAUSE FIX
             this.#emit('boardUpdated', { animate: animate });
             
             if (animate) {
                 if (this.currentNode.lastMove) this.triggerMoveSound(this.currentNode.lastMove);
-                else this.#emit('soundTriggered', { type: 'move-self' });
+                else {
+                    // ✨ ROOT FIX: Debounce the audio queue!
+                    if (this._audioDebounce) clearTimeout(this._audioDebounce);
+                    this._audioDebounce = setTimeout(() => {
+                        this.#emit('soundTriggered', { type: 'move-self' });
+                    }, 25);
+                }
             }
             return true;
         }
@@ -7155,29 +7174,28 @@ playLessonResponse(uci) {
     }
 triggerMoveSound(move) {
         if (!move) return;
+
         const flags = move.flags || '';
         let type = 'move-self';
 
         // ✨ 1. PUZZLE GRADING (Only for Player Moves)
-        // We only play grading sounds if it is the PLAYER moving.
         if (this.mode === 'puzzle' && move.color === this.playerColor) {
-            // FIX: Removed "this.puzzleStatus" fallback so the bot doesn't steal your "correct" status
             const pStatus = move.puzzleStatus || move.status;
             
             if (pStatus === 'wrong' || move.isWrong) type = 'wrong';
             else if (pStatus === 'solved' || pStatus === 'best' || move.isSolved) type = 'best';
             else if (pStatus === 'correct' || move.isCorrect) type = 'correct';
             
-            // If it's a grading sound, play it and EXIT.
             if (['wrong', 'best', 'correct'].includes(type)) {
-                console.log(`🔊 [SOUND] Puzzle Move: ${type} | Square: ${move.to}`);
-                this.#emit('soundTriggered', { type, destSquare: move.to });
+                if (this._audioDebounce) clearTimeout(this._audioDebounce);
+                this._audioDebounce = setTimeout(() => {
+                    this.#emit('soundTriggered', { type, destSquare: move.to });
+                }, 25);
                 return;
             }
         }
 
         // ✨ 2. GAME OVER
-        // Opponent moves and non-grading player moves fall through to here.
         if (this.#engine.game_over()) {
             if (this.#engine.in_draw() || this.#engine.in_stalemate() || (typeof this.#engine.in_threefold_repetition === 'function' && this.#engine.in_threefold_repetition())) {
                 type = 'draw';
@@ -7186,20 +7204,20 @@ triggerMoveSound(move) {
                 if (this.mode === 'bot') {
                     type = (matedColor === this.botColor) ? 'win-long' : 'lose-long';
                 } else {
-                    // Standard win for puzzles or other modes
                     type = 'win-long'; 
                 }
             } else {
                 type = 'win'; 
             }
             
-            console.log(`🔊 [SOUND] Game Over | Type: ${type} | Square: ${move.to}`);
-            this.#emit('soundTriggered', { type, destSquare: move.to });
+            if (this._audioDebounce) clearTimeout(this._audioDebounce);
+            this._audioDebounce = setTimeout(() => {
+                this.#emit('soundTriggered', { type, destSquare: move.to });
+            }, 25);
             return;
         }
 
         // ✨ 3. ACTION SOUNDS (Captures, Checks, etc.)
-        // The opponent's move will now correctly trigger these!
         if (this.#engine.in_check()) {
             type = 'check';
         } else if (flags.includes('p')) {
@@ -7213,19 +7231,18 @@ triggerMoveSound(move) {
             if (this.mode === 'bot' && move.color === this.botColor) {
                 type = 'move-opponent';
             } else if (this.mode === 'puzzle' && move.color !== this.playerColor) {
-                // This ensures the opponent's reply in a puzzle uses the "opponent" thud sound
                 type = 'move-opponent';
             } else {
                 type = 'move-self';
             }
         }
 
-        // ✅ SAFE DEBUGGING LOG
-        const theme = (typeof window !== 'undefined' && window.SoundManager) ? window.SoundManager.currentSet : 'unknown';
-        console.log(`🔊 [SOUND] Normal | Type: ${type} | Flags: ${flags} | Square: ${move.to} | Theme: ${theme}`);
-
-        if (!this.isScrubbing) {
+        // ✨ ROOT FIX: Debounce the audio queue to prevent lag explosions!
+        // This tiny 25ms delay allows the browser to clear out backed-up DOM processing
+        // and instantly destroys previously queued sounds so they don't stack up.
+        if (this._audioDebounce) clearTimeout(this._audioDebounce);
+        this._audioDebounce = setTimeout(() => {
             this.#emit('soundTriggered', { type, destSquare: move.to });
-        }
+        }, 25);
     }
 }
