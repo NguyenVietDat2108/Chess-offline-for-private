@@ -4935,7 +4935,7 @@ updateEvalBar(type = this._lastEvalType, val = this._lastEvalVal) {
                 const evalFloat = val / 100;
                 const clamped = Math.max(-5, Math.min(5, evalFloat));
                 percent = 50 + (clamped * 10);
-                display = Math.abs(evalFloat.toFixed(1));
+                display = Math.abs(evalFloat).toFixed(1);
                 isWhiteWinning = val >= 0;
             }
         }
