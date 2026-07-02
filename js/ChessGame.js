@@ -1963,6 +1963,10 @@ return move.san;
         
         const analysisBtn = document.getElementById('analysisBtn');
         if (analysisBtn) analysisBtn.style.display = 'none';
+        const hintBtn = document.getElementById('hintBtn');
+        if (hintBtn) hintBtn.style.display = 'none';
+        const resetBtn = document.getElementById('resetPuzzleBtn');
+        if (resetBtn) resetBtn.style.display = 'none';
 
         if (window.engineAnalysing) {
             window.engineAnalysing = false;
@@ -2144,10 +2148,19 @@ return move.san;
             this.#ui.updateStatus(`Puzzle Failed.`);
             if (!isRush) {
                 this.#ui.showNotification(`Wrong Move! Try again. ❌`, 'Incorrect');
+                
                 const nextBtn = document.getElementById('nextPuzzleBtn');
                 if (nextBtn) nextBtn.style.display = 'block';
+                
+                // ✨ FIX: Hide the Analysis button so they can't cheat!
                 const analysisBtn = document.getElementById('analysisBtn');
-                if (analysisBtn) analysisBtn.style.display = 'block';
+                if (analysisBtn) analysisBtn.style.display = 'none';
+
+                const hintBtn = document.getElementById('hintBtn');
+                if (hintBtn) hintBtn.style.display = 'flex';
+                
+                const resetBtn = document.getElementById('resetPuzzleBtn');
+                if (resetBtn) resetBtn.style.display = 'flex';
             }
             if (this.#ui.updatePuzzleStats) this.#ui.updatePuzzleStats();
         }
@@ -3840,40 +3853,42 @@ retryPuzzle() {
             this.puzzleCursor = 0;
             this.gameOver = false;
             
-            // ✨ THE FIX: Apply the same protection shield during retries
+            // ✨ Apply the protection shield during retries
             const protectedMode = this.gameMode;
             if (this.#engine && typeof this.#engine.setGameMode === 'function') {
                 this.#engine.setGameMode('classical');
             }
             
             this.loadFEN(this.initialPuzzleFEN, 'classical');
-            
             this.gameMode = protectedMode;
 
             if (this.#ui && typeof this.#ui.renderBoard === 'function') this.#ui.renderBoard(true);
             if (this.#ui && typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory();
             
+            // ✨ NEW: Hide the Hint and Reset buttons once the board is reset
+            const hintBtn = document.getElementById('hintBtn');
+            if (hintBtn) hintBtn.style.display = 'none';
+            const resetBtn = document.getElementById('resetPuzzleBtn');
+            if (resetBtn) resetBtn.style.display = 'none';
+
             setTimeout(() => {
                 const setupMove = this.puzzleSolution[0];
-            if (setupMove) {
-                const from = this.#squareToIndex(setupMove.substring(0, 2));
-                const to = this.#squareToIndex(setupMove.substring(2, 4));
-                const promo = setupMove.length > 4 ? setupMove.substring(4, 5) : 'q';
-                
-                // ✨ Capture the result
-                const res = this.makeMove({ from, to }, promo, true, null, true);
-                
-                this.#emit('boardUpdated', { 
-                    animate: true, 
-                    overrideMove: this.currentNode.lastMove 
-                });
-                
-                // ✨ Replace the hardcoded emit with the smart sound trigger!
-                if (res) this.triggerMoveSound(res);
-                
-                this.puzzleCursor++;
-            }
-        }, 500);
+                if (setupMove) {
+                    const from = this.#squareToIndex(setupMove.substring(0, 2));
+                    const to = this.#squareToIndex(setupMove.substring(2, 4));
+                    const promo = setupMove.length > 4 ? setupMove.substring(4, 5) : 'q';
+                    
+                    const res = this.makeMove({ from, to }, promo, true, null, true);
+                    
+                    this.#emit('boardUpdated', { 
+                        animate: true, 
+                        overrideMove: this.currentNode.lastMove 
+                    });
+                    
+                    if (res) this.triggerMoveSound(res);
+                    this.puzzleCursor++;
+                }
+            }, 500);
         }
     }
 getUID() {

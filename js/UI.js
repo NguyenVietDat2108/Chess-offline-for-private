@@ -1836,34 +1836,50 @@ showPuzzleSuccess() {
         const isRush = ['3min', '5min', 'survival'].includes(this.#game.puzzleMode);
         if (!isRush && next) next.style.display = "block";
     }
+
 showPuzzleHint() {
         const state = this.#game ? this.#game.getReader() : null;
-        if (!state || state.mode !== 'puzzle' || state.isGameOver) return;
+        if (!state || state.mode !== 'puzzle') return;
+        
         const isRush = ['3min', '5min', 'survival'].includes(state.puzzle.mode);
-        if (isRush) {
-            this.showNotification("Hints are disabled in Rush Mode!", "Not Allowed", "🚫");
-            return;
+        if (isRush) { 
+            if (typeof this.showNotification === 'function') {
+                this.showNotification("Hints are disabled in Rush Mode!", "Not Allowed", "🚫"); 
+            }
+            return; 
         }
 
+        // Just read the current required move and highlight the square immediately
         const solutionMove = state.puzzle.solution[state.puzzle.cursor];
         if (!solutionMove) return;
+        
+        const fromIdx = typeof this.#game.squareToIndex === 'function' ? this.#game.squareToIndex(solutionMove.substring(0, 2)) : -1;
+        if (fromIdx === -1) return;
 
-        const fromIdx = this.#game.squareToIndex(solutionMove.substring(0, 2));
         const sqEl = document.querySelector(`.square[data-index="${fromIdx}"]`);
         
         if (sqEl) {
+            // Clear any lingering hints
             document.querySelectorAll('.puzzle-hint-pulse').forEach(el => el.remove());
-            const hintEl = document.createElement('div');
+            
+            const hintEl = document.createElement('div'); 
             hintEl.className = 'puzzle-hint-pulse';
-            hintEl.style.position = 'absolute';
-            hintEl.style.inset = '0'; 
-            hintEl.style.boxShadow = 'inset 0 0 0 4px var(--gold-400, #facc15), inset 0 0 15px rgba(250, 204, 21, 0.6)'; 
-            hintEl.style.borderRadius = '4px';
-            hintEl.style.pointerEvents = 'none'; 
-            hintEl.style.zIndex = '15';
+            hintEl.style.cssText = 'position:absolute; inset:0; box-shadow:inset 0 0 0 4px var(--gold-400, #facc15), inset 0 0 15px rgba(250, 204, 21, 0.6); border-radius:4px; pointer-events:none; z-index:15;';
             sqEl.appendChild(hintEl);
+            
             hintEl.animate([{ opacity: 1 }, { opacity: 0.2 }, { opacity: 1 }], { duration: 800, iterations: 3 });
-            setTimeout(() => { if (hintEl && hintEl.parentNode) hintEl.remove(); }, 2400);
+            
+            // Remove the hint the moment the user clicks/taps anywhere
+            const clearHint = () => {
+                if (hintEl && hintEl.parentNode) hintEl.remove();
+                document.removeEventListener('mousedown', clearHint);
+                document.removeEventListener('touchstart', clearHint);
+            };
+            document.addEventListener('mousedown', clearHint);
+            document.addEventListener('touchstart', clearHint);
+            
+            // Fallback auto-remove after 2.4 seconds
+            setTimeout(() => { clearHint(); }, 2400);
         }
     }
 initSidebarResizers() {
@@ -4874,56 +4890,112 @@ createPlyDiv(node) {
         d.oncontextmenu = (e) => { e.preventDefault(); this.showAnnotationPopup(e, node); };
         return d;
     }
-updateEvalBar(type, val) {
+updateEvalBar(type = this._lastEvalType, val = this._lastEvalVal) {
+        if (type !== undefined) this._lastEvalType = type;
+        if (val !== undefined) this._lastEvalVal = val;
+        
+        type = this._lastEvalType;
+        val = this._lastEvalVal;
+
+        const container = document.getElementById('enginePanel');
         const bar = document.getElementById('evalBarFill');
         const text = document.getElementById('evalScore');
         if (!this.#game || !this.#game.engine) return;
 
+        let isWhiteWinning = true;
+        let percent = 50;
+        let display = "0.00";
+
         let vWinner = null;
         if (typeof this.#game.engine.variant_winner === 'function') vWinner = this.#game.engine.variant_winner();
-
+        
         if (vWinner === 'w') {
-            if (text) text.innerText = "1-0"; if (bar) bar.style.height = "100%";
-            return;
+            display = "1-0";
+            percent = 100;
+            isWhiteWinning = true;
         } else if (vWinner === 'b') {
-            if (text) text.innerText = "0-1"; if (bar) bar.style.height = "0%";
-            return;
-        }
-
-        if (this.#game.engine.in_checkmate()) {
+            display = "0-1";
+            percent = 0;
+            isWhiteWinning = false;
+        } else if (this.#game.engine.in_checkmate()) {
             const winner = (this.#game.turn === 'w') ? "0-1" : "1-0";
-            const percent = (this.#game.turn === 'w') ? 0 : 100;
-            if (text) text.innerText = winner; if (bar) bar.style.height = `${percent}%`;
-            return; 
+            percent = (winner === "1-0") ? 100 : 0;
+            display = (winner === "1-0") ? "+M0" : "-M0";
+            isWhiteWinning = (winner === "1-0");
+        } else if (this.#game.engine.in_draw() || this.#game.engine.in_stalemate() || (typeof this.#game.engine.in_threefold_repetition === 'function' && this.#game.engine.in_threefold_repetition())) {
+            display = "0.00";
+            percent = 50;
+            isWhiteWinning = true; 
+        } else if (type !== undefined && val !== undefined) {
+            if (type === 'mate') {
+                display = (val > 0 ? "+M" : "-M") + Math.abs(val);
+                percent = val > 0 ? 100 : 0;
+                isWhiteWinning = val > 0;
+            } else {
+                const evalFloat = val / 100;
+                const clamped = Math.max(-5, Math.min(5, evalFloat));
+                percent = 50 + (clamped * 10);
+                display = Math.abs(evalFloat.toFixed(1));
+                isWhiteWinning = val >= 0;
+            }
         }
 
-        const isDraw = this.#game.engine.in_draw() || this.#game.engine.in_stalemate() || (typeof this.#game.engine.in_threefold_repetition === 'function' && this.#game.engine.in_threefold_repetition());
+        if (bar && container) {
+            // Ensure structural CSS is locked in
+            container.style.position = 'relative';
+            bar.style.position = 'absolute';
+            bar.style.left = '0';
+            bar.style.width = '100%';
+            bar.style.bottom = '0';
+            bar.style.top = 'auto'; // ALWAYS grow from the bottom of the container
 
-        if (isDraw) {
-            if (text) text.innerText = "½-½"; if (bar) bar.style.height = "50%";
-            return;
+            if (this.flipped) {
+                // FLIPPED: Black is at Bottom, White is at Top
+                container.style.backgroundColor = '#fff'; // Top part is White
+                bar.style.backgroundColor = '#333';       // Bottom part is Black
+                bar.style.height = `${100 - percent}%`;   // Bottom bar represents Black's share
+            } else {
+                // NORMAL: White is at Bottom, Black is at Top
+                container.style.backgroundColor = '#333'; // Top part is Black
+                bar.style.backgroundColor = '#fff';       // Bottom part is White
+                bar.style.height = `${percent}%`;         // Bottom bar represents White's share
+            }
         }
 
-        let display = "0.00"; 
-        let percent = 50;
-        
-        // ✨ THE FIX: Handle Mate vs Centipawn calculation properly
-        if (type === 'mate') {
-            display = "M" + Math.abs(val); 
-            // Fake a massive score so the CSS bar clamps to the absolute top or bottom
-            val = val > 0 ? 10000 : -10000; 
-        } else {
-            const evalFloat = val / 100;
-            display = (evalFloat > 0 ? "+" : "") + evalFloat.toFixed(2);
+        if (text) {
+            text.innerText = display;
+            text.style.position = 'absolute';
+            text.style.width = '100%';
+            text.style.textAlign = 'center';
+            text.style.fontWeight = 'bold';
+            text.style.fontSize = '12px';
+            text.style.padding = '4px 0';
+            text.style.zIndex = '5';
+            
+            // ✨ COLOR LOGIC FIX: Text shadows act as a shield against Dark Mode extensions.
+            // If the extension turns the background dark but leaves the text black, the white shadow makes it pop.
+            if (isWhiteWinning) {
+                text.style.color = '#c4bfbf'; // Dark text
+                text.style.textShadow = '0px 0px 3px rgba(0, 0, 0, 0.9)'; // Anti-blend shield
+                if (this.flipped) {
+                    text.style.top = '0px';        // White is at the Top
+                    text.style.bottom = 'auto';
+                } else {
+                    text.style.top = 'auto';
+                    text.style.bottom = '0px';     // White is at the Bottom
+                }
+            } else {
+                text.style.color = '#fff'; // Light text
+                text.style.textShadow = '0px 0px 3px rgba(0, 0, 0, 0.9)'; // Anti-blend shield
+                if (this.flipped) {
+                    text.style.top = 'auto';
+                    text.style.bottom = '0px';     // Black is at the Bottom
+                } else {
+                    text.style.top = '0px';        // Black is at the Top
+                    text.style.bottom = 'auto';
+                }
+            }
         }
-        
-        // Apply the CSS height for BOTH normal scores and artificial mate scores
-        const evalFloat = val / 100;
-        const clamped = Math.max(-5, Math.min(5, evalFloat));
-        percent = 50 + (clamped * 10);
-        
-        if (text) text.innerText = display;
-        if (bar) bar.style.height = `${percent}%`;
     }
 showNotification(message, title ="System Message", icon ="ℹ️") {
         const modal = document.getElementById('notificationModal');
@@ -5563,6 +5635,9 @@ flipBoard() {
         this.renderBoard(true);
         this.renderHeaders();
         if (this.coordsPosition === 'outside') this.renderExternalCoords();
+        
+        // ✨ NEW: Immediately rotate and redraw the eval bar!
+        if (typeof this.updateEvalBar === 'function') this.updateEvalBar();
         
         const grid = document.getElementById('previewGrid');
         if (grid) {
@@ -6226,24 +6301,6 @@ showPuzzleSuccess() {
         if(status) { status.innerText = "Success!"; status.style.color = "#26c2a3"; }
         const isRush = ['3min', '5min', 'survival'].includes(this.#game.puzzleMode);
         if (!isRush && next) next.style.display = "block";
-    }
-showPuzzleHint() {
-        const state = this.#game ? this.#game.getReader() : null;
-        if (!state || state.mode !== 'puzzle' || state.isGameOver) return;
-        const isRush = ['3min', '5min', 'survival'].includes(state.puzzle.mode);
-        if (isRush) { this.showNotification("Hints are disabled in Rush Mode!", "Not Allowed", "🚫"); return; }
-        const solutionMove = state.puzzle.solution[state.puzzle.cursor];
-        if (!solutionMove) return;
-        const fromIdx = this.#game.squareToIndex(solutionMove.substring(0, 2));
-        const sqEl = document.querySelector(`.square[data-index="${fromIdx}"]`);
-        if (sqEl) {
-            document.querySelectorAll('.puzzle-hint-pulse').forEach(el => el.remove());
-            const hintEl = document.createElement('div'); hintEl.className = 'puzzle-hint-pulse';
-            hintEl.style.cssText = 'position:absolute; inset:0; box-shadow:inset 0 0 0 4px var(--gold-400, #facc15), inset 0 0 15px rgba(250, 204, 21, 0.6); border-radius:4px; pointer-events:none; z-index:15;';
-            sqEl.appendChild(hintEl);
-            hintEl.animate([{ opacity: 1 }, { opacity: 0.2 }, { opacity: 1 }], { duration: 800, iterations: 3 });
-            setTimeout(() => { if (hintEl && hintEl.parentNode) hintEl.remove(); }, 2400);
-        }
     }
 renderChapters() {
         const container = document.getElementById('chapters-list-container');
