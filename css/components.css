@@ -240,7 +240,7 @@ z-index: 100; border: 2px solid transparent; box-shadow: 0 2px 5px rgba(0,0,0,0.
 .ind-5 { background: var(--nag-interesting); }
 .ind-6 { background: var(--nag-inaccuracy); }
 
-.eval-bar-container { width: 24px; background: #333; border-left: 1px solid #444; display: none; flex-direction: column; justify-content: flex-end; position: relative; overflow: hidden; flex: none; margin-left: 5px; }
+.eval-bar-container { width: 30px; background: #333; border-left: 1px solid #444; display: none; flex-direction: column; justify-content: flex-end; position: relative; overflow: hidden; flex: none; margin-left: 5px; }
 .eval-bar-container.visible { display: flex; }
 .eval-bar-container.flipped { justify-content: flex-start; }
 .eval-bar-fill { width: 100%; background: #fff; height: 50%; transition: height 0.5s ease; }
@@ -633,8 +633,6 @@ input[type=range] { flex-grow: 1; accent-color: #629924; }
     flex: 1;
     accent-color: #8b8987;
 }
-
-/* Controls Dropdowns */
 .control-group {
     margin-bottom: 15px;
 }
@@ -663,25 +661,20 @@ input[type=range] { flex-grow: 1; accent-color: #629924; }
 }
 
 .mt-10 { margin-top: 10px; }
-/* Force the row to behave as a perfect flex container */
 .move-row {
     display: flex;
     width: 100%;
 }
-
-/* The Left/Right column wrappers */
 .move-cell {
     flex: 1 1 0%;
     width: 100%;
     display: flex;
-    flex-wrap: nowrap; /* Forces multiple Spell moves to sit side-by-side */
+    flex-wrap: nowrap;
     gap: 4px;
     align-items: stretch;
     box-sizing: border-box;
     overflow: hidden;
 }
-
-/* Optional hooks if you want to color the backgrounds of columns later */
 .move-cell.white-cell {
     /* padding-right: 2px; */
 }
@@ -689,8 +682,6 @@ input[type=range] { flex-grow: 1; accent-color: #629924; }
 .move-cell.black-cell {
     /* padding-left: 2px; */
 }
-
-/* The clickable move button itself (stretches to fill the cell) */
 .move-cell > .move-ply,
 .move-cell > .tree-move,
 .move-cell > span {

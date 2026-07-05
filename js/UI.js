@@ -1020,7 +1020,7 @@ resizeApp() {
         let evalW = 0;
         if (enginePanel && enginePanel.style.display !== 'none') {
             let dynamicSpacing = isPocketMode ? 80 : 8; 
-            evalW = getW(enginePanel) > 0 ? getW(enginePanel) + dynamicSpacing : (25 + dynamicSpacing); 
+            evalW = getW(enginePanel) > 0 ? getW(enginePanel) + dynamicSpacing : (30 + dynamicSpacing); 
             targetWidth += evalW;
         }
         
@@ -4935,7 +4935,7 @@ updateEvalBar(type = this._lastEvalType, val = this._lastEvalVal) {
                 const evalFloat = val / 100;
                 const clamped = Math.max(-5, Math.min(5, evalFloat));
                 percent = 50 + (clamped * 10);
-                display = Math.abs(evalFloat).toFixed(1);
+                display = (val > 0 ? "+" : "-") + Math.abs(evalFloat).toFixed(1);
                 isWhiteWinning = val >= 0;
             }
         }
@@ -4975,7 +4975,7 @@ updateEvalBar(type = this._lastEvalType, val = this._lastEvalVal) {
             // ✨ COLOR LOGIC FIX: Text shadows act as a shield against Dark Mode extensions.
             // If the extension turns the background dark but leaves the text black, the white shadow makes it pop.
             if (isWhiteWinning) {
-                text.style.color = '#c4bfbf'; // Dark text
+                text.style.color = '#rgb(213,191,191)'; // Dark text
                 text.style.textShadow = '0px 0px 3px rgba(0, 0, 0, 0.9)'; // Anti-blend shield
                 if (this.flipped) {
                     text.style.top = '0px';        // White is at the Top
@@ -4985,8 +4985,8 @@ updateEvalBar(type = this._lastEvalType, val = this._lastEvalVal) {
                     text.style.bottom = '0px';     // White is at the Bottom
                 }
             } else {
-                text.style.color = '#fff'; // Light text
-                text.style.textShadow = '0px 0px 3px rgba(0, 0, 0, 0.9)'; // Anti-blend shield
+                text.style.color = 'rgb(255, 255, 255)'; // Light text
+                text.style.textShadow = '0px 0px 3px #000'; // Anti-blend shield
                 if (this.flipped) {
                     text.style.top = 'auto';
                     text.style.bottom = '0px';     // Black is at the Bottom

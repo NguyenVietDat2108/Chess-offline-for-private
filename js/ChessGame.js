@@ -1707,6 +1707,13 @@ return move.san;
                 if (idx !== -1) this.currentNode.parent.selectedChildIndex = idx;
             }
         } else {
+            // ✨ INJECT THIS FIX: Disable Sublines in Live Play
+            // If we are actively playing a game (not analyzing), and we make a new move,
+            // permanently erase the old alternate future so it doesn't create a branched subline!
+            if (this.mode === 'bot' || this.mode === 'local' || this.mode === 'play') {
+                this.currentNode.children = [];
+            }
+
             let newNode = new MoveNode(fen, moveSan, this.currentNode, "", 0, toSq);
             newNode.lastMove = moveData;
             newNode.isPV = isPVMove;
