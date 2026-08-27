@@ -1907,7 +1907,11 @@ var Chess = function(fen, gameMode = 'classical') {
             }
             var rank = Math.floor(to / 8);
             if (rank === 0 || rank === 7) {
-                flags |= BITS.PROMOTION;
+                // ✨ THE ABSOLUTE ROOT CAUSE FIX
+                // Prevent 'flags' from becoming 17 (NORMAL | PROMOTION).
+                // The legal move generator strictly uses 16. If we pass 17, it fails the legals.includes(m) check!
+                flags = (flags === BITS.NORMAL) ? BITS.PROMOTION : (flags | BITS.PROMOTION);
+                
                 if (state.gameMode === 'chaturanga') {
                     promoInt = QUEEN; 
                 } else {

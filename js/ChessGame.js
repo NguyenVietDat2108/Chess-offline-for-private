@@ -1091,20 +1091,52 @@ return move.san;
             const currentFen = targetNode ? targetNode.fen : this.generateFEN();
 
             if (rawMoves.length > 0) {
+                // Initialize the validator at the current position
                 const tempValidator = new (typeof Chess === 'function' ? Chess : window.Chess)(currentFen, this.gameMode);
                 const validSan = [];
                 const validFull = [];
                 
                 for (let m of rawMoves) {
-                    let res = tempValidator.move(m);
-                    if (!res) break; 
+                    let uM = m.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
+                    let eInput = m;
+                    if (uM) {
+                        eInput = { from: uM[1], to: uM[2] };
+                        if (uM[3]) eInput.promotion = uM[3].toLowerCase();
+                    }
+
+                    let res = null;
+                    let capturedLogs = [];
+
+                    const originalError = console.error;
+                    console.error = (...args) => { capturedLogs.push(args); }; 
+                    
+                    try { 
+                        // ✨ THE ROOT FIX:
+                        // By actually calling .move(), the tempValidator updates its internal state.
+                        // When the next move in the PV loop arrives, the validator knows it is the 
+                        // OPPONENT's turn, so pawn promotions won't be flagged as wrong-color moves!
+                        res = tempValidator.move(eInput); 
+                    } catch(e) { capturedLogs.push([e]); }
+                    
+                    if (!res) {
+                        try { res = tempValidator.move(m, { sloppy: true }); } catch(e) { capturedLogs.push([e]); }
+                    }
+                    
+                    console.error = originalError;
+
+                    if (!res) {
+                        // If it genuinely hallucinates, we silently break the PV line instead of crashing.
+                        // We do NOT throw a red console error anymore, because silent truncation is the expected
+                        // behavior for multi-pv engine analysis when a line hits a variant discrepancy.
+                        break; 
+                    }
                     
                     validSan.push(res.san); 
                     validFull.push(res);    
                 }
                 
                 rawMoves = validSan; 
-                rawMoves.bestMoveFull = validFull[0]; 
+                if (validFull.length > 0) rawMoves.bestMoveFull = validFull[0]; 
             }
             if (rawMoves.length === 0) return;
 
@@ -1176,7 +1208,6 @@ return move.san;
         
         const memSlot = (stateName === 'local' || stateName === 'bot' || stateName === 'play') ? 'play' : stateName;
         
-        // 🌟 SNAPSHOT STRUCTURE: Capture pure text strings and primitives to sever live references
         const stateSnapshot = {
             variant: this.gameMode || 'classical',
             mode: this.mode || stateName,
@@ -1194,13 +1225,20 @@ return move.san;
             puzzleCursor: this.puzzleCursor,
             puzzleSolution: this.puzzleSolution ? [...this.puzzleSolution] : [],
             puzzleScore: this.puzzleScore,
-            puzzleStrikes: this.puzzleStrikes
+            puzzleStrikes: this.puzzleStrikes,
+            currentPuzzle: this.currentPuzzle || null,
+            initialPuzzleFEN: this.initialPuzzleFEN || null,
+            puzzleActive: this.puzzleActive || false,
+            puzzleMode: this.puzzleMode || 'rush',
+            puzzleSolved: this.puzzleSolved || false,
+            puzzleQueue: this.puzzleQueue || [],
+            puzzleIndex: this.puzzleIndex || 0,
+            currentSessionId: this.currentSessionId || null,
+            activeChapterIndex: this.activeChapterIndex,
+            currentStudyId: this.currentStudyId
         };
 
-        // Deep-clone snapshot into RAM to avoid live cross-tab reference contamination
         this.tabMemory[memSlot] = JSON.parse(JSON.stringify(stateSnapshot));
-
-        // Save decoupled text backup to LocalStorage
         localStorage.setItem(`chess_tab_snapshot_${memSlot}`, JSON.stringify(stateSnapshot));
     }
 #restoreState(stateName) {
@@ -1268,7 +1306,8 @@ return move.san;
             this.puzzleSolution = state.puzzleSolution || [];
             this.puzzleScore = state.puzzleScore || 0;
             this.puzzleStrikes = state.puzzleStrikes || 0;
-
+            if (state.activeChapterIndex !== undefined) this.activeChapterIndex = state.activeChapterIndex;
+            if (state.currentStudyId !== undefined) this.currentStudyId = state.currentStudyId;
             if (state.activeNodeId && typeof this.goToNodeId === 'function') {
                 this.goToNodeId(state.activeNodeId);
             }
@@ -1707,9 +1746,7 @@ return move.san;
                 if (idx !== -1) this.currentNode.parent.selectedChildIndex = idx;
             }
         } else {
-            // ✨ INJECT THIS FIX: Disable Sublines in Live Play
-            // If we are actively playing a game (not analyzing), and we make a new move,
-            // permanently erase the old alternate future so it doesn't create a branched subline!
+            // Disable Sublines in Live Play
             if (this.mode === 'bot' || this.mode === 'local' || this.mode === 'play') {
                 this.currentNode.children = [];
             }
@@ -1718,18 +1755,9 @@ return move.san;
             newNode.lastMove = moveData;
             newNode.isPV = isPVMove;
             
-            if (this.isPlayingLiveGame && !isPVMove) {
-                const isWhiteMove = this.turn === 'b'; 
-                const secondsLeft = isWhiteMove ? this.whiteTime : this.blackTime;
-                newNode.timeLeft = secondsLeft * 1000; 
-                const h = Math.floor(secondsLeft / 3600);
-                const m = Math.floor((secondsLeft % 3600) / 60);
-                const s = Math.floor(secondsLeft % 60);
-                newNode.clk = `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-                const now = Date.now();
-                if (this.lastMoveTimestamp) newNode.moveTime = now - this.lastMoveTimestamp;
-                this.lastMoveTimestamp = now;
-            }
+            // ✨ ROOT FIX: The broken clock logic block that was sitting right here 
+            // has been completely nuked! makeMove() already handles the clock perfectly 
+            // with the correct color and increment math!
 
             this.currentNode.children.push(newNode);
             const newIdx = this.currentNode.children.indexOf(newNode);
@@ -1743,7 +1771,7 @@ return move.san;
             if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
         }
 
-        // ✨ TAB AUTOSAVE LOGIC
+        // TAB AUTOSAVE LOGIC
         if (this.mode === 'analysis' && !this._isParsingPV) {
             this.#saveState('analysis');
         } else if (this.mode === 'study' && !this._isParsingPV) {
@@ -5347,8 +5375,9 @@ exportPGN() {
         }
     }
 addPremove(move) {
-        if (this.premoveMode === 'none' || this.isAnalysisMode) return; 
-        
+        if (this.premoveMode === 'none' || this.gameOver) return; 
+        if (!this.isPlayingLiveGame && !this.isPuzzle) return;
+
         if (this.premoveMode === 'single') {
             this.clearPremoves();
             this.premoveQueue.push(move);
@@ -5366,12 +5395,12 @@ this.premoveQueue = [];
 if (typeof this.#ui !=='undefined') this.#ui.renderBoard(false);
 }
 attemptPremove() {
-        if (this.premoveQueue.length === 0 || this.gameOver || this.isAnalysisMode) return;
+        if (this.premoveQueue.length === 0 || this.gameOver) return;
+        if (!this.isPlayingLiveGame && !this.isPuzzle) return;
+
         const move = this.premoveQueue[0];
         
         if (this.turn !== move.color) return; 
-
-        // 1. Initial quick check to see if the piece is still there
         const actualPiece = this.#board[move.from];
         if (!actualPiece || actualPiece.color !== move.color || actualPiece.type !== move.piece) {
             this.clearPremoves();
@@ -5386,7 +5415,6 @@ attemptPremove() {
         );
 
         if (!isLegal) {
-            // Premove is illegal (e.g. king is in check, or piece is pinned)
             this.clearPremoves();
             if (typeof this.#ui !== 'undefined') this.#ui.renderBoard(true);
             return;
@@ -5396,7 +5424,6 @@ attemptPremove() {
 
         if (result) {
             this.premoveQueue.shift();
-            // Automatically attempt the next queued multi-premove
             setTimeout(() => this.attemptPremove(), 50);
             if (typeof this.#ui !== 'undefined') this.#ui.renderBoard(true);
         } else {
@@ -5652,7 +5679,14 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
                 moveObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
             }
         }
-        if (promotion) moveObj.promotion = promotion;
+        if (promotion) {
+            moveObj.promotion = promotion;
+        } else if (moveObj.from && moveObj.to && moveObj.from !== '@') {
+            const pce = this.#engine.get(moveObj.from);
+            if (pce && pce.type === 'p' && (moveObj.to.includes('8') || moveObj.to.includes('1'))) {
+                moveObj.promotion = 'q';
+            }
+        }
         if (move.duck_sq !== undefined) {
             moveObj.duck_sq = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
         }
@@ -6896,6 +6930,8 @@ loadStudy(studyId, skipSave = false) {
 loadChapter(index, skipSave = false, force = false) {
         if (index < 0 || index >= this.chapters.length) return;
         if (!force && index === this.activeChapterIndex && this.mode === 'study') return;
+        const wasTrainer = (this.mode === 'trainer');
+        
         if (this.mode !== 'study' && typeof this.#saveState === 'function') {
             this.#saveState(this.mode);
         }
@@ -6904,19 +6940,29 @@ loadChapter(index, skipSave = false, force = false) {
         }
         
         this.activeChapterIndex = index;
-        this.mode = 'study'; 
+        this.mode = wasTrainer ? 'trainer' : 'study';
         this.gameOver = true;
         
         let pgn = this.chapters[index].pgn;
         if (!pgn || pgn.trim() === '') pgn = '[FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]\n\n*';
         
-        this.loadPGN(pgn); 
+        this.loadPGN(pgn, false, true); 
+        if (typeof this.#saveState === 'function') {
+            this.#saveState(this.mode);
+        }
         
         if (this.#ui) {
-            const orient = this.chapters[index].orientation || 'w';
-            if ((orient === 'w' && this.#ui.flipped) || (orient === 'b' && !this.#ui.flipped)) {
-                this.#ui.flipBoard();
+            if (this.mode === 'trainer') {
+                const colorSel = document.getElementById('trainerColorSelect');
+                const wantFlipped = colorSel ? (colorSel.value === 'b') : false;
+                if (this.#ui.flipped !== wantFlipped) this.#ui.flipBoard();
+            } else {
+                const orient = this.chapters[index].orientation || 'w';
+                if ((orient === 'w' && this.#ui.flipped) || (orient === 'b' && !this.#ui.flipped)) {
+                    this.#ui.flipBoard();
+                }
             }
+
             if (typeof this.#ui.renderChapters === 'function') this.#ui.renderChapters();
 
             if (typeof this.#ui.toggleHideNextMoves === 'function') {

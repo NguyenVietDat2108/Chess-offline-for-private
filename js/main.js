@@ -1,7 +1,7 @@
 import { ChessGame } from './ChessGame.js';
 import { UI } from './UI.js';
 import { BoardScanner } from './scan.js';
-
+import { OpeningTrainer } from './OpeningTrainer.js';
 window.sfWorker = null;
 window.engineAnalysing = false;
 
@@ -10,7 +10,7 @@ class ChessApp {
         this.game = new ChessGame();
         this.ui = new UI();
         this.scanner = new BoardScanner();
-
+        this.trainer = new OpeningTrainer(this);
         // 1. DEPENDENCY INJECTION: Connect them privately
         this.game.setUI(this.ui);
         this.ui.setGame(this.game);

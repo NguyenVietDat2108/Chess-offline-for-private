@@ -402,9 +402,11 @@ init() {
             if (mainContainer) mainContainer.style.justifyContent = 'center';
         }
 
+        // 🔥 ĐỊNH TUYẾN TAB
         let targetId = 'tabContent-Play';
         if (stateMode === 'puzzle' || stateMode === 'puzzles') targetId = 'tabContent-Puzzles';
         else if (stateMode === 'editor') targetId = 'tabContent-Editor';
+        else if (stateMode === 'trainer' || lowerTab === 'trainer') targetId = 'tabContent-Trainer';
 
         document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
         const targetTab = document.getElementById(targetId);
@@ -429,18 +431,29 @@ init() {
 
         if (this.toggleSideMenu) this.toggleSideMenu(false);
 
+        // 🔥 KIỂM TRA ĐIỀU KIỆN ẨN/HIỆN CHUNG
         const isEditor = (stateMode === 'editor');
         const isPuzzle = (stateMode === 'puzzle' || stateMode === 'puzzles');
+        const isTrainer = (stateMode === 'trainer' || lowerTab === 'trainer');
 
-        document.querySelectorAll('.player-header').forEach(el => el.style.display = (isEditor || isPuzzle) ? 'none' : '');
+        // Giấu header và thanh comment đi nếu đang ở Trainer cho rộng chỗ
+        document.querySelectorAll('.player-header').forEach(el => el.style.display = (isEditor || isPuzzle || isTrainer) ? 'none' : '');
         const commentaryBox = document.getElementById('commentaryBox');
-        if (commentaryBox) commentaryBox.style.display = (isEditor || isPuzzle) ? 'none' : '';
+        if (commentaryBox) commentaryBox.style.display = (isEditor || isPuzzle || isTrainer) ? 'none' : '';
+        
+        if (isPuzzle && this.#game && this.#game.currentPuzzle) {
+            if (typeof this.updatePuzzleUI === 'function') {
+                this.updatePuzzleUI("active", this.#game.currentPuzzle);
+            }
+            if (this.#game.puzzleSolved && typeof this.showPuzzleSuccess === 'function') {
+                this.showPuzzleSuccess();
+            }
+        }
 
         const engineBtn = document.querySelector('.engine-toggle-btn');
         if (engineBtn) {
-            engineBtn.style.display = isEditor ? 'none' : '';
+            engineBtn.style.display = (isEditor || isTrainer) ? 'none' : '';
             
-            // ✨ THE FIX: Sync the tab visuals to respect the solved flag!
             let isUnfinishedPuzzle = false;
             if (isPuzzle && this.#game) {
                 if (!this.#game.gameOver && !this.#game.puzzleSolved) {
@@ -454,8 +467,9 @@ init() {
                 engineBtn.style.opacity = '1'; engineBtn.style.cursor = 'pointer';
             }
         }
+        
         const enginePanel = document.getElementById('enginePanel');
-        if (enginePanel) enginePanel.style.display = isEditor ? 'none' : '';
+        if (enginePanel) enginePanel.style.display = (isEditor || isTrainer) ? 'none' : '';
     }
 showVariantRules(variantMode) {
         const mode = variantMode || (this.#game ? this.#game.gameMode : 'classical');
@@ -2748,7 +2762,15 @@ finishDrag(e) {
             if (this.flipped) { col = 7 - col; row = 7 - row; }
             dropIdx = row * 8 + col;
         }
-
+        if (window.app && window.app.trainer && window.app.trainer.isActive) {
+            if (dropIdx !== -1 && !this.dragData.isSpare) {
+                const intercepted = window.app.trainer.handleUserMoveAttempt(this.dragData.fromIdx, dropIdx);
+                if (intercepted) {
+                    this.cleanupDrag(false); // Xóa ghost, snapback quân cờ, không gọi MakeMove của game gốc
+                    return;
+                }
+            }
+        }
         let moveMade = false;
         if (this.dragData && this.dragData.isDuck && this.duckPlacementMoves) {
             if (dropIdx !== -1) {
@@ -3052,7 +3074,6 @@ executeMove(move, animate = true, overridePromo = null) {
 renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         if (this._isExecutingMove) return; 
         
-        
         const state = this.#game ? this.#game.getReader() : null;
         if (!state) return;
 
@@ -3064,8 +3085,17 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         const theme = document.getElementById('assetType') ? document.getElementById('assetType').value : 'merida';
         const boardContainer = document.getElementById('chessBoard');
         if (boardContainer) {
+            // Assign container query to allow mathematical CSS scaling
+            boardContainer.style.containerType = 'inline-size';
+            
             if (theme === 'disguised') boardContainer.classList.add('theme-disguised');
             else boardContainer.classList.remove('theme-disguised');
+        }
+
+        // Apply mathematical layout sync for perfectly scaled CSS badges
+        if (this.boardWrapper) {
+            const bw = this.boardWrapper.offsetWidth || 600;
+            this.boardWrapper.style.setProperty('--board-width', bw + 'px');
         }
         
         this.coordsPosition = document.getElementById('coordPosition') ? document.getElementById('coordPosition').value : 'inside';
@@ -3133,6 +3163,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         }
 
         const activeMove = overrideMove || state.lastMove;
+        const nodeMove = state.lastMove;
 
         if (this.squaresLayer.children.length !== 64) {
             this.squaresLayer.innerHTML = '';
@@ -3154,7 +3185,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                         let curr = q.shift();
                         cluster.push(curr);
                         let r = Math.floor(curr/8), c = curr%8;
-                        // Check all 8 directions for connected ice
                         let neighbors = [curr-8, curr+8, curr-1, curr+1, curr-9, curr-7, curr+7, curr+9];
                         for (let n of neighbors) {
                             if (n >= 0 && n < 64 && state.frozenSquares[n] && !visited.has(n)) {
@@ -3166,7 +3196,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                             }
                         }
                     }
-                    // Find the Bounding Box of this block
                     let minR = 8, maxR = -1, minC = 8, maxC = -1;
                     for (let sq of cluster) {
                         let r = Math.floor(sq/8), c = sq%8;
@@ -3196,14 +3225,12 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             sq.dataset.index = logical_i; 
             sq.innerHTML = '';
 
-             // ✨ Safe Cleanup
             sq.classList.remove('frozen');
             let oldIce = sq.querySelector('.spell-ice');
             if (oldIce) oldIce.remove();
             let oldPortal = sq.querySelector('.spell-portal');
             if (oldPortal) oldPortal.remove();
 
-            // ✨ SEAMLESS 3x3 FREEZE BLOCK (MAXIMUM CRYSTALLINE DENSITY + DEEP COLD BLUE)
             if (state.gameMode === 'spell' && state.frozenSquares && state.frozenSquares[logical_i]) {
                 sq.classList.add('frozen');
                 let ice = document.createElement('div');
@@ -3223,13 +3250,11 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     let bgX = mapping.W > 1 ? (vis_x / (mapping.W - 1)) * 100 : 50;
                     let bgY = mapping.H > 1 ? (vis_y / (mapping.H - 1)) * 100 : 50;
                     
-                    // ✨ Hyper-Dense Vector Snowflake (16 Arms, 120+ Frost Needles)
                     let svgSnowFlower = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><filter id='glow'><feGaussianBlur stdDeviation='1.2' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><g id='branch'><line x1='50' y1='50' x2='50' y2='0' stroke='%23fff' stroke-width='1.5' stroke-linecap='round'/><path d='M 50 6 L 30 26 M 50 6 L 70 26 M 50 14 L 28 36 M 50 14 L 72 36 M 50 22 L 32 40 M 50 22 L 68 40 M 50 30 L 38 42 M 50 30 L 62 42 M 50 38 L 42 46 M 50 38 L 58 46' stroke='%230af' stroke-width='1' fill='none' stroke-linecap='round'/><path d='M 50 10 L 40 20 M 50 10 L 60 20 M 50 18 L 36 32 M 50 18 L 64 32 M 50 26 L 40 36 M 50 26 L 60 36 M 50 34 L 44 40 M 50 34 L 56 40' stroke='%23fff' stroke-width='0.6' fill='none' stroke-linecap='round'/></g><g id='spike'><line x1='50' y1='50' x2='50' y2='10' stroke='%2308f' stroke-width='1.2' stroke-linecap='round'/><path d='M 50 16 L 38 28 M 50 16 L 62 28 M 50 26 L 42 34 M 50 26 L 58 34 M 50 36 L 46 40 M 50 36 L 54 40' stroke='%234df' stroke-width='0.8' fill='none' stroke-linecap='round'/></g></defs><g filter='url(%23glow)'><polygon points='50,15 75,25 85,50 75,75 50,85 25,75 15,50 25,25' fill='rgba(0,60,150,0.5)'/><use href='%23branch' transform='rotate(0 50 50)'/><use href='%23branch' transform='rotate(45 50 50)'/><use href='%23branch' transform='rotate(90 50 50)'/><use href='%23branch' transform='rotate(135 50 50)'/><use href='%23branch' transform='rotate(180 50 50)'/><use href='%23branch' transform='rotate(225 50 50)'/><use href='%23branch' transform='rotate(270 50 50)'/><use href='%23branch' transform='rotate(315 50 50)'/><use href='%23spike' transform='rotate(22.5 50 50)'/><use href='%23spike' transform='rotate(67.5 50 50)'/><use href='%23spike' transform='rotate(112.5 50 50)'/><use href='%23spike' transform='rotate(157.5 50 50)'/><use href='%23spike' transform='rotate(202.5 50 50)'/><use href='%23spike' transform='rotate(247.5 50 50)'/><use href='%23spike' transform='rotate(292.5 50 50)'/><use href='%23spike' transform='rotate(337.5 50 50)'/><polygon points='50,25 68,32 75,50 68,68 50,75 32,68 25,50 32,32' fill='rgba(0,150,255,0.4)' stroke='%23fff' stroke-width='1.5'/><polygon points='50,35 61,39 65,50 61,61 50,65 39,61 35,50 39,39' fill='rgba(150,240,255,0.6)' stroke='%230af' stroke-width='1.5'/><circle cx='50' cy='50' r='8' fill='%23fff'/><circle cx='50' cy='50' r='3' fill='%230bf'/></g></svg>`;
 
                     let bgSize = `${mapping.W * 100}% ${mapping.H * 100}%`;
                     let bgPos = `${bgX}% ${bgY}%`;
 
-                    // 🧊 6 Layers of Ice: Vector Star + 2 Frost Ray Arrays + Core Depth + 2 Crystal Fracture Layers
                     ice.style.cssText = `
                         position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
                         background-image: 
@@ -3283,7 +3308,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 sq.appendChild(ice);
             }
 
-            // ✨ JUMP PORTAL
             if (state.gameMode === 'spell' && state.jump_sq !== undefined && state.jump_sq === logical_i) {
                 let portal = document.createElement('div');
                 portal.className = 'spell-portal';
@@ -3328,19 +3352,16 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
 
             sq.onmousedown = null;
 
-            // ✨ SPELL INTERCEPTOR: Handle 3x3 Hover & Spell Casting
             if (state.gameMode === 'spell' && this.activeSpell && state.mode !== 'editor') {
-                sq.style.cursor = 'pointer'; // Replaced crosshair with pointer
+                sq.style.cursor = 'pointer'; 
 
                 sq.onmouseenter = () => {
-                    // Clear previous highlights efficiently
                     this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
 
                     if (this.activeSpell === 'freeze') {
                         const r = Math.floor(logical_i / 8);
                         const c = logical_i % 8;
 
-                        // Highlight 3x3 area
                         for (let dr = -1; dr <= 1; dr++) {
                             for (let dc = -1; dc <= 1; dc++) {
                                 const nr = r + dr, nc = c + dc;
@@ -3352,7 +3373,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                             }
                         }
                     } else {
-                        // Default 1x1 highlight for 'jump' or other spells
                         sq.classList.add('spell-target-hover');
                     }
                 };
@@ -3365,8 +3385,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     if (e.button !== 0) return; 
                     e.preventDefault();
                     e.stopPropagation();
-                    console.log(`\n🔮 --- SPELL CAST INITIATED ---`);
-                    console.log(`[UI] Casting '${this.activeSpell}' on UI index: ${logical_i}`);
                     this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
                     
                     if (typeof this.castSpell === 'function') {
@@ -3374,7 +3392,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     }
                 };
 
-                continue; // Prevents normal piece interaction while spell is active
+                continue; 
             } else {
                 sq.style.cursor = ''; 
                 sq.onmouseenter = null;
@@ -3447,7 +3465,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         let visualBoard;
         const currentFen = this.#game && this.#game.currentNode ? this.#game.currentNode.fen : '';
         
-        // ✨ THE ULTIMATE GHOST FIX: Safely parse the ~ character without collapsing the board!
         if (currentFen.includes('~')) {
             visualBoard = new Array(64).fill(null);
             let validPieces = state.board.filter(p => p && p.type !== '~');
@@ -3461,20 +3478,17 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 if (char === '/') continue;
                 
                 if (/\d/.test(char)) { 
-                    // ✨ FIX: Explicitly fill empty squares with null so pieces don't collapse!
                     let empties = parseInt(char, 10);
                     for (let e = 0; e < empties; e++) {
                         visualBoard[logicalIndex] = null;
                         logicalIndex++;
                     }
                 } else if (char === '~') { 
-                    // Apply ghost effect to the piece we JUST placed
                     let prevSq = logicalIndex - 1;
                     if (visualBoard[prevSq] && state.gameMode === 'alice') {
                         visualBoard[prevSq].isBoardB = true;
                     }
                 } else { 
-                    // Real piece! Place it securely
                     if (pieceCursor < validPieces.length) {
                         visualBoard[logicalIndex] = { ...validPieces[pieceCursor] };
                         pieceCursor++;
@@ -3486,7 +3500,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             visualBoard = [...state.board];
         }
 
-        // Apply Duck Placement preview logic
         if (this.duckPlacementMoves && this.pendingDuckMove) {
             const fromIdx = this.pendingDuckMove.from; const toIdx = this.pendingDuckMove.to;
             if (fromIdx >= 0 && fromIdx < 64 && toIdx >= 0 && toIdx < 64) {
@@ -3544,24 +3557,59 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     htmlBuffer = `<img src="${trimmed}" class="piece-img${duckClass}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
                 }
             }
-            const activeNode = (this.#game && this.#game.currentNode) ? this.#game.currentNode : null;
-            const currentNodeMove = activeNode ? activeNode.lastMove : null;
             
-            if (currentNodeMove && p.idx === currentNodeMove.to && activeNode) {
-                const info = activeNode.nag ? (typeof this.getNagInfo === 'function' ? this.getNagInfo(activeNode.nag) : null) : null;
-                const isBook = activeNode.isBook;
+            const activeNode = (this.#game && this.#game.currentNode) ? this.#game.currentNode : null;
+            const nodeMove = activeNode ? activeNode.lastMove : null;
+            
+            // Strict check: NAG only renders on the destination of the move that created this position
+            if (nodeMove && p.idx === nodeMove.to && activeNode) {
+                let evalNags = [];
+                let qualityNags = [];
 
-                if (isBook || (info && ['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy', 'excellent', 'great', 'miss'].includes(info.type))) {
-                    let bgColor = info ? info.color : '#a87c53';
-                    let bColor = info ? info.borderColor : '#825f3c';
+                if (activeNode.nag) {
+                    const nags = activeNode.nag.toString().split(',');
+                    nags.forEach(n => {
+                        const info = typeof this.getNagInfo === 'function' ? this.getNagInfo(n.trim()) : null;
+                        if (info) {
+                            if (info.type.startsWith('eval')) evalNags.push(info);
+                            else qualityNags.push(info);
+                        }
+                    });
+                }
+
+                if (activeNode.isBook) {
+                    let svgBook = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG.replace('width="30"', 'width="24"').replace('height="30"', 'height="24"') : 'B';
+                    qualityNags.push({
+                        symbol: `<div style="display:flex; justify-content:center; align-items:center; color:transparent; width:100%; height:100%;">${svgBook}</div>`,
+                        color: '#a87c53', borderColor: '#825f3c', textColor: '#ffffff'
+                    });
+                }
+
+                // Render Qualities (!, ?) FIRST, then Evaluations (+-, =)
+                const finalNagsInfo = [...qualityNags, ...evalNags];
+                
+                if (finalNagsInfo.length > 0) {
+                    const nagsHtml = finalNagsInfo.map((info, index) => {
+                        const tColor = info.textColor || '#ffffff';
+                        const zIndex = 10 - index;
+                        
+                        const marginLeft = index > 0 ? '-15cqi' : '0';
+                        
+                        const wideSymbols = ['⩲', '⩱', '±', '∓', '∞', '='];
+                        const isDoubleChar = (info.symbol.length > 1 || wideSymbols.includes(info.symbol)) && !info.symbol.includes('<div');
+                        const fontSize = isDoubleChar ? '18cqi' : '25cqi';
+                        const letterSpacing = isDoubleChar ? '-1cqi' : 'normal';
+                        
+                        return `<div class="nag-indicator" style="background-color:${info.color} !important; border:3cqi solid ${info.borderColor} !important; color:${tColor} !important; width:40cqi !important; height:40cqi !important; min-width:40cqi !important; min-height:40cqi !important; max-width:40cqi !important; max-height:40cqi !important; flex-shrink:0 !important; flex-grow:0 !important; border-radius:50% !important; display:flex !important; flex-direction:column !important; align-items:center !important; justify-content:center !important; padding:0 !important; margin:0 0 0 ${marginLeft} !important; font-size:${fontSize} !important; letter-spacing:${letterSpacing} !important; font-weight:800 !important; box-shadow:0 2cqi 4cqi rgba(0,0,0,0.6) !important; box-sizing:border-box !important; z-index:${zIndex} !important; line-height:1 !important; white-space:nowrap !important; overflow:hidden !important; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important; text-shadow:none !important;">${info.symbol}</div>`;
+                    }).join('');
                     
-                    let content = info ? info.symbol : '';
-                    if (isBook) {
-                        let svgBook = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG.replace('width="30"', 'width="24"').replace('height="30"', 'height="24"') : '📖';
-                        content = `<div style="display:flex; justify-content:center; align-items:center; color:transparent;">${svgBook}</div>`;
-                    }
-
-                    htmlBuffer += `<div class="nag-indicator" style="position:absolute; top:-5px; right:-5px; width:22px; height:22px; background-color:${bgColor}; border:2px solid ${bColor}; border-radius:50%; color:#fff; font-weight:bold; font-size:13px; display:flex; justify-content:center; align-items:center; z-index:10; box-shadow:0 2px 4px rgba(0,0,0,0.4); font-family:sans-serif; pointer-events:none;">${content}</div>`;
+                    // Create an inline-size container matching the piece boundaries to anchor the CQI units
+                    htmlBuffer += `
+                        <div class="nag-wrapper" style="position:absolute !important; top:0 !important; left:0 !important; width:100% !important; height:100% !important; container-type:inline-size !important; pointer-events:none !important; z-index:100 !important;">
+                            <div style="position:absolute !important; top:-10% !important; right:-10% !important; display:flex !important; flex-direction:row !important; align-items:center !important;">
+                                ${nagsHtml}
+                            </div>
+                        </div>`;
                 }
             }
 
@@ -3576,13 +3624,9 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 if (el.innerHTML !== htmlBuffer) el.innerHTML = htmlBuffer;
             }
 
-            // ========================================================
-            // ✨ NEW: EXPLICIT PIECE INTERCEPTOR FOR SPELLS
-            // ========================================================
             if (state.gameMode === 'spell' && this.activeSpell && state.mode !== 'editor') {
                 el.style.cursor = 'pointer';
                 
-                // 1. Mirror the Hover Effect
                 el.onmouseenter = () => {
                     this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(s => s.classList.remove('spell-target-hover'));
                     
@@ -3604,12 +3648,10 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     }
                 };
 
-                // 2. Mirror the Un-hover Effect
                 el.onmouseleave = () => {
                     this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(s => s.classList.remove('spell-target-hover'));
                 };
 
-                // 3. Mirror the Click / Cast Effect
                 el.onmousedown = (e) => {
                     if (e.button !== 0) return;
                     e.preventDefault(); 
@@ -3721,23 +3763,16 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             }
 
             if (animate && (positionChanged || forceAnimate) && (!isNew || forceAnimate)) {
-                // 1. Instantly snap to the starting position with NO transition
                 el.style.transition = 'none'; 
                 el.style.transform = startTransform;
-                
-                // 2. Force layout recalculation (safer than getBoundingClientRect)
                 void el.offsetWidth; 
                 
-                // ✨ THE FIX: Force Windows 11 to physically paint the start position 
-                // before calculating the destination!
                 requestAnimationFrame(() => {
                     el.style.transition = ''; 
-                    
                     el.classList.add('animating');
                     if (isCastlingMove) el.classList.add('castling-jump');
 
                     el.style.transitionDuration = `${isCastlingMove ? castleDuration : moveDuration}ms`;
-                    
                     el.style.transform = targetTransform; 
 
                     const sqEl = this.squaresLayer.querySelector(`[data-index="${p.idx}"]`);
@@ -3779,7 +3814,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     el.style.setProperty('--anim-duration', `${activeDuration}ms`);
                     
                     el.getBoundingClientRect();
-                    
                     el.classList.add('manga-tail'); 
                     
                     el.dataset.tailTimeout = setTimeout(() => {
@@ -4142,30 +4176,31 @@ scrollToActiveMove() {
 getNagInfo(nag) {
         if (!nag) return null;
         let nags = nag.toString().split(',').map(n => n.trim().replace('$', ''));
-        let v = nags.find(n => parseInt(n) >= 1 && parseInt(n) <= 9) || nags[0]; 
+        let v = nags.find(n => parseInt(n) >= 1 && parseInt(n) <= 19) || nags[0]; 
         
-        let info = { symbol:'', cls:'nag-pos', color:'#888888', borderColor:'#aaaaaa', type:'' };
         switch(v) {
-            case'1':case'!': return { symbol:'!', cls:'ind-1', color:'#5c8bb0', borderColor:'#28a2e7',type:'good'};
-            case'2':case'?': return { symbol:'?', cls:'ind-2', color:'#ffa700', borderColor:'#af5205',type:'mistake'};
-            case'3':case'!!': return { symbol:'!!', cls:'ind-3', color:'#26c2a3', borderColor:'#09e9ed',type:'brilliant'};
-            case'4':case'??': return { symbol:'??', cls:'ind-4', color:'#fa412d', borderColor:'#892c12',type:'blunder'};
-            case'5':case'!?': return { symbol:'!?', cls:'ind-5', color:'#b369f2', borderColor:'#bd09ed',type:'interesting'};
-            case'6':case'?!': return { symbol:'?!', cls:'ind-6', color:'#f7c045', borderColor:'#f5d91d',type:'inaccuracy'};
-            case'7': return { symbol:'!', cls:'ind-1', color:'#96bc4b', borderColor:'#6c8a32', type:'excellent'};
-            case'8': return { symbol:'!', cls:'ind-1', color:'#5c8bb0', borderColor:'#3a6280', type:'great'};
-            case'9': return { symbol:'X', cls:'ind-2', color:'#ff7769', borderColor:'#c75446', type:'miss'};
-            case'10':case'=': info.symbol ='='; break; 
-            case'13':case'∞': info.symbol ='∞'; break; 
-            case'14':case'⩲':case'+=':info.symbol ='⩲'; break; 
-            case'15':case'⩱':case'=+':info.symbol ='⩱'; break; 
-            case'16':case'±':case'+/-':info.symbol ='±'; break; 
-            case'17':case'∓':case'-/+':info.symbol ='∓'; break; 
-            case'18':case'+-':info.symbol ='+-'; break; 
-            case'19':case'-+':info.symbol ='-+'; break; 
-            default:return null;
+            // Move Qualities
+            case'1':case'!': return { symbol:'!', cls:'ind-1', color:'#5c8bb0', borderColor:'#28a2e7', type:'good', textColor:'#ffffff'};
+            case'2':case'?': return { symbol:'?', cls:'ind-2', color:'#ffa700', borderColor:'#af5205', type:'mistake', textColor:'#ffffff'};
+            case'3':case'!!': return { symbol:'!!', cls:'ind-3', color:'#26c2a3', borderColor:'#09e9ed', type:'brilliant', textColor:'#ffffff'};
+            case'4':case'??': return { symbol:'??', cls:'ind-4', color:'#fa412d', borderColor:'#892c12', type:'blunder', textColor:'#ffffff'};
+            case'5':case'!?': return { symbol:'!?', cls:'ind-5', color:'#b369f2', borderColor:'#bd09ed', type:'interesting', textColor:'#ffffff'};
+            case'6':case'?!': return { symbol:'?!', cls:'ind-6', color:'#f7c045', borderColor:'#f5d91d', type:'inaccuracy', textColor:'#ffffff'};
+            case'7': return { symbol:'!', cls:'ind-1', color:'#96bc4b', borderColor:'#6c8a32', type:'excellent', textColor:'#ffffff'};
+            case'8': return { symbol:'!', cls:'ind-1', color:'#5c8bb0', borderColor:'#3a6280', type:'great', textColor:'#ffffff'};
+            case'9': return { symbol:'X', cls:'ind-2', color:'#ff7769', borderColor:'#c75446', type:'miss', textColor:'#ffffff'};
+            
+            // Evaluations: White advantage receives black text (#000000), Black advantage receives white text (#ffffff)
+            case'10':case'=': return { symbol:'=', color:'#e2e8f0', borderColor:'#cbd5e1', type:'eval_eq', textColor:'#000000'}; 
+            case'13':case'∞': return { symbol:'∞', color:'#e2e8f0', borderColor:'#cbd5e1', type:'eval_eq', textColor:'#000000'}; 
+            case'14':case'⩲':case'+=': return { symbol:'⩲', color:'#ffffff', borderColor:'#cbd5e1', type:'eval_w', textColor:'#000000'}; 
+            case'15':case'⩱':case'=+': return { symbol:'⩱', color:'#1e293b', borderColor:'#0f172a', type:'eval_b', textColor:'#ffffff'}; 
+            case'16':case'±':case'+/-': return { symbol:'±', color:'#ffffff', borderColor:'#cbd5e1', type:'eval_w', textColor:'#000000'}; 
+            case'17':case'∓':case'-/+': return { symbol:'∓', color:'#1e293b', borderColor:'#0f172a', type:'eval_b', textColor:'#ffffff'}; 
+            case'18':case'+-': return { symbol:'+-', color:'#ffffff', borderColor:'#cbd5e1', type:'eval_w', textColor:'#000000'}; 
+            case'19':case'-+': return { symbol:'-+', color:'#1e293b', borderColor:'#0f172a', type:'eval_b', textColor:'#ffffff'}; 
+            default: return null;
         }
-        return info;
     }
 updateEditorState() {
         if (!this.#game || this.#game.mode !== 'editor') return;
@@ -4300,7 +4335,11 @@ createMoveSpanSafe(node) {
 
         symbols.forEach(info => {
             let nSpan = document.createElement('span');
-            nSpan.innerText = info.symbol; nSpan.style.color = info.color; nSpan.style.fontWeight = 'bold'; nSpan.style.marginLeft = '2px';
+            nSpan.innerText = info.symbol; 
+            // Prevent dark evaluation colors from hiding on the dark PGN background
+            nSpan.style.color = info.type.startsWith('eval') ? '#e2e8f0' : info.color;
+            nSpan.style.fontWeight = 'bold'; 
+            nSpan.style.marginLeft = '2px';
             span.appendChild(nSpan);
         });
 
@@ -4308,7 +4347,7 @@ createMoveSpanSafe(node) {
             let icon = document.createElement('span'); icon.className = 'eval-icon';
             const iconColor = primaryInfo ? primaryInfo.color : '#a87c53';
             icon.style.cssText = "display:inline-flex; align-items:center; margin-left:4px;"; icon.style.color = iconColor;
-            icon.innerHTML = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG : '📖';
+            icon.innerHTML = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG : 'B';
             let svg = icon.querySelector('svg');
             if (svg) { svg.style.fill = iconColor; svg.style.width = '14px'; svg.style.height = '14px'; }
             span.appendChild(icon);
@@ -4581,10 +4620,8 @@ renderTreeVerticalRecursiveSingle(node, container) {
 
             let moveText = "";
             if (moveColor === 'w') {
-                // White always gets a number if the color just switched to White, or if it's a new line
                 if (moveColor !== lastColor || isFirstInLine) moveText = `${mNum}.`;
             } else {
-                // Black ONLY gets a number if it is forced to start a brand new line
                 if (isFirstInLine) moveText = `${mNum}...`;
             }
             lastColor = moveColor;
@@ -4610,14 +4647,16 @@ renderTreeVerticalRecursiveSingle(node, container) {
                 moveSpan.innerText = curr.moveSan; 
                 symbols.forEach(info => {
                     let nagSpan = document.createElement('span'); nagSpan.className = 'nag-glyph'; nagSpan.innerText = info.symbol;
-                    nagSpan.style.color = info.color; nagSpan.style.marginLeft = "2px"; nagSpan.style.fontWeight = "bold";
+                    // Prevent dark evaluation colors from hiding on the dark PGN background
+                    nagSpan.style.color = info.type.startsWith('eval') ? '#e2e8f0' : info.color;
+                    nagSpan.style.marginLeft = "2px"; nagSpan.style.fontWeight = "bold";
                     moveSpan.appendChild(nagSpan);
                 });
             } else moveSpan.innerText = curr.moveSan;
 
             if (curr.isBook) {
                 const bookIcon = document.createElement('span'); bookIcon.className = 'tree-book-icon';
-                bookIcon.innerHTML = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG : '📖';
+                bookIcon.innerHTML = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG : 'B';
                 let bookColor = curr.nag ? (this.getNagInfo(curr.nag)?.color || '#A87C53') : '#A87C53';
                 bookIcon.style.cssText = `display:inline-flex; align-items:center; justify-content:center; width:1em; height:1em; margin-left:4px; vertical-align:middle; color:${bookColor};`;
                 let svg = bookIcon.querySelector('svg');
@@ -4716,7 +4755,6 @@ renderVariationLine(node, container) {
             span.className = `var-move ${isActive ? 'active' : ''}`; 
             span.dataset.id = curr.id; 
             
-            // 🔥 FAT HITBOX FIX: Converts the tiny inline text into a comfortable, finger-friendly button block!
             span.style.cssText = "display: inline-block; border-radius: 4px; cursor: pointer;; text-align: center;";
             
             span.innerText = txt ? `${txt} ${curr.moveSan}` : curr.moveSan;
@@ -4730,7 +4768,9 @@ renderVariationLine(node, container) {
                 if (primaryInfo) { span.style.color = primaryInfo.color; span.style.backgroundColor = primaryInfo.color + '20'; }
                 symbols.forEach(info => {
                     let nagSpan = document.createElement('span'); nagSpan.className = 'nag-glyph'; nagSpan.innerText = info.symbol;
-                    nagSpan.style.color = info.color; nagSpan.style.marginLeft = "2px"; nagSpan.style.fontWeight = "bold";
+                    // Prevent dark evaluation colors from hiding on the dark PGN background
+                    nagSpan.style.color = info.type.startsWith('eval') ? '#e2e8f0' : info.color;
+                    nagSpan.style.marginLeft = "2px"; nagSpan.style.fontWeight = "bold";
                     span.appendChild(nagSpan);
                 });
             }
@@ -4747,7 +4787,6 @@ renderVariationLine(node, container) {
                 evSpan.style.marginLeft = "3px"; evSpan.innerText = evalData.text; span.appendChild(evSpan);
             }
 
-            // Keep the spacing between inline blocks
             span.appendChild(document.createTextNode(" "));
 
             const targetNodeId = curr.id; let capturedRef = curr;
@@ -4825,7 +4864,9 @@ createPlyDiv(node) {
         
         symbols.forEach(info => {
             let sym = document.createElement('span'); sym.className = `nag-glyph`; sym.innerText = info.symbol;
-            sym.style.color = info.color; sym.style.marginLeft = "3px"; sym.style.fontWeight = "bold";
+            // Prevent dark evaluation colors from hiding on the dark PGN background
+            sym.style.color = info.type.startsWith('eval') ? '#e2e8f0' : info.color;
+            sym.style.marginLeft = "3px"; sym.style.fontWeight = "bold";
             mainWrap.appendChild(sym);
         });
         

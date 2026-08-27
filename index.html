@@ -107,6 +107,10 @@
                             <img src="./assets/tabs-icon/book-mark-aqua.svg" width="16" height="16" style="opacity: 0.8;">
                             <span>Study</span>
                         </button>
+                        <button id="menuBtn-trainer" class="menu-nav-btn" onclick="window.app.ui.switchTab('trainer'); window.app.ui.toggleSideMenu(false);" style="text-align: left; padding: 12px 15px; background: transparent; border: none; border-radius: 6px; color: #ccc; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s;" onmouseover="if(!this.classList.contains('active')){this.style.background='#222'; this.style.color='#fff'}" onmouseout="if(!this.classList.contains('active')){this.style.background='transparent'; this.style.color='#ccc'}">
+                                <img src="./assets/tabs-icon/StackOfBooks.svg" width="18" height="18" alt="Trainer icon" style="display: block;">
+                                Opening Trainer
+                            </button>
                         <button id="menuBtn-editor" class="menu-nav-btn" onclick="window.app.ui.switchTab('editor'); window.app.ui.toggleSideMenu(false);" style="text-align: left; padding: 12px 15px; background: transparent; border: none; border-radius: 6px; color: #ccc; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s;" onmouseover="if(!this.classList.contains('active')){this.style.background='#222'; this.style.color='#fff'}" onmouseout="if(!this.classList.contains('active')){this.style.background='transparent'; this.style.color='#ccc'}">
                             <svg viewBox="0 0 100 100" width="38" height="38" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
                                 <rect x="10" y="10" width="80" height="80" rx="10" fill="#262421" stroke="#38bdf8" stroke-width="4"/>
@@ -769,8 +773,7 @@
                                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; margin-bottom:10px;">
                                         <button class="btn-primary" id="resignBtn" onclick="window.app.game.resign()" style="width: 100%; padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; cursor: pointer; font-weight: bold; background:#fa412d;">🏳️ Resign</button>
                                         <button class="btn-primary" id="drawBtn" onclick="window.app.game.offerDraw()" style="width: 100%; padding: 10px; border-radius: 4px; font-size: 13px; background:#5c8bb0; color: #fff; border: 1px solid #444; cursor: pointer; font-weight: bold;">🤝 Draw</button>
-                                        <button class="btn-secondary" onclick="window.app.game.startAnalysisMode()" style="grid-column: span 2; background:#2872b5; color:white; border:none;">🔬 Analysis Board</button>
-                                    </div>
+                                        <button class="btn-secondary" onclick="window.app.game.startAnalysisMode(true)" style="grid-column: span 2; background:#2872b5; color:white; border:none;">🔬 Analysis Board</button>                                    </div>
                                     <button class="btn-secondary" onclick="window.app.ui.copyPGN()" style="width: 100%; padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; cursor: pointer; font-weight: bold;">📄 Copy PGN</button>
                                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px;">
                                         <button class="btn-secondary" onclick="alert('Importing a GIF requires an image-to-chess OCR AI. This button is reserved for future updates!')" style="width: 100%; padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 10px; background: #2a2a2a; color: #fff; border: 1px solid #444; cursor: pointer; font-weight: bold;">📥 Import GIF</button>
@@ -939,6 +942,36 @@
                                         <button class="btn-secondary" onclick="window.app.ui.editorClear()">Clear Board</button>
                                     </div>
                                     <button class="btn-primary" style="min-height:40px;background:#1baca6; margin-top:10px;" onclick="window.app.ui.finishEditor()">Continue From Here</button>
+                                </div>
+                            </div>
+                            <!-- TAB CONTENT: OPENING TRAINER -->
+                            <div id="tabContent-Trainer" class="tab-content" style="padding: 15px; flex-direction: column; gap: 15px; height: 100%;">
+                                <h3 style="color:#26c2a3; margin-bottom:10px; margin-top:10px; text-align:center;">Opening Trainer</h3>
+                                
+                                <div style="background: #1e1e1e; border: 1px solid #333; border-radius: 6px; padding: 15px; flex-shrink: 0;">
+                                    <span id="trainerStatusText" style="color: #bababa; font-size: 13px; display: block; margin-bottom: 12px; text-align: center;">1. Go to Study & load a PGN.<br>2. Select Chapter & Color.<br>3. Click Start.</span>
+                                    
+                                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                                        <select id="trainerChapterSelect" class="select-input" onchange="window.app.trainer.loadTrainerChapter(this.value);" style="padding: 8px; border-radius: 4px; background: #111; color: #fff; border: 1px solid #444; width: 100%; cursor: pointer;">
+                                            <option value="">Select Chapter...</option>
+                                        </select>
+
+                                        <div style="display: flex; gap: 8px;">
+                                            <select id="trainerColorSelect" class="select-input" onchange="if(window.app && window.app.ui) { if(this.value==='b' && !window.app.ui.flipped) window.app.ui.flipBoard(); else if(this.value==='w' && window.app.ui.flipped) window.app.ui.flipBoard(); }" style="flex: 1; padding: 8px; border-radius: 4px; background: #111; color: #fff; border: 1px solid #444; cursor: pointer;">
+                                                <option value="w">Play as White</option>
+                                                <option value="b">Play as Black</option>
+                                            </select>
+                                            <button id="btnStartTrainer" class="btn-success" onclick="window.app.trainer.toggleTraining()" style="flex: 1.2; padding: 8px; font-size: 13px; font-weight: bold; border-radius: 4px; background: #26c2a3; color: #fff; border: none; cursor: pointer;">🚀 Start</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="trainerProgressContainer" style="display: none; width: 100%; height: 8px; background: #111; border-radius: 4px; overflow: hidden; border: 1px solid #333; flex-shrink: 0;">
+                                    <div id="trainerProgressBar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #38bdf8, #26c2a3); transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);"></div>
+                                </div>
+
+                                <div id="miniBoardsContainer" style="flex: 1; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 12px; align-content: flex-start; padding-bottom: 20px;">
+                                    <!-- Mini boards injected here -->
                                 </div>
                             </div>
                         </div>
@@ -1223,7 +1256,7 @@
                 <p id="winReason">by Checkmate</p>
                 <div class="modal-buttons">
                     <button class="btn-primary" onclick="window.app.game.rematch()">Rematch</button>
-                    <button class="btn-primary" onclick="window.app.game.startAnalysisMode()">Analyze</button>
+                    <button class="btn-primary" onclick="window.app.game.startAnalysisMode(true)">Analyze</button>
                     <button class="btn-primary" onclick="window.app.ui.openAddToStudyModal()">Study</button>
                 </div>
             </div>
