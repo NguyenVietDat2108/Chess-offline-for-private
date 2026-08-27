@@ -3139,7 +3139,22 @@ handleTabSwitch(newTabName) {
         this.mode = newTabName;
         
         if (currentTabContext !== targetTabContext) {
-            this.#restoreState(targetTabContext);
+            if (targetTabContext === 'editor') {
+                const currentFen = this.currentNode ? this.currentNode.fen : (typeof this.generateFEN === 'function' ? this.generateFEN() : INITIAL_FEN);
+                
+                this.history = [];
+                this.moveList = [];
+                this.pgnHeaders = { "FEN": currentFen, "SetUp": "1", "Variant": this.gameMode };
+                this.rootNode = new MoveNode(currentFen, null);
+                this.currentNode = this.rootNode;
+                
+                if (typeof this.loadFEN === 'function') {
+                    this.loadFEN(currentFen, this.gameMode, true);
+                }
+            } else {
+                // Các tab khác vẫn cô lập bộ nhớ bình thường
+                this.#restoreState(targetTabContext);
+            }
         }
         
         // 4. Invalidate structural visual layers to snap the UI board to the new scope data
