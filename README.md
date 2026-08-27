@@ -33,3 +33,4 @@ Fire up your local environment and you're ready to play.
 -Support variants: chess960, 3check, antichess , atomic  ,bughouse , chaturanga , crazyhouse , duck , horde , kingofthehill , racingkings , alice , spell (chesscom)             
 -Support fairy-stockfish for variants
 -Support loading engine's pv in engine matches and lichess analysis
+-Open beta for opening trainer.
