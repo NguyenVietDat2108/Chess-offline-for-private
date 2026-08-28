@@ -581,7 +581,6 @@ _injectCSS() {
 
         const targetNode = validMoves.find(c => !c.is_solved);
         if (!targetNode || !targetNode.lastMove) return;
-
         let mistakes = JSON.parse(localStorage.getItem('chess_trainer_srs') || '{}');
         let fenKey = this.app.game.currentNode.fen.split(' ')[0]; 
         mistakes[fenKey] = (mistakes[fenKey] || 0) + 1;
@@ -592,17 +591,18 @@ _injectCSS() {
 
         this.clearHints();
         const statusEl = document.getElementById('trainerStatusText');
-
         if (this.mistakeCount === 1) {
+            statusEl.innerHTML = "<strong style='color:#fa412d'>Incorrect!</strong><br>Try a different move.";
+        } else if (this.mistakeCount === 2) {
             const sqEl = document.querySelector(`.square[data-index="${fromSq}"]`);
             if (sqEl) sqEl.classList.add('trainer-hint-piece');
-            statusEl.innerHTML = "<strong style='color:#fa412d'>Inaccuracy!</strong><br>Hint: Move the highlighted piece.";
-        } else if (this.mistakeCount >= 2) {
+            statusEl.innerHTML = "<strong style='color:#fa412d'>Still wrong!</strong><br>Hint: Highlighted the starting square of the correct piece.";
+        } else {
             const sqFrom = document.querySelector(`.square[data-index="${fromSq}"]`);
             const sqTo = document.querySelector(`.square[data-index="${toSq}"]`);
             if (sqFrom) sqFrom.classList.add('trainer-hint-piece');
             if (sqTo) sqTo.classList.add('trainer-hint-dest');
-            statusEl.innerHTML = `<strong style='color:#fa412d'>Mistake!</strong><br>You need to play <b>${targetNode.moveSan}</b>`;
+            statusEl.innerHTML = `<strong style='color:#fa412d'>Failed!</strong><br>The correct move was <b>${targetNode.moveSan}</b>`;
         }
     }
 

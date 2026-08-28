@@ -3116,7 +3116,12 @@ handleTabSwitch(newTabName) {
         const targetTabContext = (newTabName === 'local' || newTabName === 'bot' || newTabName === 'play') ? 'play' : newTabName;
         const currentTabContext = (this.mode === 'local' || this.mode === 'bot' || this.mode === 'play') ? 'play' : (this.mode || 'analysis');
 
-        // 🛡️ THE BOOT SHIELD: Do not auto-save over your files during the first page load!
+        // Prevent standard routines from corrupting Graph memory
+        if (targetTabContext === 'graph') {
+            this.mode = 'graph';
+            return; 
+        }
+
         if (this._isBooting || this.#_isBooting) {
             this.mode = newTabName;
             this.#restoreState(targetTabContext);
@@ -3125,39 +3130,41 @@ handleTabSwitch(newTabName) {
             return;
         }
         
-        // 1. Pack up the current tab's live memory BEFORE changing context
-        if (currentTabContext !== targetTabContext) {
+        // Pack up current BEFORE changing
+        if (currentTabContext !== targetTabContext && currentTabContext !== 'graph') {
             if (this.mode) this.#saveState(currentTabContext);
             if (this.gameMode) this.saveVariantState(this.gameMode);
         }
         
-        // 2. Kill stray asynchronous workers to avoid leaking actions onto the target board
         if (window.sfWorker) window.sfWorker.postMessage('stop');
         if (typeof window.engineAnalysing !== 'undefined') window.engineAnalysing = false;
         
-        // 3. Shift execution scope to target tab and reconstruct its independent assets
         this.mode = newTabName;
         
+        // Restore appropriate memory context
         if (currentTabContext !== targetTabContext) {
             if (targetTabContext === 'editor') {
                 const currentFen = this.currentNode ? this.currentNode.fen : (typeof this.generateFEN === 'function' ? this.generateFEN() : INITIAL_FEN);
-                
                 this.history = [];
                 this.moveList = [];
                 this.pgnHeaders = { "FEN": currentFen, "SetUp": "1", "Variant": this.gameMode };
                 this.rootNode = new MoveNode(currentFen, null);
                 this.currentNode = this.rootNode;
-                
-                if (typeof this.loadFEN === 'function') {
-                    this.loadFEN(currentFen, this.gameMode, true);
-                }
-            } else {
-                // Các tab khác vẫn cô lập bộ nhớ bình thường
+                if (typeof this.loadFEN === 'function') this.loadFEN(currentFen, this.gameMode, true);
+            } 
+            else if (targetTabContext === 'study' || targetTabContext === 'trainer') {
+                // CRITICAL FIX: Ensure Chapter is loaded explicitly when switching to Study/Trainer 
+                // to prevent blank-slate wipes!
+                let savedChap = parseInt(localStorage.getItem('chess_active_chapter_idx'), 10);
+                if (isNaN(savedChap)) savedChap = this.activeChapterIndex || 0;
+                this.loadChapter(savedChap, true, true);
+            } 
+            else {
                 this.#restoreState(targetTabContext);
             }
         }
         
-        // 4. Invalidate structural visual layers to snap the UI board to the new scope data
+        // Sync UI cache
         if (this.#ui) {
             this.#ui._lastMetadataCache = null;
             this.#ui._lastHeadersCache = null;
@@ -4186,8 +4193,6 @@ playEngineSequence(seqString, baseFen) {
                 break; 
             }
             
-            // ✨ CRITICAL FIX 1: Convert string squares ('e2') back into integer indices!
-            // This ensures makeMove() doesn't fail and desync the FEN.
             let moveObj = {
                 from: typeof this.#squareToIndex === 'function' ? this.#squareToIndex(parsedMove.from) : parsedMove.from, 
                 to: typeof this.#squareToIndex === 'function' ? this.#squareToIndex(parsedMove.to) : parsedMove.to,
@@ -4202,28 +4207,25 @@ playEngineSequence(seqString, baseFen) {
 
             // Undo the translator engine so makeMove can apply it natively
             this.#engine.undo();
-            
-            // ✨ CRITICAL FIX 2: Snap the visual board right before the final animated move.
-            // This prevents the final piece from visually animating from Move 0's layout.
             if (isLastMove && i > 0 && typeof this.#ui !== 'undefined' && this.#ui) {
+                if (typeof this.#ui.renderBoard === 'function') {
+                    this.#ui.renderBoard(false); 
+                }
+            }
+
+            // Execute the move! (Silent for all intermediate moves)
+            this.makeMove(moveObj, moveObj.promotion, false, null, !isLastMove);
+            if (isLastMove && typeof this.#ui !== 'undefined' && this.#ui) {
                 if (typeof this.#ui.renderBoard === 'function') {
                     this.#ui.renderBoard(true); 
                 }
             }
-
-            // Execute the move! (Silent for all intermediate moves, animated for the final move)
-            this.makeMove(moveObj, moveObj.promotion, false, null, !isLastMove);
         }
 
         // 3. Command the UI to update the surrounding interface 
         if (typeof this.#ui !== 'undefined' && this.#ui) {
             if (typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory();
             if (typeof this.#ui.renderArrows === 'function') this.#ui.renderArrows();
-            
-            // Failsafe rendering if there was only 1 move in the sequence
-            if (moves.length === 1 && typeof this.#ui.renderBoard === 'function') {
-                this.#ui.renderBoard(false);
-            }
         }
 
         // 4. Restart engine on the new landing square
@@ -6955,6 +6957,11 @@ loadChapter(index, skipSave = false, force = false) {
         }
         
         this.activeChapterIndex = index;
+        
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('chess_active_chapter_idx', index);
+        }
+
         this.mode = wasTrainer ? 'trainer' : 'study';
         this.gameOver = true;
         

@@ -111,6 +111,40 @@
                                 <img src="./assets/tabs-icon/StackOfBooks.svg" width="18" height="18" alt="Trainer icon" style="display: block;">
                                 Opening Trainer
                             </button>
+                        <button id="menuBtn-graph" class="menu-nav-btn" onclick="window.app.ui.switchTab('graph'); window.app.ui.toggleSideMenu(false);" style="text-align: left; padding: 12px 15px; background: transparent; border: none; border-radius: 6px; color: #ccc; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s;" onmouseover="if(!this.classList.contains('active')){this.style.background='#222'; this.style.color='#fff'}" onmouseout="if(!this.classList.contains('active')){this.style.background='transparent'; this.style.color='#ccc'}">
+                            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
+                                <defs>
+                                    <mask id="hollow-nodes">
+                                        <rect width="24" height="24" fill="white"/>
+                                        <circle cx="12" cy="12" r="2.5" fill="black"/>
+                                        <circle cx="12" cy="3" r="2.5" fill="black"/>
+                                        <circle cx="21" cy="9.5" r="2.5" fill="black"/>
+                                        <circle cx="17.5" cy="20" r="2.5" fill="black"/>
+                                        <circle cx="6.5" cy="20" r="2.5" fill="black"/>
+                                        <circle cx="3" cy="9.5" r="2.5" fill="black"/>
+                                    </mask>
+                                </defs>
+                                <g mask="url(#hollow-nodes)">
+                                    <line x1="12" y1="12" x2="12" y2="3"/>
+                                    <line x1="12" y1="12" x2="21" y2="9.5"/>
+                                    <line x1="12" y1="12" x2="17.5" y2="20"/>
+                                    <line x1="12" y1="12" x2="6.5" y2="20"/>
+                                    <line x1="12" y1="12" x2="3" y2="9.5"/>
+                                    <line x1="12" y1="3" x2="21" y2="9.5"/>
+                                    <line x1="21" y1="9.5" x2="17.5" y2="20"/>
+                                    <line x1="17.5" y1="20" x2="6.5" y2="20"/>
+                                    <line x1="6.5" y1="20" x2="3" y2="9.5"/>
+                                    <line x1="3" y1="9.5" x2="12" y2="3"/>
+                                </g>
+                                <circle cx="12" cy="12" r="2.5"/>
+                                <circle cx="12" cy="3" r="2.5"/>
+                                <circle cx="21" cy="9.5" r="2.5"/>
+                                <circle cx="17.5" cy="20" r="2.5"/>
+                                <circle cx="6.5" cy="20" r="2.5"/>
+                                <circle cx="3" cy="9.5" r="2.5"/>
+                            </svg>
+                            Node Graph
+                        </button>
                         <button id="menuBtn-editor" class="menu-nav-btn" onclick="window.app.ui.switchTab('editor'); window.app.ui.toggleSideMenu(false);" style="text-align: left; padding: 12px 15px; background: transparent; border: none; border-radius: 6px; color: #ccc; font-size: 15px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.2s;" onmouseover="if(!this.classList.contains('active')){this.style.background='#222'; this.style.color='#fff'}" onmouseout="if(!this.classList.contains('active')){this.style.background='transparent'; this.style.color='#ccc'}">
                             <svg viewBox="0 0 100 100" width="38" height="38" xmlns="http://www.w3.org/2000/svg" style="flex-shrink: 0; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
                                 <rect x="10" y="10" width="80" height="80" rx="10" fill="#262421" stroke="#38bdf8" stroke-width="4"/>
@@ -944,7 +978,6 @@
                                     <button class="btn-primary" style="min-height:40px;background:#1baca6; margin-top:10px;" onclick="window.app.ui.finishEditor()">Continue From Here</button>
                                 </div>
                             </div>
-                            <!-- TAB CONTENT: OPENING TRAINER -->
                             <div id="tabContent-Trainer" class="tab-content" style="padding: 15px; flex-direction: column; gap: 15px; height: 100%;">
                                 <h3 style="color:#26c2a3; margin-bottom:10px; margin-top:10px; text-align:center;">Opening Trainer</h3>
                                 
@@ -972,6 +1005,36 @@
 
                                 <div id="miniBoardsContainer" style="flex: 1; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 12px; align-content: flex-start; padding-bottom: 20px;">
                                     <!-- Mini boards injected here -->
+                                </div>
+                            </div>
+                            <div id="tabContent-Graph" class="tab-content" style="display: none; width: 100%; height: 100%; padding: 0; box-sizing: border-box;">
+                                <div style="position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10001; background: rgba(38, 36, 33, 0.95); padding: 12px 24px; border-radius: 12px; border: 1px solid #444; box-shadow: 0 10px 30px rgba(0,0,0,0.8); display: flex; flex-wrap: wrap; gap: 25px; align-items: center; justify-content: center; width: max-content; max-width: 90vw; backdrop-filter: blur(5px);">
+                                    
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <label style="color: #bababa; font-size: 14px; font-weight: bold;">Graph Source:</label>
+                                        <select id="graphSourceSelect" onchange="window.app.ui.changeGraphSource(this.value)" style="background: #111; color: #38bdf8; border: 1px solid #555; padding: 8px 12px; border-radius: 6px; font-weight: bold; outline: none; cursor: pointer;">
+                                            <option value="analysis">Analysis Board</option>
+                                            <option value="study">Opening Trainer / Study</option>
+                                        </select>
+                                    </div>
+                                    <div id="graphChapterWrapper" style="display: none; align-items: center; gap: 10px;">
+                                        <label style="color: #bababa; font-size: 14px; font-weight: bold;">Chapter:</label>
+                                        <select id="graphChapterSelect" onchange="window.app.ui.changeGraphChapter(this.value)" style="background: #111; color: #26c2a3; border: 1px solid #555; padding: 8px 12px; border-radius: 6px; font-weight: bold; outline: none; cursor: pointer; max-width: 250px; text-overflow: ellipsis;">
+                                        </select>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <label style="color: #bababa; font-size: 14px; font-weight: bold;">View:</label>
+                                        <select id="graphFlipSelect" onchange="localStorage.setItem('chess_graph_flip', this.value); if((this.value === 'b') !== window.app.ui.flipped) { window.app.ui.flipBoard(); window.app.ui.renderFullGraph(); }" style="background: #111; color: #fff; border: 1px solid #555; padding: 8px 12px; border-radius: 6px; font-weight: bold; outline: none; cursor: pointer;">
+                                            <option value="w">White</option>
+                                            <option value="b">Black</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button onclick="window.app.ui.switchTab(window.app.ui._previousTabBeforeGraph || 'study')" style="position: fixed; top: 25px; right: 30px; z-index: 10001; padding: 12px 24px; background: #fa412d; color: #fff; border: 2px solid #fff; border-radius: 8px; font-weight: 900; font-size: 15px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.6); transition: 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='none'">
+                                    ❌ Close Graph [ENTER]
+                                </button>
+
+                                <div id="treeGraphContainer" class="pgn-graph-fullscreen" onmousedown="document.activeElement.blur()">
                                 </div>
                             </div>
                         </div>

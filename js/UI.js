@@ -1782,75 +1782,6 @@ hideGameOver() {
         const modal = document.getElementById('gameOverModal');
         if (modal) modal.style.display = 'none';
     }
-updatePuzzleStats() {
-        if (!this.#game) return;
-        const timerEl = document.getElementById('puzTimer');
-        const scoreEl = document.getElementById('puzScore');
-        const strikesEl = document.getElementById('puzStrikes');
-
-        if (timerEl) {
-            if (this.#game.puzzleMode === 'survival') {
-                timerEl.innerText = "SURVIVAL"; timerEl.style.color = "#fa412d";
-            } else {
-                const t = Math.max(0, this.#game.puzzleTimeRemaining || 0);
-                const m = Math.floor(t / 60).toString().padStart(2, '0');
-                const s = (t % 60).toString().padStart(2, '0');
-                timerEl.innerText = `${m}:${s}`;
-                timerEl.style.color = t < 30 ? "#fa412d" : "#fff";
-            }
-        }
-        if (scoreEl) scoreEl.innerText = this.#game.puzzleScore || 0;
-        if (strikesEl) {
-            const maxStrikes = 3;
-            const current = this.#game.puzzleStrikes || 0;
-            let hearts = "";
-            for(let i = 0; i < (maxStrikes - current); i++) hearts += "✅";
-            for(let i = 0; i < current; i++) hearts += "❌"; 
-            strikesEl.innerText = hearts;
-        }
-    }
-updatePuzzleUI(state, puzzleData) {
-        const controls = document.getElementById('puzzleControls');
-        const active = document.getElementById('puzzleActive');
-        const status = document.getElementById('puzzleStatus');
-        const nextBtn = document.getElementById('nextPuzzleBtn');
-        const solBtn = document.getElementById('showSolBtn');
-        const info = document.getElementById('puzzleInfo');
-        const statsBar = document.getElementById('puzzleStatsBar');
-
-        if (state === "loading") {
-            if(controls) controls.style.opacity = "0.5";
-        } else if (state === "controls") {
-            if(controls) { controls.style.display = "block"; controls.style.opacity = "1"; }
-            if(active) active.style.display = "none";
-        } else if (state === "active") {
-            if(controls) controls.style.display = "none";
-            if(active) active.style.display = "flex";
-            if(status) { status.innerText = "Your Turn"; status.style.color = "#fff"; }
-            if(info && puzzleData) {
-                info.innerHTML = `<span style="color:#e68f00; font-weight:bold; font-size:14px;">Rating: ${puzzleData.rating || '?'}</span><span style="color:#666; margin-left:8px; font-size:12px;">ID: ${puzzleData.id || 'Unknown'}</span>`;
-            }
-            const isRush = ['3min', '5min', 'survival'].includes(this.#game.puzzleMode);
-            if (isRush) {
-                if(nextBtn) nextBtn.style.display = "none"; 
-                if(solBtn) solBtn.style.display = "none";   
-                if(statsBar) statsBar.style.display = "flex";
-                this.updatePuzzleStats(); 
-            } else {
-                if(nextBtn) nextBtn.style.display = "none"; 
-                if(solBtn) solBtn.style.display = "inline-block";
-                if(statsBar) statsBar.style.display = "none"; 
-            }
-        }
-    }
-showPuzzleSuccess() {
-        const status = document.getElementById('puzzleStatus');
-        const next = document.getElementById('nextPuzzleBtn');
-        if(status) { status.innerText = "Success!"; status.style.color = "#26c2a3"; }
-        const isRush = ['3min', '5min', 'survival'].includes(this.#game.puzzleMode);
-        if (!isRush && next) next.style.display = "block";
-    }
-
 showPuzzleHint() {
         const state = this.#game ? this.#game.getReader() : null;
         if (!state || state.mode !== 'puzzle') return;
@@ -1958,90 +1889,6 @@ initSidebarResizers() {
             });
         }
     }
-initResizer() {
-        const handle = document.getElementById('resizeHandle'); 
-        let startX, startBoardW;
-
-        const validateAndApplyLayout = (boardW) => {
-            const leftPanel = document.querySelector('.left-panel');
-            const leftW = (leftPanel && leftPanel.style.display !== 'none') ? leftPanel.offsetWidth : 0;
-            const rightSidebar = document.getElementById('mainSidebar');
-            const pgnW = rightSidebar ? rightSidebar.offsetWidth : 300;
-            const container = document.querySelector('.main-container');
-            if (container) container.style.padding = '30px 20px 20px 20px'; 
-            const engineReservedSpace = 32; 
-            
-            if (boardW < 300) boardW = 300;
-            boardW = Math.floor(boardW / 8) * 8; 
-
-            if (leftPanel && leftPanel.style.display !== 'none') {
-                leftPanel.style.width = `${leftW}px`; leftPanel.style.minWidth = `${leftW}px`; leftPanel.style.maxWidth = `${leftW}px`; leftPanel.style.flex = 'none';
-            }
-            if (rightSidebar) {
-                rightSidebar.style.width = `${pgnW}px`; rightSidebar.style.minWidth = `${pgnW}px`; rightSidebar.style.maxWidth = `${pgnW}px`; rightSidebar.style.flex = 'none'; rightSidebar.style.marginLeft = '16px'; 
-            }
-            if (this.boardWrapper) {
-                this.boardWrapper.style.width = `${boardW}px`; this.boardWrapper.style.minWidth = `${boardW}px`; this.boardWrapper.style.maxWidth = `${boardW}px`; this.boardWrapper.style.flex = 'none'; 
-            }
-
-            const rowW = boardW + engineReservedSpace;
-            const boardRow = document.querySelector('.board-container-row');
-            if (boardRow) {
-                boardRow.style.width = `${rowW}px`; boardRow.style.minWidth = `${rowW}px`; boardRow.style.maxWidth = `${rowW}px`; boardRow.style.flex = 'none'; boardRow.style.justifyContent = 'flex-start'; 
-            }
-
-            const boardSection = document.querySelector('.board-section');
-            if (boardSection) {
-                boardSection.style.width = `${rowW}px`; boardSection.style.minWidth = `${rowW}px`; boardSection.style.maxWidth = `${rowW}px`; boardSection.style.flex = 'none';
-            }
-
-            const bottomBar = document.querySelector('.bottom-bar');
-            if (bottomBar) bottomBar.style.width = `${rowW}px`;
-            const boardHeader = document.querySelector('.board-header-container');
-            if (boardHeader) boardHeader.style.width = `${rowW}px`;
-            const commentaryBox = document.getElementById('commentaryBox');
-            if (commentaryBox) commentaryBox.style.width = `${rowW}px`;
-        };
-
-        const doResize = (e) => {
-            const scaler = document.getElementById('app-scaler');
-            let scale = 1;
-            if (scaler) {
-                const transform = window.getComputedStyle(scaler).transform;
-                if (transform !== 'none') {
-                    const matrix = transform.match(/^matrix\((.+)\)$/);
-                    if (matrix) scale = parseFloat(matrix[1].split(',')[0]);
-                }
-            }
-            const dx = (e.clientX - startX) / scale;
-            let newBoardW = startBoardW + (dx * 2);
-            validateAndApplyLayout(newBoardW);
-            window.dispatchEvent(new Event('resize')); 
-        };
-        
-        const stopResize = () => {
-            document.removeEventListener('mousemove', doResize);
-            document.removeEventListener('mouseup', stopResize);
-            document.body.style.cursor = ''; 
-            if (this.boardWrapper) localStorage.setItem('chessBoardSize', this.boardWrapper.style.width);
-        };
-        
-        if (handle) {
-            handle.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                startX = e.clientX; startBoardW = this.boardWrapper.offsetWidth;
-                document.body.style.cursor = 'ew-resize'; 
-                document.addEventListener('mousemove', doResize);
-                document.addEventListener('mouseup', stopResize);
-            });
-        }
-
-        setTimeout(() => {
-            const savedBoard = localStorage.getItem('chessBoardSize') ? parseInt(localStorage.getItem('chessBoardSize')) : 600;
-            validateAndApplyLayout(savedBoard);
-            window.dispatchEvent(new Event('resize'));
-        }, 50);
-    }
 getSquareFromCoords(x, y) {
         // ✨ FIX: Use squaresLayer to bypass CSS borders
         const rect = this.squaresLayer.getBoundingClientRect();
@@ -2057,283 +1904,6 @@ getSquareFromCoords(x, y) {
         
         if (this.flipped) { c = 7 - c; r = 7 - r; }
         return r * 8 + c;
-    }
-promoteVar() {
-        const state = this.#game ? this.#game.getReader() : null;
-        if (state && state.activeNodeId) {
-            this.#game.promoteVariation(state.activeNodeId);
-            this.renderBoard(false, false);
-            if (state.mode !== 'play' && this.#game.updateStockfish) this.#game.updateStockfish();
-        }
-        if (this.annotationPopup) this.annotationPopup.style.display = 'none';
-    }
-makeMainline() {
-        const state = this.#game ? this.#game.getReader() : null;
-        if (state && state.activeNodeId) {
-            this.#game.makeMainline(state.activeNodeId);
-            this.renderBoard(false, false);
-            if (state.mode !== 'play' && this.#game.updateStockfish) this.#game.updateStockfish();
-        }
-        if (this.annotationPopup) this.annotationPopup.style.display = 'none';
-    }
-handleMouseDown(e) {
-        const state = this.#game ? this.#game.getReader() : null;
-        if (!state) return;
-
-        if (state.isPaused) {
-            this.showNotification("Game is Paused", "Info");
-            return;
-        }
-
-        if (e.button === 2) { 
-            e.preventDefault(); e.stopPropagation();
-            if (state.premoves.length > 0) {
-                this.#game.clearPremoves();
-                this.renderBoard(false); 
-                return;
-            }
-            const sq = this.getSquareFromCoords(e.clientX, e.clientY);
-            if (sq !== -1) {
-                this.isRightClick = true;
-                this.arrowDragStart = sq;
-            }
-        } else if (e.button === 0) { 
-            if (state.arrows.length > 0 || state.circles.length > 0) {
-                this.#game.clearAnnotations();
-                this.renderArrows();
-            }
-            if (state.premoves.length > 0) {
-                this.#game.clearPremoves();
-                this.renderBoard(false); 
-            }
-            if (this.selectedSq !== null) {
-                this.selectedSq = null;
-                this.legalMoves = [];
-                this.renderBoard(false); 
-            }
-        }
-    }
-handleMouseMove(e) {
-        if (this.isRightClick && this.arrowDragStart !== null) {
-            const sq = this.getSquareFromCoords(e.clientX, e.clientY);
-            this.tempArrowLayer.innerHTML = ''; 
-            if (sq !== -1 && sq !== this.arrowDragStart) {
-                let color = 'green';
-                if (e.shiftKey) color = 'red';
-                else if (e.altKey) color = 'blue';
-                else if (e.ctrlKey) color = 'orange';
-                this.drawArrow(this.tempArrowLayer, this.arrowDragStart, sq, color, 0.5);
-            }
-        }
-    }
-handleMouseUp(e) {
-        if (this.isRightClick && this.arrowDragStart !== null) {
-            const sq = this.getSquareFromCoords(e.clientX, e.clientY);
-            this.tempArrowLayer.innerHTML = ''; 
-            
-            let color = 'green';
-            if (e.shiftKey) color = 'red';
-            else if (e.altKey) color = 'blue';
-            else if (e.ctrlKey) color = 'orange';
-
-            if (sq === this.arrowDragStart) {
-                this.#game.toggleCircle(sq, color);
-            } else if (sq !== -1) {
-                this.#game.toggleArrow(this.arrowDragStart, sq, color);
-            }
-
-            this.renderArrows();
-            this.isRightClick = false;
-            this.arrowDragStart = null;
-        }
-    }
-getSquareCenter(idx) {
-        let r = Math.floor(idx / 8);
-        let c = idx % 8;
-        if (this.flipped) { r = 7 - r; c = 7 - c; }
-        return { x: (c * 12.5) + 6.25, y: (r * 12.5) + 6.25 };
-    }
-renderArrows() {
-        if (!this.arrowLayer) return;
-        this.arrowLayer.innerHTML = '';
-        
-        const state = this.#game ? this.#game.getReader() : null;
-        if (!state) return;
-
-        let arrowsToDraw = [...(state.arrows || [])];
-        let circlesToDraw = [...(state.circles || [])];
-
-        if (this.dragData && this.dragData.type === 'arrow') {
-            arrowsToDraw.push({ from: this.dragData.from, to: this.dragData.to, color: this.dragData.color });
-        }
-        
-        const getSqIdx = (val) => {
-            if (typeof val === 'number') return val;
-            if (typeof val === 'string' && val.length === 2) {
-                let f = val.charCodeAt(0) - 97;
-                let r = 8 - parseInt(val[1], 10);
-                return r * 8 + f;
-            }
-            return -1;
-        };
-
-        circlesToDraw.forEach(circle => {
-            let sqIdx = getSqIdx(circle.index !== undefined ? circle.index : (circle.sq !== undefined ? circle.sq : circle.square));
-            if (sqIdx < 0 || sqIdx > 63) return;
-            this.drawCircle(this.arrowLayer, sqIdx, circle.color);
-        });
-
-        arrowsToDraw.forEach(arrow => {
-            let fromIdx = getSqIdx(arrow.from);
-            let toIdx = getSqIdx(arrow.to);
-            if (fromIdx < 0 || fromIdx > 63 || toIdx < 0 || toIdx > 63) return;
-            this.drawArrow(this.arrowLayer, fromIdx, toIdx, arrow.color, 0.6);
-        });
-    }
-getNodeVisuals(node) {
-        if ((node.arrows && node.arrows.length > 0) || (node.circles && node.circles.length > 0)) {
-            return `<span style="display:inline-block;width:6px;height:6px;background-color:#00b023;border-radius:50%;margin-left:3px;margin-bottom:3px;vertical-align:middle;box-shadow:0 0 4px #00b023;"title="Has Annotations"></span>`;
-        }
-        return '';
-    }
-initSoundSettings() {
-        const select = document.getElementById('soundSetSelect');
-        if (!select || typeof SOUND_SETS === 'undefined') return;
-        select.innerHTML = '';
-        const themes = Object.keys(SOUND_SETS).sort();
-        themes.forEach(key => {
-            const option = document.createElement('option');
-            option.value = key;
-            let displayName = key.replace(/_/g, ' ');
-            displayName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
-            option.text = displayName;
-            select.appendChild(option);
-        });
-        if (typeof SoundManager !== 'undefined') select.value = SoundManager.currentSet;
-        select.onchange = function(e) {
-            if (typeof SoundManager !== 'undefined') SoundManager.setTheme(e.target.value);
-        };
-    }
-initVolume() {
-        const savedVol = localStorage.getItem('chessVolume');
-        const vol = savedVol !== null ? parseInt(savedVol) : 70;
-        this.volume = vol / 100; 
-        const slider = document.getElementById('masterVolume');
-        const label = document.getElementById('volumeValue');
-        if (slider) slider.value = vol;
-        if (label) label.innerText = vol + '%';
-    }
-updateVolume(val) {
-        const label = document.getElementById('volumeValue');
-        if (label) label.innerText = val + '%';
-        this.volume = parseInt(val) / 100;
-        localStorage.setItem('chessVolume', val);
-        if (this.#game && !this.#game.isPlayingLiveGame) SoundManager.play('move', this.volume);
-    }
-initDraggableSettings() {
-        const panel = document.getElementById('settingsPanel');
-        if (!panel) return;
-        const header = panel.querySelector('.settings-header');
-        if (!header) return;
-
-        panel.style.top = '60px'; 
-        panel.style.left = '20px';
-        panel.style.right = 'auto';     
-        panel.style.bottom = 'auto';
-        panel.style.transform = 'translate3d(0px, 0px, 0px)';
-
-        let isDragging = false;
-        let startX = 0, startY = 0, currentX = 0, currentY = 0;
-
-        header.addEventListener("mousedown", (e) => {
-            if (e.target === header || header.contains(e.target)) {
-                if (e.target.classList.contains('close-settings')) return;
-                isDragging = true;
-                startX = e.clientX; startY = e.clientY;
-            }
-        });
-        document.addEventListener("mouseup", () => isDragging = false);
-        document.addEventListener("mousemove", (e) => {
-            if (!isDragging) return;
-            e.preventDefault();
-            const scale = window.appScale || 1;
-            currentX += (e.clientX - startX) / scale;
-            currentY += (e.clientY - startY) / scale;
-            startX = e.clientX; startY = e.clientY;
-            panel.style.transform = `translate3d(${currentX}px, ${currentY}px, 0px)`;
-        });
-    }
-drawArrow(container, fromIdx, toIdx, colorName, opacity=0.5) { 
-        const cMap = { 'green': '#15781B', 'red': '#882020', 'blue': '#003088', 'orange': '#e68f00' };
-        const color = cMap[colorName] || colorName;
-
-        const fR = Math.floor(fromIdx / 8), fC = fromIdx % 8;
-        const tR = Math.floor(toIdx / 8), tC = toIdx % 8;
-
-        let x1 = (fC + 0.5) * 12.5, y1 = (fR + 0.5) * 12.5;
-        let x2 = (tC + 0.5) * 12.5, y2 = (tR + 0.5) * 12.5;
-
-        if (this.flipped) {
-            x1 = ((7 - fC) + 0.5) * 12.5; y1 = ((7 - fR) + 0.5) * 12.5;
-            x2 = ((7 - tC) + 0.5) * 12.5; y2 = ((7 - tR) + 0.5) * 12.5;
-        }
-
-        const dx = x2 - x1;
-        const dy = y2 - y1;
-        const len = Math.sqrt(dx * dx + dy * dy);
-
-        if (len === 0) return;
-
-        const headLength = 4.5;  
-        const headWidth = 5.625; 
-        const shaftWidth = 1.75; 
-        const startMargin = 0.0; 
-        const endMargin = 0.0;
-
-        const ux = dx / len; const uy = dy / len;
-        const vx = -uy; const vy = ux;
-
-        const startX = x1 + ux * startMargin;
-        const startY = y1 + uy * startMargin;
-        const endX = x2 - ux * endMargin;
-        const endY = y2 - uy * endMargin;
-        const shaftLen = (len - startMargin - endMargin) - headLength;
-
-        const p1x = startX + vx * (shaftWidth / 2); const p1y = startY + vy * (shaftWidth / 2);
-        const p2x = startX + ux * shaftLen + vx * (shaftWidth / 2); const p2y = startY + uy * shaftLen + vy * (shaftWidth / 2);
-        const p3x = startX + ux * shaftLen + vx * (headWidth / 2); const p3y = startY + uy * shaftLen + vy * (headWidth / 2);
-        const p4x = endX; const p4y = endY;
-        const p5x = startX + ux * shaftLen - vx * (headWidth / 2); const p5y = startY + uy * shaftLen - vy * (headWidth / 2);
-        const p6x = startX + ux * shaftLen - vx * (shaftWidth / 2); const p6y = startY + uy * shaftLen - vy * (shaftWidth / 2);
-        const p7x = startX - vx * (shaftWidth / 2); const p7y = startY - vy * (shaftWidth / 2);
-
-        const d = `M ${p1x} ${p1y} L ${p2x} ${p2y} L ${p3x} ${p3y} L ${p4x} ${p4y} L ${p5x} ${p5y} L ${p6x} ${p6y} L ${p7x} ${p7y} Z`;
-
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        path.setAttribute('d', d); path.setAttribute('fill', color); path.setAttribute('opacity', opacity); path.setAttribute('stroke', 'none');
-        container.appendChild(path);
-    }
-drawCircle(container, idx, colorName) {
-        const cMap = { 'green':'#15781B', 'red':'#882020', 'blue':'#003088', 'orange':'#e68f00' };
-        const color = cMap[colorName] || colorName;
-        const r = Math.floor(idx / 8), c = idx % 8;
-        let cx = (c + 0.5) * 12.5, cy = (r + 0.5) * 12.5;
-        if (this.flipped) { cx = ((7 - c) + 0.5) * 12.5; cy = ((7 - r) + 0.5) * 12.5; }
-        const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
-        circle.setAttribute('cx', cx); circle.setAttribute('cy', cy); circle.setAttribute('r','5.5');
-        circle.setAttribute('stroke', color); circle.setAttribute('stroke-width','0.5'); circle.setAttribute('fill','none'); circle.setAttribute('opacity','0.8');
-        container.appendChild(circle);
-    }
-getAnnotationDotColor(node) {
-        if (!node) return null;
-        let cName = null;
-        if (node.arrows && node.arrows.length > 0) cName = node.arrows[0].color;
-        else if (node.circles && node.circles.length > 0) cName = node.circles[0].color;
-        if (!cName) return null;
-
-        const themeAccent = getComputedStyle(document.documentElement).getPropertyValue('--theme-accent').trim() || '#38bdf8';
-        const colorMap = { 'green': '#15781B', 'red': '#882020', 'blue': '#003088', 'orange': '#e68f00', 'theme': themeAccent };
-        return colorMap[cName] || cName;
     }
 initKeyboardEvents() {
         // --- 1. KEY DOWN LISTENER ---
@@ -2394,9 +1964,6 @@ initKeyboardEvents() {
                 if (typeof this.renderBoard === 'function') this.renderBoard(false);
             }
         });
-    }
-toggleSettings() {
-        document.getElementById('settingsPanel').classList.toggle('visible');
     }
 toggleEditorMode(active) {
         try {
@@ -3074,6 +2641,7 @@ executeMove(move, animate = true, overridePromo = null) {
 renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         if (this._isExecutingMove) return; 
         
+        
         const state = this.#game ? this.#game.getReader() : null;
         if (!state) return;
 
@@ -3085,17 +2653,8 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         const theme = document.getElementById('assetType') ? document.getElementById('assetType').value : 'merida';
         const boardContainer = document.getElementById('chessBoard');
         if (boardContainer) {
-            // Assign container query to allow mathematical CSS scaling
-            boardContainer.style.containerType = 'inline-size';
-            
             if (theme === 'disguised') boardContainer.classList.add('theme-disguised');
             else boardContainer.classList.remove('theme-disguised');
-        }
-
-        // Apply mathematical layout sync for perfectly scaled CSS badges
-        if (this.boardWrapper) {
-            const bw = this.boardWrapper.offsetWidth || 600;
-            this.boardWrapper.style.setProperty('--board-width', bw + 'px');
         }
         
         this.coordsPosition = document.getElementById('coordPosition') ? document.getElementById('coordPosition').value : 'inside';
@@ -3163,7 +2722,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         }
 
         const activeMove = overrideMove || state.lastMove;
-        const nodeMove = state.lastMove;
 
         if (this.squaresLayer.children.length !== 64) {
             this.squaresLayer.innerHTML = '';
@@ -3185,6 +2743,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                         let curr = q.shift();
                         cluster.push(curr);
                         let r = Math.floor(curr/8), c = curr%8;
+                        // Check all 8 directions for connected ice
                         let neighbors = [curr-8, curr+8, curr-1, curr+1, curr-9, curr-7, curr+7, curr+9];
                         for (let n of neighbors) {
                             if (n >= 0 && n < 64 && state.frozenSquares[n] && !visited.has(n)) {
@@ -3196,6 +2755,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                             }
                         }
                     }
+                    // Find the Bounding Box of this block
                     let minR = 8, maxR = -1, minC = 8, maxC = -1;
                     for (let sq of cluster) {
                         let r = Math.floor(sq/8), c = sq%8;
@@ -3225,12 +2785,14 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             sq.dataset.index = logical_i; 
             sq.innerHTML = '';
 
+             // ✨ Safe Cleanup
             sq.classList.remove('frozen');
             let oldIce = sq.querySelector('.spell-ice');
             if (oldIce) oldIce.remove();
             let oldPortal = sq.querySelector('.spell-portal');
             if (oldPortal) oldPortal.remove();
 
+            // ✨ SEAMLESS 3x3 FREEZE BLOCK (MAXIMUM CRYSTALLINE DENSITY + DEEP COLD BLUE)
             if (state.gameMode === 'spell' && state.frozenSquares && state.frozenSquares[logical_i]) {
                 sq.classList.add('frozen');
                 let ice = document.createElement('div');
@@ -3250,11 +2812,13 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     let bgX = mapping.W > 1 ? (vis_x / (mapping.W - 1)) * 100 : 50;
                     let bgY = mapping.H > 1 ? (vis_y / (mapping.H - 1)) * 100 : 50;
                     
+                    // ✨ Hyper-Dense Vector Snowflake (16 Arms, 120+ Frost Needles)
                     let svgSnowFlower = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><filter id='glow'><feGaussianBlur stdDeviation='1.2' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><g id='branch'><line x1='50' y1='50' x2='50' y2='0' stroke='%23fff' stroke-width='1.5' stroke-linecap='round'/><path d='M 50 6 L 30 26 M 50 6 L 70 26 M 50 14 L 28 36 M 50 14 L 72 36 M 50 22 L 32 40 M 50 22 L 68 40 M 50 30 L 38 42 M 50 30 L 62 42 M 50 38 L 42 46 M 50 38 L 58 46' stroke='%230af' stroke-width='1' fill='none' stroke-linecap='round'/><path d='M 50 10 L 40 20 M 50 10 L 60 20 M 50 18 L 36 32 M 50 18 L 64 32 M 50 26 L 40 36 M 50 26 L 60 36 M 50 34 L 44 40 M 50 34 L 56 40' stroke='%23fff' stroke-width='0.6' fill='none' stroke-linecap='round'/></g><g id='spike'><line x1='50' y1='50' x2='50' y2='10' stroke='%2308f' stroke-width='1.2' stroke-linecap='round'/><path d='M 50 16 L 38 28 M 50 16 L 62 28 M 50 26 L 42 34 M 50 26 L 58 34 M 50 36 L 46 40 M 50 36 L 54 40' stroke='%234df' stroke-width='0.8' fill='none' stroke-linecap='round'/></g></defs><g filter='url(%23glow)'><polygon points='50,15 75,25 85,50 75,75 50,85 25,75 15,50 25,25' fill='rgba(0,60,150,0.5)'/><use href='%23branch' transform='rotate(0 50 50)'/><use href='%23branch' transform='rotate(45 50 50)'/><use href='%23branch' transform='rotate(90 50 50)'/><use href='%23branch' transform='rotate(135 50 50)'/><use href='%23branch' transform='rotate(180 50 50)'/><use href='%23branch' transform='rotate(225 50 50)'/><use href='%23branch' transform='rotate(270 50 50)'/><use href='%23branch' transform='rotate(315 50 50)'/><use href='%23spike' transform='rotate(22.5 50 50)'/><use href='%23spike' transform='rotate(67.5 50 50)'/><use href='%23spike' transform='rotate(112.5 50 50)'/><use href='%23spike' transform='rotate(157.5 50 50)'/><use href='%23spike' transform='rotate(202.5 50 50)'/><use href='%23spike' transform='rotate(247.5 50 50)'/><use href='%23spike' transform='rotate(292.5 50 50)'/><use href='%23spike' transform='rotate(337.5 50 50)'/><polygon points='50,25 68,32 75,50 68,68 50,75 32,68 25,50 32,32' fill='rgba(0,150,255,0.4)' stroke='%23fff' stroke-width='1.5'/><polygon points='50,35 61,39 65,50 61,61 50,65 39,61 35,50 39,39' fill='rgba(150,240,255,0.6)' stroke='%230af' stroke-width='1.5'/><circle cx='50' cy='50' r='8' fill='%23fff'/><circle cx='50' cy='50' r='3' fill='%230bf'/></g></svg>`;
 
                     let bgSize = `${mapping.W * 100}% ${mapping.H * 100}%`;
                     let bgPos = `${bgX}% ${bgY}%`;
 
+                    // 🧊 6 Layers of Ice: Vector Star + 2 Frost Ray Arrays + Core Depth + 2 Crystal Fracture Layers
                     ice.style.cssText = `
                         position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
                         background-image: 
@@ -3308,6 +2872,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 sq.appendChild(ice);
             }
 
+            // ✨ JUMP PORTAL
             if (state.gameMode === 'spell' && state.jump_sq !== undefined && state.jump_sq === logical_i) {
                 let portal = document.createElement('div');
                 portal.className = 'spell-portal';
@@ -3352,16 +2917,19 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
 
             sq.onmousedown = null;
 
+            // ✨ SPELL INTERCEPTOR: Handle 3x3 Hover & Spell Casting
             if (state.gameMode === 'spell' && this.activeSpell && state.mode !== 'editor') {
-                sq.style.cursor = 'pointer'; 
+                sq.style.cursor = 'pointer'; // Replaced crosshair with pointer
 
                 sq.onmouseenter = () => {
+                    // Clear previous highlights efficiently
                     this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
 
                     if (this.activeSpell === 'freeze') {
                         const r = Math.floor(logical_i / 8);
                         const c = logical_i % 8;
 
+                        // Highlight 3x3 area
                         for (let dr = -1; dr <= 1; dr++) {
                             for (let dc = -1; dc <= 1; dc++) {
                                 const nr = r + dr, nc = c + dc;
@@ -3373,6 +2941,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                             }
                         }
                     } else {
+                        // Default 1x1 highlight for 'jump' or other spells
                         sq.classList.add('spell-target-hover');
                     }
                 };
@@ -3385,6 +2954,8 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     if (e.button !== 0) return; 
                     e.preventDefault();
                     e.stopPropagation();
+                    console.log(`\n🔮 --- SPELL CAST INITIATED ---`);
+                    console.log(`[UI] Casting '${this.activeSpell}' on UI index: ${logical_i}`);
                     this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
                     
                     if (typeof this.castSpell === 'function') {
@@ -3392,7 +2963,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     }
                 };
 
-                continue; 
+                continue; // Prevents normal piece interaction while spell is active
             } else {
                 sq.style.cursor = ''; 
                 sq.onmouseenter = null;
@@ -3465,6 +3036,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         let visualBoard;
         const currentFen = this.#game && this.#game.currentNode ? this.#game.currentNode.fen : '';
         
+        // ✨ THE ULTIMATE GHOST FIX: Safely parse the ~ character without collapsing the board!
         if (currentFen.includes('~')) {
             visualBoard = new Array(64).fill(null);
             let validPieces = state.board.filter(p => p && p.type !== '~');
@@ -3478,17 +3050,20 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 if (char === '/') continue;
                 
                 if (/\d/.test(char)) { 
+                    // ✨ FIX: Explicitly fill empty squares with null so pieces don't collapse!
                     let empties = parseInt(char, 10);
                     for (let e = 0; e < empties; e++) {
                         visualBoard[logicalIndex] = null;
                         logicalIndex++;
                     }
                 } else if (char === '~') { 
+                    // Apply ghost effect to the piece we JUST placed
                     let prevSq = logicalIndex - 1;
                     if (visualBoard[prevSq] && state.gameMode === 'alice') {
                         visualBoard[prevSq].isBoardB = true;
                     }
                 } else { 
+                    // Real piece! Place it securely
                     if (pieceCursor < validPieces.length) {
                         visualBoard[logicalIndex] = { ...validPieces[pieceCursor] };
                         pieceCursor++;
@@ -3500,6 +3075,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             visualBoard = [...state.board];
         }
 
+        // Apply Duck Placement preview logic
         if (this.duckPlacementMoves && this.pendingDuckMove) {
             const fromIdx = this.pendingDuckMove.from; const toIdx = this.pendingDuckMove.to;
             if (fromIdx >= 0 && fromIdx < 64 && toIdx >= 0 && toIdx < 64) {
@@ -3557,59 +3133,24 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     htmlBuffer = `<img src="${trimmed}" class="piece-img${duckClass}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
                 }
             }
-            
             const activeNode = (this.#game && this.#game.currentNode) ? this.#game.currentNode : null;
-            const nodeMove = activeNode ? activeNode.lastMove : null;
+            const currentNodeMove = activeNode ? activeNode.lastMove : null;
             
-            // Strict check: NAG only renders on the destination of the move that created this position
-            if (nodeMove && p.idx === nodeMove.to && activeNode) {
-                let evalNags = [];
-                let qualityNags = [];
+            if (currentNodeMove && p.idx === currentNodeMove.to && activeNode) {
+                const info = activeNode.nag ? (typeof this.getNagInfo === 'function' ? this.getNagInfo(activeNode.nag) : null) : null;
+                const isBook = activeNode.isBook;
 
-                if (activeNode.nag) {
-                    const nags = activeNode.nag.toString().split(',');
-                    nags.forEach(n => {
-                        const info = typeof this.getNagInfo === 'function' ? this.getNagInfo(n.trim()) : null;
-                        if (info) {
-                            if (info.type.startsWith('eval')) evalNags.push(info);
-                            else qualityNags.push(info);
-                        }
-                    });
-                }
-
-                if (activeNode.isBook) {
-                    let svgBook = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG.replace('width="30"', 'width="24"').replace('height="30"', 'height="24"') : 'B';
-                    qualityNags.push({
-                        symbol: `<div style="display:flex; justify-content:center; align-items:center; color:transparent; width:100%; height:100%;">${svgBook}</div>`,
-                        color: '#a87c53', borderColor: '#825f3c', textColor: '#ffffff'
-                    });
-                }
-
-                // Render Qualities (!, ?) FIRST, then Evaluations (+-, =)
-                const finalNagsInfo = [...qualityNags, ...evalNags];
-                
-                if (finalNagsInfo.length > 0) {
-                    const nagsHtml = finalNagsInfo.map((info, index) => {
-                        const tColor = info.textColor || '#ffffff';
-                        const zIndex = 10 - index;
-                        
-                        const marginLeft = index > 0 ? '-15cqi' : '0';
-                        
-                        const wideSymbols = ['⩲', '⩱', '±', '∓', '∞', '='];
-                        const isDoubleChar = (info.symbol.length > 1 || wideSymbols.includes(info.symbol)) && !info.symbol.includes('<div');
-                        const fontSize = isDoubleChar ? '18cqi' : '25cqi';
-                        const letterSpacing = isDoubleChar ? '-1cqi' : 'normal';
-                        
-                        return `<div class="nag-indicator" style="background-color:${info.color} !important; border:3cqi solid ${info.borderColor} !important; color:${tColor} !important; width:40cqi !important; height:40cqi !important; min-width:40cqi !important; min-height:40cqi !important; max-width:40cqi !important; max-height:40cqi !important; flex-shrink:0 !important; flex-grow:0 !important; border-radius:50% !important; display:flex !important; flex-direction:column !important; align-items:center !important; justify-content:center !important; padding:0 !important; margin:0 0 0 ${marginLeft} !important; font-size:${fontSize} !important; letter-spacing:${letterSpacing} !important; font-weight:800 !important; box-shadow:0 2cqi 4cqi rgba(0,0,0,0.6) !important; box-sizing:border-box !important; z-index:${zIndex} !important; line-height:1 !important; white-space:nowrap !important; overflow:hidden !important; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important; text-shadow:none !important;">${info.symbol}</div>`;
-                    }).join('');
+                if (isBook || (info && ['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy', 'excellent', 'great', 'miss'].includes(info.type))) {
+                    let bgColor = info ? info.color : '#a87c53';
+                    let bColor = info ? info.borderColor : '#825f3c';
                     
-                    // Create an inline-size container matching the piece boundaries to anchor the CQI units
-                    htmlBuffer += `
-                        <div class="nag-wrapper" style="position:absolute !important; top:0 !important; left:0 !important; width:100% !important; height:100% !important; container-type:inline-size !important; pointer-events:none !important; z-index:100 !important;">
-                            <div style="position:absolute !important; top:-10% !important; right:-10% !important; display:flex !important; flex-direction:row !important; align-items:center !important;">
-                                ${nagsHtml}
-                            </div>
-                        </div>`;
+                    let content = info ? info.symbol : '';
+                    if (isBook) {
+                        let svgBook = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG.replace('width="30"', 'width="24"').replace('height="30"', 'height="24"') : '📖';
+                        content = `<div style="display:flex; justify-content:center; align-items:center; color:transparent;">${svgBook}</div>`;
+                    }
+
+                    htmlBuffer += `<div class="nag-indicator" style="position:absolute; top:-5px; right:-5px; width:22px; height:22px; background-color:${bgColor}; border:2px solid ${bColor}; border-radius:50%; color:#fff; font-weight:bold; font-size:13px; display:flex; justify-content:center; align-items:center; z-index:10; box-shadow:0 2px 4px rgba(0,0,0,0.4); font-family:sans-serif; pointer-events:none;">${content}</div>`;
                 }
             }
 
@@ -3624,9 +3165,13 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 if (el.innerHTML !== htmlBuffer) el.innerHTML = htmlBuffer;
             }
 
+            // ========================================================
+            // ✨ NEW: EXPLICIT PIECE INTERCEPTOR FOR SPELLS
+            // ========================================================
             if (state.gameMode === 'spell' && this.activeSpell && state.mode !== 'editor') {
                 el.style.cursor = 'pointer';
                 
+                // 1. Mirror the Hover Effect
                 el.onmouseenter = () => {
                     this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(s => s.classList.remove('spell-target-hover'));
                     
@@ -3648,10 +3193,12 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     }
                 };
 
+                // 2. Mirror the Un-hover Effect
                 el.onmouseleave = () => {
                     this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(s => s.classList.remove('spell-target-hover'));
                 };
 
+                // 3. Mirror the Click / Cast Effect
                 el.onmousedown = (e) => {
                     if (e.button !== 0) return;
                     e.preventDefault(); 
@@ -3763,16 +3310,23 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             }
 
             if (animate && (positionChanged || forceAnimate) && (!isNew || forceAnimate)) {
+                // 1. Instantly snap to the starting position with NO transition
                 el.style.transition = 'none'; 
                 el.style.transform = startTransform;
+                
+                // 2. Force layout recalculation (safer than getBoundingClientRect)
                 void el.offsetWidth; 
                 
+                // ✨ THE FIX: Force Windows 11 to physically paint the start position 
+                // before calculating the destination!
                 requestAnimationFrame(() => {
                     el.style.transition = ''; 
+                    
                     el.classList.add('animating');
                     if (isCastlingMove) el.classList.add('castling-jump');
 
                     el.style.transitionDuration = `${isCastlingMove ? castleDuration : moveDuration}ms`;
+                    
                     el.style.transform = targetTransform; 
 
                     const sqEl = this.squaresLayer.querySelector(`[data-index="${p.idx}"]`);
@@ -3814,6 +3368,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     el.style.setProperty('--anim-duration', `${activeDuration}ms`);
                     
                     el.getBoundingClientRect();
+                    
                     el.classList.add('manga-tail'); 
                     
                     el.dataset.tailTimeout = setTimeout(() => {
@@ -4176,31 +3731,30 @@ scrollToActiveMove() {
 getNagInfo(nag) {
         if (!nag) return null;
         let nags = nag.toString().split(',').map(n => n.trim().replace('$', ''));
-        let v = nags.find(n => parseInt(n) >= 1 && parseInt(n) <= 19) || nags[0]; 
+        let v = nags.find(n => parseInt(n) >= 1 && parseInt(n) <= 9) || nags[0]; 
         
+        let info = { symbol:'', cls:'nag-pos', color:'#888888', borderColor:'#aaaaaa', type:'' };
         switch(v) {
-            // Move Qualities
-            case'1':case'!': return { symbol:'!', cls:'ind-1', color:'#5c8bb0', borderColor:'#28a2e7', type:'good', textColor:'#ffffff'};
-            case'2':case'?': return { symbol:'?', cls:'ind-2', color:'#ffa700', borderColor:'#af5205', type:'mistake', textColor:'#ffffff'};
-            case'3':case'!!': return { symbol:'!!', cls:'ind-3', color:'#26c2a3', borderColor:'#09e9ed', type:'brilliant', textColor:'#ffffff'};
-            case'4':case'??': return { symbol:'??', cls:'ind-4', color:'#fa412d', borderColor:'#892c12', type:'blunder', textColor:'#ffffff'};
-            case'5':case'!?': return { symbol:'!?', cls:'ind-5', color:'#b369f2', borderColor:'#bd09ed', type:'interesting', textColor:'#ffffff'};
-            case'6':case'?!': return { symbol:'?!', cls:'ind-6', color:'#f7c045', borderColor:'#f5d91d', type:'inaccuracy', textColor:'#ffffff'};
-            case'7': return { symbol:'!', cls:'ind-1', color:'#96bc4b', borderColor:'#6c8a32', type:'excellent', textColor:'#ffffff'};
-            case'8': return { symbol:'!', cls:'ind-1', color:'#5c8bb0', borderColor:'#3a6280', type:'great', textColor:'#ffffff'};
-            case'9': return { symbol:'X', cls:'ind-2', color:'#ff7769', borderColor:'#c75446', type:'miss', textColor:'#ffffff'};
-            
-            // Evaluations: White advantage receives black text (#000000), Black advantage receives white text (#ffffff)
-            case'10':case'=': return { symbol:'=', color:'#e2e8f0', borderColor:'#cbd5e1', type:'eval_eq', textColor:'#000000'}; 
-            case'13':case'∞': return { symbol:'∞', color:'#e2e8f0', borderColor:'#cbd5e1', type:'eval_eq', textColor:'#000000'}; 
-            case'14':case'⩲':case'+=': return { symbol:'⩲', color:'#ffffff', borderColor:'#cbd5e1', type:'eval_w', textColor:'#000000'}; 
-            case'15':case'⩱':case'=+': return { symbol:'⩱', color:'#1e293b', borderColor:'#0f172a', type:'eval_b', textColor:'#ffffff'}; 
-            case'16':case'±':case'+/-': return { symbol:'±', color:'#ffffff', borderColor:'#cbd5e1', type:'eval_w', textColor:'#000000'}; 
-            case'17':case'∓':case'-/+': return { symbol:'∓', color:'#1e293b', borderColor:'#0f172a', type:'eval_b', textColor:'#ffffff'}; 
-            case'18':case'+-': return { symbol:'+-', color:'#ffffff', borderColor:'#cbd5e1', type:'eval_w', textColor:'#000000'}; 
-            case'19':case'-+': return { symbol:'-+', color:'#1e293b', borderColor:'#0f172a', type:'eval_b', textColor:'#ffffff'}; 
-            default: return null;
+            case'1':case'!': return { symbol:'!', cls:'ind-1', color:'#5c8bb0', borderColor:'#28a2e7',type:'good'};
+            case'2':case'?': return { symbol:'?', cls:'ind-2', color:'#ffa700', borderColor:'#af5205',type:'mistake'};
+            case'3':case'!!': return { symbol:'!!', cls:'ind-3', color:'#26c2a3', borderColor:'#09e9ed',type:'brilliant'};
+            case'4':case'??': return { symbol:'??', cls:'ind-4', color:'#fa412d', borderColor:'#892c12',type:'blunder'};
+            case'5':case'!?': return { symbol:'!?', cls:'ind-5', color:'#b369f2', borderColor:'#bd09ed',type:'interesting'};
+            case'6':case'?!': return { symbol:'?!', cls:'ind-6', color:'#f7c045', borderColor:'#f5d91d',type:'inaccuracy'};
+            case'7': return { symbol:'!', cls:'ind-1', color:'#96bc4b', borderColor:'#6c8a32', type:'excellent'};
+            case'8': return { symbol:'!', cls:'ind-1', color:'#5c8bb0', borderColor:'#3a6280', type:'great'};
+            case'9': return { symbol:'X', cls:'ind-2', color:'#ff7769', borderColor:'#c75446', type:'miss'};
+            case'10':case'=': info.symbol ='='; break; 
+            case'13':case'∞': info.symbol ='∞'; break; 
+            case'14':case'⩲':case'+=':info.symbol ='⩲'; break; 
+            case'15':case'⩱':case'=+':info.symbol ='⩱'; break; 
+            case'16':case'±':case'+/-':info.symbol ='±'; break; 
+            case'17':case'∓':case'-/+':info.symbol ='∓'; break; 
+            case'18':case'+-':info.symbol ='+-'; break; 
+            case'19':case'-+':info.symbol ='-+'; break; 
+            default:return null;
         }
+        return info;
     }
 updateEditorState() {
         if (!this.#game || this.#game.mode !== 'editor') return;
@@ -4335,11 +3889,7 @@ createMoveSpanSafe(node) {
 
         symbols.forEach(info => {
             let nSpan = document.createElement('span');
-            nSpan.innerText = info.symbol; 
-            // Prevent dark evaluation colors from hiding on the dark PGN background
-            nSpan.style.color = info.type.startsWith('eval') ? '#e2e8f0' : info.color;
-            nSpan.style.fontWeight = 'bold'; 
-            nSpan.style.marginLeft = '2px';
+            nSpan.innerText = info.symbol; nSpan.style.color = info.color; nSpan.style.fontWeight = 'bold'; nSpan.style.marginLeft = '2px';
             span.appendChild(nSpan);
         });
 
@@ -4347,7 +3897,7 @@ createMoveSpanSafe(node) {
             let icon = document.createElement('span'); icon.className = 'eval-icon';
             const iconColor = primaryInfo ? primaryInfo.color : '#a87c53';
             icon.style.cssText = "display:inline-flex; align-items:center; margin-left:4px;"; icon.style.color = iconColor;
-            icon.innerHTML = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG : 'B';
+            icon.innerHTML = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG : '📖';
             let svg = icon.querySelector('svg');
             if (svg) { svg.style.fill = iconColor; svg.style.width = '14px'; svg.style.height = '14px'; }
             span.appendChild(icon);
@@ -4620,8 +4170,10 @@ renderTreeVerticalRecursiveSingle(node, container) {
 
             let moveText = "";
             if (moveColor === 'w') {
+                // White always gets a number if the color just switched to White, or if it's a new line
                 if (moveColor !== lastColor || isFirstInLine) moveText = `${mNum}.`;
             } else {
+                // Black ONLY gets a number if it is forced to start a brand new line
                 if (isFirstInLine) moveText = `${mNum}...`;
             }
             lastColor = moveColor;
@@ -4647,16 +4199,14 @@ renderTreeVerticalRecursiveSingle(node, container) {
                 moveSpan.innerText = curr.moveSan; 
                 symbols.forEach(info => {
                     let nagSpan = document.createElement('span'); nagSpan.className = 'nag-glyph'; nagSpan.innerText = info.symbol;
-                    // Prevent dark evaluation colors from hiding on the dark PGN background
-                    nagSpan.style.color = info.type.startsWith('eval') ? '#e2e8f0' : info.color;
-                    nagSpan.style.marginLeft = "2px"; nagSpan.style.fontWeight = "bold";
+                    nagSpan.style.color = info.color; nagSpan.style.marginLeft = "2px"; nagSpan.style.fontWeight = "bold";
                     moveSpan.appendChild(nagSpan);
                 });
             } else moveSpan.innerText = curr.moveSan;
 
             if (curr.isBook) {
                 const bookIcon = document.createElement('span'); bookIcon.className = 'tree-book-icon';
-                bookIcon.innerHTML = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG : 'B';
+                bookIcon.innerHTML = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG : '📖';
                 let bookColor = curr.nag ? (this.getNagInfo(curr.nag)?.color || '#A87C53') : '#A87C53';
                 bookIcon.style.cssText = `display:inline-flex; align-items:center; justify-content:center; width:1em; height:1em; margin-left:4px; vertical-align:middle; color:${bookColor};`;
                 let svg = bookIcon.querySelector('svg');
@@ -4755,6 +4305,7 @@ renderVariationLine(node, container) {
             span.className = `var-move ${isActive ? 'active' : ''}`; 
             span.dataset.id = curr.id; 
             
+            // 🔥 FAT HITBOX FIX: Converts the tiny inline text into a comfortable, finger-friendly button block!
             span.style.cssText = "display: inline-block; border-radius: 4px; cursor: pointer;; text-align: center;";
             
             span.innerText = txt ? `${txt} ${curr.moveSan}` : curr.moveSan;
@@ -4768,9 +4319,7 @@ renderVariationLine(node, container) {
                 if (primaryInfo) { span.style.color = primaryInfo.color; span.style.backgroundColor = primaryInfo.color + '20'; }
                 symbols.forEach(info => {
                     let nagSpan = document.createElement('span'); nagSpan.className = 'nag-glyph'; nagSpan.innerText = info.symbol;
-                    // Prevent dark evaluation colors from hiding on the dark PGN background
-                    nagSpan.style.color = info.type.startsWith('eval') ? '#e2e8f0' : info.color;
-                    nagSpan.style.marginLeft = "2px"; nagSpan.style.fontWeight = "bold";
+                    nagSpan.style.color = info.color; nagSpan.style.marginLeft = "2px"; nagSpan.style.fontWeight = "bold";
                     span.appendChild(nagSpan);
                 });
             }
@@ -4787,6 +4336,7 @@ renderVariationLine(node, container) {
                 evSpan.style.marginLeft = "3px"; evSpan.innerText = evalData.text; span.appendChild(evSpan);
             }
 
+            // Keep the spacing between inline blocks
             span.appendChild(document.createTextNode(" "));
 
             const targetNodeId = curr.id; let capturedRef = curr;
@@ -4864,9 +4414,7 @@ createPlyDiv(node) {
         
         symbols.forEach(info => {
             let sym = document.createElement('span'); sym.className = `nag-glyph`; sym.innerText = info.symbol;
-            // Prevent dark evaluation colors from hiding on the dark PGN background
-            sym.style.color = info.type.startsWith('eval') ? '#e2e8f0' : info.color;
-            sym.style.marginLeft = "3px"; sym.style.fontWeight = "bold";
+            sym.style.color = info.color; sym.style.marginLeft = "3px"; sym.style.fontWeight = "bold";
             mainWrap.appendChild(sym);
         });
         
@@ -5775,72 +5323,6 @@ closeEmbedImporter() {
         const modal = document.getElementById('embedImporterModal');
         if (modal) modal.style.display = 'none';
     }
-handleEmbedDragOver(event) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.currentTarget.style.background = 'rgba(56, 189, 248, 0.1)'; 
-    }
-handleEmbedDragLeave(event) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.currentTarget.style.background = '';
-    }
-handleEmbedDrop(event) {
-        event.preventDefault();
-        event.stopPropagation();
-        this.handleEmbedDragLeave(event); 
-        
-        if (event.dataTransfer && event.dataTransfer.files.length > 0) {
-            const file = event.dataTransfer.files[0];
-            this.readEmbedFile(file);
-        }
-    }
-readEmbedFile(file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const text = e.target.result;
-            const input = document.getElementById('embedTextInput');
-            if (input) input.value = text;
-        };
-        reader.readAsText(file);
-    }
-submitEmbedText() {
-        const input = document.getElementById('embedTextInput');
-        const text = input ? input.value.trim() : '';
-        if (text) {
-            if (typeof this.importEmbed === 'function') {
-                this.importEmbed(text);
-            }
-            
-            this.closeEmbedImporter();
-            this.showNotification("Embed imported successfully!", "Success", "✅");
-        } else {
-            this.showNotification("Please paste code or upload a file first.", "Error", "❌");
-        }
-    }
-toggleCheckboxes(className, state) {
-        document.querySelectorAll('.' + className).forEach(cb => cb.checked = state);
-    }
-renderCharts(force = false) {
-        if (typeof Chart === 'undefined') return;
-        if (this.evalChart || this.timeChart) this.updateChartActiveLine();
-
-        let lastNode = this.#game.rootNode;
-        
-        // ✨ FIX: Lock the chart to the Main Line (the actual game) instead of following sub-variations
-        while (lastNode && lastNode.children.length > 0) lastNode = lastNode.children[0];
-
-        if (!force && this.evalChart && this._lastChartedFen === lastNode.fen) return; 
-        this._lastChartedFen = lastNode.fen;
-
-        if (this._chartRenderTimeout) clearTimeout(this._chartRenderTimeout);
-        if (force) this.forceRenderCharts();
-        else this._chartRenderTimeout = setTimeout(() => { this.forceRenderCharts(); }, 150); 
-    }
-safeResizeCharts() {
-        if (this.evalChart) this.evalChart.resize();
-        if (this.timeChart) this.timeChart.resize();
-    }
 clearArrows() {
         if (this.arrowLayer) this.arrowLayer.innerHTML = '';
         if (this.tempArrowLayer) this.tempArrowLayer.innerHTML = '';
@@ -5851,14 +5333,6 @@ importEmbed(text) {
             this.renderBoard(false);
             this.updateHistory(true);
         }
-    }
-exportEmbed() {
-        if (!this.#game) return;
-        const pgn = typeof this.#game.getPGN === 'function' ? this.#game.getPGN() : "";
-        const html = `<iframe src="https://yourdomain.com/embed?pgn=${encodeURIComponent(pgn)}" width="600" height="400"></iframe>`;
-        navigator.clipboard.writeText(html).then(() => {
-            this.showNotification("Embed HTML copied to clipboard!", "Copied", "📋");
-        });
     }
 initSidebarResizers() {
         const sidebar = document.getElementById('mainSidebar'); 
@@ -6090,109 +5564,6 @@ renderArrows() {
             let fromIdx = getSqIdx(arrow.from); let toIdx = getSqIdx(arrow.to);
             if (fromIdx >= 0 && fromIdx <= 63 && toIdx >= 0 && toIdx <= 63) this.drawArrow(this.arrowLayer, fromIdx, toIdx, arrow.color, 0.6);
         });
-    }
-renderPockets(pocket) {
-        const pocketContainer = document.getElementById('pocket-container');
-        let topPocket = document.getElementById('top-pocket');
-        let bottomPocket = document.getElementById('bottom-pocket');
-
-        const gameMode = this.#game ? this.#game.gameMode : 'classical';
-        const isPocketMode = (gameMode === 'crazyhouse' || gameMode === 'bughouse' || gameMode === 'placement');
-
-        if (!isPocketMode || !pocket || (!pocket.w.length && !pocket.b.length)) {
-            if (pocketContainer) pocketContainer.style.display = 'none';
-            if (topPocket) topPocket.innerHTML = ''; if (bottomPocket) bottomPocket.innerHTML = '';
-            return;
-        }
-
-        if (pocketContainer) pocketContainer.style.display = 'flex';
-        
-        if (topPocket) {
-            topPocket.innerHTML = ''; topPocket.style.setProperty('flex-direction', 'column', 'important');
-            topPocket.style.setProperty('flex-wrap', 'nowrap', 'important'); topPocket.style.setProperty('align-items', 'center', 'important');
-            topPocket.style.setProperty('gap', '8px', 'important');
-        }
-        if (bottomPocket) {
-            bottomPocket.innerHTML = ''; bottomPocket.style.setProperty('flex-direction', 'column', 'important');
-            bottomPocket.style.setProperty('flex-wrap', 'nowrap', 'important'); bottomPocket.style.setProperty('align-items', 'center', 'important');
-            bottomPocket.style.setProperty('gap', '8px', 'important');
-        }
-
-        const topColor = this.flipped ? 'w' : 'b';
-        const bottomColor = this.flipped ? 'b' : 'w';
-
-        const drawPocket = (container, color) => {
-            if (!pocket || !pocket[color] || !container) return;
-            const pieceCounts = {};
-            pocket[color].forEach(pType => pieceCounts[pType] = (pieceCounts[pType] || 0) + 1);
-            
-            ['k', 'q', 'r', 'b', 'n', 'p'].forEach(pChar => {
-                const pType = ['p','n','b','r','q','k'].indexOf(pChar); 
-                if (pieceCounts[pType]) {
-                    const el = document.createElement('div');
-                    el.style.cssText = 'position: relative; width: 60px; height: 60px; cursor: grab; pointer-events: auto; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid #444; flex-shrink: 0;';
-                    const rawHTML = this.getPieceHTML({ color: color, type: pChar }); 
-                    
-                    let staticImgHTML = rawHTML;
-                    if (rawHTML) {
-                        let trimmed = rawHTML.trim();
-                        if (trimmed.startsWith('<svg')) staticImgHTML = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}" style="width:100%; height:100%; pointer-events:none;">`;
-                        else if (trimmed.startsWith('data:image/') || trimmed.startsWith('http') || trimmed.endsWith('.svg') || trimmed.endsWith('.png')) staticImgHTML = `<img src="${trimmed}" style="width:100%; height:100%; pointer-events:none;">`;
-                    }
-                    let pulseClass = (this.animationsEnabled !== false) ? " piece-heartbeat" : "";
-                    let ghostHTML = rawHTML;
-                    if (rawHTML) {
-                        let trimmed = rawHTML.trim();
-                        if (trimmed.startsWith('<svg')) ghostHTML = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}" class="piece-img${pulseClass}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
-                        else if (trimmed.startsWith('data:image/') || trimmed.startsWith('http') || trimmed.endsWith('.svg') || trimmed.endsWith('.png')) ghostHTML = `<img src="${trimmed}" class="piece-img${pulseClass}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
-                    }
-                    el.innerHTML = `<div style="position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; padding: 3px;">${staticImgHTML}</div>${pieceCounts[pType] > 1 ? `<div style="position: absolute; bottom: -6px; left: -6px; font-weight: bold; color: white; text-shadow: 1px 1px 2px black, -1px -1px 2px black, 1px -1px 2px black, -1px 1px 2px black; font-size: 15px; z-index: 2; pointer-events:none; background: #c33; padding: 1px 6px; border-radius: 6px; border: 1px solid white;">${pieceCounts[pType]}</div>` : ''}`;
-                    
-                    const handleDragStart = (e) => {
-                        let clientX = e.touches ? e.touches[0].clientX : e.clientX; let clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                        this.dragData = { source: '@', piece: pChar, color: color };
-                        if (typeof this.initDragGhost === 'function') this.initDragGhost(e, ghostHTML);
-                        else { this.draggedPieceGhost.style.backgroundImage = 'none'; this.draggedPieceGhost.innerHTML = ghostHTML; this.draggedPieceGhost.style.display = 'block'; }
-                        this.draggedPieceGhost.classList.add('piece', 'animating'); el.classList.add('dragging-source');
-                        const sqWidth = this.boardEl.offsetWidth / 8; const sqHeight = this.boardEl.offsetHeight / 8;
-                        this.draggedPieceGhost.style.width = sqWidth + 'px'; this.draggedPieceGhost.style.height = sqHeight + 'px';
-                        const scaler = document.getElementById('app-scaler') || document.body;
-                        
-                        const updateGhostPosition = (cx, cy) => {
-                            const rect = scaler.getBoundingClientRect(); const scale = window.appScale || 1;
-                            const logicalX = (cx - rect.left) / scale; const logicalY = (cy - rect.top) / scale;
-                            this.draggedPieceGhost.style.left = `${logicalX - (sqWidth / 2)}px`; this.draggedPieceGhost.style.top = `${logicalY - (sqHeight / 2)}px`;
-                        };
-                        updateGhostPosition(clientX, clientY);
-                        
-                        const onMove = (moveEvent) => { updateGhostPosition(moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX, moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY); };
-                        const onUp = (upEvent) => {
-                            document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp);
-                            document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onUp);
-                            this.draggedPieceGhost.style.display = 'none'; this.draggedPieceGhost.classList.remove('piece', 'animating');
-                            el.classList.remove('dragging-source'); document.body.classList.remove('grabbing');
-                            let cx = upEvent.changedTouches ? upEvent.changedTouches[0].clientX : upEvent.clientX; let cy = upEvent.changedTouches ? upEvent.changedTouches[0].clientY : upEvent.clientY;
-                            const rect = this.boardEl.getBoundingClientRect();
-                            if (cx >= rect.left && cx <= rect.right && cy >= rect.top && cy <= rect.bottom) {
-                                const file = Math.floor((cx - rect.left) / (rect.width / 8)); const rank = 7 - Math.floor((cy - rect.top) / (rect.height / 8));
-                                const sq = String.fromCharCode(97 + (this.flipped ? 7 - file : file)) + (this.flipped ? 8 - rank : rank + 1);
-                                if (typeof this.executeMove === 'function') this.executeMove({ from: '@', to: sq, drop: pChar }, true);
-                                else if (this.#game && typeof this.#game.makeMove === 'function') { this.#game.makeMove({ from: '@', to: sq, drop: pChar }); if (typeof this.renderBoard === 'function') this.renderBoard(true); }
-                            }
-                            this.dragData = null;
-                        };
-                        document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp); document.addEventListener('touchmove', onMove, {passive: false}); document.addEventListener('touchend', onUp);
-                    };
-                    el.addEventListener('mousedown', (e) => { if (e.button !== 0) return; e.preventDefault(); handleDragStart(e); });
-                    el.addEventListener('touchstart', (e) => { e.preventDefault(); handleDragStart(e); }, {passive: false});
-                    container.appendChild(el);
-                }
-            });
-        };
-
-        if (this.flipped) { drawPocket(topPocket, 'w'); drawPocket(bottomPocket, 'b'); } 
-        else { drawPocket(topPocket, 'b'); drawPocket(bottomPocket, 'w'); }
-        if (typeof this.resizeApp === 'function') this.resizeApp();
     }
 getNodeVisuals(node) {
         if ((node.arrows && node.arrows.length > 0) || (node.circles && node.circles.length > 0)) return `<span style="display:inline-block;width:6px;height:6px;background-color:#00b023;border-radius:50%;margin-left:3px;margin-bottom:3px;vertical-align:middle;box-shadow:0 0 4px #00b023;"title="Has Annotations"></span>`;
