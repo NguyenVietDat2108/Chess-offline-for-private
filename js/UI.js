@@ -76,7 +76,7 @@ setGame(gameInstance) {
     }
 init() {
         this.populatePieceSets();
-        this.#bindDOMEvents(); // 🔒 Encapsulated Event Binding
+        this.#bindDOMEvents(); 
         this.initKeyboardEvents();
         this.initEditorBars();
         this.initSoundSettings();
@@ -106,24 +106,23 @@ init() {
 
         this.updateBotMenuPreviews();
         this.renderCharts();
-        this.#initializeObservers(); // 🔒 Encapsulated Observers
-        this.#loadCachedTheme(); // 🔒 Encapsulated Theme Loading
+        this.#initializeObservers();
+        this.#loadCachedTheme(); 
         
         const resignBtn = document.getElementById('resignBtn');
         const drawBtn = document.getElementById('drawBtn');
         if (resignBtn) resignBtn.style.display = 'none';
         if (drawBtn) drawBtn.style.display = 'none';
+        
         setTimeout(() => {
             if (typeof this.resizeApp === 'function') this.resizeApp();
 
-            // ✨ THE GLOBAL RESTORE: Automatically load into whichever tab you were looking at!
             let lastTab = 'play';
             if (typeof localStorage !== 'undefined') {
                 lastTab = localStorage.getItem('chess_last_tab') || 'play';
             }
             this.switchTab(lastTab);
 
-            // Force a deep UI sweep
             if (this.#game) {
                 this.updateHistory();
                 this.renderArrows();
@@ -402,9 +401,9 @@ init() {
             if (mainContainer) mainContainer.style.justifyContent = 'center';
         }
 
-        // 🔥 ĐỊNH TUYẾN TAB
         let targetId = 'tabContent-Play';
-        if (stateMode === 'puzzle' || stateMode === 'puzzles') targetId = 'tabContent-Puzzles';
+        if (lowerTab === 'graph') targetId = 'tabContent-Graph';
+        else if (stateMode === 'puzzle' || stateMode === 'puzzles') targetId = 'tabContent-Puzzles';
         else if (stateMode === 'editor') targetId = 'tabContent-Editor';
         else if (stateMode === 'trainer' || lowerTab === 'trainer') targetId = 'tabContent-Trainer';
 
@@ -420,6 +419,36 @@ init() {
             activeBtn.classList.add('active'); activeBtn.style.background = '#2872b5'; activeBtn.style.color = '#fff';
         }
 
+        const boardSection = document.querySelector('.board-section');
+        const mainSidebar = document.getElementById('mainSidebar');
+        const pocketContainer = document.getElementById('pocket-container');
+        
+        if (lowerTab === 'graph') {
+            if (boardSection) boardSection.style.display = 'none';
+            if (mainSidebar) mainSidebar.style.display = 'none';
+            if (studySidebar) studySidebar.style.display = 'none';
+            if (pocketContainer) pocketContainer.style.display = 'none';
+            
+            if (targetTab) {
+                if (targetTab.parentElement !== document.body) {
+                    document.body.appendChild(targetTab); 
+                }
+                targetTab.style.display = 'block';
+                targetTab.style.position = 'fixed';
+                targetTab.style.width = '100vw';
+                targetTab.style.height = '100vh';
+                targetTab.style.top = '0';
+                targetTab.style.left = '0';
+                targetTab.style.zIndex = '50';
+                targetTab.style.background = 'radial-gradient(circle at center, #1e293b 0%, #0f172a 100%)';
+            }
+        } else {
+            if (boardSection) boardSection.style.display = '';
+            if (mainSidebar) mainSidebar.style.display = '';
+            const graphTab = document.getElementById('tabContent-Graph');
+            if (graphTab) graphTab.style.display = 'none';
+        }
+
         if (stateMode === 'editor') {
             document.body.classList.add('show-editor');
             if (typeof this.syncEditorHTMLWithGame === 'function') this.syncEditorHTMLWithGame();
@@ -431,45 +460,31 @@ init() {
 
         if (this.toggleSideMenu) this.toggleSideMenu(false);
 
-        // 🔥 KIỂM TRA ĐIỀU KIỆN ẨN/HIỆN CHUNG
         const isEditor = (stateMode === 'editor');
         const isPuzzle = (stateMode === 'puzzle' || stateMode === 'puzzles');
         const isTrainer = (stateMode === 'trainer' || lowerTab === 'trainer');
+        const isGraph = (lowerTab === 'graph');
 
-        // Giấu header và thanh comment đi nếu đang ở Trainer cho rộng chỗ
-        document.querySelectorAll('.player-header').forEach(el => el.style.display = (isEditor || isPuzzle || isTrainer) ? 'none' : '');
+        document.querySelectorAll('.player-header').forEach(el => el.style.display = (isEditor || isPuzzle || isTrainer || isGraph) ? 'none' : '');
         const commentaryBox = document.getElementById('commentaryBox');
-        if (commentaryBox) commentaryBox.style.display = (isEditor || isPuzzle || isTrainer) ? 'none' : '';
+        if (commentaryBox) commentaryBox.style.display = (isEditor || isPuzzle || isTrainer || isGraph) ? 'none' : '';
         
         if (isPuzzle && this.#game && this.#game.currentPuzzle) {
-            if (typeof this.updatePuzzleUI === 'function') {
-                this.updatePuzzleUI("active", this.#game.currentPuzzle);
-            }
-            if (this.#game.puzzleSolved && typeof this.showPuzzleSuccess === 'function') {
-                this.showPuzzleSuccess();
-            }
+            if (typeof this.updatePuzzleUI === 'function') this.updatePuzzleUI("active", this.#game.currentPuzzle);
+            if (this.#game.puzzleSolved && typeof this.showPuzzleSuccess === 'function') this.showPuzzleSuccess();
         }
 
         const engineBtn = document.querySelector('.engine-toggle-btn');
         if (engineBtn) {
-            engineBtn.style.display = (isEditor || isTrainer) ? 'none' : '';
-            
+            engineBtn.style.display = (isEditor || isTrainer || isGraph) ? 'none' : '';
             let isUnfinishedPuzzle = false;
-            if (isPuzzle && this.#game) {
-                if (!this.#game.gameOver && !this.#game.puzzleSolved) {
-                    isUnfinishedPuzzle = true;
-                }
-            }
-
-            if (isUnfinishedPuzzle) {
-                engineBtn.style.opacity = '0.5'; engineBtn.style.cursor = 'not-allowed';
-            } else {
-                engineBtn.style.opacity = '1'; engineBtn.style.cursor = 'pointer';
-            }
+            if (isPuzzle && this.#game && !this.#game.gameOver && !this.#game.puzzleSolved) isUnfinishedPuzzle = true;
+            if (isUnfinishedPuzzle) { engineBtn.style.opacity = '0.5'; engineBtn.style.cursor = 'not-allowed'; } 
+            else { engineBtn.style.opacity = '1'; engineBtn.style.cursor = 'pointer'; }
         }
         
         const enginePanel = document.getElementById('enginePanel');
-        if (enginePanel) enginePanel.style.display = (isEditor || isTrainer) ? 'none' : '';
+        if (enginePanel) enginePanel.style.display = (isEditor || isTrainer || isGraph) ? 'none' : '';
     }
 showVariantRules(variantMode) {
         const mode = variantMode || (this.#game ? this.#game.gameMode : 'classical');
@@ -582,60 +597,97 @@ switchTab(tabName) {
         if (typeof this.hideGameOver === 'function') this.hideGameOver();
         const lowerTab = tabName.toLowerCase();
 
-        // ✨ ROOT FIX: Prevent custom variant physics from bleeding into puzzle analysis!
-        if (lowerTab === 'analysis' && this.#game && this.#game.mode === 'puzzle') {
-            // 1. Force the engine safely back to standard chess rules
-            if (typeof this.#game.setGameMode === 'function') {
-                this.#game.setGameMode('classical', false, true);
-            }
-            
-            // 2. Erase the custom variant from memory so the tab restorer doesn't immediately corrupt it again
-            if (typeof localStorage !== 'undefined') {
-                localStorage.setItem('chess_last_variant', 'classical');
-            }
-            
-            // 3. Visually force the dropdown back to Classical
-            const variantSelect = document.getElementById('analysisVariantSelect');
-            if (variantSelect) {
-                variantSelect.value = 'classical';
-            }
-        }
-
+        // A. Restore Flip View state immediately
         if (typeof localStorage !== 'undefined') {
             localStorage.setItem('chess_last_tab', lowerTab);
+            const savedFlip = localStorage.getItem('chess_graph_flip');
+            if (savedFlip && (savedFlip === 'b') !== this.flipped) {
+                this.flipped = (savedFlip === 'b'); 
+            }
         }
 
+        // B. Capture the exact state BEFORE modifying variables to prevent PGN theft
+        const leavingGraph = (this.#game && this.#game.mode === 'graph' && lowerTab !== 'graph');
+        const graphSourceBeforeLeaving = this._previousTabBeforeGraph || 'study';
+
+        // C. Track previous tab for Graph contextual return
+        if (lowerTab !== 'graph') {
+            this._previousTabBeforeGraph = lowerTab;
+            if (typeof localStorage !== 'undefined') localStorage.setItem('chess_graph_source', lowerTab);
+            
+            if (!this._tabFlipStates) this._tabFlipStates = { play: false, analysis: false, study: false, editor: false, puzzle: false, trainer: false };
+            const currentTabContext = (this.#game && (this.#game.mode === 'local' || this.#game.mode === 'bot' || this.#game.mode === 'play')) ? 'play' : (this.#game ? this.#game.mode : 'analysis');
+            this._tabFlipStates[currentTabContext] = this.flipped;
+        } else {
+            if (!this._previousTabBeforeGraph) {
+                this._previousTabBeforeGraph = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_graph_source') : null) || 'study';
+            }
+        }
+
+        // D. Engine Memory Routing & Protection
         if (this.#game) {
-            // 1. VALIDATE EXITING EDITOR
-            if (this.#game.mode === 'editor' && lowerTab !== 'editor') {
+            // Handle Editor safe exit
+            if (this.#game.mode === 'editor' && lowerTab !== 'editor' && lowerTab !== 'graph') {
                 const fenInput = document.getElementById('fenInput');
                 const currentFen = fenInput ? fenInput.value : (typeof this.#game.generateFEN === 'function' ? this.#game.generateFEN() : "");
                 if (!this.#validateEditorExit(currentFen)) return; 
             }
-
-            // 2. PREP FOR ENTERING EDITOR
             if (lowerTab === 'editor') {
-                // Save the FEN for the 'Cancel' logic
                 this.originalEditorFen = typeof this.#game.generateFEN === 'function' ? this.#game.generateFEN() : (this.#game.currentNode ? this.#game.currentNode.fen : "");
-
-                // ✨ THE FIX: Export Analysis/Play PGN to the Editor Textarea
                 const pgnInput = document.getElementById('editorPgnInput');
-                if (pgnInput) {
-                    // We grab the PGN NOW before handleTabSwitch wipes the current history
-                    const currentPgn = typeof this.#game.generatePGN === 'function' ? this.#game.generatePGN() : "";
-                    pgnInput.value = currentPgn;
+                if (pgnInput) pgnInput.value = typeof this.#game.generatePGN === 'function' ? this.#game.generatePGN() : "";
+            }
+
+            if (leavingGraph) {
+                if (graphSourceBeforeLeaving === 'analysis' && typeof this.#game.saveState === 'function') {
+                    this.#game.saveState('analysis');
+                } else if ((graphSourceBeforeLeaving === 'study' || graphSourceBeforeLeaving === 'trainer') && typeof this.#game.saveActiveChapter === 'function') {
+                    this.#game.saveActiveChapter();
                 }
             }
 
-            // 3. EXECUTE THE ENGINE SWAP (This clears/restores memory slots)
-            if (typeof this.#game.handleTabSwitch === 'function') {
-                this.#game.handleTabSwitch(lowerTab);
-            } else if (typeof this.#game.switchMode === 'function') {
-                this.#game.switchMode(lowerTab);
+            if (lowerTab === 'graph') {
+                const source = this._previousTabBeforeGraph || 'study';
+                const currentFlip = this.flipped; // Activate Flip Shield
+
+                // Load correct PGN into the engine
+                if (source === 'study' || source === 'trainer') {
+                    let savedChap = parseInt(localStorage.getItem('chess_active_chapter_idx'), 10);
+                    if (isNaN(savedChap)) savedChap = this.#game.activeChapterIndex || 0;
+                    if (typeof this.#game.loadChapter === 'function') this.#game.loadChapter(savedChap, true, true);
+                } else {
+                    if (typeof this.#game.restoreState === 'function') this.#game.restoreState(source);
+                }
+
+                // Restore flip state if loadChapter tampered with it
+                if (this.flipped !== currentFlip) {
+                    this.flipped = currentFlip;
+                    if (typeof localStorage !== 'undefined') localStorage.setItem('chess_graph_flip', currentFlip ? 'b' : 'w');
+                }
+
+                // Lock mode to graph
+                this.#game.mode = 'graph';
+            } else {
+                if (typeof this.#game.handleTabSwitch === 'function') this.#game.handleTabSwitch(lowerTab);
+                else if (typeof this.#game.switchMode === 'function') this.#game.switchMode(lowerTab);
             }
         }
 
-        // --- Visual Updates ---
+        // E. Orient the board correctly for standard tabs
+        if (lowerTab !== 'graph') {
+            const targetTabContext = (lowerTab === 'local' || lowerTab === 'bot' || lowerTab === 'play') ? 'play' : lowerTab;
+            let wantFlipped = this.flipped;
+            
+            if (targetTabContext === 'trainer') {
+                const colorSel = document.getElementById('trainerColorSelect');
+                wantFlipped = colorSel ? (colorSel.value === 'b') : false;
+            } else if (this._tabFlipStates[targetTabContext] !== undefined) {
+                wantFlipped = this._tabFlipStates[targetTabContext];
+            }
+            if (this.flipped !== wantFlipped) this.flipBoard(); 
+        }
+
+        // F. Apply Visuals and Headers
         const state = this.#game ? this.#game.getReader() : { mode: lowerTab, isLive: false };
         this.#applyTabVisuals(state.mode, lowerTab);
 
@@ -654,20 +706,25 @@ switchTab(tabName) {
             if (state.mode === 'analysis' && this.toggleReviewButton) this.toggleReviewButton(true);
         }
 
+        // G. Trigger final rendering
         if (this.#game) {
-            this.updateHistory(true);
-            this.renderBoard(false);
+            if (lowerTab === 'graph') {
+                if (typeof this.renderFullGraph === 'function') requestAnimationFrame(() => this.renderFullGraph());
+            } else {
+                this.updateHistory(true);
+                this.renderBoard(false);
 
-            if (state.mode !== 'play' && window.engineAnalysing) {
-                if (this.#game.updateStockfish) this.#game.updateStockfish();
-            }
+                if (state.mode !== 'play' && window.engineAnalysing) {
+                    if (this.#game.updateStockfish) this.#game.updateStockfish();
+                }
 
-            if (state.mode === 'analysis' || state.mode === 'study') {
-                const engineLinesBox = document.getElementById('engine-lines-box');
-                if (engineLinesBox) engineLinesBox.innerHTML = '';
-                if (this.renderCharts) {
-                    this._lastChartedFen = null;
-                    requestAnimationFrame(() => this.renderCharts(true));
+                if (state.mode === 'analysis' || state.mode === 'study') {
+                    const engineLinesBox = document.getElementById('engine-lines-box');
+                    if (engineLinesBox) engineLinesBox.innerHTML = '';
+                    if (this.renderCharts) {
+                        this._lastChartedFen = null;
+                        requestAnimationFrame(() => this.renderCharts(true));
+                    }
                 }
             }
         }
@@ -1782,6 +1839,14 @@ hideGameOver() {
         const modal = document.getElementById('gameOverModal');
         if (modal) modal.style.display = 'none';
     }
+showPuzzleSuccess() {
+        const status = document.getElementById('puzzleStatus');
+        const next = document.getElementById('nextPuzzleBtn');
+        if(status) { status.innerText = "Success!"; status.style.color = "#26c2a3"; }
+        const isRush = ['3min', '5min', 'survival'].includes(this.#game.puzzleMode);
+        if (!isRush && next) next.style.display = "block";
+    }
+
 showPuzzleHint() {
         const state = this.#game ? this.#game.getReader() : null;
         if (!state || state.mode !== 'puzzle') return;
@@ -1827,68 +1892,6 @@ showPuzzleHint() {
             setTimeout(() => { clearHint(); }, 2400);
         }
     }
-initSidebarResizers() {
-        const sidebar = document.getElementById('mainSidebar'); 
-        const handleW = document.getElementById('resizeSidebarW');
-        if (!sidebar) return;
-
-        const savedWidth = localStorage.getItem('sidebarWidth') || '520px';
-        sidebar.style.width = savedWidth;
-        sidebar.style.minWidth = savedWidth;
-        sidebar.style.maxWidth = savedWidth;
-        sidebar.style.marginLeft = '-16px'; 
-
-        if (handleW) {
-            let startX, startPgnW;
-            const doDragW = (moveEvent) => {
-                const scaler = document.getElementById('app-scaler');
-                let scale = 1;
-                if (scaler) {
-                    const transform = window.getComputedStyle(scaler).transform;
-                    if (transform !== 'none') {
-                        const matrix = transform.match(/^matrix\((.+)\)$/);
-                        if (matrix) scale = parseFloat(matrix[1].split(',')[0]);
-                    }
-                }
-
-                const dx = (moveEvent.clientX - startX) / scale;
-                let newPgnW = startPgnW + dx;
-                const screenW = 2600;
-                const leftPanel = document.querySelector('.left-panel');
-                const leftW = (leftPanel && leftPanel.style.display !== 'none') ? leftPanel.offsetWidth : 0;
-                const boardWrapper = document.getElementById('board-wrapper');
-                const boardW = boardWrapper ? boardWrapper.offsetWidth : 600;
-                const TOTAL_FIXED_SPACE = 80 + 20 + 40 + 32 + 24 + leftW;
-                const maxPgnW = screenW - boardW - TOTAL_FIXED_SPACE;
-
-                if (newPgnW > maxPgnW) newPgnW = maxPgnW;
-                if (newPgnW < 300) newPgnW = 300;
-                
-                sidebar.style.width = `${newPgnW}px`;
-                sidebar.style.minWidth = `${newPgnW}px`;
-                sidebar.style.maxWidth = `${newPgnW}px`;
-            };
-
-            const stopDragW = () => {
-                handleW.classList.remove('active');
-                document.body.style.userSelect = '';
-                document.removeEventListener('mousemove', doDragW);
-                document.removeEventListener('mouseup', stopDragW);
-                localStorage.setItem('sidebarWidth', sidebar.style.width);
-                window.dispatchEvent(new Event('resize')); 
-            };
-
-            handleW.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                handleW.classList.add('active');
-                document.body.style.userSelect = 'none';
-                startX = e.clientX;
-                startPgnW = sidebar.offsetWidth;
-                document.addEventListener('mousemove', doDragW);
-                document.addEventListener('mouseup', stopDragW);
-            });
-        }
-    }
 getSquareFromCoords(x, y) {
         // ✨ FIX: Use squaresLayer to bypass CSS borders
         const rect = this.squaresLayer.getBoundingClientRect();
@@ -1905,10 +1908,26 @@ getSquareFromCoords(x, y) {
         if (this.flipped) { c = 7 - c; r = 7 - r; }
         return r * 8 + c;
     }
+promoteVar() {
+        const state = this.#game ? this.#game.getReader() : null;
+        if (state && state.activeNodeId) {
+            this.#game.promoteVariation(state.activeNodeId);
+            this.renderBoard(false, false);
+            if (state.mode !== 'play' && this.#game.updateStockfish) this.#game.updateStockfish();
+        }
+        if (this.annotationPopup) this.annotationPopup.style.display = 'none';
+    }
+makeMainline() {
+        const state = this.#game ? this.#game.getReader() : null;
+        if (state && state.activeNodeId) {
+            this.#game.makeMainline(state.activeNodeId);
+            this.renderBoard(false, false);
+            if (state.mode !== 'play' && this.#game.updateStockfish) this.#game.updateStockfish();
+        }
+        if (this.annotationPopup) this.annotationPopup.style.display = 'none';
+    }
 initKeyboardEvents() {
-        // --- 1. KEY DOWN LISTENER ---
         document.addEventListener('keydown', (e) => {
-            // GLOBAL SAFEGUARD: Ignore all shortcuts if typing in a text box
             const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
             if (['input', 'textarea', 'select'].includes(activeTag)) return;
 
@@ -1917,9 +1936,8 @@ initKeyboardEvents() {
                 if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code) || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) return; 
             }
 
-            // SPACEBAR LOGIC: Blindfold Peek
             if (e.code === 'Space') {
-                e.preventDefault(); // Stop the spacebar from scrolling the page down
+                e.preventDefault(); 
                 if (this.blindfoldMode && !this.isPeeking) {
                     this.isPeeking = true;
                     if (typeof this.renderBoard === 'function') this.renderBoard(false);
@@ -1927,38 +1945,77 @@ initKeyboardEvents() {
                 return;
             }
 
-            // ARROW KEYS LOGIC (Clean 85ms throttle, no muting!)
-            if (this.#game) {
-                const now = performance.now();
-                if (!this._lastArrowPress) this._lastArrowPress = 0;
+            if (!this.#game) return;
 
-                if (e.key === 'ArrowRight') {
-                    if (now - this._lastArrowPress < 85) return;
-                    this._lastArrowPress = now;
-                    if (typeof this.#game.stepForward === 'function') this.#game.stepForward();
-                } 
-                else if (e.key === 'ArrowLeft') {
-                    if (now - this._lastArrowPress < 85) return;
-                    this._lastArrowPress = now;
-                    if (typeof this.#game.stepBack === 'function') this.#game.stepBack();
+            const graphTab = document.getElementById('tabContent-Graph');
+            const isGraphActive = graphTab && graphTab.classList.contains('active');
+
+            // Chặn cuộn trang khi đè phím trong Graph
+            if (isGraphActive && ['w','a','s','d','W','A','S','D','Tab','Enter'].includes(e.key)) {
+                e.preventDefault();
+            }
+
+            // GỘP CHUNG TẤT CẢ PHÍM ĐIỀU KHIỂN
+            const isForward = (e.key === 'ArrowRight' || (isGraphActive && (e.key === 'd' || e.key === 'D')));
+            const isBackward = (e.key === 'ArrowLeft' || (isGraphActive && (e.key === 'a' || e.key === 'A')));
+            const isStart = (e.key === 'ArrowUp');
+            const isEnd = (e.key === 'ArrowDown');
+            const isNextBranch = isGraphActive && (e.key === 's' || e.key === 'S' || e.key === 'Tab');
+            const isPrevBranch = isGraphActive && (e.key === 'w' || e.key === 'W');
+            const isEnter = isGraphActive && e.key === 'Enter';
+
+            const now = performance.now();
+            if (!this._lastArrowPress) this._lastArrowPress = 0;
+
+            // TÁCH LOGIC: Lướt cờ mượt mà, trì hoãn việc vẽ lại Mạng Nhện SVG để tránh giật lag
+            const triggerGraphFastUpdate = () => {
+                if (!isGraphActive) return;
+                
+                // Trì hoãn việc vẽ lại toàn bộ Mạng lưới SVG (giúp app đéo bị khựng)
+                clearTimeout(this._graphRenderDebounce);
+                this._graphRenderDebounce = setTimeout(() => {
+                    this.renderFullGraph();
+                }, 100); 
+            };
+
+            // [D] Hoặc Phải -> FAST FORWARD
+            if (isForward) {
+                if (this.#game.stepForward(true)) triggerGraphFastUpdate();
+            } 
+            // [A] Hoặc Trái -> FAST REWIND
+            else if (isBackward) {
+                if (this.#game.stepBack(true)) triggerGraphFastUpdate();
+            }
+            else if (isStart) { 
+                e.preventDefault(); 
+                if (this.#game.goToStart(true)) triggerGraphFastUpdate();
+            }
+            else if (isEnd) { 
+                e.preventDefault(); 
+                if (this.#game.goToEnd(true)) triggerGraphFastUpdate();
+            }
+            // ĐẢO NHÁNH BIẾN THỂ
+            else if (isNextBranch || isPrevBranch) {
+                const curr = this.#game.currentNode;
+                if (curr && curr.parent && curr.parent.children.length > 1) {
+                    const siblings = curr.parent.children;
+                    let idx = siblings.indexOf(curr);
+                    if (isNextBranch) idx = (idx + 1) % siblings.length; 
+                    else idx = (idx - 1 + siblings.length) % siblings.length; 
+                    
+                    if (this.#game.goToNodeId(siblings[idx].id, true)) triggerGraphFastUpdate();
                 }
-                else if (e.key === 'ArrowUp') { 
-                    e.preventDefault(); 
-                    if (typeof this.#game.goToStart === 'function') this.#game.goToStart(); 
-                }
-                else if (e.key === 'ArrowDown') { 
-                    e.preventDefault(); 
-                    if (typeof this.#game.goToEnd === 'function') this.#game.goToEnd(); 
-                }
+            }
+            // THOÁT GRAPH
+            else if (isEnter) {
+                this.switchTab(this._previousTabBeforeGraph || 'study');
             }
         });
 
-        // --- 2. KEY UP LISTENER ---
         document.addEventListener('keyup', (e) => {
             const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
             if (['input', 'textarea', 'select'].includes(activeTag)) return;
 
-            // SPACEBAR LOGIC: Release Blindfold Peek
             if (e.code === 'Space' && this.blindfoldMode && this.isPeeking) {
                 this.isPeeking = false;
                 if (typeof this.renderBoard === 'function') this.renderBoard(false);
@@ -2641,7 +2698,6 @@ executeMove(move, animate = true, overridePromo = null) {
 renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         if (this._isExecutingMove) return; 
         
-        
         const state = this.#game ? this.#game.getReader() : null;
         if (!state) return;
 
@@ -2653,8 +2709,17 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         const theme = document.getElementById('assetType') ? document.getElementById('assetType').value : 'merida';
         const boardContainer = document.getElementById('chessBoard');
         if (boardContainer) {
+            // Assign container query to allow mathematical CSS scaling
+            boardContainer.style.containerType = 'inline-size';
+            
             if (theme === 'disguised') boardContainer.classList.add('theme-disguised');
             else boardContainer.classList.remove('theme-disguised');
+        }
+
+        // Apply mathematical layout sync for perfectly scaled CSS badges
+        if (this.boardWrapper) {
+            const bw = this.boardWrapper.offsetWidth || 600;
+            this.boardWrapper.style.setProperty('--board-width', bw + 'px');
         }
         
         this.coordsPosition = document.getElementById('coordPosition') ? document.getElementById('coordPosition').value : 'inside';
@@ -2722,6 +2787,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         }
 
         const activeMove = overrideMove || state.lastMove;
+        const nodeMove = state.lastMove;
 
         if (this.squaresLayer.children.length !== 64) {
             this.squaresLayer.innerHTML = '';
@@ -2743,7 +2809,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                         let curr = q.shift();
                         cluster.push(curr);
                         let r = Math.floor(curr/8), c = curr%8;
-                        // Check all 8 directions for connected ice
                         let neighbors = [curr-8, curr+8, curr-1, curr+1, curr-9, curr-7, curr+7, curr+9];
                         for (let n of neighbors) {
                             if (n >= 0 && n < 64 && state.frozenSquares[n] && !visited.has(n)) {
@@ -2755,7 +2820,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                             }
                         }
                     }
-                    // Find the Bounding Box of this block
                     let minR = 8, maxR = -1, minC = 8, maxC = -1;
                     for (let sq of cluster) {
                         let r = Math.floor(sq/8), c = sq%8;
@@ -2785,14 +2849,12 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             sq.dataset.index = logical_i; 
             sq.innerHTML = '';
 
-             // ✨ Safe Cleanup
             sq.classList.remove('frozen');
             let oldIce = sq.querySelector('.spell-ice');
             if (oldIce) oldIce.remove();
             let oldPortal = sq.querySelector('.spell-portal');
             if (oldPortal) oldPortal.remove();
 
-            // ✨ SEAMLESS 3x3 FREEZE BLOCK (MAXIMUM CRYSTALLINE DENSITY + DEEP COLD BLUE)
             if (state.gameMode === 'spell' && state.frozenSquares && state.frozenSquares[logical_i]) {
                 sq.classList.add('frozen');
                 let ice = document.createElement('div');
@@ -2812,13 +2874,11 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     let bgX = mapping.W > 1 ? (vis_x / (mapping.W - 1)) * 100 : 50;
                     let bgY = mapping.H > 1 ? (vis_y / (mapping.H - 1)) * 100 : 50;
                     
-                    // ✨ Hyper-Dense Vector Snowflake (16 Arms, 120+ Frost Needles)
                     let svgSnowFlower = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><filter id='glow'><feGaussianBlur stdDeviation='1.2' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><g id='branch'><line x1='50' y1='50' x2='50' y2='0' stroke='%23fff' stroke-width='1.5' stroke-linecap='round'/><path d='M 50 6 L 30 26 M 50 6 L 70 26 M 50 14 L 28 36 M 50 14 L 72 36 M 50 22 L 32 40 M 50 22 L 68 40 M 50 30 L 38 42 M 50 30 L 62 42 M 50 38 L 42 46 M 50 38 L 58 46' stroke='%230af' stroke-width='1' fill='none' stroke-linecap='round'/><path d='M 50 10 L 40 20 M 50 10 L 60 20 M 50 18 L 36 32 M 50 18 L 64 32 M 50 26 L 40 36 M 50 26 L 60 36 M 50 34 L 44 40 M 50 34 L 56 40' stroke='%23fff' stroke-width='0.6' fill='none' stroke-linecap='round'/></g><g id='spike'><line x1='50' y1='50' x2='50' y2='10' stroke='%2308f' stroke-width='1.2' stroke-linecap='round'/><path d='M 50 16 L 38 28 M 50 16 L 62 28 M 50 26 L 42 34 M 50 26 L 58 34 M 50 36 L 46 40 M 50 36 L 54 40' stroke='%234df' stroke-width='0.8' fill='none' stroke-linecap='round'/></g></defs><g filter='url(%23glow)'><polygon points='50,15 75,25 85,50 75,75 50,85 25,75 15,50 25,25' fill='rgba(0,60,150,0.5)'/><use href='%23branch' transform='rotate(0 50 50)'/><use href='%23branch' transform='rotate(45 50 50)'/><use href='%23branch' transform='rotate(90 50 50)'/><use href='%23branch' transform='rotate(135 50 50)'/><use href='%23branch' transform='rotate(180 50 50)'/><use href='%23branch' transform='rotate(225 50 50)'/><use href='%23branch' transform='rotate(270 50 50)'/><use href='%23branch' transform='rotate(315 50 50)'/><use href='%23spike' transform='rotate(22.5 50 50)'/><use href='%23spike' transform='rotate(67.5 50 50)'/><use href='%23spike' transform='rotate(112.5 50 50)'/><use href='%23spike' transform='rotate(157.5 50 50)'/><use href='%23spike' transform='rotate(202.5 50 50)'/><use href='%23spike' transform='rotate(247.5 50 50)'/><use href='%23spike' transform='rotate(292.5 50 50)'/><use href='%23spike' transform='rotate(337.5 50 50)'/><polygon points='50,25 68,32 75,50 68,68 50,75 32,68 25,50 32,32' fill='rgba(0,150,255,0.4)' stroke='%23fff' stroke-width='1.5'/><polygon points='50,35 61,39 65,50 61,61 50,65 39,61 35,50 39,39' fill='rgba(150,240,255,0.6)' stroke='%230af' stroke-width='1.5'/><circle cx='50' cy='50' r='8' fill='%23fff'/><circle cx='50' cy='50' r='3' fill='%230bf'/></g></svg>`;
 
                     let bgSize = `${mapping.W * 100}% ${mapping.H * 100}%`;
                     let bgPos = `${bgX}% ${bgY}%`;
 
-                    // 🧊 6 Layers of Ice: Vector Star + 2 Frost Ray Arrays + Core Depth + 2 Crystal Fracture Layers
                     ice.style.cssText = `
                         position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
                         background-image: 
@@ -2872,7 +2932,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 sq.appendChild(ice);
             }
 
-            // ✨ JUMP PORTAL
             if (state.gameMode === 'spell' && state.jump_sq !== undefined && state.jump_sq === logical_i) {
                 let portal = document.createElement('div');
                 portal.className = 'spell-portal';
@@ -2917,19 +2976,16 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
 
             sq.onmousedown = null;
 
-            // ✨ SPELL INTERCEPTOR: Handle 3x3 Hover & Spell Casting
             if (state.gameMode === 'spell' && this.activeSpell && state.mode !== 'editor') {
-                sq.style.cursor = 'pointer'; // Replaced crosshair with pointer
+                sq.style.cursor = 'pointer'; 
 
                 sq.onmouseenter = () => {
-                    // Clear previous highlights efficiently
                     this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
 
                     if (this.activeSpell === 'freeze') {
                         const r = Math.floor(logical_i / 8);
                         const c = logical_i % 8;
 
-                        // Highlight 3x3 area
                         for (let dr = -1; dr <= 1; dr++) {
                             for (let dc = -1; dc <= 1; dc++) {
                                 const nr = r + dr, nc = c + dc;
@@ -2941,7 +2997,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                             }
                         }
                     } else {
-                        // Default 1x1 highlight for 'jump' or other spells
                         sq.classList.add('spell-target-hover');
                     }
                 };
@@ -2954,8 +3009,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     if (e.button !== 0) return; 
                     e.preventDefault();
                     e.stopPropagation();
-                    console.log(`\n🔮 --- SPELL CAST INITIATED ---`);
-                    console.log(`[UI] Casting '${this.activeSpell}' on UI index: ${logical_i}`);
                     this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
                     
                     if (typeof this.castSpell === 'function') {
@@ -2963,7 +3016,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     }
                 };
 
-                continue; // Prevents normal piece interaction while spell is active
+                continue; 
             } else {
                 sq.style.cursor = ''; 
                 sq.onmouseenter = null;
@@ -3036,7 +3089,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         let visualBoard;
         const currentFen = this.#game && this.#game.currentNode ? this.#game.currentNode.fen : '';
         
-        // ✨ THE ULTIMATE GHOST FIX: Safely parse the ~ character without collapsing the board!
         if (currentFen.includes('~')) {
             visualBoard = new Array(64).fill(null);
             let validPieces = state.board.filter(p => p && p.type !== '~');
@@ -3050,20 +3102,17 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 if (char === '/') continue;
                 
                 if (/\d/.test(char)) { 
-                    // ✨ FIX: Explicitly fill empty squares with null so pieces don't collapse!
                     let empties = parseInt(char, 10);
                     for (let e = 0; e < empties; e++) {
                         visualBoard[logicalIndex] = null;
                         logicalIndex++;
                     }
                 } else if (char === '~') { 
-                    // Apply ghost effect to the piece we JUST placed
                     let prevSq = logicalIndex - 1;
                     if (visualBoard[prevSq] && state.gameMode === 'alice') {
                         visualBoard[prevSq].isBoardB = true;
                     }
                 } else { 
-                    // Real piece! Place it securely
                     if (pieceCursor < validPieces.length) {
                         visualBoard[logicalIndex] = { ...validPieces[pieceCursor] };
                         pieceCursor++;
@@ -3075,7 +3124,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             visualBoard = [...state.board];
         }
 
-        // Apply Duck Placement preview logic
         if (this.duckPlacementMoves && this.pendingDuckMove) {
             const fromIdx = this.pendingDuckMove.from; const toIdx = this.pendingDuckMove.to;
             if (fromIdx >= 0 && fromIdx < 64 && toIdx >= 0 && toIdx < 64) {
@@ -3133,24 +3181,59 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     htmlBuffer = `<img src="${trimmed}" class="piece-img${duckClass}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
                 }
             }
-            const activeNode = (this.#game && this.#game.currentNode) ? this.#game.currentNode : null;
-            const currentNodeMove = activeNode ? activeNode.lastMove : null;
             
-            if (currentNodeMove && p.idx === currentNodeMove.to && activeNode) {
-                const info = activeNode.nag ? (typeof this.getNagInfo === 'function' ? this.getNagInfo(activeNode.nag) : null) : null;
-                const isBook = activeNode.isBook;
+            const activeNode = (this.#game && this.#game.currentNode) ? this.#game.currentNode : null;
+            const nodeMove = activeNode ? activeNode.lastMove : null;
+            
+            // Strict check: NAG only renders on the destination of the move that created this position
+            if (nodeMove && p.idx === nodeMove.to && activeNode) {
+                let evalNags = [];
+                let qualityNags = [];
 
-                if (isBook || (info && ['good', 'mistake', 'brilliant', 'blunder', 'interesting', 'inaccuracy', 'excellent', 'great', 'miss'].includes(info.type))) {
-                    let bgColor = info ? info.color : '#a87c53';
-                    let bColor = info ? info.borderColor : '#825f3c';
+                if (activeNode.nag) {
+                    const nags = activeNode.nag.toString().split(',');
+                    nags.forEach(n => {
+                        const info = typeof this.getNagInfo === 'function' ? this.getNagInfo(n.trim()) : null;
+                        if (info) {
+                            if (info.type.startsWith('eval')) evalNags.push(info);
+                            else qualityNags.push(info);
+                        }
+                    });
+                }
+
+                if (activeNode.isBook) {
+                    let svgBook = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG.replace('width="30"', 'width="24"').replace('height="30"', 'height="24"') : 'B';
+                    qualityNags.push({
+                        symbol: `<div style="display:flex; justify-content:center; align-items:center; color:transparent; width:100%; height:100%;">${svgBook}</div>`,
+                        color: '#a87c53', borderColor: '#825f3c', textColor: '#ffffff'
+                    });
+                }
+
+                // Render Qualities (!, ?) FIRST, then Evaluations (+-, =)
+                const finalNagsInfo = [...qualityNags, ...evalNags];
+                
+                if (finalNagsInfo.length > 0) {
+                    const nagsHtml = finalNagsInfo.map((info, index) => {
+                        const tColor = info.textColor || '#ffffff';
+                        const zIndex = 10 - index;
+                        
+                        const marginLeft = index > 0 ? '-15cqi' : '0';
+                        
+                        const wideSymbols = ['⩲', '⩱', '±', '∓', '∞', '='];
+                        const isDoubleChar = (info.symbol.length > 1 || wideSymbols.includes(info.symbol)) && !info.symbol.includes('<div');
+                        const fontSize = isDoubleChar ? '18cqi' : '25cqi';
+                        const letterSpacing = isDoubleChar ? '-1cqi' : 'normal';
+                        
+                        return `<div class="nag-indicator" style="background-color:${info.color} !important; border:3cqi solid ${info.borderColor} !important; color:${tColor} !important; width:40cqi !important; height:40cqi !important; min-width:40cqi !important; min-height:40cqi !important; max-width:40cqi !important; max-height:40cqi !important; flex-shrink:0 !important; flex-grow:0 !important; border-radius:50% !important; display:flex !important; flex-direction:column !important; align-items:center !important; justify-content:center !important; padding:0 !important; margin:0 0 0 ${marginLeft} !important; font-size:${fontSize} !important; letter-spacing:${letterSpacing} !important; font-weight:800 !important; box-shadow:0 2cqi 4cqi rgba(0,0,0,0.6) !important; box-sizing:border-box !important; z-index:${zIndex} !important; line-height:1 !important; white-space:nowrap !important; overflow:hidden !important; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important; text-shadow:none !important;">${info.symbol}</div>`;
+                    }).join('');
                     
-                    let content = info ? info.symbol : '';
-                    if (isBook) {
-                        let svgBook = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG.replace('width="30"', 'width="24"').replace('height="30"', 'height="24"') : '📖';
-                        content = `<div style="display:flex; justify-content:center; align-items:center; color:transparent;">${svgBook}</div>`;
-                    }
-
-                    htmlBuffer += `<div class="nag-indicator" style="position:absolute; top:-5px; right:-5px; width:22px; height:22px; background-color:${bgColor}; border:2px solid ${bColor}; border-radius:50%; color:#fff; font-weight:bold; font-size:13px; display:flex; justify-content:center; align-items:center; z-index:10; box-shadow:0 2px 4px rgba(0,0,0,0.4); font-family:sans-serif; pointer-events:none;">${content}</div>`;
+                    // Create an inline-size container matching the piece boundaries to anchor the CQI units
+                    htmlBuffer += `
+                        <div class="nag-wrapper" style="position:absolute !important; top:0 !important; left:0 !important; width:100% !important; height:100% !important; container-type:inline-size !important; pointer-events:none !important; z-index:100 !important;">
+                            <div style="position:absolute !important; top:-10% !important; right:-10% !important; display:flex !important; flex-direction:row !important; align-items:center !important;">
+                                ${nagsHtml}
+                            </div>
+                        </div>`;
                 }
             }
 
@@ -3165,13 +3248,9 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 if (el.innerHTML !== htmlBuffer) el.innerHTML = htmlBuffer;
             }
 
-            // ========================================================
-            // ✨ NEW: EXPLICIT PIECE INTERCEPTOR FOR SPELLS
-            // ========================================================
             if (state.gameMode === 'spell' && this.activeSpell && state.mode !== 'editor') {
                 el.style.cursor = 'pointer';
                 
-                // 1. Mirror the Hover Effect
                 el.onmouseenter = () => {
                     this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(s => s.classList.remove('spell-target-hover'));
                     
@@ -3193,12 +3272,10 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     }
                 };
 
-                // 2. Mirror the Un-hover Effect
                 el.onmouseleave = () => {
                     this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(s => s.classList.remove('spell-target-hover'));
                 };
 
-                // 3. Mirror the Click / Cast Effect
                 el.onmousedown = (e) => {
                     if (e.button !== 0) return;
                     e.preventDefault(); 
@@ -3310,23 +3387,16 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             }
 
             if (animate && (positionChanged || forceAnimate) && (!isNew || forceAnimate)) {
-                // 1. Instantly snap to the starting position with NO transition
                 el.style.transition = 'none'; 
                 el.style.transform = startTransform;
-                
-                // 2. Force layout recalculation (safer than getBoundingClientRect)
                 void el.offsetWidth; 
                 
-                // ✨ THE FIX: Force Windows 11 to physically paint the start position 
-                // before calculating the destination!
                 requestAnimationFrame(() => {
                     el.style.transition = ''; 
-                    
                     el.classList.add('animating');
                     if (isCastlingMove) el.classList.add('castling-jump');
 
                     el.style.transitionDuration = `${isCastlingMove ? castleDuration : moveDuration}ms`;
-                    
                     el.style.transform = targetTransform; 
 
                     const sqEl = this.squaresLayer.querySelector(`[data-index="${p.idx}"]`);
@@ -3368,7 +3438,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     el.style.setProperty('--anim-duration', `${activeDuration}ms`);
                     
                     el.getBoundingClientRect();
-                    
                     el.classList.add('manga-tail'); 
                     
                     el.dataset.tailTimeout = setTimeout(() => {
@@ -3645,7 +3714,8 @@ renderHistoryImmediate() {
         const activeNode = this.#game ? this.#game.currentNode : null;
         const activeNodeId = activeNode ? activeNode.id : null;
 
-        if (this._lastTreeSize === currentTreeSize && activeNodeId && list.children.length > 0) {
+        // Skip cache optimization for graph mode to always recalculate curve coordinates
+        if (this.pgnStyle !== 'graph' && this._lastTreeSize === currentTreeSize && activeNodeId && list.children.length > 0) {
             list.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
             const newActiveEl = list.querySelector(`[data-id="${activeNodeId}"]`);
             if (newActiveEl) newActiveEl.classList.add('active');
@@ -3665,7 +3735,25 @@ renderHistoryImmediate() {
         this._lastTreeSize = currentTreeSize;
         list.innerHTML = ''; list.style.display = 'block'; list.classList.remove('hidden');
 
-        if (this.pgnStyle === 'tree') {
+        // Branching Display Logic
+        if (this.pgnStyle === 'graph') {
+            list.className = 'pgn-graph';
+            if (this.#game && this.#game.rootNode) {
+                // Initialize SVG Layer for bezier curves
+                const svgNS = "http://www.w3.org/2000/svg";
+                const svgLayer = document.createElementNS(svgNS, "svg");
+                svgLayer.setAttribute("class", "graph-svg-layer");
+                list.appendChild(svgLayer);
+
+                // Build DOM Tree
+                const treeRoot = document.createElement('div');
+                this._renderGraphRecursive(this.#game.rootNode, treeRoot, activeNode, 0);
+                list.appendChild(treeRoot);
+
+                // Draw connecting lines after DOM is fully rendered
+                requestAnimationFrame(() => this.drawGraphLines(list, svgLayer));
+            }
+        } else if (this.pgnStyle === 'tree') {
             list.className = 'history-list pgn-tree';
             if (this.#game && this.#game.rootNode) this.renderTreeVertical(this.#game.rootNode, list);
         } else {
@@ -3681,6 +3769,158 @@ renderHistoryImmediate() {
 
         this.scrollToActiveMove();
         if (typeof this.updateChartActiveLine === 'function') this.updateChartActiveLine();
+    }
+    _renderGraphRecursive(node, container, activeNode, depth) {
+        if (!node) return;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'g-node-wrapper';
+
+        // 1. Create the Node element
+        const content = document.createElement('div');
+        content.className = 'g-node-content';
+        content.dataset.id = node.id;
+        
+        if (node === activeNode) content.classList.add('active');
+
+        // Apply Blur/Focus classes based on depth relative to the active node
+        let activeDepth = this.getPly(activeNode);
+        let myDepth = this.getPly(node);
+        
+        if (myDepth < activeDepth) content.classList.add('g-blur-past');
+        else if (myDepth === activeDepth || myDepth === activeDepth + 1) content.classList.add('g-focus');
+        else content.classList.add('g-blur-future');
+
+        // Move notation text
+        const moveTxt = document.createElement('div');
+        moveTxt.className = 'g-move-text';
+        moveTxt.innerText = node.moveSan || "Start";
+        
+        // Fast Mini Board (Reads FEN directly without complex logic to save resources)
+        const boardDiv = document.createElement('div');
+        boardDiv.className = 'g-mini-board';
+        const fenRows = node.fen.split(' ')[0].split('/');
+        for (let r = 0; r < 8; r++) {
+            let c = 0;
+            for (let char of fenRows[r]) {
+                if (/\d/.test(char)) c += parseInt(char, 10);
+                else {
+                    const color = char === char.toUpperCase() ? 'w' : 'b';
+                    const type = char.toLowerCase();
+                    const sq = document.createElement('div');
+                    sq.className = (r + c) % 2 === 0 ? 'light' : 'dark';
+                    sq.style.gridColumn = c + 1;
+                    sq.style.gridRow = r + 1;
+                    
+                    const img = this.getPieceHTML({color, type});
+                    if(img) sq.innerHTML = img.replace(/style="[^"]*"/g, 'style="width:100%;height:100%"');
+                    boardDiv.appendChild(sq);
+                    c++;
+                }
+            }
+        }
+        
+        // Fill remaining empty squares
+        for (let i = 0; i < 64; i++) {
+            let r = Math.floor(i/8), c = i%8;
+            if(!boardDiv.querySelector(`[style*="grid-column: ${c+1}"][style*="grid-row: ${r+1}"]`)){
+                const emptySq = document.createElement('div');
+                emptySq.className = (r + c) % 2 === 0 ? 'light' : 'dark';
+                emptySq.style.gridColumn = c + 1; emptySq.style.gridRow = r + 1;
+                boardDiv.appendChild(emptySq);
+            }
+        }
+
+        content.appendChild(boardDiv);
+        content.appendChild(moveTxt);
+
+        // Click event to navigate to this node
+        content.onclick = (e) => {
+            e.stopPropagation();
+            if (this.#game.goToNodeId(node.id)) {
+                const freshState = this.#game.getReader();
+                this.renderBoard(false);
+                this.updateHistory(true);
+                this.renderArrows();
+                if (freshState.mode !== 'play' && this.#game.updateStockfish) this.#game.updateStockfish();
+            }
+        };
+
+        wrapper.appendChild(content);
+
+        // 2. Create Container for child nodes
+        if (node.children && node.children.length > 0) {
+            const childrenContainer = document.createElement('div');
+            childrenContainer.className = 'g-children';
+            
+            node.children.forEach(child => {
+                this._renderGraphRecursive(child, childrenContainer, activeNode, depth + 1);
+            });
+            
+            wrapper.appendChild(childrenContainer);
+        }
+
+        container.appendChild(wrapper);
+    }
+    drawGraphLines(listContainer, svgLayer) {
+        const svgNS = "http://www.w3.org/2000/svg";
+        const containerRect = listContainer.getBoundingClientRect();
+        
+        // Update SVG dimensions to cover the scrollable content
+        svgLayer.setAttribute('width', listContainer.scrollWidth);
+        svgLayer.setAttribute('height', listContainer.scrollHeight);
+        
+        // Local recursive finder to bypass private access restrictions
+        const findNodeLocal = (node, id) => {
+            if (node.id === id) return node;
+            for (let child of node.children) {
+                const found = findNodeLocal(child, id);
+                if (found) return found;
+            }
+            return null;
+        };
+
+        const nodes = listContainer.querySelectorAll('.g-node-content');
+        
+        nodes.forEach(nodeEl => {
+            const nodeId = nodeEl.dataset.id;
+            const nodeObj = this.#game && this.#game.rootNode ? findNodeLocal(this.#game.rootNode, nodeId) : null;
+            
+            if (nodeObj && nodeObj.children) {
+                const parentRect = nodeEl.getBoundingClientRect();
+                
+                // Starting point (Right edge of the parent node)
+                const startX = parentRect.right - containerRect.left + listContainer.scrollLeft;
+                const startY = parentRect.top + (parentRect.height / 2) - containerRect.top + listContainer.scrollTop;
+
+                nodeObj.children.forEach(child => {
+                    const childEl = listContainer.querySelector(`[data-id="${child.id}"]`);
+                    if (childEl) {
+                        const childRect = childEl.getBoundingClientRect();
+                        
+                        // Ending point (Left edge of the child node)
+                        const endX = childRect.left - containerRect.left + listContainer.scrollLeft;
+                        const endY = childRect.top + (childRect.height / 2) - containerRect.top + listContainer.scrollTop;
+
+                        // Draw Bezier curve
+                        const curve = document.createElementNS(svgNS, 'path');
+                        const cpX = (startX + endX) / 2; // Control point X (midpoint)
+                        
+                        const d = `M ${startX} ${startY} C ${cpX} ${startY}, ${cpX} ${endY}, ${endX} ${endY}`;
+                        
+                        // Apply fading to lines connected to blurred nodes
+                        const isBlurred = childEl.classList.contains('g-blur-future') || nodeEl.classList.contains('g-blur-past');
+                        
+                        curve.setAttribute('d', d);
+                        curve.setAttribute('fill', 'transparent');
+                        curve.setAttribute('stroke', isBlurred ? '#555' : '#38bdf8');
+                        curve.setAttribute('stroke-width', isBlurred ? '1.5' : '3');
+                        
+                        svgLayer.appendChild(curve);
+                    }
+                });
+            }
+        });
     }
 renderECO() {
         if (!this.#game) return;
@@ -3731,30 +3971,31 @@ scrollToActiveMove() {
 getNagInfo(nag) {
         if (!nag) return null;
         let nags = nag.toString().split(',').map(n => n.trim().replace('$', ''));
-        let v = nags.find(n => parseInt(n) >= 1 && parseInt(n) <= 9) || nags[0]; 
+        let v = nags.find(n => parseInt(n) >= 1 && parseInt(n) <= 19) || nags[0]; 
         
-        let info = { symbol:'', cls:'nag-pos', color:'#888888', borderColor:'#aaaaaa', type:'' };
         switch(v) {
-            case'1':case'!': return { symbol:'!', cls:'ind-1', color:'#5c8bb0', borderColor:'#28a2e7',type:'good'};
-            case'2':case'?': return { symbol:'?', cls:'ind-2', color:'#ffa700', borderColor:'#af5205',type:'mistake'};
-            case'3':case'!!': return { symbol:'!!', cls:'ind-3', color:'#26c2a3', borderColor:'#09e9ed',type:'brilliant'};
-            case'4':case'??': return { symbol:'??', cls:'ind-4', color:'#fa412d', borderColor:'#892c12',type:'blunder'};
-            case'5':case'!?': return { symbol:'!?', cls:'ind-5', color:'#b369f2', borderColor:'#bd09ed',type:'interesting'};
-            case'6':case'?!': return { symbol:'?!', cls:'ind-6', color:'#f7c045', borderColor:'#f5d91d',type:'inaccuracy'};
-            case'7': return { symbol:'!', cls:'ind-1', color:'#96bc4b', borderColor:'#6c8a32', type:'excellent'};
-            case'8': return { symbol:'!', cls:'ind-1', color:'#5c8bb0', borderColor:'#3a6280', type:'great'};
-            case'9': return { symbol:'X', cls:'ind-2', color:'#ff7769', borderColor:'#c75446', type:'miss'};
-            case'10':case'=': info.symbol ='='; break; 
-            case'13':case'∞': info.symbol ='∞'; break; 
-            case'14':case'⩲':case'+=':info.symbol ='⩲'; break; 
-            case'15':case'⩱':case'=+':info.symbol ='⩱'; break; 
-            case'16':case'±':case'+/-':info.symbol ='±'; break; 
-            case'17':case'∓':case'-/+':info.symbol ='∓'; break; 
-            case'18':case'+-':info.symbol ='+-'; break; 
-            case'19':case'-+':info.symbol ='-+'; break; 
-            default:return null;
+            // Move Qualities
+            case'1':case'!': return { symbol:'!', cls:'ind-1', color:'#5c8bb0', borderColor:'#28a2e7', type:'good', textColor:'#ffffff'};
+            case'2':case'?': return { symbol:'?', cls:'ind-2', color:'#ffa700', borderColor:'#af5205', type:'mistake', textColor:'#ffffff'};
+            case'3':case'!!': return { symbol:'!!', cls:'ind-3', color:'#26c2a3', borderColor:'#09e9ed', type:'brilliant', textColor:'#ffffff'};
+            case'4':case'??': return { symbol:'??', cls:'ind-4', color:'#fa412d', borderColor:'#892c12', type:'blunder', textColor:'#ffffff'};
+            case'5':case'!?': return { symbol:'!?', cls:'ind-5', color:'#b369f2', borderColor:'#bd09ed', type:'interesting', textColor:'#ffffff'};
+            case'6':case'?!': return { symbol:'?!', cls:'ind-6', color:'#f7c045', borderColor:'#f5d91d', type:'inaccuracy', textColor:'#ffffff'};
+            case'7': return { symbol:'!', cls:'ind-1', color:'#96bc4b', borderColor:'#6c8a32', type:'excellent', textColor:'#ffffff'};
+            case'8': return { symbol:'!', cls:'ind-1', color:'#5c8bb0', borderColor:'#3a6280', type:'great', textColor:'#ffffff'};
+            case'9': return { symbol:'X', cls:'ind-2', color:'#ff7769', borderColor:'#c75446', type:'miss', textColor:'#ffffff'};
+            
+            // Evaluations: White advantage receives black text (#000000), Black advantage receives white text (#ffffff)
+            case'10':case'=': return { symbol:'=', color:'#e2e8f0', borderColor:'#cbd5e1', type:'eval_eq', textColor:'#000000'}; 
+            case'13':case'∞': return { symbol:'∞', color:'#e2e8f0', borderColor:'#cbd5e1', type:'eval_eq', textColor:'#000000'}; 
+            case'14':case'⩲':case'+=': return { symbol:'⩲', color:'#ffffff', borderColor:'#cbd5e1', type:'eval_w', textColor:'#000000'}; 
+            case'15':case'⩱':case'=+': return { symbol:'⩱', color:'#1e293b', borderColor:'#0f172a', type:'eval_b', textColor:'#ffffff'}; 
+            case'16':case'±':case'+/-': return { symbol:'±', color:'#ffffff', borderColor:'#cbd5e1', type:'eval_w', textColor:'#000000'}; 
+            case'17':case'∓':case'-/+': return { symbol:'∓', color:'#1e293b', borderColor:'#0f172a', type:'eval_b', textColor:'#ffffff'}; 
+            case'18':case'+-': return { symbol:'+-', color:'#ffffff', borderColor:'#cbd5e1', type:'eval_w', textColor:'#000000'}; 
+            case'19':case'-+': return { symbol:'-+', color:'#1e293b', borderColor:'#0f172a', type:'eval_b', textColor:'#ffffff'}; 
+            default: return null;
         }
-        return info;
     }
 updateEditorState() {
         if (!this.#game || this.#game.mode !== 'editor') return;
@@ -3889,7 +4130,11 @@ createMoveSpanSafe(node) {
 
         symbols.forEach(info => {
             let nSpan = document.createElement('span');
-            nSpan.innerText = info.symbol; nSpan.style.color = info.color; nSpan.style.fontWeight = 'bold'; nSpan.style.marginLeft = '2px';
+            nSpan.innerText = info.symbol; 
+            // Prevent dark evaluation colors from hiding on the dark PGN background
+            nSpan.style.color = info.type.startsWith('eval') ? '#e2e8f0' : info.color;
+            nSpan.style.fontWeight = 'bold'; 
+            nSpan.style.marginLeft = '2px';
             span.appendChild(nSpan);
         });
 
@@ -3897,7 +4142,7 @@ createMoveSpanSafe(node) {
             let icon = document.createElement('span'); icon.className = 'eval-icon';
             const iconColor = primaryInfo ? primaryInfo.color : '#a87c53';
             icon.style.cssText = "display:inline-flex; align-items:center; margin-left:4px;"; icon.style.color = iconColor;
-            icon.innerHTML = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG : '📖';
+            icon.innerHTML = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG : 'B';
             let svg = icon.querySelector('svg');
             if (svg) { svg.style.fill = iconColor; svg.style.width = '14px'; svg.style.height = '14px'; }
             span.appendChild(icon);
@@ -4170,10 +4415,8 @@ renderTreeVerticalRecursiveSingle(node, container) {
 
             let moveText = "";
             if (moveColor === 'w') {
-                // White always gets a number if the color just switched to White, or if it's a new line
                 if (moveColor !== lastColor || isFirstInLine) moveText = `${mNum}.`;
             } else {
-                // Black ONLY gets a number if it is forced to start a brand new line
                 if (isFirstInLine) moveText = `${mNum}...`;
             }
             lastColor = moveColor;
@@ -4199,14 +4442,16 @@ renderTreeVerticalRecursiveSingle(node, container) {
                 moveSpan.innerText = curr.moveSan; 
                 symbols.forEach(info => {
                     let nagSpan = document.createElement('span'); nagSpan.className = 'nag-glyph'; nagSpan.innerText = info.symbol;
-                    nagSpan.style.color = info.color; nagSpan.style.marginLeft = "2px"; nagSpan.style.fontWeight = "bold";
+                    // Prevent dark evaluation colors from hiding on the dark PGN background
+                    nagSpan.style.color = info.type.startsWith('eval') ? '#e2e8f0' : info.color;
+                    nagSpan.style.marginLeft = "2px"; nagSpan.style.fontWeight = "bold";
                     moveSpan.appendChild(nagSpan);
                 });
             } else moveSpan.innerText = curr.moveSan;
 
             if (curr.isBook) {
                 const bookIcon = document.createElement('span'); bookIcon.className = 'tree-book-icon';
-                bookIcon.innerHTML = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG : '📖';
+                bookIcon.innerHTML = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG : 'B';
                 let bookColor = curr.nag ? (this.getNagInfo(curr.nag)?.color || '#A87C53') : '#A87C53';
                 bookIcon.style.cssText = `display:inline-flex; align-items:center; justify-content:center; width:1em; height:1em; margin-left:4px; vertical-align:middle; color:${bookColor};`;
                 let svg = bookIcon.querySelector('svg');
@@ -4305,7 +4550,6 @@ renderVariationLine(node, container) {
             span.className = `var-move ${isActive ? 'active' : ''}`; 
             span.dataset.id = curr.id; 
             
-            // 🔥 FAT HITBOX FIX: Converts the tiny inline text into a comfortable, finger-friendly button block!
             span.style.cssText = "display: inline-block; border-radius: 4px; cursor: pointer;; text-align: center;";
             
             span.innerText = txt ? `${txt} ${curr.moveSan}` : curr.moveSan;
@@ -4319,7 +4563,9 @@ renderVariationLine(node, container) {
                 if (primaryInfo) { span.style.color = primaryInfo.color; span.style.backgroundColor = primaryInfo.color + '20'; }
                 symbols.forEach(info => {
                     let nagSpan = document.createElement('span'); nagSpan.className = 'nag-glyph'; nagSpan.innerText = info.symbol;
-                    nagSpan.style.color = info.color; nagSpan.style.marginLeft = "2px"; nagSpan.style.fontWeight = "bold";
+                    // Prevent dark evaluation colors from hiding on the dark PGN background
+                    nagSpan.style.color = info.type.startsWith('eval') ? '#e2e8f0' : info.color;
+                    nagSpan.style.marginLeft = "2px"; nagSpan.style.fontWeight = "bold";
                     span.appendChild(nagSpan);
                 });
             }
@@ -4336,7 +4582,6 @@ renderVariationLine(node, container) {
                 evSpan.style.marginLeft = "3px"; evSpan.innerText = evalData.text; span.appendChild(evSpan);
             }
 
-            // Keep the spacing between inline blocks
             span.appendChild(document.createTextNode(" "));
 
             const targetNodeId = curr.id; let capturedRef = curr;
@@ -4414,7 +4659,9 @@ createPlyDiv(node) {
         
         symbols.forEach(info => {
             let sym = document.createElement('span'); sym.className = `nag-glyph`; sym.innerText = info.symbol;
-            sym.style.color = info.color; sym.style.marginLeft = "3px"; sym.style.fontWeight = "bold";
+            // Prevent dark evaluation colors from hiding on the dark PGN background
+            sym.style.color = info.type.startsWith('eval') ? '#e2e8f0' : info.color;
+            sym.style.marginLeft = "3px"; sym.style.fontWeight = "bold";
             mainWrap.appendChild(sym);
         });
         
@@ -5221,11 +5468,14 @@ finishEditor() {
 }
 flipBoard() {
         this.flipped = !this.flipped;
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('chess_graph_flip', this.flipped ? 'b' : 'w');
+        }
+        
         this.renderBoard(true);
         this.renderHeaders();
         if (this.coordsPosition === 'outside') this.renderExternalCoords();
         
-        // ✨ NEW: Immediately rotate and redraw the eval bar!
         if (typeof this.updateEvalBar === 'function') this.updateEvalBar();
         
         const grid = document.getElementById('previewGrid');
@@ -5322,6 +5572,22 @@ openEmbedImporter() {
 closeEmbedImporter() {
         const modal = document.getElementById('embedImporterModal');
         if (modal) modal.style.display = 'none';
+    }
+renderCharts(force = false) {
+        if (typeof Chart === 'undefined') return;
+        if (this.evalChart || this.timeChart) this.updateChartActiveLine();
+
+        let lastNode = this.#game.rootNode;
+        
+        // ✨ FIX: Lock the chart to the Main Line (the actual game) instead of following sub-variations
+        while (lastNode && lastNode.children.length > 0) lastNode = lastNode.children[0];
+
+        if (!force && this.evalChart && this._lastChartedFen === lastNode.fen) return; 
+        this._lastChartedFen = lastNode.fen;
+
+        if (this._chartRenderTimeout) clearTimeout(this._chartRenderTimeout);
+        if (force) this.forceRenderCharts();
+        else this._chartRenderTimeout = setTimeout(() => { this.forceRenderCharts(); }, 150); 
     }
 clearArrows() {
         if (this.arrowLayer) this.arrowLayer.innerHTML = '';
@@ -5461,24 +5727,6 @@ initResizer() {
             const savedBoard = localStorage.getItem('chessBoardSize') ? parseInt(localStorage.getItem('chessBoardSize')) : 600;
             validateAndApplyLayout(savedBoard); window.dispatchEvent(new Event('resize'));
         }, 50);
-    }
-promoteVar() {
-        const state = this.#game ? this.#game.getReader() : null;
-        if (state && state.activeNodeId) {
-            this.#game.promoteVariation(state.activeNodeId);
-            this.renderBoard(false, false);
-            if (state.mode !== 'play' && this.#game.updateStockfish) this.#game.updateStockfish();
-        }
-        if (this.annotationPopup) this.annotationPopup.style.display = 'none';
-    }
-makeMainline() {
-        const state = this.#game ? this.#game.getReader() : null;
-        if (state && state.activeNodeId) {
-            this.#game.makeMainline(state.activeNodeId);
-            this.renderBoard(false, false);
-            if (state.mode !== 'play' && this.#game.updateStockfish) this.#game.updateStockfish();
-        }
-        if (this.annotationPopup) this.annotationPopup.style.display ='none';
     }
 handleMouseDown(e) {
         const state = this.#game ? this.#game.getReader() : null;
@@ -5708,12 +5956,6 @@ updatePuzzleUI(state, puzzleData) {
             }
         }
     }
-showPuzzleSuccess() {
-        const status = document.getElementById('puzzleStatus'); const next = document.getElementById('nextPuzzleBtn');
-        if(status) { status.innerText = "Success!"; status.style.color = "#26c2a3"; }
-        const isRush = ['3min', '5min', 'survival'].includes(this.#game.puzzleMode);
-        if (!isRush && next) next.style.display = "block";
-    }
 renderChapters() {
         const container = document.getElementById('chapters-list-container');
         if (!container || !this.#game) return;
@@ -5825,32 +6067,6 @@ openAddToStudyModal() {
         `;
         
         saveModal.style.display = 'flex';
-    }
-openChapterManager() {
-        if (this.#game) this.#game.saveActiveChapter();
-        const container = document.getElementById('chapterManagerList'); if (!container) return;
-        container.innerHTML = '';
-        this.#game.chapters.forEach((ch, idx) => {
-            const div = document.createElement('div'); div.style.cssText = "display: flex; gap: 10px; align-items: center; padding: 5px; border-bottom: 1px solid #444;";
-            const cb = document.createElement('input'); cb.type = 'checkbox'; cb.className = 'chapter-cb'; cb.dataset.idx = idx; cb.style.cursor = "pointer";
-            const text = document.createElement('span'); text.innerText = `${idx + 1}. ${ch.title}`; text.style.flex = "1"; text.style.color = idx === this.#game.activeChapterIndex ? "#38bdf8" : "#fff"; text.style.fontWeight = idx === this.#game.activeChapterIndex ? "bold" : "normal";
-            const loadBtn = document.createElement('button'); loadBtn.innerText = "Load"; loadBtn.className = "btn-secondary"; loadBtn.style.padding = "4px 10px"; loadBtn.style.fontSize = "12px";
-            loadBtn.onclick = () => { this.#game.loadChapter(idx); document.getElementById('chapterManagerModal').style.display = 'none'; };
-            div.appendChild(cb); div.appendChild(text); div.appendChild(loadBtn); container.appendChild(div);
-        });
-        document.getElementById('chapterManagerModal').style.display = 'flex';
-    }
-renderStudyList() {
-        const container = document.getElementById('studyListContainer'); if (!container) return;
-        container.innerHTML = ''; const studies = this.#game.allStudies || [];
-        studies.forEach((study, idx) => {
-            const div = document.createElement('div'); div.style.cssText = "display: flex; gap: 10px; align-items: center; padding: 8px; background: #333; border-radius: 4px;";
-            const cb = document.createElement('input'); cb.type = 'checkbox'; cb.className = 'study-cb'; cb.dataset.id = study.id; cb.style.cursor = "pointer";
-            const title = document.createElement('span'); title.innerText = study.title || `Study ${idx + 1}`; title.style.flex = "1"; title.style.fontWeight = study.id === this.#game.currentStudyId ? "bold" : "normal"; title.style.color = study.id === this.#game.currentStudyId ? "#38bdf8" : "#fff";
-            const loadBtn = document.createElement('button'); loadBtn.className = "btn-primary"; loadBtn.innerText = "Load"; loadBtn.style.padding = "4px 10px"; loadBtn.style.fontSize = "12px";
-            loadBtn.onclick = () => { this.#game.loadStudy(study.id); document.getElementById('studyManagerModal').style.display = 'none'; };
-            div.appendChild(cb); div.appendChild(title); div.appendChild(loadBtn); container.appendChild(div);
-        });
     }
 importFEN() { 
         const fen = document.getElementById('exportFenText').value.trim();
@@ -6507,20 +6723,6 @@ initCharts() {
                 }
             };
         }
-    }
-renderCharts(force = false) {
-        if (typeof Chart === 'undefined') return;
-        if (this.evalChart || this.timeChart) this.updateChartActiveLine();
-
-        let lastNode = this.#game.rootNode;
-        while (lastNode && lastNode.children.length > 0) lastNode = lastNode.children[lastNode.selectedChildIndex || 0];
-
-        if (!force && this.evalChart && this._lastChartedFen === lastNode.fen) return; 
-        this._lastChartedFen = lastNode.fen;
-
-        if (this._chartRenderTimeout) clearTimeout(this._chartRenderTimeout);
-        if (force) this.forceRenderCharts();
-        else this._chartRenderTimeout = setTimeout(() => { this.forceRenderCharts(); }, 150); 
     }
 safeResizeCharts() {
         if (this._resizeInterval) clearInterval(this._resizeInterval);
@@ -7277,5 +7479,444 @@ castSpell(spellType, targetSq) {
                 this.showNotification('Invalid spell target!', 'Error', '❌');
             }
         }
+    }
+    initGraphEvents() {
+        if (this._graphEventsBound) return;
+        this._graphEventsBound = true;
+
+        this.injectGraphCSS();
+
+        const tab = document.getElementById('tabContent-Graph');
+        if (!tab) return;
+
+        let isDown = false;
+        let startX, startY, scrollLeft, scrollTop;
+
+        tab.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.g-node-content') || e.target.closest('button') || e.target.closest('select')) return;
+            isDown = true;
+            tab.classList.add('dragging');
+            
+            const scale = window.appScale || 1;
+            startX = e.pageX / scale;
+            startY = e.pageY / scale;
+            scrollLeft = tab.scrollLeft;
+            scrollTop = tab.scrollTop;
+        });
+
+        // BẮT SỰ KIỆN LÊN TOÀN CỬA SỔ ĐỂ TRÁNH TUỘT TAY
+        window.addEventListener('mouseup', () => { 
+            isDown = false; 
+            if (tab) tab.classList.remove('dragging'); 
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+            e.preventDefault();
+            
+            const scale = window.appScale || 1;
+            const x = e.pageX / scale;
+            const y = e.pageY / scale;
+            
+            tab.scrollLeft = scrollLeft - (x - startX);
+            tab.scrollTop = scrollTop - (y - startY);
+        });
+    }
+    injectGraphCSS() {
+        if (document.getElementById('graph-tab-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'graph-tab-styles';
+        style.innerHTML = `
+            #tabContent-Graph.active {
+                display: block !important; position: fixed !important;
+                top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important;
+                z-index: 9999 !important; background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%) !important;
+                overflow: auto !important; 
+                scrollbar-width: none; 
+                cursor: grab;
+            }
+            #tabContent-Graph.active::-webkit-scrollbar { display: none; }
+            #tabContent-Graph.active.dragging { cursor: grabbing; }
+            
+            .pgn-graph-fullscreen {
+                position: relative; 
+                /* TỬ HUYỆT CỨU MẠNG: Dùng block và max-content thay cho flex */
+                display: block; 
+                width: max-content;
+                height: max-content;
+                /* Đệm 50% màn hình, bất kể node nằm ở góc kẹt nào cũng kéo ra giữa được */
+                padding: 50vh 50vw; 
+                box-sizing: content-box;
+            }
+            .graph-svg-layer { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; }
+            .g-node-wrapper { display: flex; flex-direction: row; align-items: center; }
+            
+            .g-children { display: flex; flex-direction: column; justify-content: center; padding-left: 180px; gap: 60px; }
+            
+            .g-node-content {
+                position: relative; z-index: 2; background: #1e1e1e; border: 4px solid #444;
+                border-radius: 12px; padding: 14px; cursor: pointer;
+                box-shadow: 0 12px 30px rgba(0,0,0,0.7); transition: all 0.2s ease;
+                display: flex; flex-direction: column; align-items: center; gap: 12px; 
+                width: 280px;
+            }
+            .g-node-content:hover { border-color: #38bdf8; transform: scale(1.03); }
+            .g-node-content.active { border-color: #26c2a3; box-shadow: 0 0 35px rgba(38, 194, 163, 0.9); transform: scale(1.08); z-index: 10; }
+            
+            .g-move-text {
+                font-weight: 800; color: #fff; font-family: 'Segoe UI', Tahoma, sans-serif;
+                font-size: 20px; text-align: center; white-space: nowrap;
+                background: #0f172a; padding: 6px 14px; border-radius: 6px;
+                border: 1px solid #334155;
+            }
+            
+            .g-mini-board {
+                width: 250px; height: 250px; display: grid;
+                grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
+                border: 3px solid #000; pointer-events: none; border-radius: 4px; overflow: hidden;
+            }
+            .g-mini-board div { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+            .g-mini-board .light { background-color: var(--board-light, #f0d9b5) !important; }
+            .g-mini-board .dark { background-color: var(--board-dark, #b58863) !important; }
+            
+            .g-blur-past { filter: blur(4px) grayscale(60%); opacity: 0.35; pointer-events: auto; }
+            .g-focus { filter: none; opacity: 1; }
+            .g-blur-future { filter: blur(2px); opacity: 0.8; }
+        `;
+        document.head.appendChild(style);
+    }
+    changeGraphSource(source) {
+        if (!this.#game) return;
+        
+        // Force save current graph state before switching source to prevent data loss
+        if (this._previousTabBeforeGraph === 'analysis' && typeof this.#game.saveState === 'function') {
+            this.#game.saveState('analysis');
+        } else if ((this._previousTabBeforeGraph === 'study' || this._previousTabBeforeGraph === 'trainer') && typeof this.#game.saveActiveChapter === 'function') {
+            this.#game.saveActiveChapter();
+        }
+
+        this._previousTabBeforeGraph = source; 
+        if (typeof localStorage !== 'undefined') localStorage.setItem('chess_graph_source', source);
+        
+        const currentFlip = this.flipped; // Activate Flip Shield
+
+        // Force game engine to load the memory of the new source
+        if (source === 'study' || source === 'trainer') {
+            let savedChap = parseInt(localStorage.getItem('chess_active_chapter_idx'), 10);
+            if (isNaN(savedChap)) savedChap = this.#game.activeChapterIndex || 0;
+            if (typeof this.#game.loadChapter === 'function') this.#game.loadChapter(savedChap, true, true);
+        } else {
+            if (typeof this.#game.restoreState === 'function') this.#game.restoreState(source);
+        }
+        
+        // Restore flip state if the core engine maliciously changed it
+        if (this.flipped !== currentFlip) {
+            this.flipped = currentFlip;
+            if (typeof localStorage !== 'undefined') localStorage.setItem('chess_graph_flip', currentFlip ? 'b' : 'w');
+        }
+        
+        this.#game.mode = 'graph';
+        this._lastTreeSize = -1;
+        this.renderFullGraph();
+    }
+    changeGraphChapter(indexStr) {
+        if (!this.#game) return;
+        const idx = parseInt(indexStr, 10);
+        if (!isNaN(idx) && typeof this.#game.loadChapter === 'function') {
+            const currentFlip = this.flipped; // Activate Flip Shield
+            
+            this.#game.loadChapter(idx);
+            
+            // Restore flip state if loadChapter changed it to White
+            if (this.flipped !== currentFlip) {
+                this.flipped = currentFlip;
+                if (typeof localStorage !== 'undefined') localStorage.setItem('chess_graph_flip', currentFlip ? 'b' : 'w');
+            }
+            
+            if (typeof localStorage !== 'undefined') localStorage.setItem('chess_active_chapter_idx', idx); 
+            
+            this.#game.mode = 'graph'; // Re-lock mode to graph
+            this._lastTreeSize = -1;
+            this.renderFullGraph();
+        }
+    }
+    renderChapters() {
+        const container = document.getElementById('chapters-list-container');
+        if (!container || !this.#game) return;
+        container.innerHTML = '';
+        this.#game.chapters.forEach((chap, idx) => {
+            const isActive = idx === this.#game.activeChapterIndex;
+            const el = document.createElement('div');
+            el.style.cssText = `display: flex; align-items: center; padding: 8px 12px; cursor: pointer; color: ${isActive ? '#fff' : '#bababa'}; background: ${isActive ? '#383531' : 'transparent'}; border-left: 3px solid ${isActive ? '#d85000' : 'transparent'}; font-size: 13px; transition: background 0.1s; pointer-events: auto;`;
+            el.onmouseenter = () => { if(!isActive) el.style.background = '#302e2b'; const gear = el.querySelector('.chapter-gear'); if (gear) gear.style.opacity = '1'; };
+            el.onmouseleave = () => { if(!isActive) el.style.background = 'transparent'; const gear = el.querySelector('.chapter-gear'); if (gear) gear.style.opacity = '0'; };
+            el.innerHTML = `<span style="width: 25px; color: #888; font-size: 12px; font-family: monospace;">${idx + 1}</span><span style="flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: ${isActive ? '600' : 'normal'};">${chap.title}</span><button class="chapter-gear" title="Edit chapter" style="background: none; border: none; color: #bababa; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; padding: 4px; transition: opacity 0.2s;">⚙️</button>`;
+            
+            el.onclick = () => { 
+                if (this.#game) {
+                    this.#game.loadChapter(idx);
+                    if (typeof localStorage !== 'undefined') localStorage.setItem('chess_active_chapter_idx', idx);
+                }
+            };
+            const gearBtn = el.querySelector('.chapter-gear');
+            if (gearBtn) gearBtn.onclick = (e) => { e.stopPropagation(); this.openChapterModal(idx); };
+            container.appendChild(el);
+        });
+        const countSpan = document.getElementById('chapter-count-header');
+        if (countSpan) countSpan.innerText = `${this.#game.chapters.length} ${this.#game.chapters.length === 1 ? 'Chapter' : 'Chapters'}`;
+    }
+    renderFullGraph() {
+        if (typeof this.initGraphEvents === 'function') this.initGraphEvents();
+        
+        const container = document.getElementById('treeGraphContainer');
+        const tab = document.getElementById('tabContent-Graph');
+        if (!container || !this.#game || !this.#game.rootNode) return;
+        const selSource = document.getElementById('graphSourceSelect');
+        const chapWrapper = document.getElementById('graphChapterWrapper');
+        const chapSelect = document.getElementById('graphChapterSelect');
+        const flipSelect = document.getElementById('graphFlipSelect');
+
+        if (flipSelect) {
+            flipSelect.value = this.flipped ? 'b' : 'w';
+        }
+
+        if (selSource) {
+            const isStudy = (this._previousTabBeforeGraph === 'study' || this._previousTabBeforeGraph === 'trainer');
+            selSource.value = isStudy ? 'study' : 'analysis';
+
+            if (isStudy && chapWrapper && chapSelect && this.#game.chapters) {
+                chapWrapper.style.display = 'flex';
+                chapSelect.innerHTML = '';
+                this.#game.chapters.forEach((ch, idx) => {
+                    const opt = document.createElement('option');
+                    opt.value = idx;
+                    opt.text = `${idx + 1}. ${ch.title}`;
+                    if (idx === this.#game.activeChapterIndex) opt.selected = true;
+                    chapSelect.appendChild(opt);
+                });
+            } else if (chapWrapper) {
+                chapWrapper.style.display = 'none';
+            }
+        }
+
+        container.innerHTML = '';
+        const svgNS = "http://www.w3.org/2000/svg";
+        const svgLayer = document.createElementNS(svgNS, "svg");
+        svgLayer.setAttribute("class", "graph-svg-layer");
+        container.appendChild(svgLayer);
+
+        const treeRoot = document.createElement('div');
+        
+        let activePathIds = new Set();
+        let curr = this.#game.currentNode;
+        while(curr) { activePathIds.add(curr.id); curr = curr.parent; }
+
+        this.renderGraphNode(this.#game.rootNode, treeRoot, this.#game.currentNode, 0, activePathIds, this.getPly(this.#game.currentNode));
+        container.appendChild(treeRoot);
+
+        requestAnimationFrame(() => {
+            this.drawGraphLines(container, svgLayer);
+            const activeEl = container.querySelector('.g-node-content.active');
+            if (activeEl && tab) {
+                setTimeout(() => {
+                    // Dùng offset truy ngược lên root để lấy tọa độ tuyệt đối chuẩn xác
+                    let offsetL = 0;
+                    let offsetT = 0;
+                    let currEl = activeEl;
+                    while (currEl && currEl !== tab) {
+                        offsetL += currEl.offsetLeft;
+                        offsetT += currEl.offsetTop;
+                        currEl = currEl.offsetParent;
+                    }
+
+                    // Cuộn tới = Tọa độ Node - (Nửa màn hình) + (Nửa bản thân cái Node)
+                    const targetScrollX = offsetL - (tab.clientWidth / 2) + (activeEl.offsetWidth / 2);
+                    const targetScrollY = offsetT - (tab.clientHeight / 2) + (activeEl.offsetHeight / 2);
+                    
+                    tab.scrollTo({ 
+                        left: Math.max(0, targetScrollX), 
+                        top: Math.max(0, targetScrollY), 
+                        behavior: 'smooth' 
+                    });
+                }, 10);
+            }
+        });
+    }
+    renderGraphNode(node, container, activeNode, depth, activePathIds, activeDepth) {
+        if (!node) return;
+
+        let myDepth = this.getPly(node);
+        let isOnActivePath = activePathIds.has(node.id);
+        let isPast = isOnActivePath && myDepth < activeDepth;
+
+        if (!isOnActivePath && myDepth > activeDepth + 2) return;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'g-node-wrapper';
+
+        const content = document.createElement('div');
+        content.className = 'g-node-content';
+        content.dataset.id = node.id;
+        
+        if (node === activeNode) content.classList.add('g-focus', 'active');
+        else if (myDepth === activeDepth + 1) content.classList.add('g-focus'); 
+        else if (myDepth === activeDepth + 2) content.classList.add('g-blur-future'); 
+        else if (isOnActivePath && isPast) {
+            if (activeDepth - myDepth >= 2) content.classList.add('g-blur-past');
+            else content.classList.add('g-focus'); 
+        } else content.classList.add('g-blur-future'); 
+
+        const boardDiv = document.createElement('div');
+        boardDiv.className = 'g-mini-board';
+        const layout = this.parseFenToGridLocal(node.fen);
+        
+        for (let i = 0; i < 64; i++) {
+            let logical_i = this.flipped ? 63 - i : i;
+
+            const sq = document.createElement('div');
+            sq.className = (Math.floor(i / 8) + i % 8) % 2 === 0 ? 'light' : 'dark';
+            if (layout[logical_i]) {
+                const color = layout[logical_i][0];
+                const type = layout[logical_i][1].toUpperCase();
+                const rawHTML = this.getPieceHTML({ color, type });
+                if (rawHTML) {
+                    let trimmed = rawHTML.trim();
+                    if (trimmed.startsWith('<svg')) sq.innerHTML = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}" style="width:100%;height:100%;object-fit:contain;pointer-events:none;">`;
+                    else {
+                        sq.innerHTML = trimmed;
+                        const imgEl = sq.querySelector('img');
+                        if (imgEl) { imgEl.style.width = '100%'; imgEl.style.height = '100%'; imgEl.style.objectFit = 'contain'; }
+                    }
+                }
+            }
+            boardDiv.appendChild(sq);
+        }
+
+        const moveTxt = document.createElement('div');
+        moveTxt.className = 'g-move-text';
+        let nagStr = "";
+        if (node.nag) {
+            node.nag.toString().split(',').forEach(n => {
+                const info = this.getNagInfo(n.trim());
+                if(info) nagStr += `<span style="color:${info.color}; margin-left:3px;">${info.symbol}</span>`;
+            });
+        }
+        moveTxt.innerHTML = (node.moveSan || "Start") + nagStr;
+
+        content.appendChild(boardDiv);
+        content.appendChild(moveTxt);
+
+        if (node.comment) {
+            let cleanComment = node.comment.replace(/\[%(eval|clk|cal|csl|emt)[^\]]*\]/g, "").trim();
+            cleanComment = cleanComment.replace(/\bbook\b/ig, "").trim();
+            
+            if (cleanComment.length > 0) {
+                const commentDiv = document.createElement('div');
+                commentDiv.className = 'g-node-comment';
+                commentDiv.style.cssText = 'color: #aaa; font-size: 13px; font-style: italic; background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 4px; width: 100%; box-sizing: border-box; text-align: center; white-space: normal; word-break: break-word; overflow: hidden; max-height: 80px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; margin-top: 4px; border-top: 1px solid #444;';
+                commentDiv.innerText = cleanComment;
+                content.appendChild(commentDiv);
+            }
+        }
+
+        content.onclick = (e) => {
+            e.stopPropagation();
+            if (this.#game.goToNodeId(node.id)) {
+                this.renderFullGraph(); 
+                this.updateHistory(true);
+            }
+        };
+
+        wrapper.appendChild(content);
+
+        if (node.children && node.children.length > 0) {
+            const childrenContainer = document.createElement('div');
+            childrenContainer.className = 'g-children';
+            let childrenToRender = [];
+            
+            if (isPast) childrenToRender = node.children.filter(c => activePathIds.has(c.id));
+            else if (myDepth === activeDepth || myDepth === activeDepth + 1) childrenToRender = node.children;
+
+            if (childrenToRender.length > 0) {
+                childrenToRender.forEach(child => {
+                    this.renderGraphNode(child, childrenContainer, activeNode, depth + 1, activePathIds, activeDepth);
+                });
+                wrapper.appendChild(childrenContainer);
+            }
+        }
+
+        container.appendChild(wrapper);
+    }
+    drawGraphLines(listContainer, svgLayer) {
+        const svgNS = "http://www.w3.org/2000/svg";
+        const containerRect = listContainer.getBoundingClientRect();
+        
+        svgLayer.setAttribute('width', listContainer.scrollWidth);
+        svgLayer.setAttribute('height', listContainer.scrollHeight);
+        
+        const findNodeLocal = (node, id) => {
+            if (node.id === id) return node;
+            for (let child of node.children) {
+                const found = findNodeLocal(child, id);
+                if (found) return found;
+            }
+            return null;
+        };
+
+        const nodes = listContainer.querySelectorAll('.g-node-content');
+        
+        nodes.forEach(nodeEl => {
+            const nodeId = nodeEl.dataset.id;
+            const nodeObj = this.#game && this.#game.rootNode ? findNodeLocal(this.#game.rootNode, nodeId) : null;
+            
+            if (nodeObj && nodeObj.children) {
+                const parentRect = nodeEl.getBoundingClientRect();
+                
+                const startX = parentRect.right - containerRect.left + listContainer.scrollLeft;
+                const startY = parentRect.top + (parentRect.height / 2) - containerRect.top + listContainer.scrollTop;
+
+                nodeObj.children.forEach(child => {
+                    const childEl = listContainer.querySelector(`[data-id="${child.id}"]`);
+                    if (childEl) {
+                        const childRect = childEl.getBoundingClientRect();
+                        
+                        const endX = childRect.left - containerRect.left + listContainer.scrollLeft;
+                        const endY = childRect.top + (childRect.height / 2) - containerRect.top + listContainer.scrollTop;
+
+                        const curve = document.createElementNS(svgNS, 'path');
+                        const cpX = (startX + endX) / 2; 
+                        
+                        const d = `M ${startX} ${startY} C ${cpX} ${startY}, ${cpX} ${endY}, ${endX} ${endY}`;
+                        const isBlurred = childEl.classList.contains('g-blur-future') || nodeEl.classList.contains('g-blur-past');
+                        
+                        curve.setAttribute('d', d);
+                        curve.setAttribute('fill', 'transparent');
+                        // Đổi màu dây điện cho đồng bộ với độ mờ
+                        curve.setAttribute('stroke', isBlurred ? 'rgba(56, 189, 248, 0.3)' : '#38bdf8');
+                        curve.setAttribute('stroke-width', isBlurred ? '2' : '3');
+                        
+                        if (!isBlurred) svgLayer.appendChild(curve);
+                        else svgLayer.insertBefore(curve, svgLayer.firstChild);
+                    }
+                });
+            }
+        });
+    }
+    parseFenToGridLocal(fen) {
+        const grid = new Array(64).fill(null);
+        const rows = fen.split(' ')[0].split('/');
+        let i = 0;
+        for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < rows[r].length; c++) {
+                const char = rows[r][c];
+                if (!isNaN(char)) i += parseInt(char);
+                else {
+                    const color = char === char.toUpperCase() ? 'w' : 'b';
+                    grid[i] = `${color}${char.toLowerCase()}`;
+                    i++;
+                }
+            }
+        }
+        return grid;
     }
 }
