@@ -204,7 +204,8 @@ getReader() {
             }
         }
 
-        return Object.freeze({
+        // TRẢ VỀ DỮ LIỆU THÔ, KHÔNG DÙNG .MAP() HAY OBJECT.FREEZE() ĐỂ TRÁNH RÁC RAM
+        return {
             mode: this.mode,
             isGameOver: this.gameOver,
             isLive: this.isPlayingLiveGame,
@@ -217,14 +218,14 @@ getReader() {
             startingFen: this.rootNode ? this.rootNode.fen : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
             activeNodeId: this.currentNode ? this.currentNode.id : null,
             lastMove: this.currentNode ? this.currentNode.lastMove : null,
-            headers: Object.freeze({ ...this.pgnHeaders }),
+            headers: this.pgnHeaders, // Chuyền thẳng object
             whiteTime: this.whiteTime,
             blackTime: this.blackTime,
-            board: this.#board.map(p => p ? Object.freeze({...p}) : null),
-            premoves: [...this.premoveQueue],
-            arrows: this.currentNode && this.currentNode.arrows ? [...this.currentNode.arrows] : [],
-            circles: this.currentNode && this.currentNode.circles ? [...this.currentNode.circles] : [],
-            puzzle: Object.freeze({
+            board: this.#board,       // 🚀 TỬ HUYỆT ĐƯỢC CHỮA: Chuyền thẳng mảng gốc!
+            premoves: this.premoveQueue,
+            arrows: this.currentNode && this.currentNode.arrows ? this.currentNode.arrows : [],
+            circles: this.currentNode && this.currentNode.circles ? this.currentNode.circles : [],
+            puzzle: {
                 active: this.puzzleActive,
                 mode: this.puzzleMode,
                 timeRemaining: this.puzzleTimeRemaining,
@@ -232,18 +233,16 @@ getReader() {
                 strikes: this.puzzleStrikes,
                 solution: this.puzzleSolution,
                 cursor: this.puzzleCursor
-            }),
+            },
             mana: this.#engine && typeof this.#engine.mana === 'function' ? this.#engine.mana() : null,
-            frozenSquares: Object.freeze(frozenSquares), 
+            frozenSquares: frozenSquares, 
             frozen: this.#engine && typeof this.#engine.frozen === 'function' ? this.#engine.frozen() : null,
             jump_sq: jumpSquare,
             duck_sq: uiDuckSq, 
             studyTitle: this.studyTitle,
             activeChapterIndex: this.activeChapterIndex,
-            chapters: this.chapters.map(c => Object.freeze({ 
-                title: c.title, orientation: c.orientation 
-            }))
-        });
+            chapters: this.chapters
+        };
     }
 #getStartingFen(mode = this.gameMode) {
     if (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[mode]) {
@@ -1597,7 +1596,14 @@ return move.san;
                     }
 
                     let engineInput = moveText; 
-                    const uciMatch = engineInput.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
+
+                    if (typeof engineInput === 'string' && engineInput.includes('_')) {
+                        const restoredStr = engineInput.replace(/([A-Za-z]+@[a-h][1-8])_([A-Za-z0-9+#=O\-]+)/, "$1 $2");
+                        engineInput = restoredStr;
+                        moveText = restoredStr; 
+                    }
+
+                    const uciMatch = (typeof engineInput === 'string') ? engineInput.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i) : null;
                     if (uciMatch) engineInput = { from: uciMatch[1], to: uciMatch[2], promotion: uciMatch[3] };
 
                     let moveObj = null;
@@ -1628,7 +1634,20 @@ return move.san;
                     let isIllegal = !moveObj;
                     if (isIllegal) moveObj = { san: moveText, from: -1, to: -1, flags: '', color: this.#engine.turn(), piece: '' };
 
-                    const newNode = new MoveNode(this.#engine.fen(), moveObj.san);
+                    let finalSanToSave = moveObj.san;
+                    if (!isIllegal && typeof moveText === 'string') {
+                        let spaceIdx = moveText.indexOf(' ');
+                        if (spaceIdx !== -1) {
+                            let prefix = moveText.substring(0, spaceIdx);
+                            if (prefix.includes('@') && (prefix.startsWith('F') || prefix.startsWith('J'))) {
+                                if (!finalSanToSave.startsWith(prefix)) {
+                                    finalSanToSave = `${prefix} ${finalSanToSave}`; 
+                                }
+                            }
+                        }
+                    }
+
+                    const newNode = new MoveNode(this.#engine.fen(), finalSanToSave);
                     newNode.lastMove = {
                         from: isIllegal ? -1 : this.#squareToIndex(moveObj.from),
                         to: isIllegal ? -1 : this.#squareToIndex(moveObj.to),
@@ -4442,7 +4461,6 @@ loadNewPosition(fen, explicitMode = null) {
         }
 
         if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
-        else if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
 
         // Lock FEN into Analysis Memory so it isn't overwritten by Study Tabs!
         if (this.mode !== 'study' && this.mode !== 'puzzle') {
@@ -4571,6 +4589,7 @@ startAnalysisMode(transferGame = false) {
         if (!this.pgnHeaders['Result']) this.pgnHeaders['Result'] = '*';
 
         const previousMode = this.mode;
+        const currentVariant = this.gameMode;
 
         // If we are already in analysis, just update visuals.
         if (previousMode === 'analysis') {
@@ -4610,6 +4629,14 @@ startAnalysisMode(transferGame = false) {
 
         // 4. Paste the completed game over the analysis board ONLY if requested by the button
         if (pgnToTransfer) {
+            if (previousMode !== 'puzzle' && this.gameMode !== currentVariant) {
+                this.setGameMode(currentVariant, false, true);
+                if (typeof document !== 'undefined') {
+                    const variantSelect = document.getElementById('analysisVariantSelect');
+                    if (variantSelect) variantSelect.value = currentVariant;
+                }
+            }
+
             this.loadPGN(pgnToTransfer, false, true);
             this.pgnHeaders = savedHeaders;
             
@@ -7092,47 +7119,6 @@ downloadCurrentStudy() {
         }
         this.#triggerDownload(combinedPgn, `chess_study_${this.studyTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`);
         this.#emit('notification', { message: `Successfully exported ${exportedCount} chapters!`, title: "Export Complete", icon: "📥" });
-    }
-downloadSelectedChapters() {
-        this.saveActiveChapter(); // Guarantee latest moves are included
-        const checkboxes = document.querySelectorAll('.chapter-export-cb');
-        let combinedPgn = "";
-        let exportedCount = 0;
-        
-        checkboxes.forEach(cb => {
-            if (cb.checked) {
-                const idx = parseInt(cb.dataset.idx, 10);
-                if (this.chapters[idx]) {
-                    let chPgn = this.chapters[idx].pgn || "";
-                    
-                    // Prepend the chapter name to the Event header to identify it
-                    if (!chPgn.includes('[Event "')) {
-                        chPgn = `[Event "${this.studyTitle} - ${this.chapters[idx].title}"]\n` + chPgn;
-                    }
-                    combinedPgn += chPgn + "\n\n";
-                    exportedCount++;
-                }
-            }
-        });
-        
-        if (exportedCount === 0) {
-            if (this.#ui) this.#ui.showNotification("No chapters selected.", "Export Failed", "⚠️");
-            return;
-        }
-        
-        const blob = new Blob([combinedPgn.trim()], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-        a.download = `${this.studyTitle.replace(/[^a-z0-9]/gi, '_')}_${dateStr}.pgn`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        document.getElementById('exportStudyModal').style.display = 'none';
-        if (this.#ui) this.#ui.showNotification(`Successfully exported ${exportedCount} chapters.`, "Export Complete", "📥");
     }
 downloadSelectedChapters() {
         this.saveActiveChapter(); 

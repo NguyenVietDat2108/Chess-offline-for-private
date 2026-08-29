@@ -1967,15 +1967,48 @@ initKeyboardEvents() {
             const now = performance.now();
             if (!this._lastArrowPress) this._lastArrowPress = 0;
 
-            // TÁCH LOGIC: Lướt cờ mượt mà, trì hoãn việc vẽ lại Mạng Nhện SVG để tránh giật lag
+            // TÁCH LOGIC TỐI ƯU ZERO-LATENCY
             const triggerGraphFastUpdate = () => {
                 if (!isGraphActive) return;
-                
-                // Trì hoãn việc vẽ lại toàn bộ Mạng lưới SVG (giúp app đéo bị khựng)
+
+                const zoomWrapper = document.getElementById('graphZoomWrapper');
+                let nodeFound = false;
+
+                // 1. CHUYỂN DOM ACTIVE TỨC THÌ TRONG 0MS
+                if (zoomWrapper && this.#game.currentNode) {
+                    const oldActive = zoomWrapper.querySelector('.g-node-content.active');
+                    if (oldActive) oldActive.classList.remove('active');
+
+                    const newActive = zoomWrapper.querySelector(`.g-node-content[data-id="${this.#game.currentNode.id}"]`);
+                    if (newActive) {
+                        nodeFound = true;
+                        newActive.classList.add('active');
+
+                        // Gọi Camera đuổi theo ngay lập tức (Gõ phím siêu tốc < 80ms thì tắt smooth đi cho khỏi say sóng)
+                        const timeSinceLast = now - this._lastArrowPress;
+                        const scrollBehavior = timeSinceLast < 80 ? 'auto' : 'smooth';
+                        this.scrollToActiveGraphNode(scrollBehavior);
+                    }
+                }
+                this._lastArrowPress = now;
+
+                // 2. RENDER CHẬM CHẠY NỀN ĐẰNG SAU
                 clearTimeout(this._graphRenderDebounce);
-                this._graphRenderDebounce = setTimeout(() => {
-                    this.renderFullGraph();
-                }, 100); 
+                
+                if (!nodeFound) {
+                    // CỨU CÁNH: Nếu vừa rẽ sang nhánh MỚI hoàn toàn (chưa tồn tại trên màn hình)
+                    // Bắt buộc phải vẽ gấp và CHO PHÉP giật Camera!
+                    this._graphRenderDebounce = setTimeout(() => {
+                        this.renderFullGraph(false); 
+                    }, 10);
+                } else {
+                    // SỰ MƯỢT MÀ NẰM Ở ĐÂY: Node đã có sẵn rồi, việc gọi renderFullGraph chỉ để 
+                    // tạo hiệu ứng Mờ (Blur) và vẽ lại dây điện. Bắt buộc truyền `skipCamera = true` 
+                    // để nó vẽ lẳng lặng trong nền mà KHÔNG GIẬT CỤC CAMERA CỦA NGƯỜI DÙNG!
+                    this._graphRenderDebounce = setTimeout(() => {
+                        this.renderFullGraph(true); 
+                    }, 150);
+                }
             };
 
             // [D] Hoặc Phải -> FAST FORWARD
@@ -3261,7 +3294,9 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                             for (let dc = -1; dc <= 1; dc++) {
                                 const nr = r + dr, nc = c + dc;
                                 if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
-                                    const targetSq = this.squaresLayer.querySelector(`[data-index="${nr * 8 + nc}"]`);
+                                        const targetLogicalIdx = nr * 8 + nc;
+                                        const visualIdx = this.flipped ? (63 - targetLogicalIdx) : targetLogicalIdx;
+                                        const targetSq = squares[visualIdx];
                                     if (targetSq) targetSq.classList.add('spell-target-hover');
                                 }
                             }
@@ -7493,7 +7528,11 @@ castSpell(spellType, targetSq) {
         let startX, startY, scrollLeft, scrollTop;
 
         tab.addEventListener('mousedown', (e) => {
-            if (e.target.closest('.g-node-content') || e.target.closest('button') || e.target.closest('select')) return;
+            if (e.target.closest('.g-node-content') || e.target.closest('button') || e.target.closest('select') || e.target.closest('input') || e.target.closest('label')) return;
+
+            const bottomPanel = tab.querySelector('div[style*="z-index: 10001"]');
+            if (bottomPanel && bottomPanel.contains(e.target)) return;
+
             isDown = true;
             tab.classList.add('dragging');
             
@@ -7504,7 +7543,6 @@ castSpell(spellType, targetSq) {
             scrollTop = tab.scrollTop;
         });
 
-        // BẮT SỰ KIỆN LÊN TOÀN CỬA SỔ ĐỂ TRÁNH TUỘT TAY
         window.addEventListener('mouseup', () => { 
             isDown = false; 
             if (tab) tab.classList.remove('dragging'); 
@@ -7521,6 +7559,23 @@ castSpell(spellType, targetSq) {
             tab.scrollLeft = scrollLeft - (x - startX);
             tab.scrollTop = scrollTop - (y - startY);
         });
+
+        // 🔥 SỬA LỖI MẤT DÂY KHI ZOOM (CTRL + LĂN CHUỘT) Ở ĐÂY
+        window.addEventListener('resize', () => {
+            if (tab.classList.contains('active')) {
+                // 1. Phải lấy zoomWrapper làm gốc toạ độ, không dùng container!
+                const zoomWrapper = document.getElementById('graphZoomWrapper');
+                const svgLayer = zoomWrapper?.querySelector('.graph-svg-layer');
+                
+                if (zoomWrapper && svgLayer) {
+                    // 2. Chờ trình duyệt bóp/nới Layout xong (50ms) rồi mới cho vẽ dây
+                    clearTimeout(this._resizeDrawTimeout);
+                    this._resizeDrawTimeout = setTimeout(() => {
+                        this.drawGraphLines(zoomWrapper, svgLayer);
+                    }, 50);
+                }
+            }
+        });
     }
     injectGraphCSS() {
         if (document.getElementById('graph-tab-styles')) return;
@@ -7530,7 +7585,7 @@ castSpell(spellType, targetSq) {
             #tabContent-Graph.active {
                 display: block !important; position: fixed !important;
                 top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important;
-                z-index: 9999 !important; background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%) !important;
+                z-index: 9999 !important; background: #0f172a !important; 
                 overflow: auto !important; 
                 scrollbar-width: none; 
                 cursor: grab;
@@ -7539,51 +7594,101 @@ castSpell(spellType, targetSq) {
             #tabContent-Graph.active.dragging { cursor: grabbing; }
             
             .pgn-graph-fullscreen {
-                position: relative; 
-                /* TỬ HUYỆT CỨU MẠNG: Dùng block và max-content thay cho flex */
-                display: block; 
-                width: max-content;
-                height: max-content;
-                /* Đệm 50% màn hình, bất kể node nằm ở góc kẹt nào cũng kéo ra giữa được */
-                padding: 50vh 50vw; 
+                position: relative; display: inline-block; 
+                width: max-content; height: max-content;
+                min-width: 100vw; min-height: 100vh;
+                padding: 3000px; 
                 box-sizing: content-box;
             }
-            .graph-svg-layer { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; }
-            .g-node-wrapper { display: flex; flex-direction: row; align-items: center; }
+            .graph-svg-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; overflow: visible !important; }
             
-            .g-children { display: flex; flex-direction: column; justify-content: center; padding-left: 180px; gap: 60px; }
+            .g-node-wrapper { display: flex; flex-direction: row; align-items: center; flex-shrink: 0; }
+            .g-children { display: flex; flex-direction: column; justify-content: center; padding-left: 150px; gap: 40px; flex-shrink: 0; }
             
             .g-node-content {
+                transform: translateZ(0);
                 position: relative; z-index: 2; background: #1e1e1e; border: 4px solid #444;
-                border-radius: 12px; padding: 14px; cursor: pointer;
-                box-shadow: 0 12px 30px rgba(0,0,0,0.7); transition: all 0.2s ease;
-                display: flex; flex-direction: column; align-items: center; gap: 12px; 
-                width: 280px;
+                border-radius: 12px; padding: 10px; cursor: pointer;
+                box-shadow: 0 10px 25px rgba(0,0,0,0.7); transition: all 0.15s ease;
+                display: flex; flex-direction: column; align-items: center; gap: 10px; 
+                width: 220px; flex-shrink: 0; 
             }
-            .g-node-content:hover { border-color: #38bdf8; transform: scale(1.03); }
-            .g-node-content.active { border-color: #26c2a3; box-shadow: 0 0 35px rgba(38, 194, 163, 0.9); transform: scale(1.08); z-index: 10; }
             
             .g-move-text {
                 font-weight: 800; color: #fff; font-family: 'Segoe UI', Tahoma, sans-serif;
-                font-size: 20px; text-align: center; white-space: nowrap;
-                background: #0f172a; padding: 6px 14px; border-radius: 6px;
-                border: 1px solid #334155;
+                font-size: 18px; text-align: center; white-space: nowrap;
+                background: #0f172a; padding: 4px 12px; border-radius: 6px;
+                border: 1px solid #334155; flex-shrink: 0;
             }
             
             .g-mini-board {
-                width: 250px; height: 250px; display: grid;
-                grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
-                border: 3px solid #000; pointer-events: none; border-radius: 4px; overflow: hidden;
+                position: relative; display: block; 
+                width: 200px; height: 200px; flex-shrink: 0;
+                background-color: var(--board-light, #f0d9b5);
+                background-image: conic-gradient(var(--board-dark, #b58863) 90deg, transparent 90deg 180deg, var(--board-dark, #b58863) 180deg 270deg, transparent 270deg);
+                background-size: 25% 25%; background-position: 0 0, 25px 25px;
+                border: 2px solid #000; border-radius: 4px; overflow: hidden;
             }
-            .g-mini-board div { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-            .g-mini-board .light { background-color: var(--board-light, #f0d9b5) !important; }
-            .g-mini-board .dark { background-color: var(--board-dark, #b58863) !important; }
             
-            .g-blur-past { filter: blur(4px) grayscale(60%); opacity: 0.35; pointer-events: auto; }
+            .g-mini-piece { 
+                position: absolute; width: 12.5%; height: 12.5%; pointer-events: none; 
+                margin: 0 !important; padding: 0 !important;
+                display: flex; justify-content: center; align-items: center;
+            }
+            .g-mini-piece img, .g-mini-piece svg {
+                width: 90% !important; height: 90% !important; object-fit: contain;
+                margin: 0 !important; padding: 0 !important; display: block;
+            }
+
+            /* --- CHỈNH SỬA SƯƠNG MÙ Ở ĐÂY --- */
+            .g-blur-past { filter: blur(3px) grayscale(50%); opacity: 0.4; }
             .g-focus { filter: none; opacity: 1; }
-            .g-blur-future { filter: blur(2px); opacity: 0.8; }
+            /* Nhánh rác cho tối thui (0.25), bỏ chặn click để bấm được */
+            .g-blur-future { filter: blur(3px) grayscale(70%); opacity: 0.25; } 
+            
+            /* Rà chuột vào nhánh rác thì thắp sáng nó lên */
+            .g-node-content:hover { 
+                border-color: #38bdf8; transform: scale(1.03); z-index: 5; 
+                filter: none !important; opacity: 1 !important;
+            }
+            .g-node-content.active { border-color: #26c2a3; box-shadow: 0 0 30px rgba(38, 194, 163, 0.8); transform: scale(1.05); z-index: 10; }
+            
+            #tabContent-Graph > div[style*="z-index: 10001"] { cursor: default !important; }
+            #tabContent-Graph > div[style*="z-index: 10001"] input[type="range"] { cursor: pointer !important; }
         `;
         document.head.appendChild(style);
+    }
+    changeGraphMode(mode) {
+        this.graphMode = mode;
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('chess_graph_mode', mode);
+        }
+        this.renderFullGraph(); 
+    }
+
+    changeGraphZoom(val) {
+        this.graphZoom = parseFloat(val);
+        const label = document.getElementById('graphZoomLabel');
+        if (label) label.innerText = Math.round(this.graphZoom * 100) + '%';
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('chess_graph_zoom', this.graphZoom);
+        }
+        
+        const wrapper = document.getElementById('graphZoomWrapper');
+        const treeRoot = document.getElementById('graphTreeRoot');
+        
+        if (wrapper && treeRoot) {
+            wrapper.style.transform = `scale(${this.graphZoom})`;
+            
+            const w = treeRoot.offsetWidth;
+            const h = treeRoot.offsetHeight;
+            wrapper.style.width = w + 'px';
+            wrapper.style.height = h + 'px';
+            wrapper.style.marginRight = (w * this.graphZoom - w) + 'px';
+            wrapper.style.marginBottom = (h * this.graphZoom - h) + 'px';
+
+            this.scrollToActiveGraphNode('auto');
+        }
     }
     changeGraphSource(source) {
         if (!this.#game) return;
@@ -7640,32 +7745,7 @@ castSpell(spellType, targetSq) {
             this.renderFullGraph();
         }
     }
-    renderChapters() {
-        const container = document.getElementById('chapters-list-container');
-        if (!container || !this.#game) return;
-        container.innerHTML = '';
-        this.#game.chapters.forEach((chap, idx) => {
-            const isActive = idx === this.#game.activeChapterIndex;
-            const el = document.createElement('div');
-            el.style.cssText = `display: flex; align-items: center; padding: 8px 12px; cursor: pointer; color: ${isActive ? '#fff' : '#bababa'}; background: ${isActive ? '#383531' : 'transparent'}; border-left: 3px solid ${isActive ? '#d85000' : 'transparent'}; font-size: 13px; transition: background 0.1s; pointer-events: auto;`;
-            el.onmouseenter = () => { if(!isActive) el.style.background = '#302e2b'; const gear = el.querySelector('.chapter-gear'); if (gear) gear.style.opacity = '1'; };
-            el.onmouseleave = () => { if(!isActive) el.style.background = 'transparent'; const gear = el.querySelector('.chapter-gear'); if (gear) gear.style.opacity = '0'; };
-            el.innerHTML = `<span style="width: 25px; color: #888; font-size: 12px; font-family: monospace;">${idx + 1}</span><span style="flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: ${isActive ? '600' : 'normal'};">${chap.title}</span><button class="chapter-gear" title="Edit chapter" style="background: none; border: none; color: #bababa; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; padding: 4px; transition: opacity 0.2s;">⚙️</button>`;
-            
-            el.onclick = () => { 
-                if (this.#game) {
-                    this.#game.loadChapter(idx);
-                    if (typeof localStorage !== 'undefined') localStorage.setItem('chess_active_chapter_idx', idx);
-                }
-            };
-            const gearBtn = el.querySelector('.chapter-gear');
-            if (gearBtn) gearBtn.onclick = (e) => { e.stopPropagation(); this.openChapterModal(idx); };
-            container.appendChild(el);
-        });
-        const countSpan = document.getElementById('chapter-count-header');
-        if (countSpan) countSpan.innerText = `${this.#game.chapters.length} ${this.#game.chapters.length === 1 ? 'Chapter' : 'Chapters'}`;
-    }
-    renderFullGraph() {
+    renderFullGraph(skipCamera = false) {
         if (typeof this.initGraphEvents === 'function') this.initGraphEvents();
         
         const container = document.getElementById('treeGraphContainer');
@@ -7676,9 +7756,7 @@ castSpell(spellType, targetSq) {
         const chapSelect = document.getElementById('graphChapterSelect');
         const flipSelect = document.getElementById('graphFlipSelect');
 
-        if (flipSelect) {
-            flipSelect.value = this.flipped ? 'b' : 'w';
-        }
+        if (flipSelect) flipSelect.value = this.flipped ? 'b' : 'w';
 
         if (selSource) {
             const isStudy = (this._previousTabBeforeGraph === 'study' || this._previousTabBeforeGraph === 'trainer');
@@ -7701,55 +7779,82 @@ castSpell(spellType, targetSq) {
 
         container.innerHTML = '';
         const svgNS = "http://www.w3.org/2000/svg";
+        
+        const zoomWrapper = document.createElement('div');
+        zoomWrapper.id = 'graphZoomWrapper';
+        const currentZoom = this.graphZoom || 1;
+        zoomWrapper.style.cssText = `position: relative; display: inline-block; transform: scale(${currentZoom}); transform-origin: top left; transition: transform 0.1s ease;`;
+
         const svgLayer = document.createElementNS(svgNS, "svg");
         svgLayer.setAttribute("class", "graph-svg-layer");
-        container.appendChild(svgLayer);
+        zoomWrapper.appendChild(svgLayer);
 
         const treeRoot = document.createElement('div');
+        treeRoot.id = 'graphTreeRoot';
+        treeRoot.style.cssText = "display: inline-block; width: max-content; height: max-content;";
         
         let activePathIds = new Set();
         let curr = this.#game.currentNode;
         while(curr) { activePathIds.add(curr.id); curr = curr.parent; }
 
         this.renderGraphNode(this.#game.rootNode, treeRoot, this.#game.currentNode, 0, activePathIds, this.getPly(this.#game.currentNode));
-        container.appendChild(treeRoot);
+        zoomWrapper.appendChild(treeRoot);
+        container.appendChild(zoomWrapper); 
 
+        // 🔥 CHỮA BỆNH KHỰNG: Bỏ sạch setTimeout chờ đợi. Gọi requestAnimationFrame để chốt Layout lập tức!
         requestAnimationFrame(() => {
-            this.drawGraphLines(container, svgLayer);
-            const activeEl = container.querySelector('.g-node-content.active');
-            if (activeEl && tab) {
-                setTimeout(() => {
-                    // Dùng offset truy ngược lên root để lấy tọa độ tuyệt đối chuẩn xác
-                    let offsetL = 0;
-                    let offsetT = 0;
-                    let currEl = activeEl;
-                    while (currEl && currEl !== tab) {
-                        offsetL += currEl.offsetLeft;
-                        offsetT += currEl.offsetTop;
-                        currEl = currEl.offsetParent;
-                    }
+            const w = treeRoot.offsetWidth;
+            const h = treeRoot.offsetHeight;
+            zoomWrapper.style.width = w + 'px';
+            zoomWrapper.style.height = h + 'px';
+            zoomWrapper.style.marginRight = (w * currentZoom - w) + 'px';
+            zoomWrapper.style.marginBottom = (h * currentZoom - h) + 'px';
+            
+            this.drawGraphLines(zoomWrapper, svgLayer);
 
-                    // Cuộn tới = Tọa độ Node - (Nửa màn hình) + (Nửa bản thân cái Node)
-                    const targetScrollX = offsetL - (tab.clientWidth / 2) + (activeEl.offsetWidth / 2);
-                    const targetScrollY = offsetT - (tab.clientHeight / 2) + (activeEl.offsetHeight / 2);
-                    
-                    tab.scrollTo({ 
-                        left: Math.max(0, targetScrollX), 
-                        top: Math.max(0, targetScrollY), 
-                        behavior: 'smooth' 
-                    });
-                }, 10);
+            const modeSelect = document.getElementById('graphModeSelect');
+            if (modeSelect) modeSelect.value = this.graphMode || 'focused';
+            const zoomSlider = document.getElementById('graphZoomSlider');
+            if (zoomSlider) zoomSlider.value = this.graphZoom || 1;
+            
+            // CHỈ CƯỚP CAMERA KHI ĐƯỢC PHÉP!
+            if (!skipCamera) {
+                this.scrollToActiveGraphNode('auto');
             }
+        });
+    }
+    scrollToActiveGraphNode(behavior = 'smooth') {
+        const tab = document.getElementById('tabContent-Graph');
+        const activeEl = document.querySelector('.g-node-content.active');
+        if (!tab || !activeEl) return;
+
+        // Bắt buộc trình duyệt chốt sổ Layout trước khi tính toán để chống sai số
+        void tab.offsetHeight;
+
+        const tabRect = tab.getBoundingClientRect();
+        const elRect = activeEl.getBoundingClientRect();
+
+        // Cuộn chính xác = Độ cuộn hiện tại + (Vị trí phần tử - Vị trí mép màn hình) - Nửa màn hình + Nửa phần tử
+        const targetX = tab.scrollLeft + (elRect.left - tabRect.left) - (tab.clientWidth / 2) + (elRect.width / 2);
+        const targetY = tab.scrollTop + (elRect.top - tabRect.top) - (tab.clientHeight / 2) + (elRect.height / 2);
+
+        tab.scrollTo({ 
+            left: Math.max(0, targetX), 
+            top: Math.max(0, targetY), 
+            behavior: behavior 
         });
     }
     renderGraphNode(node, container, activeNode, depth, activePathIds, activeDepth) {
         if (!node) return;
 
+        const mode = this.graphMode || 'focused';
+        const isFullMode = (mode === 'full');
+
         let myDepth = this.getPly(node);
         let isOnActivePath = activePathIds.has(node.id);
         let isPast = isOnActivePath && myDepth < activeDepth;
 
-        if (!isOnActivePath && myDepth > activeDepth + 2) return;
+        if (!isFullMode && !isOnActivePath && myDepth > activeDepth + 2) return;
 
         const wrapper = document.createElement('div');
         wrapper.className = 'g-node-wrapper';
@@ -7758,39 +7863,43 @@ castSpell(spellType, targetSq) {
         content.className = 'g-node-content';
         content.dataset.id = node.id;
         
-        if (node === activeNode) content.classList.add('g-focus', 'active');
-        else if (myDepth === activeDepth + 1) content.classList.add('g-focus'); 
-        else if (myDepth === activeDepth + 2) content.classList.add('g-blur-future'); 
+        // 🔥 CHỮA BỆNH NHẬN VƠ HÀNG XÓM Ở ĐÂY: Chỉ xét quan hệ huyết thống!
+        if (node === activeNode) {
+            content.classList.add('g-focus', 'active');
+        } 
+        else if (node.parent === activeNode) {
+            content.classList.add('g-focus'); // Con ruột (những nước có thể đi tiếp theo) -> Sáng
+        } 
         else if (isOnActivePath && isPast) {
             if (activeDepth - myDepth >= 2) content.classList.add('g-blur-past');
-            else content.classList.add('g-focus'); 
-        } else content.classList.add('g-blur-future'); 
+            else content.classList.add('g-focus'); // Cha ruột (nước vừa đi xong) -> Sáng
+        } 
+        else {
+            content.classList.add('g-blur-future'); // Các nhánh dư thừa khác -> Mờ câm đen thui
+        }
 
         const boardDiv = document.createElement('div');
         boardDiv.className = 'g-mini-board';
         const layout = this.parseFenToGridLocal(node.fen);
         
+        let piecesHtml = '';
         for (let i = 0; i < 64; i++) {
             let logical_i = this.flipped ? 63 - i : i;
-
-            const sq = document.createElement('div');
-            sq.className = (Math.floor(i / 8) + i % 8) % 2 === 0 ? 'light' : 'dark';
             if (layout[logical_i]) {
                 const color = layout[logical_i][0];
                 const type = layout[logical_i][1].toUpperCase();
                 const rawHTML = this.getPieceHTML({ color, type });
                 if (rawHTML) {
+                    let r = Math.floor(i / 8); let c = i % 8;
                     let trimmed = rawHTML.trim();
-                    if (trimmed.startsWith('<svg')) sq.innerHTML = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}" style="width:100%;height:100%;object-fit:contain;pointer-events:none;">`;
-                    else {
-                        sq.innerHTML = trimmed;
-                        const imgEl = sq.querySelector('img');
-                        if (imgEl) { imgEl.style.width = '100%'; imgEl.style.height = '100%'; imgEl.style.objectFit = 'contain'; }
-                    }
+                    let imgTag = trimmed.startsWith('<svg') 
+                        ? `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}" style="width:100%;height:100%;object-fit:contain;pointer-events:none;">`
+                        : trimmed.replace('<img', '<img style="width:100%;height:100%;object-fit:contain;pointer-events:none;"');
+                    piecesHtml += `<div class="g-mini-piece" style="left:${c * 12.5}%; top:${r * 12.5}%;">${imgTag}</div>`;
                 }
             }
-            boardDiv.appendChild(sq);
         }
+        boardDiv.innerHTML = piecesHtml;
 
         const moveTxt = document.createElement('div');
         moveTxt.className = 'g-move-text';
@@ -7809,10 +7918,8 @@ castSpell(spellType, targetSq) {
         if (node.comment) {
             let cleanComment = node.comment.replace(/\[%(eval|clk|cal|csl|emt)[^\]]*\]/g, "").trim();
             cleanComment = cleanComment.replace(/\bbook\b/ig, "").trim();
-            
             if (cleanComment.length > 0) {
                 const commentDiv = document.createElement('div');
-                commentDiv.className = 'g-node-comment';
                 commentDiv.style.cssText = 'color: #aaa; font-size: 13px; font-style: italic; background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 4px; width: 100%; box-sizing: border-box; text-align: center; white-space: normal; word-break: break-word; overflow: hidden; max-height: 80px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; margin-top: 4px; border-top: 1px solid #444;';
                 commentDiv.innerText = cleanComment;
                 content.appendChild(commentDiv);
@@ -7834,8 +7941,12 @@ castSpell(spellType, targetSq) {
             childrenContainer.className = 'g-children';
             let childrenToRender = [];
             
-            if (isPast) childrenToRender = node.children.filter(c => activePathIds.has(c.id));
-            else if (myDepth === activeDepth || myDepth === activeDepth + 1) childrenToRender = node.children;
+            if (isFullMode) {
+                childrenToRender = node.children;
+            } else {
+                if (isPast) childrenToRender = node.children.filter(c => activePathIds.has(c.id));
+                else if (myDepth === activeDepth || myDepth === activeDepth + 1) childrenToRender = node.children;
+            }
 
             if (childrenToRender.length > 0) {
                 childrenToRender.forEach(child => {
@@ -7844,79 +7955,87 @@ castSpell(spellType, targetSq) {
                 wrapper.appendChild(childrenContainer);
             }
         }
-
         container.appendChild(wrapper);
     }
     drawGraphLines(listContainer, svgLayer) {
         const svgNS = "http://www.w3.org/2000/svg";
-        const containerRect = listContainer.getBoundingClientRect();
+        svgLayer.innerHTML = ''; 
         
-        svgLayer.setAttribute('width', listContainer.scrollWidth);
-        svgLayer.setAttribute('height', listContainer.scrollHeight);
+        svgLayer.setAttribute('width', '100%');
+        svgLayer.setAttribute('height', '100%');
         
-        const findNodeLocal = (node, id) => {
-            if (node.id === id) return node;
-            for (let child of node.children) {
-                const found = findNodeLocal(child, id);
-                if (found) return found;
-            }
-            return null;
+        // Công cụ tính tọa độ siêu cường: Miễn nhiễm với CSS Flexbox, Margin, Padding và Zoom!
+        const getUnscaledPos = (el) => {
+            const elRect = el.getBoundingClientRect();
+            const containerRect = listContainer.getBoundingClientRect();
+            const zoom = this.graphZoom || 1;
+            return {
+                left: (elRect.left - containerRect.left) / zoom,
+                top: (elRect.top - containerRect.top) / zoom,
+                width: elRect.width / zoom,
+                height: elRect.height / zoom
+            };
         };
 
-        const nodes = listContainer.querySelectorAll('.g-node-content');
+        const fragment = document.createDocumentFragment();
+        const wrappers = listContainer.querySelectorAll('.g-node-wrapper');
         
-        nodes.forEach(nodeEl => {
-            const nodeId = nodeEl.dataset.id;
-            const nodeObj = this.#game && this.#game.rootNode ? findNodeLocal(this.#game.rootNode, nodeId) : null;
-            
-            if (nodeObj && nodeObj.children) {
-                const parentRect = nodeEl.getBoundingClientRect();
+        wrappers.forEach(wrapper => {
+            const parentNode = wrapper.querySelector('.g-node-content');
+            const childrenContainer = wrapper.querySelector('.g-children');
+            if (!parentNode || !childrenContainer) return;
+
+            const pPos = getUnscaledPos(parentNode);
+            const startX = pPos.left + pPos.width;
+            const startY = pPos.top + (pPos.height / 2);
+
+            const childWrappers = childrenContainer.children;
+            for (let i = 0; i < childWrappers.length; i++) {
+                if (!childWrappers[i].classList.contains('g-node-wrapper')) continue;
                 
-                const startX = parentRect.right - containerRect.left + listContainer.scrollLeft;
-                const startY = parentRect.top + (parentRect.height / 2) - containerRect.top + listContainer.scrollTop;
+                const childEl = childWrappers[i].querySelector('.g-node-content');
+                if (!childEl) continue;
 
-                nodeObj.children.forEach(child => {
-                    const childEl = listContainer.querySelector(`[data-id="${child.id}"]`);
-                    if (childEl) {
-                        const childRect = childEl.getBoundingClientRect();
-                        
-                        const endX = childRect.left - containerRect.left + listContainer.scrollLeft;
-                        const endY = childRect.top + (childRect.height / 2) - containerRect.top + listContainer.scrollTop;
+                const cPos = getUnscaledPos(childEl);
+                const endX = cPos.left;
+                const endY = cPos.top + (cPos.height / 2);
 
-                        const curve = document.createElementNS(svgNS, 'path');
-                        const cpX = (startX + endX) / 2; 
-                        
-                        const d = `M ${startX} ${startY} C ${cpX} ${startY}, ${cpX} ${endY}, ${endX} ${endY}`;
-                        const isBlurred = childEl.classList.contains('g-blur-future') || nodeEl.classList.contains('g-blur-past');
-                        
-                        curve.setAttribute('d', d);
-                        curve.setAttribute('fill', 'transparent');
-                        // Đổi màu dây điện cho đồng bộ với độ mờ
-                        curve.setAttribute('stroke', isBlurred ? 'rgba(56, 189, 248, 0.3)' : '#38bdf8');
-                        curve.setAttribute('stroke-width', isBlurred ? '2' : '3');
-                        
-                        if (!isBlurred) svgLayer.appendChild(curve);
-                        else svgLayer.insertBefore(curve, svgLayer.firstChild);
-                    }
-                });
+                const curve = document.createElementNS(svgNS, 'path');
+                const cpX = (startX + endX) / 2; 
+                
+                const d = `M ${startX} ${startY} C ${cpX} ${startY}, ${cpX} ${endY}, ${endX} ${endY}`;
+                const isBlurred = childEl.classList.contains('g-blur-future') || parentNode.classList.contains('g-blur-past');
+                
+                curve.setAttribute('d', d);
+                curve.setAttribute('fill', 'transparent');
+                curve.setAttribute('stroke', isBlurred ? 'rgba(56, 189, 248, 0.25)' : '#38bdf8');
+                curve.setAttribute('stroke-width', isBlurred ? '2' : '3');
+                
+                if (!isBlurred) fragment.appendChild(curve);
+                else fragment.insertBefore(curve, fragment.firstChild);
             }
         });
+
+        svgLayer.appendChild(fragment);
     }
     parseFenToGridLocal(fen) {
-        const grid = new Array(64).fill(null);
-        const rows = fen.split(' ')[0].split('/');
-        let i = 0;
-        for (let r = 0; r < 8; r++) {
-            for (let c = 0; c < rows[r].length; c++) {
-                const char = rows[r][c];
-                if (!isNaN(char)) i += parseInt(char);
-                else {
-                    const color = char === char.toUpperCase() ? 'w' : 'b';
-                    grid[i] = `${color}${char.toLowerCase()}`;
-                    i++;
-                }
-            }
+    const grid = new Array(64).fill(null);
+    const boardPart = fen.split(' ')[0];
+    let i = 0;
+    
+    for (let idx = 0; idx < boardPart.length; idx++) {
+        const char = boardPart[idx];
+        if (char === '/') continue;
+        
+        const code = char.charCodeAt(0);
+        if (code >= 48 && code <= 57) {
+            i += code - 48;
+        } else {
+            const isLower = code >= 97;
+            grid[i] = (isLower ? 'b' : 'w') + (isLower ? char : String.fromCharCode(code + 32));
+            i++;
         }
-        return grid;
     }
+    return grid;
+}
 }

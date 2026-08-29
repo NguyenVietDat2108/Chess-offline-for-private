@@ -1022,6 +1022,21 @@
                                         <select id="graphChapterSelect" onchange="window.app.ui.changeGraphChapter(this.value)" style="background: #111; color: #26c2a3; border: 1px solid #555; padding: 8px 12px; border-radius: 6px; font-weight: bold; outline: none; cursor: pointer; max-width: 250px; text-overflow: ellipsis;">
                                         </select>
                                     </div>
+                                    
+                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                        <label style="color: #bababa; font-size: 14px; font-weight: bold;">Mode:</label>
+                                        <select id="graphModeSelect" onchange="window.app.ui.changeGraphMode(this.value)" style="background: #111; color: #facc15; border: 1px solid #555; padding: 8px 12px; border-radius: 6px; font-weight: bold; outline: none; cursor: pointer;">
+                                            <option value="focused">Focused (Main Line)</option>
+                                            <option value="full">Full Tree (All Branches)</option>
+                                        </select>
+                                    </div>
+
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <label style="color: #bababa; font-size: 14px; font-weight: bold;">Zoom:</label>
+                                        <input type="range" id="graphZoomSlider" min="0.2" max="2" step="0.05" value="1" oninput="window.app.ui.changeGraphZoom(this.value)" style="width: 100px; accent-color: #38bdf8; cursor: pointer;">
+                                        <span id="graphZoomLabel" style="color: #38bdf8; font-size: 13px; font-weight: bold; min-width: 35px;">100%</span>
+                                    </div>
+
                                     <div style="display: flex; align-items: center; gap: 10px;">
                                         <label style="color: #bababa; font-size: 14px; font-weight: bold;">View:</label>
                                         <select id="graphFlipSelect" onchange="localStorage.setItem('chess_graph_flip', this.value); if((this.value === 'b') !== window.app.ui.flipped) { window.app.ui.flipBoard(); window.app.ui.renderFullGraph(); }" style="background: #111; color: #fff; border: 1px solid #555; padding: 8px 12px; border-radius: 6px; font-weight: bold; outline: none; cursor: pointer;">
@@ -1030,6 +1045,7 @@
                                         </select>
                                     </div>
                                 </div>
+                                
                                 <button onclick="window.app.ui.switchTab(window.app.ui._previousTabBeforeGraph || 'study')" style="position: fixed; top: 25px; right: 30px; z-index: 10001; padding: 12px 24px; background: #88554f; color: #fff; border: 2px solid #fff; border-radius: 8px; font-weight: 900; font-size: 15px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.6); transition: 0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='none'">
                                     ❌ Close Graph [ENTER]
                                 </button>
