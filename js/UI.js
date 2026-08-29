@@ -2965,10 +2965,24 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 sq.appendChild(ice);
             }
 
-            if (state.gameMode === 'spell' && state.jump_sq !== undefined && state.jump_sq === logical_i) {
+            // 🔮 PORTAL FIX STARTS HERE
+            let isJumpActive = false;
+
+            // 1. Check if portal is written into the FEN
+            if (state.gameMode === 'spell' && state.jump_sqs && state.jump_sqs.includes(logical_i)) {
+                isJumpActive = true;
+            }
+            
+            // 2. Check if user is drafting a Jump Spell onto this square
+            if (state.gameMode === 'spell' && this.pendingSpell && (this.pendingSpell.spellType === 'jump' || this.pendingSpell.type === 'jump')) {
+                let pTarget = this.pendingSpell.target !== undefined ? this.pendingSpell.target : this.pendingSpell.square;
+                if (pTarget === logical_i) isJumpActive = true;
+            }
+
+            if (isJumpActive) {
                 let portal = document.createElement('div');
                 portal.className = 'spell-portal';
-                portal.style.cssText = `position:absolute; top:10%; left:10%; width:80%; height:80%; background:radial-gradient(circle, rgba(0,0,0,0.95) 30%, rgba(138,43,226,0.8) 60%, transparent 85%); border-radius:50%; pointer-events:none; z-index:15; box-shadow: inset 0 0 10px #000, 0 0 20px #8a2be2; animation: pulsePortal 2s infinite alternate;`;
+                portal.style.cssText = `position:absolute; top:10%; left:10%; width:80%; height:80%; background:radial-gradient(circle, rgba(0,0,0,0.95) 30%, rgba(138,43,226,0.8) 60%, transparent 85%); border-radius:50%; pointer-events:none; z-index:25; box-shadow: inset 0 0 10px #000, 0 0 20px #8a2be2; animation: pulsePortal 2s infinite alternate;`;
                 if (!document.getElementById('portal-anim-style')) {
                     let style = document.createElement('style'); style.id = 'portal-anim-style';
                     style.innerHTML = `@keyframes pulsePortal { 0% { transform: scale(0.95); opacity: 0.8; } 100% { transform: scale(1.05); opacity: 1; } }`;
@@ -2976,6 +2990,8 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 }
                 sq.appendChild(portal);
             }
+            // 🔮 PORTAL FIX ENDS HERE
+
             if (this.coordsPosition === 'inside') {
                 const rankVal = 8 - r_log;
                 const fileVal = ['a','b','c','d','e','f','g','h'][c_log];
@@ -3749,43 +3765,68 @@ renderHistoryImmediate() {
         const activeNode = this.#game ? this.#game.currentNode : null;
         const activeNodeId = activeNode ? activeNode.id : null;
 
-        // Skip cache optimization for graph mode to always recalculate curve coordinates
-        if (this.pgnStyle !== 'graph' && this._lastTreeSize === currentTreeSize && activeNodeId && list.children.length > 0) {
-            list.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
-            const newActiveEl = list.querySelector(`[data-id="${activeNodeId}"]`);
-            if (newActiveEl) newActiveEl.classList.add('active');
+        // 🚀 BỎ CHẶN GRAPH: Cho phép Graph cập nhật siêu tốc trong 1ms
+        if (this._lastTreeSize === currentTreeSize && activeNodeId && list.children.length > 0) {
             
-            if (activeNode) {
-                const commentBox = document.getElementById('commentaryBox');
-                if (commentBox && document.activeElement !== commentBox) {
-                    let displayComment = (activeNode.comment || "").replace(/\[%(cal|csl)[^\]]+\]/g, "").trim();
-                    commentBox.innerText = displayComment || "Click to add comment...";
+            if (this.pgnStyle === 'graph') {
+                const activeDepth = this.getPly(activeNode);
+                const allNodes = list.querySelectorAll('.g-node-content');
+                
+                // Chỉ tháo lắp class, không hề đụng đến innerHTML
+                allNodes.forEach(el => {
+                    el.classList.remove('active', 'g-blur-past', 'g-focus', 'g-blur-future');
+                    const myDepth = parseInt(el.dataset.depth, 10);
+                    if (!isNaN(myDepth)) {
+                        if (myDepth < activeDepth) el.classList.add('g-blur-past');
+                        else if (myDepth === activeDepth || myDepth === activeDepth + 1) el.classList.add('g-focus');
+                        else el.classList.add('g-blur-future');
+                    }
+                });
+
+                const newActiveEl = list.querySelector(`[data-id="${activeNodeId}"]`);
+                if (newActiveEl) newActiveEl.classList.add('active');
+
+                // Vẽ lại dây điện màu đúng Blur
+                const svgLayer = list.querySelector('svg');
+                if (svgLayer) this.drawGraphLines(list, svgLayer);
+
+                this.scrollToActiveMove();
+                if (typeof this.updateChartActiveLine === 'function') this.updateChartActiveLine();
+                return; 
+            } else {
+                // Cập nhật List/Tree bình thường
+                list.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
+                const newActiveEl = list.querySelector(`[data-id="${activeNodeId}"]`);
+                if (newActiveEl) newActiveEl.classList.add('active');
+                
+                if (activeNode) {
+                    const commentBox = document.getElementById('commentaryBox');
+                    if (commentBox && document.activeElement !== commentBox) {
+                        let displayComment = (activeNode.comment || "").replace(/\[%(cal|csl)[^\]]+\]/g, "").trim();
+                        commentBox.innerText = displayComment || "Click to add comment...";
+                    }
                 }
+                this.scrollToActiveMove();
+                if (typeof this.updateChartActiveLine === 'function') this.updateChartActiveLine();
+                return; 
             }
-            this.scrollToActiveMove();
-            if (typeof this.updateChartActiveLine === 'function') this.updateChartActiveLine();
-            return; 
         }
 
         this._lastTreeSize = currentTreeSize;
         list.innerHTML = ''; list.style.display = 'block'; list.classList.remove('hidden');
 
-        // Branching Display Logic
         if (this.pgnStyle === 'graph') {
             list.className = 'pgn-graph';
             if (this.#game && this.#game.rootNode) {
-                // Initialize SVG Layer for bezier curves
                 const svgNS = "http://www.w3.org/2000/svg";
                 const svgLayer = document.createElementNS(svgNS, "svg");
                 svgLayer.setAttribute("class", "graph-svg-layer");
                 list.appendChild(svgLayer);
 
-                // Build DOM Tree
                 const treeRoot = document.createElement('div');
                 this._renderGraphRecursive(this.#game.rootNode, treeRoot, activeNode, 0);
                 list.appendChild(treeRoot);
 
-                // Draw connecting lines after DOM is fully rendered
                 requestAnimationFrame(() => this.drawGraphLines(list, svgLayer));
             }
         } else if (this.pgnStyle === 'tree') {
@@ -3804,158 +3845,6 @@ renderHistoryImmediate() {
 
         this.scrollToActiveMove();
         if (typeof this.updateChartActiveLine === 'function') this.updateChartActiveLine();
-    }
-    _renderGraphRecursive(node, container, activeNode, depth) {
-        if (!node) return;
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'g-node-wrapper';
-
-        // 1. Create the Node element
-        const content = document.createElement('div');
-        content.className = 'g-node-content';
-        content.dataset.id = node.id;
-        
-        if (node === activeNode) content.classList.add('active');
-
-        // Apply Blur/Focus classes based on depth relative to the active node
-        let activeDepth = this.getPly(activeNode);
-        let myDepth = this.getPly(node);
-        
-        if (myDepth < activeDepth) content.classList.add('g-blur-past');
-        else if (myDepth === activeDepth || myDepth === activeDepth + 1) content.classList.add('g-focus');
-        else content.classList.add('g-blur-future');
-
-        // Move notation text
-        const moveTxt = document.createElement('div');
-        moveTxt.className = 'g-move-text';
-        moveTxt.innerText = node.moveSan || "Start";
-        
-        // Fast Mini Board (Reads FEN directly without complex logic to save resources)
-        const boardDiv = document.createElement('div');
-        boardDiv.className = 'g-mini-board';
-        const fenRows = node.fen.split(' ')[0].split('/');
-        for (let r = 0; r < 8; r++) {
-            let c = 0;
-            for (let char of fenRows[r]) {
-                if (/\d/.test(char)) c += parseInt(char, 10);
-                else {
-                    const color = char === char.toUpperCase() ? 'w' : 'b';
-                    const type = char.toLowerCase();
-                    const sq = document.createElement('div');
-                    sq.className = (r + c) % 2 === 0 ? 'light' : 'dark';
-                    sq.style.gridColumn = c + 1;
-                    sq.style.gridRow = r + 1;
-                    
-                    const img = this.getPieceHTML({color, type});
-                    if(img) sq.innerHTML = img.replace(/style="[^"]*"/g, 'style="width:100%;height:100%"');
-                    boardDiv.appendChild(sq);
-                    c++;
-                }
-            }
-        }
-        
-        // Fill remaining empty squares
-        for (let i = 0; i < 64; i++) {
-            let r = Math.floor(i/8), c = i%8;
-            if(!boardDiv.querySelector(`[style*="grid-column: ${c+1}"][style*="grid-row: ${r+1}"]`)){
-                const emptySq = document.createElement('div');
-                emptySq.className = (r + c) % 2 === 0 ? 'light' : 'dark';
-                emptySq.style.gridColumn = c + 1; emptySq.style.gridRow = r + 1;
-                boardDiv.appendChild(emptySq);
-            }
-        }
-
-        content.appendChild(boardDiv);
-        content.appendChild(moveTxt);
-
-        // Click event to navigate to this node
-        content.onclick = (e) => {
-            e.stopPropagation();
-            if (this.#game.goToNodeId(node.id)) {
-                const freshState = this.#game.getReader();
-                this.renderBoard(false);
-                this.updateHistory(true);
-                this.renderArrows();
-                if (freshState.mode !== 'play' && this.#game.updateStockfish) this.#game.updateStockfish();
-            }
-        };
-
-        wrapper.appendChild(content);
-
-        // 2. Create Container for child nodes
-        if (node.children && node.children.length > 0) {
-            const childrenContainer = document.createElement('div');
-            childrenContainer.className = 'g-children';
-            
-            node.children.forEach(child => {
-                this._renderGraphRecursive(child, childrenContainer, activeNode, depth + 1);
-            });
-            
-            wrapper.appendChild(childrenContainer);
-        }
-
-        container.appendChild(wrapper);
-    }
-    drawGraphLines(listContainer, svgLayer) {
-        const svgNS = "http://www.w3.org/2000/svg";
-        const containerRect = listContainer.getBoundingClientRect();
-        
-        // Update SVG dimensions to cover the scrollable content
-        svgLayer.setAttribute('width', listContainer.scrollWidth);
-        svgLayer.setAttribute('height', listContainer.scrollHeight);
-        
-        // Local recursive finder to bypass private access restrictions
-        const findNodeLocal = (node, id) => {
-            if (node.id === id) return node;
-            for (let child of node.children) {
-                const found = findNodeLocal(child, id);
-                if (found) return found;
-            }
-            return null;
-        };
-
-        const nodes = listContainer.querySelectorAll('.g-node-content');
-        
-        nodes.forEach(nodeEl => {
-            const nodeId = nodeEl.dataset.id;
-            const nodeObj = this.#game && this.#game.rootNode ? findNodeLocal(this.#game.rootNode, nodeId) : null;
-            
-            if (nodeObj && nodeObj.children) {
-                const parentRect = nodeEl.getBoundingClientRect();
-                
-                // Starting point (Right edge of the parent node)
-                const startX = parentRect.right - containerRect.left + listContainer.scrollLeft;
-                const startY = parentRect.top + (parentRect.height / 2) - containerRect.top + listContainer.scrollTop;
-
-                nodeObj.children.forEach(child => {
-                    const childEl = listContainer.querySelector(`[data-id="${child.id}"]`);
-                    if (childEl) {
-                        const childRect = childEl.getBoundingClientRect();
-                        
-                        // Ending point (Left edge of the child node)
-                        const endX = childRect.left - containerRect.left + listContainer.scrollLeft;
-                        const endY = childRect.top + (childRect.height / 2) - containerRect.top + listContainer.scrollTop;
-
-                        // Draw Bezier curve
-                        const curve = document.createElementNS(svgNS, 'path');
-                        const cpX = (startX + endX) / 2; // Control point X (midpoint)
-                        
-                        const d = `M ${startX} ${startY} C ${cpX} ${startY}, ${cpX} ${endY}, ${endX} ${endY}`;
-                        
-                        // Apply fading to lines connected to blurred nodes
-                        const isBlurred = childEl.classList.contains('g-blur-future') || nodeEl.classList.contains('g-blur-past');
-                        
-                        curve.setAttribute('d', d);
-                        curve.setAttribute('fill', 'transparent');
-                        curve.setAttribute('stroke', isBlurred ? '#555' : '#38bdf8');
-                        curve.setAttribute('stroke-width', isBlurred ? '1.5' : '3');
-                        
-                        svgLayer.appendChild(curve);
-                    }
-                });
-            }
-        });
     }
 renderECO() {
         if (!this.#game) return;
@@ -7957,65 +7846,161 @@ castSpell(spellType, targetSq) {
         }
         container.appendChild(wrapper);
     }
-    drawGraphLines(listContainer, svgLayer) {
-        const svgNS = "http://www.w3.org/2000/svg";
-        svgLayer.innerHTML = ''; 
+    _renderGraphRecursive(node, container, activeNode, depth) {
+        if (!node) return;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'g-node-wrapper';
+
+        const content = document.createElement('div');
+        content.className = 'g-node-content';
+        content.dataset.id = node.id;
         
-        svgLayer.setAttribute('width', '100%');
-        svgLayer.setAttribute('height', '100%');
+        if (node === activeNode) content.classList.add('active');
+
+        let activeDepth = this.getPly(activeNode);
+        let myDepth = this.getPly(node);
         
-        // Công cụ tính tọa độ siêu cường: Miễn nhiễm với CSS Flexbox, Margin, Padding và Zoom!
-        const getUnscaledPos = (el) => {
-            const elRect = el.getBoundingClientRect();
-            const containerRect = listContainer.getBoundingClientRect();
-            const zoom = this.graphZoom || 1;
-            return {
-                left: (elRect.left - containerRect.left) / zoom,
-                top: (elRect.top - containerRect.top) / zoom,
-                width: elRect.width / zoom,
-                height: elRect.height / zoom
-            };
+        content.dataset.depth = myDepth;
+
+        if (myDepth < activeDepth) content.classList.add('g-blur-past');
+        else if (myDepth === activeDepth || myDepth === activeDepth + 1) content.classList.add('g-focus');
+        else content.classList.add('g-blur-future');
+
+        const moveTxt = document.createElement('div');
+        moveTxt.className = 'g-move-text';
+        moveTxt.innerText = node.moveSan || "Start";
+        
+        const boardDiv = document.createElement('div');
+        boardDiv.className = 'g-mini-board';
+        
+        let piecesHtml = '';
+        const fenRows = node.fen.split(' ')[0].split('/');
+        for (let r = 0; r < 8; r++) {
+            let c = 0;
+            for (let char of fenRows[r]) {
+                if (/\d/.test(char)) {
+                    c += parseInt(char, 10);
+                } else if (char !== '~') {
+                    const color = char === char.toUpperCase() ? 'w' : 'b';
+                    const type = char.toLowerCase();
+                    let logicalR = this.flipped ? 7 - r : r;
+                    let logicalC = this.flipped ? 7 - c : c;
+                    const rawHTML = this.getPieceHTML({color, type});
+                    if (rawHTML) {
+                        let imgTag = rawHTML.trim();
+                        if (imgTag.startsWith('<svg')) {
+                            imgTag = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(imgTag)}" style="width:100%;height:100%;object-fit:contain;pointer-events:none;">`;
+                        } else {
+                            imgTag = imgTag.replace('<img', '<img style="width:100%;height:100%;object-fit:contain;pointer-events:none;"');
+                        }
+                        piecesHtml += `<div class="g-mini-piece" style="position:absolute; width:12.5%; height:12.5%; left:${logicalC * 12.5}%; top:${logicalR * 12.5}%;">${imgTag}</div>`;
+                    }
+                    c++;
+                }
+            }
+        }
+        boardDiv.innerHTML = piecesHtml;
+
+        content.appendChild(boardDiv);
+        content.appendChild(moveTxt);
+
+        content.onclick = (e) => {
+            e.stopPropagation();
+            if (this.#game.goToNodeId(node.id)) {
+                const freshState = this.#game.getReader();
+                this.renderBoard(false);
+                this.updateHistory();
+                this.renderArrows();
+                if (freshState.mode !== 'play' && this.#game.updateStockfish) this.#game.updateStockfish();
+            }
         };
 
-        const fragment = document.createDocumentFragment();
-        const wrappers = listContainer.querySelectorAll('.g-node-wrapper');
+        wrapper.appendChild(content);
+
+        if (node.children && node.children.length > 0) {
+            const childrenContainer = document.createElement('div');
+            childrenContainer.className = 'g-children';
+            node.children.forEach(child => {
+                this._renderGraphRecursive(child, childrenContainer, activeNode, depth + 1);
+            });
+            wrapper.appendChild(childrenContainer);
+        }
+        container.appendChild(wrapper);
+    }
+    drawGraphLines(listContainer, svgLayer) {
+        const svgNS = "http://www.w3.org/2000/svg";
+        svgLayer.innerHTML = '';
         
-        wrappers.forEach(wrapper => {
-            const parentNode = wrapper.querySelector('.g-node-content');
-            const childrenContainer = wrapper.querySelector('.g-children');
-            if (!parentNode || !childrenContainer) return;
+        const containerRect = listContainer.getBoundingClientRect();
+        const scrollLeft = listContainer.scrollLeft;
+        const scrollTop = listContainer.scrollTop;
+        
+        svgLayer.setAttribute('width', listContainer.scrollWidth);
+        svgLayer.setAttribute('height', listContainer.scrollHeight);
 
-            const pPos = getUnscaledPos(parentNode);
-            const startX = pPos.left + pPos.width;
-            const startY = pPos.top + (pPos.height / 2);
-
-            const childWrappers = childrenContainer.children;
-            for (let i = 0; i < childWrappers.length; i++) {
-                if (!childWrappers[i].classList.contains('g-node-wrapper')) continue;
-                
-                const childEl = childWrappers[i].querySelector('.g-node-content');
-                if (!childEl) continue;
-
-                const cPos = getUnscaledPos(childEl);
-                const endX = cPos.left;
-                const endY = cPos.top + (cPos.height / 2);
-
-                const curve = document.createElementNS(svgNS, 'path');
-                const cpX = (startX + endX) / 2; 
-                
-                const d = `M ${startX} ${startY} C ${cpX} ${startY}, ${cpX} ${endY}, ${endX} ${endY}`;
-                const isBlurred = childEl.classList.contains('g-blur-future') || parentNode.classList.contains('g-blur-past');
-                
-                curve.setAttribute('d', d);
-                curve.setAttribute('fill', 'transparent');
-                curve.setAttribute('stroke', isBlurred ? 'rgba(56, 189, 248, 0.25)' : '#38bdf8');
-                curve.setAttribute('stroke-width', isBlurred ? '2' : '3');
-                
-                if (!isBlurred) fragment.appendChild(curve);
-                else fragment.insertBefore(curve, fragment.firstChild);
-            }
+        const rectCache = new Map();
+        const nodes = listContainer.querySelectorAll('.g-node-content');
+        nodes.forEach(el => {
+            const rect = el.getBoundingClientRect();
+            rectCache.set(el.dataset.id, {
+                x: rect.left - containerRect.left + scrollLeft,
+                rightX: rect.right - containerRect.left + scrollLeft,
+                y: rect.top + (rect.height / 2) - containerRect.top + scrollTop
+            });
         });
 
+        const fragment = document.createDocumentFragment();
+
+        const findNodeLocal = (node, id) => {
+            if (node.id === id) return node;
+            for (let child of node.children) {
+                const found = findNodeLocal(child, id);
+                if (found) return found;
+            }
+            return null;
+        };
+
+        nodes.forEach(nodeEl => {
+            const nodeId = nodeEl.dataset.id;
+            const nodeObj = this.#game && this.#game.rootNode ? findNodeLocal(this.#game.rootNode, nodeId) : null;
+            
+            if (nodeObj && nodeObj.children) {
+                const pData = rectCache.get(nodeId);
+                if (!pData) return;
+                
+                const startX = pData.rightX;
+                const startY = pData.y;
+                const isParentBlurred = nodeEl.classList.contains('g-blur-past');
+
+                nodeObj.children.forEach(child => {
+                    const cData = rectCache.get(child.id);
+                    if (cData) {
+                        const endX = cData.x;
+                        const endY = cData.y;
+                        const cpX = (startX + endX) / 2; 
+                        
+                        const curve = document.createElementNS(svgNS, 'path');
+                        curve.setAttribute('d', `M ${startX} ${startY} C ${cpX} ${startY}, ${cpX} ${endY}, ${endX} ${endY}`);
+                        curve.setAttribute('fill', 'transparent');
+                        
+                        // Gắn ID để lúc bấm phím chỉ cần đổi màu, không cần vẽ lại
+                        curve.dataset.childId = child.id;
+                        curve.dataset.parentId = nodeId;
+                        
+                        const childEl = listContainer.querySelector(`[data-id="${child.id}"]`);
+                        const isChildBlurred = childEl && childEl.classList.contains('g-blur-future');
+                        const isBlurred = isParentBlurred || isChildBlurred;
+                        
+                        curve.setAttribute('stroke', isBlurred ? '#555' : '#38bdf8');
+                        curve.setAttribute('stroke-width', isBlurred ? '1.5' : '3');
+                        
+                        fragment.appendChild(curve);
+                    }
+                });
+            }
+        });
+        
         svgLayer.appendChild(fragment);
     }
     parseFenToGridLocal(fen) {
