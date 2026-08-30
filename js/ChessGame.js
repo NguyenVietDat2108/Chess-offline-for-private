@@ -158,55 +158,53 @@ get currentLiveFen() {
         return this.generateFEN();
     }
 getReader() {
+        // ✨ 1. DUCK CHESS TRANSLATOR
         let engineDuck = (this.#engine && typeof this.#engine.get_duck_sq === 'function') ? this.#engine.get_duck_sq() : -1;
         let uiDuckSq = -1;
         if (engineDuck !== -1 && engineDuck !== undefined && engineDuck !== null) {
-            let algStr = this.#engineIndexToSquare(engineDuck); 
-            uiDuckSq = this.#squareToIndex(algStr);             
+            let algStr = this.#engineIndexToSquare(engineDuck); // Get String (e.g. "e3")
+            uiDuckSq = this.#squareToIndex(algStr);             // Safely convert to UI Index
         }
-        
         const frozenSquares = new Array(64).fill(false);
-        let jumpSquares = [];
+        let jumpSquare = -1;
 
-        const currentFen = this.currentNode ? this.currentNode.fen : (this.#engine ? this.#engine.fen() : '');
-        if (this.gameMode === 'spell' && currentFen) {
-            let spellMatch = currentFen.match(/\[S:([^\]]+)\]/);
-            if (spellMatch) {
-                let p = spellMatch[1].split(',');
-                if (p.length >= 16) {
-                    const processFreeze = (sqStr) => {
-                        let engIdx = parseInt(sqStr);
-                        if (isNaN(engIdx) || engIdx < 0) return;
-                        let alg = this.#engineIndexToSquare(engIdx);
-                        let uiIdx = this.#squareToIndex(alg);
-                        if (uiIdx !== -1) {
-                            let r = Math.floor(uiIdx/8), c = uiIdx%8;
-                            for(let dr=-1; dr<=1; dr++){
-                                for(let dc=-1; dc<=1; dc++){
-                                    let nr = r+dr, nc = c+dc;
-                                    if(nr>=0 && nr<8 && nc>=0 && nc<8) frozenSquares[nr*8+nc] = true;
-                                }
+        if (this.gameMode === 'spell' && this.#engine) {
+            
+            // ✨ 2. FREEZE SPELL TRANSLATOR
+            if (typeof this.#engine.frozen === 'function') {
+                const f = this.#engine.frozen();
+                if (f && (f.lo !== 0 || f.hi !== 0)) {
+                    for (let i = 0; i < 64; i++) {
+                        let isFrozen = false;
+                        if (i < 32) { 
+                            if ((f.lo >>> i) & 1) isFrozen = true; 
+                        } else { 
+                            if ((f.hi >>> (i - 32)) & 1) isFrozen = true; 
+                        }
+                        if (isFrozen) {
+                            let algStr = this.#engineIndexToSquare(i); 
+                            let uiIdx = this.#squareToIndex(algStr);
+                            
+                            if (uiIdx !== -1 && uiIdx !== undefined) {
+                                frozenSquares[uiIdx] = true;
                             }
                         }
-                    };
-                    
-                    if (parseInt(p[9]) > 0) processFreeze(p[8]);
-                    if (parseInt(p[11]) > 0) processFreeze(p[10]);
-                    
-                    if (parseInt(p[13]) > 0) {
-                        let alg = this.#engineIndexToSquare(parseInt(p[12]));
-                        let uiIdx = this.#squareToIndex(alg);
-                        if (uiIdx !== -1) jumpSquares.push(uiIdx);
                     }
-                    if (parseInt(p[15]) > 0) {
-                        let alg = this.#engineIndexToSquare(parseInt(p[14]));
-                        let uiIdx = this.#squareToIndex(alg);
-                        if (uiIdx !== -1) jumpSquares.push(uiIdx);
-                    }
+                }
+            }
+            
+            // ✨ 3. JUMP SPELL TRANSLATOR
+            if (typeof this.#engine.jump_sq === 'function') {
+                let js = this.#engine.jump_sq();
+                if (js !== -1) {
+                    let algStr = this.#engineIndexToSquare(js);
+                    let parsed = this.#squareToIndex(algStr);
+                    if (parsed !== -1) jumpSquare = parsed;
                 }
             }
         }
 
+        // TRẢ VỀ DỮ LIỆU THÔ, KHÔNG DÙNG .MAP() HAY OBJECT.FREEZE() ĐỂ TRÁNH RÁC RAM
         return {
             mode: this.mode,
             isGameOver: this.gameOver,
@@ -216,14 +214,14 @@ getReader() {
             gameMode: this.gameMode,
             turn: this.currentLiveTurn,
             botColor: this.botColor,
-            currentFen: currentFen,
+            currentFen: this.currentNode ? this.currentNode.fen : '',
             startingFen: this.rootNode ? this.rootNode.fen : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
             activeNodeId: this.currentNode ? this.currentNode.id : null,
             lastMove: this.currentNode ? this.currentNode.lastMove : null,
-            headers: this.pgnHeaders, 
+            headers: this.pgnHeaders, // Chuyền thẳng object
             whiteTime: this.whiteTime,
             blackTime: this.blackTime,
-            board: this.#board,       
+            board: this.#board,       // 🚀 TỬ HUYỆT ĐƯỢC CHỮA: Chuyền thẳng mảng gốc!
             premoves: this.premoveQueue,
             arrows: this.currentNode && this.currentNode.arrows ? this.currentNode.arrows : [],
             circles: this.currentNode && this.currentNode.circles ? this.currentNode.circles : [],
@@ -238,7 +236,8 @@ getReader() {
             },
             mana: this.#engine && typeof this.#engine.mana === 'function' ? this.#engine.mana() : null,
             frozenSquares: frozenSquares, 
-            jump_sqs: jumpSquares,
+            frozen: this.#engine && typeof this.#engine.frozen === 'function' ? this.#engine.frozen() : null,
+            jump_sq: jumpSquare,
             duck_sq: uiDuckSq, 
             studyTitle: this.studyTitle,
             activeChapterIndex: this.activeChapterIndex,
