@@ -2294,7 +2294,7 @@ finishDrag(e) {
             if (dropIdx !== -1 && !this.dragData.isSpare) {
                 const intercepted = window.app.trainer.handleUserMoveAttempt(this.dragData.fromIdx, dropIdx);
                 if (intercepted) {
-                    this.cleanupDrag(false); // Xóa ghost, snapback quân cờ, không gọi MakeMove của game gốc
+                    this.cleanupDrag(false);
                     return;
                 }
             }
@@ -7142,7 +7142,6 @@ toggleSpell(spellType, colorRequest) {
 castSpell(spellType, targetSq) {
         this.activeSpell = null;
         
-        // ✨ Push the draft straight to the engine! It will update physics instantly.
         let res = this.#game.draftSpell(spellType, targetSq);
 
         if (res) {
@@ -7204,16 +7203,12 @@ castSpell(spellType, targetSq) {
             tab.scrollLeft = scrollLeft - (x - startX);
             tab.scrollTop = scrollTop - (y - startY);
         });
-
-        // 🔥 SỬA LỖI MẤT DÂY KHI ZOOM (CTRL + LĂN CHUỘT) Ở ĐÂY
         window.addEventListener('resize', () => {
             if (tab.classList.contains('active')) {
-                // 1. Phải lấy zoomWrapper làm gốc toạ độ, không dùng container!
                 const zoomWrapper = document.getElementById('graphZoomWrapper');
                 const svgLayer = zoomWrapper?.querySelector('.graph-svg-layer');
                 
                 if (zoomWrapper && svgLayer) {
-                    // 2. Chờ trình duyệt bóp/nới Layout xong (50ms) rồi mới cho vẽ dây
                     clearTimeout(this._resizeDrawTimeout);
                     this._resizeDrawTimeout = setTimeout(() => {
                         this.drawGraphLines(zoomWrapper, svgLayer);
@@ -7271,7 +7266,8 @@ castSpell(spellType, targetSq) {
                 width: 200px; height: 200px; flex-shrink: 0;
                 background-color: var(--board-light, #f0d9b5);
                 background-image: conic-gradient(var(--board-dark, #b58863) 90deg, transparent 90deg 180deg, var(--board-dark, #b58863) 180deg 270deg, transparent 270deg);
-                background-size: 25% 25%; background-position: 0 0, 25px 25px;
+                background-size: 25% 25%; background-position: 0 0;
+                
                 border: 2px solid #000; border-radius: 4px; overflow: hidden;
             }
             
@@ -7284,20 +7280,22 @@ castSpell(spellType, targetSq) {
                 width: 90% !important; height: 90% !important; object-fit: contain;
                 margin: 0 !important; padding: 0 !important; display: block;
             }
-
-            /* --- CHỈNH SỬA SƯƠNG MÙ Ở ĐÂY --- */
             .g-blur-past { filter: blur(3px) grayscale(50%); opacity: 0.4; }
             .g-focus { filter: none; opacity: 1; }
-            /* Nhánh rác cho tối thui (0.25), bỏ chặn click để bấm được */
-            .g-blur-future { filter: blur(3px) grayscale(70%); opacity: 0.25; } 
-            
-            /* Rà chuột vào nhánh rác thì thắp sáng nó lên */
+            .g-blur-future { filter: blur(3px) grayscale(70%); opacity: 0.25; }
             .g-node-content:hover { 
                 border-color: #38bdf8; transform: scale(1.03); z-index: 5; 
                 filter: none !important; opacity: 1 !important;
             }
-            .g-node-content.active { border-color: #26c2a3; box-shadow: 0 0 30px rgba(38, 194, 163, 0.8); transform: scale(1.05); z-index: 10; }
-            
+
+            .g-node-content.active { 
+                border-color: #26c2a3; 
+                box-shadow: 0 0 30px rgba(38, 194, 163, 0.8); 
+                transform: scale(1.04) translateZ(0);
+                z-index: 10; 
+                filter: none !important; 
+                opacity: 1 !important;
+            }            
             #tabContent-Graph > div[style*="z-index: 10001"] { cursor: default !important; }
             #tabContent-Graph > div[style*="z-index: 10001"] input[type="range"] { cursor: pointer !important; }
         `;
@@ -7373,11 +7371,10 @@ castSpell(spellType, targetSq) {
         if (!this.#game) return;
         const idx = parseInt(indexStr, 10);
         if (!isNaN(idx) && typeof this.#game.loadChapter === 'function') {
-            const currentFlip = this.flipped; // Activate Flip Shield
+            const currentFlip = this.flipped;
             
             this.#game.loadChapter(idx);
             
-            // Restore flip state if loadChapter changed it to White
             if (this.flipped !== currentFlip) {
                 this.flipped = currentFlip;
                 if (typeof localStorage !== 'undefined') localStorage.setItem('chess_graph_flip', currentFlip ? 'b' : 'w');
@@ -7385,7 +7382,7 @@ castSpell(spellType, targetSq) {
             
             if (typeof localStorage !== 'undefined') localStorage.setItem('chess_active_chapter_idx', idx); 
             
-            this.#game.mode = 'graph'; // Re-lock mode to graph
+            this.#game.mode = 'graph';
             this._lastTreeSize = -1;
             this.renderFullGraph();
         }
@@ -7448,7 +7445,6 @@ castSpell(spellType, targetSq) {
         zoomWrapper.appendChild(treeRoot);
         container.appendChild(zoomWrapper); 
 
-        // 🔥 CHỮA BỆNH KHỰNG: Bỏ sạch setTimeout chờ đợi. Gọi requestAnimationFrame để chốt Layout lập tức!
         requestAnimationFrame(() => {
             const w = treeRoot.offsetWidth;
             const h = treeRoot.offsetHeight;
@@ -7464,7 +7460,6 @@ castSpell(spellType, targetSq) {
             const zoomSlider = document.getElementById('graphZoomSlider');
             if (zoomSlider) zoomSlider.value = this.graphZoom || 1;
             
-            // CHỈ CƯỚP CAMERA KHI ĐƯỢC PHÉP!
             if (!skipCamera) {
                 this.scrollToActiveGraphNode('auto');
             }
@@ -7472,14 +7467,7 @@ castSpell(spellType, targetSq) {
     }
     scrollToActiveGraphNode(behavior = 'smooth', targetId = null) {
         const tab = document.getElementById('tabContent-Graph');
-        let activeEl;
-        
-        if (targetId) {
-            activeEl = document.querySelector(`.g-node-content[data-id="${targetId}"]`);
-        } else {
-            activeEl = document.querySelector('.g-node-content.active');
-        }
-        
+        const activeEl = targetId ? document.querySelector(`.g-node-content[data-id="${targetId}"]`) : document.querySelector('.g-node-content.active');
         if (!tab || !activeEl) return;
 
         void tab.offsetHeight;
@@ -7490,11 +7478,47 @@ castSpell(spellType, targetSq) {
         const targetX = tab.scrollLeft + (elRect.left - tabRect.left) - (tab.clientWidth / 2) + (elRect.width / 2);
         const targetY = tab.scrollTop + (elRect.top - tabRect.top) - (tab.clientHeight / 2) + (elRect.height / 2);
 
-        tab.scrollTo({ 
-            left: Math.max(0, targetX), 
-            top: Math.max(0, targetY), 
-            behavior: behavior 
-        });
+        if (behavior === 'lerp') {
+            if (!this._cameraTarget) {
+                this._cameraTarget = { x: tab.scrollLeft, y: tab.scrollTop };
+                this._cameraCurrent = { x: tab.scrollLeft, y: tab.scrollTop };
+                this._isCameraAnimating = false;
+            }
+            
+            this._cameraTarget.x = Math.max(0, targetX);
+            this._cameraTarget.y = Math.max(0, targetY);
+            
+            if (!this._isCameraAnimating) {
+                this._cameraCurrent.x = tab.scrollLeft;
+                this._cameraCurrent.y = tab.scrollTop;
+                this._isCameraAnimating = true;
+                this._animateCamera();
+            }
+        } else {
+            tab.scrollTo({ left: Math.max(0, targetX), top: Math.max(0, targetY), behavior: behavior });
+        }
+    }
+    _animateCamera() {
+        if (!this._isCameraAnimating) return;
+        const tab = document.getElementById('tabContent-Graph');
+        if (!tab) { this._isCameraAnimating = false; return; }
+
+        const lerpFactor = 0.25; 
+        this._cameraCurrent.x += (this._cameraTarget.x - this._cameraCurrent.x) * lerpFactor;
+        this._cameraCurrent.y += (this._cameraTarget.y - this._cameraCurrent.y) * lerpFactor;
+
+        tab.scrollLeft = this._cameraCurrent.x;
+        tab.scrollTop = this._cameraCurrent.y;
+
+        if (Math.abs(this._cameraTarget.x - this._cameraCurrent.x) < 1 && 
+            Math.abs(this._cameraTarget.y - this._cameraCurrent.y) < 1) {
+            tab.scrollLeft = this._cameraTarget.x;
+            tab.scrollTop = this._cameraTarget.y;
+            this._isCameraAnimating = false;
+            return;
+        }
+        
+        requestAnimationFrame(() => this._animateCamera());
     }
     renderGraphNode(node, container, activeNode, depth, activePathIds, activeDepth) {
         if (!node) return;
@@ -7515,38 +7539,41 @@ castSpell(spellType, targetSq) {
         content.className = 'g-node-content';
         content.dataset.id = node.id;
         
-        // 🔥 CHỮA BỆNH NHẬN VƠ HÀNG XÓM Ở ĐÂY: Chỉ xét quan hệ huyết thống!
         if (node === activeNode) {
             content.classList.add('g-focus', 'active');
         } 
         else if (node.parent === activeNode) {
-            content.classList.add('g-focus'); // Con ruột (những nước có thể đi tiếp theo) -> Sáng
+            content.classList.add('g-focus');
         } 
         else if (isOnActivePath && isPast) {
             if (activeDepth - myDepth >= 2) content.classList.add('g-blur-past');
-            else content.classList.add('g-focus'); // Cha ruột (nước vừa đi xong) -> Sáng
+            else content.classList.add('g-focus');
         } 
         else {
-            content.classList.add('g-blur-future'); // Các nhánh dư thừa khác -> Mờ câm đen thui
+            content.classList.add('g-blur-future');
         }
 
         const boardDiv = document.createElement('div');
         boardDiv.className = 'g-mini-board';
-        const layout = this.parseFenToGridLocal(node.fen);
         
+        const layout = this.parseFenToGridLocal(node.fen);
         let piecesHtml = '';
+        
         for (let i = 0; i < 64; i++) {
             let logical_i = this.flipped ? 63 - i : i;
             if (layout[logical_i]) {
                 const color = layout[logical_i][0];
                 const type = layout[logical_i][1].toUpperCase();
                 const rawHTML = this.getPieceHTML({ color, type });
+                
                 if (rawHTML) {
-                    let r = Math.floor(i / 8); let c = i % 8;
+                    let r = Math.floor(i / 8); 
+                    let c = i % 8;
                     let trimmed = rawHTML.trim();
                     let imgTag = trimmed.startsWith('<svg') 
                         ? `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}" style="width:100%;height:100%;object-fit:contain;pointer-events:none;">`
                         : trimmed.replace('<img', '<img style="width:100%;height:100%;object-fit:contain;pointer-events:none;"');
+                    
                     piecesHtml += `<div class="g-mini-piece" style="left:${c * 12.5}%; top:${r * 12.5}%;">${imgTag}</div>`;
                 }
             }
@@ -7578,27 +7605,20 @@ castSpell(spellType, targetSq) {
             }
         }
 
-        // Click event to navigate to this node
         content.onclick = (e) => {
             e.stopPropagation();
 
-            // 1. BẮT TAY VỚI BÀN PHÍM: Đồng bộ tọa độ ảo ngay lập tức
             this._virtualNode = node;
             this._isKeyboardNavigating = false;
 
-            // 2. THAY ĐỔI GIAO DIỆN ĐỒ THỊ TỨC THÌ (0ms - Giống hệt phím)
             if (typeof this.fastUpdateGraphVisuals === 'function') {
                 this.fastUpdateGraphVisuals(node);
-                this.scrollToActiveGraphNode('smooth', node.id);
+                this.scrollToActiveGraphNode('smooth', node.id); 
             }
 
-            // 3. HOÃN CÁC TÁC VỤ NẶNG: Nhường frame cho trình duyệt mượt mà (chỉ trễ 10ms)
             setTimeout(() => {
                 if (this.#game.goToNodeId(node.id)) {
                     const freshState = this.#game.getReader();
-                    
-                    // Tuyệt đối KHÔNG gọi this.renderFullGraph() ở đây nữa!
-                    // Chỉ update những phần ngoài đồ thị: Bàn cờ chính, Lịch sử nước đi, Mũi tên
                     this.renderBoard(false);
                     this.updateHistory(true);
                     this.renderArrows();
@@ -7640,7 +7660,6 @@ castSpell(spellType, targetSq) {
         svgLayer.setAttribute('width', '100%');
         svgLayer.setAttribute('height', '100%');
         
-        // Công cụ tính tọa độ siêu cường: Miễn nhiễm với CSS Flexbox, Margin, Padding và Zoom!
         const getUnscaledPos = (el) => {
             const elRect = el.getBoundingClientRect();
             const containerRect = listContainer.getBoundingClientRect();
@@ -7715,7 +7734,6 @@ castSpell(spellType, targetSq) {
 
         if (this._lastTreeSize === currentTreeSize && activeNodeId && list.children.length > 0) {
             if (this.pgnStyle === 'graph') {
-                // Chỉ vẽ lại dây điện và CSS, KHÔNG xoá DOM
                 if (typeof this.fastUpdateGraphVisuals === 'function') this.fastUpdateGraphVisuals();
                 this.scrollToActiveGraphNode('smooth', activeNodeId);
                 return;
@@ -7740,22 +7758,18 @@ castSpell(spellType, targetSq) {
         this._lastTreeSize = currentTreeSize;
         list.innerHTML = ''; list.style.display = 'block'; list.classList.remove('hidden');
 
-        // Branching Display Logic
         if (this.pgnStyle === 'graph') {
             list.className = 'pgn-graph';
             if (this.#game && this.#game.rootNode) {
-                // Initialize SVG Layer for bezier curves
                 const svgNS = "http://www.w3.org/2000/svg";
                 const svgLayer = document.createElementNS(svgNS, "svg");
                 svgLayer.setAttribute("class", "graph-svg-layer");
                 list.appendChild(svgLayer);
 
-                // Build DOM Tree
                 const treeRoot = document.createElement('div');
                 this._renderGraphRecursive(this.#game.rootNode, treeRoot, activeNode, 0);
                 list.appendChild(treeRoot);
 
-                // Draw connecting lines after DOM is fully rendered
                 requestAnimationFrame(() => this.drawGraphLines(list, svgLayer));
             }
         } else if (this.pgnStyle === 'tree') {
@@ -7780,15 +7794,12 @@ castSpell(spellType, targetSq) {
 
         const wrapper = document.createElement('div');
         wrapper.className = 'g-node-wrapper';
-
-        // 1. Create the Node element
         const content = document.createElement('div');
         content.className = 'g-node-content';
         content.dataset.id = node.id;
         
         if (node === activeNode) content.classList.add('active');
 
-        // Apply Blur/Focus classes based on depth relative to the active node
         let activeDepth = this.getPly(activeNode);
         let myDepth = this.getPly(node);
         
@@ -7796,12 +7807,10 @@ castSpell(spellType, targetSq) {
         else if (myDepth === activeDepth || myDepth === activeDepth + 1) content.classList.add('g-focus');
         else content.classList.add('g-blur-future');
 
-        // Move notation text
         const moveTxt = document.createElement('div');
         moveTxt.className = 'g-move-text';
         moveTxt.innerText = node.moveSan || "Start";
         
-        // Fast Mini Board (Reads FEN directly without complex logic to save resources)
         const boardDiv = document.createElement('div');
         boardDiv.className = 'g-mini-board';
         const fenRows = node.fen.split(' ')[0].split('/');
@@ -7825,7 +7834,6 @@ castSpell(spellType, targetSq) {
             }
         }
         
-        // Fill remaining empty squares
         for (let i = 0; i < 64; i++) {
             let r = Math.floor(i/8), c = i%8;
             if(!boardDiv.querySelector(`[style*="grid-column: ${c+1}"][style*="grid-row: ${r+1}"]`)){
@@ -7839,7 +7847,6 @@ castSpell(spellType, targetSq) {
         content.appendChild(boardDiv);
         content.appendChild(moveTxt);
 
-        // Click event to navigate to this node
         content.onclick = (e) => {
             e.stopPropagation();
             if (this.#game.goToNodeId(node.id)) {
@@ -7853,7 +7860,6 @@ castSpell(spellType, targetSq) {
 
         wrapper.appendChild(content);
 
-        // 2. Create Container for child nodes
         if (node.children && node.children.length > 0) {
             const childrenContainer = document.createElement('div');
             childrenContainer.className = 'g-children';
@@ -7869,8 +7875,6 @@ castSpell(spellType, targetSq) {
     }
     fastUpdateGraphVisuals(customNode = null) {
         if (!this.#game || !this.#game.rootNode) return;
-        
-        // Bắt tọa độ ảo ngay lập tức nếu đang đè phím
         const activeNode = customNode || this.#game.currentNode;
         if (!activeNode) return;
         
@@ -7896,7 +7900,7 @@ castSpell(spellType, targetSq) {
                 if (activeDepth - myDepth >= 2) classes.push('g-blur-past');
                 else classes.push('g-focus');
             } else {
-                classes.push('g-blur-future'); // Dập tắt nhánh rác
+                classes.push('g-blur-future');
             }
             classMap.set(n.id, classes.join(' '));
             n.children.forEach(c => traverse(c));
@@ -7908,8 +7912,6 @@ castSpell(spellType, targetSq) {
             const id = el.dataset.id;
             if (classMap.has(id)) el.className = classMap.get(id);
         });
-
-        // Cập nhật dây điện tức thì theo đường đi ảo
         const zoomWrapper = document.getElementById('graphZoomWrapper');
         const svgLayer = document.querySelector('.graph-svg-layer');
         if (zoomWrapper && svgLayer) {
@@ -7939,13 +7941,10 @@ castSpell(spellType, targetSq) {
 
             const graphTab = document.getElementById('tabContent-Graph');
             const isGraphActive = graphTab && graphTab.classList.contains('active');
-
-            // Chặn cuộn trang khi đè phím trong Graph
             if (isGraphActive && ['w','a','s','d','W','A','S','D','Tab','Enter'].includes(e.key)) {
                 e.preventDefault();
             }
 
-            // GỘP CHUNG TẤT CẢ PHÍM ĐIỀU KHIỂN
             const isForward = (e.key === 'ArrowRight' || (isGraphActive && (e.key === 'd' || e.key === 'D')));
             const isBackward = (e.key === 'ArrowLeft' || (isGraphActive && (e.key === 'a' || e.key === 'A')));
             const isStart = (e.key === 'ArrowUp');
@@ -7954,27 +7953,18 @@ castSpell(spellType, targetSq) {
             const isPrevBranch = isGraphActive && (e.key === 'w' || e.key === 'W');
             const isEnter = isGraphActive && e.key === 'Enter';
 
-            // THOÁT GRAPH
             if (isEnter) {
                 this.switchTab(this._previousTabBeforeGraph || 'study');
                 return;
             }
-
-            // ========================================================
-            // --- VIRTUAL NAVIGATION: ZERO-LATENCY ENGINE ---
-            // ========================================================
-            
-            // 1. Đảm bảo luôn có điểm neo ảo
             if (!this._virtualNode) this._virtualNode = this.#game.currentNode;
             
-            // 2. Chống lỗi "bóng ma": Nếu chuột vừa click làm thay đổi Engine, reset lại vị trí ảo
             if (!this._isKeyboardNavigating && this._virtualNode.id !== this.#game.currentNode.id) {
                 this._virtualNode = this.#game.currentNode;
             }
 
             let targetNode = this._virtualNode;
 
-            // 3. Tính toán lộ trình
             if (isForward && targetNode.children.length > 0) {
                 targetNode = targetNode.children[targetNode.selectedChildIndex || 0];
             } 
@@ -7999,17 +7989,15 @@ castSpell(spellType, targetSq) {
                 }
             }
 
-            // 4. KÍCH HOẠT HỆ THỐNG KHI TỌA ĐỘ ẢO THAY ĐỔI
             if (targetNode && targetNode !== this._virtualNode) {
                 this._virtualNode = targetNode;
-                this._isKeyboardNavigating = true; // Bật cờ cấm chuột can thiệp
+                this._isKeyboardNavigating = true;
 
                 if (isGraphActive) {
                     const zoomWrapper = document.getElementById('graphZoomWrapper');
                     const targetNodeEl = zoomWrapper ? zoomWrapper.querySelector(`.g-node-content[data-id="${targetNode.id}"]`) : null;
 
                     if (targetNodeEl) {
-                        // Xóa active cũ
                         const oldActive = zoomWrapper.querySelector('.g-node-content.active');
                         if (oldActive) oldActive.classList.remove('active');
 
@@ -8017,15 +8005,11 @@ castSpell(spellType, targetSq) {
                             this.fastUpdateGraphVisuals(targetNode);
                         }
 
-                        // 🔥 TRỊ DỨT ĐIỂM BỆNH NODE ĐẦU TIÊN BỊ KẸT SƯƠNG MÙ Ở ĐÂY:
-                        // Cho dù DOM update trước đó có chạy sai, ta ép lột sạch sương mù và bật sáng trực tiếp!
                         targetNodeEl.classList.remove('g-blur-past', 'g-blur-future');
                         targetNodeEl.classList.add('g-focus', 'active');
 
-                        // Gọi Camera chuẩn của trình duyệt (auto = tức thì không giật lag)
-                        this.scrollToActiveGraphNode('auto', targetNode.id);
+                        this.scrollToActiveGraphNode('lerp', targetNode.id);
 
-                        // Hoãn việc đồng bộ Engine lại 40ms để tay bạn bấm phím mượt mà
                         clearTimeout(this._keyboardDebounce);
                         this._keyboardDebounce = setTimeout(() => {
                             if (this.#game.currentNode.id !== targetNode.id) {

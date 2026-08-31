@@ -204,7 +204,6 @@ getReader() {
             }
         }
 
-        // TRẢ VỀ DỮ LIỆU THÔ, KHÔNG DÙNG .MAP() HAY OBJECT.FREEZE() ĐỂ TRÁNH RÁC RAM
         return {
             mode: this.mode,
             isGameOver: this.gameOver,
@@ -218,10 +217,10 @@ getReader() {
             startingFen: this.rootNode ? this.rootNode.fen : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
             activeNodeId: this.currentNode ? this.currentNode.id : null,
             lastMove: this.currentNode ? this.currentNode.lastMove : null,
-            headers: this.pgnHeaders, // Chuyền thẳng object
+            headers: this.pgnHeaders,
             whiteTime: this.whiteTime,
             blackTime: this.blackTime,
-            board: this.#board,       // 🚀 TỬ HUYỆT ĐƯỢC CHỮA: Chuyền thẳng mảng gốc!
+            board: this.#board,
             premoves: this.premoveQueue,
             arrows: this.currentNode && this.currentNode.arrows ? this.currentNode.arrows : [],
             circles: this.currentNode && this.currentNode.circles ? this.currentNode.circles : [],
@@ -4101,7 +4100,6 @@ goToNodeId(id, animate = true) {
                 resetNode = resetNode.children && resetNode.children.length > 0 ? resetNode.children[0] : null;
             }
             
-            // 🚀 BÍ QUYẾT O(1): Tái sử dụng DOM thay vì gọi loadFEN để phá hủy bàn cờ!
             this.#engine.load(this.currentNode.fen);
             this.turn = this.#engine.turn();
             
