@@ -4101,7 +4101,15 @@ goToNodeId(id, animate = true) {
                 resetNode = resetNode.children && resetNode.children.length > 0 ? resetNode.children[0] : null;
             }
             
-            this.loadFEN(this.currentNode.fen, this.gameMode, true);
+            // 🚀 BÍ QUYẾT O(1): Tái sử dụng DOM thay vì gọi loadFEN để phá hủy bàn cờ!
+            this.#engine.load(this.currentNode.fen);
+            this.turn = this.#engine.turn();
+            
+            if (typeof this.#reconcileBoardIds === 'function') {
+                this.#reconcileBoardIds(this.currentNode.fen, null);
+            } else {
+                this.loadFEN(this.currentNode.fen, this.gameMode, true);
+            }
             
             let curr = target;
             while (curr.parent) {
@@ -4115,7 +4123,6 @@ goToNodeId(id, animate = true) {
             if (animate) {
                 if (this.currentNode.lastMove) this.triggerMoveSound(this.currentNode.lastMove);
                 else {
-                    // ✨ ROOT FIX: Debounce the audio queue!
                     if (this._audioDebounce) clearTimeout(this._audioDebounce);
                     this._audioDebounce = setTimeout(() => {
                         this.#emit('soundTriggered', { type: 'move-self' });

@@ -1926,135 +1926,6 @@ makeMainline() {
         }
         if (this.annotationPopup) this.annotationPopup.style.display = 'none';
     }
-initKeyboardEvents() {
-        document.addEventListener('keydown', (e) => {
-            const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
-            if (['input', 'textarea', 'select'].includes(activeTag)) return;
-
-            const settings = document.getElementById('settingsPanel');
-            if (settings && settings.classList.contains('visible')) {
-                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code) || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) return; 
-            }
-
-            if (e.code === 'Space') {
-                e.preventDefault(); 
-                if (this.blindfoldMode && !this.isPeeking) {
-                    this.isPeeking = true;
-                    if (typeof this.renderBoard === 'function') this.renderBoard(false);
-                }
-                return;
-            }
-
-            if (!this.#game) return;
-
-            const graphTab = document.getElementById('tabContent-Graph');
-            const isGraphActive = graphTab && graphTab.classList.contains('active');
-
-            // Chặn cuộn trang khi đè phím trong Graph
-            if (isGraphActive && ['w','a','s','d','W','A','S','D','Tab','Enter'].includes(e.key)) {
-                e.preventDefault();
-            }
-
-            // GỘP CHUNG TẤT CẢ PHÍM ĐIỀU KHIỂN
-            const isForward = (e.key === 'ArrowRight' || (isGraphActive && (e.key === 'd' || e.key === 'D')));
-            const isBackward = (e.key === 'ArrowLeft' || (isGraphActive && (e.key === 'a' || e.key === 'A')));
-            const isStart = (e.key === 'ArrowUp');
-            const isEnd = (e.key === 'ArrowDown');
-            const isNextBranch = isGraphActive && (e.key === 's' || e.key === 'S' || e.key === 'Tab');
-            const isPrevBranch = isGraphActive && (e.key === 'w' || e.key === 'W');
-            const isEnter = isGraphActive && e.key === 'Enter';
-
-            const now = performance.now();
-            if (!this._lastArrowPress) this._lastArrowPress = 0;
-
-            // TÁCH LOGIC TỐI ƯU ZERO-LATENCY
-            const triggerGraphFastUpdate = () => {
-                if (!isGraphActive) return;
-
-                const zoomWrapper = document.getElementById('graphZoomWrapper');
-                let nodeFound = false;
-
-                // 1. CHUYỂN DOM ACTIVE TỨC THÌ TRONG 0MS
-                if (zoomWrapper && this.#game.currentNode) {
-                    const oldActive = zoomWrapper.querySelector('.g-node-content.active');
-                    if (oldActive) oldActive.classList.remove('active');
-
-                    const newActive = zoomWrapper.querySelector(`.g-node-content[data-id="${this.#game.currentNode.id}"]`);
-                    if (newActive) {
-                        nodeFound = true;
-                        newActive.classList.add('active');
-
-                        // Gọi Camera đuổi theo ngay lập tức (Gõ phím siêu tốc < 80ms thì tắt smooth đi cho khỏi say sóng)
-                        const timeSinceLast = now - this._lastArrowPress;
-                        const scrollBehavior = timeSinceLast < 80 ? 'auto' : 'smooth';
-                        this.scrollToActiveGraphNode(scrollBehavior);
-                    }
-                }
-                this._lastArrowPress = now;
-
-                // 2. RENDER CHẬM CHẠY NỀN ĐẰNG SAU
-                clearTimeout(this._graphRenderDebounce);
-                
-                if (!nodeFound) {
-                    // CỨU CÁNH: Nếu vừa rẽ sang nhánh MỚI hoàn toàn (chưa tồn tại trên màn hình)
-                    // Bắt buộc phải vẽ gấp và CHO PHÉP giật Camera!
-                    this._graphRenderDebounce = setTimeout(() => {
-                        this.renderFullGraph(false); 
-                    }, 10);
-                } else {
-                    // SỰ MƯỢT MÀ NẰM Ở ĐÂY: Node đã có sẵn rồi, việc gọi renderFullGraph chỉ để 
-                    // tạo hiệu ứng Mờ (Blur) và vẽ lại dây điện. Bắt buộc truyền `skipCamera = true` 
-                    // để nó vẽ lẳng lặng trong nền mà KHÔNG GIẬT CỤC CAMERA CỦA NGƯỜI DÙNG!
-                    this._graphRenderDebounce = setTimeout(() => {
-                        this.renderFullGraph(true); 
-                    }, 150);
-                }
-            };
-
-            // [D] Hoặc Phải -> FAST FORWARD
-            if (isForward) {
-                if (this.#game.stepForward(true)) triggerGraphFastUpdate();
-            } 
-            // [A] Hoặc Trái -> FAST REWIND
-            else if (isBackward) {
-                if (this.#game.stepBack(true)) triggerGraphFastUpdate();
-            }
-            else if (isStart) { 
-                e.preventDefault(); 
-                if (this.#game.goToStart(true)) triggerGraphFastUpdate();
-            }
-            else if (isEnd) { 
-                e.preventDefault(); 
-                if (this.#game.goToEnd(true)) triggerGraphFastUpdate();
-            }
-            // ĐẢO NHÁNH BIẾN THỂ
-            else if (isNextBranch || isPrevBranch) {
-                const curr = this.#game.currentNode;
-                if (curr && curr.parent && curr.parent.children.length > 1) {
-                    const siblings = curr.parent.children;
-                    let idx = siblings.indexOf(curr);
-                    if (isNextBranch) idx = (idx + 1) % siblings.length; 
-                    else idx = (idx - 1 + siblings.length) % siblings.length; 
-                    
-                    if (this.#game.goToNodeId(siblings[idx].id, true)) triggerGraphFastUpdate();
-                }
-            }
-            // THOÁT GRAPH
-            else if (isEnter) {
-                this.switchTab(this._previousTabBeforeGraph || 'study');
-            }
-        });
-
-        document.addEventListener('keyup', (e) => {
-            const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
-            if (['input', 'textarea', 'select'].includes(activeTag)) return;
-
-            if (e.code === 'Space' && this.blindfoldMode && this.isPeeking) {
-                this.isPeeking = false;
-                if (typeof this.renderBoard === 'function') this.renderBoard(false);
-            }
-        });
-    }
 toggleEditorMode(active) {
         try {
             if (!this.#game) return;
@@ -3730,81 +3601,7 @@ updateHistory(force = false) {
             this.applyHideNextMoves();
         }
     }
-renderHistoryImmediate() {
-        const list = document.getElementById('moveHistory');
-        if (!list) return;
-        
-        const styleSelect = document.getElementById('pgnStyle');
-        const isNone = styleSelect && (styleSelect.value === 'none' || (styleSelect.selectedOptions[0] && styleSelect.selectedOptions[0].text === 'None'));
-        this.pgnStyle = styleSelect ? styleSelect.value : 'standard';
-        
-        if (isNone) {
-            list.innerHTML = ''; list.style.display = 'block'; list.classList.remove('hidden'); list.className = 'history-list pgn-none'; 
-            return;
-        }
 
-        let currentTreeSize = 0;
-        if (this.#game && this.#game.rootNode) currentTreeSize = this.getTreeSize(this.#game.rootNode);
-        
-        const activeNode = this.#game ? this.#game.currentNode : null;
-        const activeNodeId = activeNode ? activeNode.id : null;
-
-        // Skip cache optimization for graph mode to always recalculate curve coordinates
-        if (this.pgnStyle !== 'graph' && this._lastTreeSize === currentTreeSize && activeNodeId && list.children.length > 0) {
-            list.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
-            const newActiveEl = list.querySelector(`[data-id="${activeNodeId}"]`);
-            if (newActiveEl) newActiveEl.classList.add('active');
-            
-            if (activeNode) {
-                const commentBox = document.getElementById('commentaryBox');
-                if (commentBox && document.activeElement !== commentBox) {
-                    let displayComment = (activeNode.comment || "").replace(/\[%(cal|csl)[^\]]+\]/g, "").trim();
-                    commentBox.innerText = displayComment || "Click to add comment...";
-                }
-            }
-            this.scrollToActiveMove();
-            if (typeof this.updateChartActiveLine === 'function') this.updateChartActiveLine();
-            return; 
-        }
-
-        this._lastTreeSize = currentTreeSize;
-        list.innerHTML = ''; list.style.display = 'block'; list.classList.remove('hidden');
-
-        // Branching Display Logic
-        if (this.pgnStyle === 'graph') {
-            list.className = 'pgn-graph';
-            if (this.#game && this.#game.rootNode) {
-                // Initialize SVG Layer for bezier curves
-                const svgNS = "http://www.w3.org/2000/svg";
-                const svgLayer = document.createElementNS(svgNS, "svg");
-                svgLayer.setAttribute("class", "graph-svg-layer");
-                list.appendChild(svgLayer);
-
-                // Build DOM Tree
-                const treeRoot = document.createElement('div');
-                this._renderGraphRecursive(this.#game.rootNode, treeRoot, activeNode, 0);
-                list.appendChild(treeRoot);
-
-                // Draw connecting lines after DOM is fully rendered
-                requestAnimationFrame(() => this.drawGraphLines(list, svgLayer));
-            }
-        } else if (this.pgnStyle === 'tree') {
-            list.className = 'history-list pgn-tree';
-            if (this.#game && this.#game.rootNode) this.renderTreeVertical(this.#game.rootNode, list);
-        } else {
-            list.className = 'history-list pgn-standard';
-            if (this.#game && this.#game.rootNode) this.renderTreeRecursive(this.#game.rootNode, list, 1);
-        }
-
-        if (activeNode) {
-            let displayComment = (activeNode.comment || "").replace(/\[%(cal|csl)[^\]]+\]/g, "").trim();
-            const commentBox = document.getElementById('commentaryBox');
-            if (commentBox) commentBox.innerText = displayComment || "Click to add comment...";
-        }
-
-        this.scrollToActiveMove();
-        if (typeof this.updateChartActiveLine === 'function') this.updateChartActiveLine();
-    }
 renderECO() {
         if (!this.#game) return;
         let openingBox = document.getElementById('live-opening-box');
@@ -7595,7 +7392,9 @@ castSpell(spellType, targetSq) {
     }
     renderFullGraph(skipCamera = false) {
         if (typeof this.initGraphEvents === 'function') this.initGraphEvents();
-        
+        if (!this.graphMode && typeof localStorage !== 'undefined') {
+            this.graphMode = localStorage.getItem('chess_graph_mode') || 'focused';
+        }
         const container = document.getElementById('treeGraphContainer');
         const tab = document.getElementById('tabContent-Graph');
         if (!container || !this.#game || !this.#game.rootNode) return;
@@ -7671,18 +7470,23 @@ castSpell(spellType, targetSq) {
             }
         });
     }
-    scrollToActiveGraphNode(behavior = 'smooth') {
+    scrollToActiveGraphNode(behavior = 'smooth', targetId = null) {
         const tab = document.getElementById('tabContent-Graph');
-        const activeEl = document.querySelector('.g-node-content.active');
+        let activeEl;
+        
+        if (targetId) {
+            activeEl = document.querySelector(`.g-node-content[data-id="${targetId}"]`);
+        } else {
+            activeEl = document.querySelector('.g-node-content.active');
+        }
+        
         if (!tab || !activeEl) return;
 
-        // Bắt buộc trình duyệt chốt sổ Layout trước khi tính toán để chống sai số
         void tab.offsetHeight;
 
         const tabRect = tab.getBoundingClientRect();
         const elRect = activeEl.getBoundingClientRect();
 
-        // Cuộn chính xác = Độ cuộn hiện tại + (Vị trí phần tử - Vị trí mép màn hình) - Nửa màn hình + Nửa phần tử
         const targetX = tab.scrollLeft + (elRect.left - tabRect.left) - (tab.clientWidth / 2) + (elRect.width / 2);
         const targetY = tab.scrollTop + (elRect.top - tabRect.top) - (tab.clientHeight / 2) + (elRect.height / 2);
 
@@ -7805,6 +7609,148 @@ castSpell(spellType, targetSq) {
         }
         container.appendChild(wrapper);
     }
+    drawGraphLines(listContainer, svgLayer) {
+        const svgNS = "http://www.w3.org/2000/svg";
+        svgLayer.innerHTML = ''; 
+        
+        svgLayer.setAttribute('width', '100%');
+        svgLayer.setAttribute('height', '100%');
+        
+        // Công cụ tính tọa độ siêu cường: Miễn nhiễm với CSS Flexbox, Margin, Padding và Zoom!
+        const getUnscaledPos = (el) => {
+            const elRect = el.getBoundingClientRect();
+            const containerRect = listContainer.getBoundingClientRect();
+            const zoom = this.graphZoom || 1;
+            return {
+                left: (elRect.left - containerRect.left) / zoom,
+                top: (elRect.top - containerRect.top) / zoom,
+                width: elRect.width / zoom,
+                height: elRect.height / zoom
+            };
+        };
+
+        const fragment = document.createDocumentFragment();
+        const wrappers = listContainer.querySelectorAll('.g-node-wrapper');
+        
+        wrappers.forEach(wrapper => {
+            const parentNode = wrapper.querySelector('.g-node-content');
+            const childrenContainer = wrapper.querySelector('.g-children');
+            if (!parentNode || !childrenContainer) return;
+
+            const pPos = getUnscaledPos(parentNode);
+            const startX = pPos.left + pPos.width;
+            const startY = pPos.top + (pPos.height / 2);
+
+            const childWrappers = childrenContainer.children;
+            for (let i = 0; i < childWrappers.length; i++) {
+                if (!childWrappers[i].classList.contains('g-node-wrapper')) continue;
+                
+                const childEl = childWrappers[i].querySelector('.g-node-content');
+                if (!childEl) continue;
+
+                const cPos = getUnscaledPos(childEl);
+                const endX = cPos.left;
+                const endY = cPos.top + (cPos.height / 2);
+
+                const curve = document.createElementNS(svgNS, 'path');
+                const cpX = (startX + endX) / 2; 
+                
+                const d = `M ${startX} ${startY} C ${cpX} ${startY}, ${cpX} ${endY}, ${endX} ${endY}`;
+                const isBlurred = childEl.classList.contains('g-blur-future') || parentNode.classList.contains('g-blur-past');
+                
+                curve.setAttribute('d', d);
+                curve.setAttribute('fill', 'transparent');
+                curve.setAttribute('stroke', isBlurred ? 'rgba(56, 189, 248, 0.25)' : '#38bdf8');
+                curve.setAttribute('stroke-width', isBlurred ? '2' : '3');
+                
+                if (!isBlurred) fragment.appendChild(curve);
+                else fragment.insertBefore(curve, fragment.firstChild);
+            }
+        });
+
+        svgLayer.appendChild(fragment);
+    }
+    renderHistoryImmediate() {
+        const list = document.getElementById('moveHistory');
+        if (!list) return;
+        
+        const styleSelect = document.getElementById('pgnStyle');
+        const isNone = styleSelect && (styleSelect.value === 'none' || (styleSelect.selectedOptions[0] && styleSelect.selectedOptions[0].text === 'None'));
+        this.pgnStyle = styleSelect ? styleSelect.value : 'standard';
+        
+        if (isNone) {
+            list.innerHTML = ''; list.style.display = 'block'; list.classList.remove('hidden'); list.className = 'history-list pgn-none'; 
+            return;
+        }
+
+        let currentTreeSize = 0;
+        if (this.#game && this.#game.rootNode) currentTreeSize = this.getTreeSize(this.#game.rootNode);
+        
+        const activeNode = this.#game ? this.#game.currentNode : null;
+        const activeNodeId = activeNode ? activeNode.id : null;
+
+        if (this._lastTreeSize === currentTreeSize && activeNodeId && list.children.length > 0) {
+            if (this.pgnStyle === 'graph') {
+                // Chỉ vẽ lại dây điện và CSS, KHÔNG xoá DOM
+                if (typeof this.fastUpdateGraphVisuals === 'function') this.fastUpdateGraphVisuals();
+                this.scrollToActiveGraphNode('smooth', activeNodeId);
+                return;
+            } else {
+                list.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
+                const newActiveEl = list.querySelector(`[data-id="${activeNodeId}"]`);
+                if (newActiveEl) newActiveEl.classList.add('active');
+                
+                if (activeNode) {
+                    const commentBox = document.getElementById('commentaryBox');
+                    if (commentBox && document.activeElement !== commentBox) {
+                        let displayComment = (activeNode.comment || "").replace(/\[%(cal|csl)[^\]]+\]/g, "").trim();
+                        commentBox.innerText = displayComment || "Click to add comment...";
+                    }
+                }
+                this.scrollToActiveMove();
+                if (typeof this.updateChartActiveLine === 'function') this.updateChartActiveLine();
+                return; 
+            }
+        }
+
+        this._lastTreeSize = currentTreeSize;
+        list.innerHTML = ''; list.style.display = 'block'; list.classList.remove('hidden');
+
+        // Branching Display Logic
+        if (this.pgnStyle === 'graph') {
+            list.className = 'pgn-graph';
+            if (this.#game && this.#game.rootNode) {
+                // Initialize SVG Layer for bezier curves
+                const svgNS = "http://www.w3.org/2000/svg";
+                const svgLayer = document.createElementNS(svgNS, "svg");
+                svgLayer.setAttribute("class", "graph-svg-layer");
+                list.appendChild(svgLayer);
+
+                // Build DOM Tree
+                const treeRoot = document.createElement('div');
+                this._renderGraphRecursive(this.#game.rootNode, treeRoot, activeNode, 0);
+                list.appendChild(treeRoot);
+
+                // Draw connecting lines after DOM is fully rendered
+                requestAnimationFrame(() => this.drawGraphLines(list, svgLayer));
+            }
+        } else if (this.pgnStyle === 'tree') {
+            list.className = 'history-list pgn-tree';
+            if (this.#game && this.#game.rootNode) this.renderTreeVertical(this.#game.rootNode, list);
+        } else {
+            list.className = 'history-list pgn-standard';
+            if (this.#game && this.#game.rootNode) this.renderTreeRecursive(this.#game.rootNode, list, 1);
+        }
+
+        if (activeNode) {
+            let displayComment = (activeNode.comment || "").replace(/\[%(cal|csl)[^\]]+\]/g, "").trim();
+            const commentBox = document.getElementById('commentaryBox');
+            if (commentBox) commentBox.innerText = displayComment || "Click to add comment...";
+        }
+
+        this.scrollToActiveMove();
+        if (typeof this.updateChartActiveLine === 'function') this.updateChartActiveLine();
+    }
     _renderGraphRecursive(node, container, activeNode, depth) {
         if (!node) return;
 
@@ -7897,66 +7843,199 @@ castSpell(spellType, targetSq) {
 
         container.appendChild(wrapper);
     }
-    drawGraphLines(listContainer, svgLayer) {
-        const svgNS = "http://www.w3.org/2000/svg";
-        svgLayer.innerHTML = ''; 
+    fastUpdateGraphVisuals(customNode = null) {
+        if (!this.#game || !this.#game.rootNode) return;
         
-        svgLayer.setAttribute('width', '100%');
-        svgLayer.setAttribute('height', '100%');
+        // Bắt tọa độ ảo ngay lập tức nếu đang đè phím
+        const activeNode = customNode || this.#game.currentNode;
+        if (!activeNode) return;
         
-        // Công cụ tính tọa độ siêu cường: Miễn nhiễm với CSS Flexbox, Margin, Padding và Zoom!
-        const getUnscaledPos = (el) => {
-            const elRect = el.getBoundingClientRect();
-            const containerRect = listContainer.getBoundingClientRect();
-            const zoom = this.graphZoom || 1;
-            return {
-                left: (elRect.left - containerRect.left) / zoom,
-                top: (elRect.top - containerRect.top) / zoom,
-                width: elRect.width / zoom,
-                height: elRect.height / zoom
-            };
+        const activeDepth = this.getPly(activeNode);
+        
+        const activePathIds = new Set();
+        let curr = activeNode;
+        while (curr) { activePathIds.add(curr.id); curr = curr.parent; }
+
+        const classMap = new Map();
+        
+        const traverse = (n) => {
+            let myDepth = this.getPly(n);
+            let isOnPath = activePathIds.has(n.id);
+            let isPast = isOnPath && myDepth < activeDepth;
+            let classes = ['g-node-content'];
+            
+            if (n === activeNode) {
+                classes.push('g-focus', 'active');
+            } else if (n.parent === activeNode) {
+                classes.push('g-focus');
+            } else if (isOnPath && isPast) {
+                if (activeDepth - myDepth >= 2) classes.push('g-blur-past');
+                else classes.push('g-focus');
+            } else {
+                classes.push('g-blur-future'); // Dập tắt nhánh rác
+            }
+            classMap.set(n.id, classes.join(' '));
+            n.children.forEach(c => traverse(c));
         };
+        traverse(this.#game.rootNode);
 
-        const fragment = document.createDocumentFragment();
-        const wrappers = listContainer.querySelectorAll('.g-node-wrapper');
-        
-        wrappers.forEach(wrapper => {
-            const parentNode = wrapper.querySelector('.g-node-content');
-            const childrenContainer = wrapper.querySelector('.g-children');
-            if (!parentNode || !childrenContainer) return;
+        const domNodes = document.querySelectorAll('.g-node-content');
+        domNodes.forEach(el => {
+            const id = el.dataset.id;
+            if (classMap.has(id)) el.className = classMap.get(id);
+        });
 
-            const pPos = getUnscaledPos(parentNode);
-            const startX = pPos.left + pPos.width;
-            const startY = pPos.top + (pPos.height / 2);
+        // Cập nhật dây điện tức thì theo đường đi ảo
+        const zoomWrapper = document.getElementById('graphZoomWrapper');
+        const svgLayer = document.querySelector('.graph-svg-layer');
+        if (zoomWrapper && svgLayer) {
+            this.drawGraphLines(zoomWrapper, svgLayer);
+        }
+    }
+    initKeyboardEvents() {
+        document.addEventListener('keydown', (e) => {
+            const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+            if (['input', 'textarea', 'select'].includes(activeTag)) return;
 
-            const childWrappers = childrenContainer.children;
-            for (let i = 0; i < childWrappers.length; i++) {
-                if (!childWrappers[i].classList.contains('g-node-wrapper')) continue;
-                
-                const childEl = childWrappers[i].querySelector('.g-node-content');
-                if (!childEl) continue;
+            const settings = document.getElementById('settingsPanel');
+            if (settings && settings.classList.contains('visible')) {
+                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code) || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) return; 
+            }
 
-                const cPos = getUnscaledPos(childEl);
-                const endX = cPos.left;
-                const endY = cPos.top + (cPos.height / 2);
+            if (e.code === 'Space') {
+                e.preventDefault(); 
+                if (this.blindfoldMode && !this.isPeeking) {
+                    this.isPeeking = true;
+                    if (typeof this.renderBoard === 'function') this.renderBoard(false);
+                }
+                return;
+            }
 
-                const curve = document.createElementNS(svgNS, 'path');
-                const cpX = (startX + endX) / 2; 
-                
-                const d = `M ${startX} ${startY} C ${cpX} ${startY}, ${cpX} ${endY}, ${endX} ${endY}`;
-                const isBlurred = childEl.classList.contains('g-blur-future') || parentNode.classList.contains('g-blur-past');
-                
-                curve.setAttribute('d', d);
-                curve.setAttribute('fill', 'transparent');
-                curve.setAttribute('stroke', isBlurred ? 'rgba(56, 189, 248, 0.25)' : '#38bdf8');
-                curve.setAttribute('stroke-width', isBlurred ? '2' : '3');
-                
-                if (!isBlurred) fragment.appendChild(curve);
-                else fragment.insertBefore(curve, fragment.firstChild);
+            if (!this.#game) return;
+
+            const graphTab = document.getElementById('tabContent-Graph');
+            const isGraphActive = graphTab && graphTab.classList.contains('active');
+
+            // Chặn cuộn trang khi đè phím trong Graph
+            if (isGraphActive && ['w','a','s','d','W','A','S','D','Tab','Enter'].includes(e.key)) {
+                e.preventDefault();
+            }
+
+            // GỘP CHUNG TẤT CẢ PHÍM ĐIỀU KHIỂN
+            const isForward = (e.key === 'ArrowRight' || (isGraphActive && (e.key === 'd' || e.key === 'D')));
+            const isBackward = (e.key === 'ArrowLeft' || (isGraphActive && (e.key === 'a' || e.key === 'A')));
+            const isStart = (e.key === 'ArrowUp');
+            const isEnd = (e.key === 'ArrowDown');
+            const isNextBranch = isGraphActive && (e.key === 's' || e.key === 'S' || e.key === 'Tab');
+            const isPrevBranch = isGraphActive && (e.key === 'w' || e.key === 'W');
+            const isEnter = isGraphActive && e.key === 'Enter';
+
+            // THOÁT GRAPH
+            if (isEnter) {
+                this.switchTab(this._previousTabBeforeGraph || 'study');
+                return;
+            }
+
+            // ========================================================
+            // --- VIRTUAL NAVIGATION: ZERO-LATENCY ENGINE ---
+            // ========================================================
+            
+            // 1. Đảm bảo luôn có điểm neo ảo
+            if (!this._virtualNode) this._virtualNode = this.#game.currentNode;
+            
+            // 2. Chống lỗi "bóng ma": Nếu chuột vừa click làm thay đổi Engine, reset lại vị trí ảo
+            if (!this._isKeyboardNavigating && this._virtualNode.id !== this.#game.currentNode.id) {
+                this._virtualNode = this.#game.currentNode;
+            }
+
+            let targetNode = this._virtualNode;
+
+            // 3. Tính toán lộ trình
+            if (isForward && targetNode.children.length > 0) {
+                targetNode = targetNode.children[targetNode.selectedChildIndex || 0];
+            } 
+            else if (isBackward && targetNode.parent) {
+                targetNode = targetNode.parent;
+            }
+            else if (isStart) { 
+                e.preventDefault(); 
+                while (targetNode.parent) targetNode = targetNode.parent;
+            }
+            else if (isEnd) { 
+                e.preventDefault(); 
+                while (targetNode.children.length > 0) targetNode = targetNode.children[targetNode.selectedChildIndex || 0];
+            }
+            else if (isNextBranch || isPrevBranch) {
+                if (targetNode && targetNode.parent && targetNode.parent.children.length > 1) {
+                    const siblings = targetNode.parent.children;
+                    let idx = siblings.indexOf(targetNode);
+                    if (isNextBranch) idx = (idx + 1) % siblings.length; 
+                    else idx = (idx - 1 + siblings.length) % siblings.length; 
+                    targetNode = siblings[idx];
+                }
+            }
+
+            // 4. KÍCH HOẠT HỆ THỐNG KHI TỌA ĐỘ ẢO THAY ĐỔI
+            if (targetNode && targetNode !== this._virtualNode) {
+                this._virtualNode = targetNode;
+                this._isKeyboardNavigating = true; // Bật cờ cấm chuột can thiệp
+
+                if (isGraphActive) {
+                    const zoomWrapper = document.getElementById('graphZoomWrapper');
+                    const targetNodeEl = zoomWrapper ? zoomWrapper.querySelector(`.g-node-content[data-id="${targetNode.id}"]`) : null;
+
+                    if (targetNodeEl) {
+                        // Xóa active cũ
+                        const oldActive = zoomWrapper.querySelector('.g-node-content.active');
+                        if (oldActive) oldActive.classList.remove('active');
+
+                        if (typeof this.fastUpdateGraphVisuals === 'function') {
+                            this.fastUpdateGraphVisuals(targetNode);
+                        }
+
+                        // 🔥 TRỊ DỨT ĐIỂM BỆNH NODE ĐẦU TIÊN BỊ KẸT SƯƠNG MÙ Ở ĐÂY:
+                        // Cho dù DOM update trước đó có chạy sai, ta ép lột sạch sương mù và bật sáng trực tiếp!
+                        targetNodeEl.classList.remove('g-blur-past', 'g-blur-future');
+                        targetNodeEl.classList.add('g-focus', 'active');
+
+                        // Gọi Camera chuẩn của trình duyệt (auto = tức thì không giật lag)
+                        this.scrollToActiveGraphNode('auto', targetNode.id);
+
+                        // Hoãn việc đồng bộ Engine lại 40ms để tay bạn bấm phím mượt mà
+                        clearTimeout(this._keyboardDebounce);
+                        this._keyboardDebounce = setTimeout(() => {
+                            if (this.#game.currentNode.id !== targetNode.id) {
+                                this.#game.goToNodeId(targetNode.id, false);
+                            }
+                            this._isKeyboardNavigating = false;
+                        }, 40); 
+                    } else {
+                        clearTimeout(this._keyboardDebounce);
+                        if (this.#game.currentNode.id !== targetNode.id) {
+                            this.#game.goToNodeId(targetNode.id, false);
+                        }
+                        this.renderFullGraph(false, targetNode);
+                        this._isKeyboardNavigating = false;
+                    }
+                } else {
+                    clearTimeout(this._keyboardDebounce);
+                    if (this.#game.currentNode.id !== targetNode.id) {
+                        this.#game.goToNodeId(targetNode.id, true);
+                    }
+                    this._isKeyboardNavigating = false;
+                }
             }
         });
 
-        svgLayer.appendChild(fragment);
+        document.addEventListener('keyup', (e) => {
+            const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+            if (['input', 'textarea', 'select'].includes(activeTag)) return;
+
+            if (e.code === 'Space' && this.blindfoldMode && this.isPeeking) {
+                this.isPeeking = false;
+                if (typeof this.renderBoard === 'function') this.renderBoard(false);
+            }
+        });
     }
     parseFenToGridLocal(fen) {
     const grid = new Array(64).fill(null);
