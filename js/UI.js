@@ -7578,12 +7578,36 @@ castSpell(spellType, targetSq) {
             }
         }
 
+        // Click event to navigate to this node
         content.onclick = (e) => {
             e.stopPropagation();
-            if (this.#game.goToNodeId(node.id)) {
-                this.renderFullGraph(); 
-                this.updateHistory(true);
+
+            // 1. BẮT TAY VỚI BÀN PHÍM: Đồng bộ tọa độ ảo ngay lập tức
+            this._virtualNode = node;
+            this._isKeyboardNavigating = false;
+
+            // 2. THAY ĐỔI GIAO DIỆN ĐỒ THỊ TỨC THÌ (0ms - Giống hệt phím)
+            if (typeof this.fastUpdateGraphVisuals === 'function') {
+                this.fastUpdateGraphVisuals(node);
+                this.scrollToActiveGraphNode('smooth', node.id);
             }
+
+            // 3. HOÃN CÁC TÁC VỤ NẶNG: Nhường frame cho trình duyệt mượt mà (chỉ trễ 10ms)
+            setTimeout(() => {
+                if (this.#game.goToNodeId(node.id)) {
+                    const freshState = this.#game.getReader();
+                    
+                    // Tuyệt đối KHÔNG gọi this.renderFullGraph() ở đây nữa!
+                    // Chỉ update những phần ngoài đồ thị: Bàn cờ chính, Lịch sử nước đi, Mũi tên
+                    this.renderBoard(false);
+                    this.updateHistory(true);
+                    this.renderArrows();
+                    
+                    if (freshState.mode !== 'play' && this.#game.updateStockfish) {
+                        this.#game.updateStockfish();
+                    }
+                }
+            }, 10);
         };
 
         wrapper.appendChild(content);
