@@ -745,16 +745,16 @@ var Chess = function(fen, gameMode = 'classical') {
         var from = m & 0x3F, to = (m >>> 6) & 0x3F;
         var flags = (m >>> 12) & 0x7F;
 
-        let isB = from < 32 ? (prevState.alice_b.lo & (1<<from)) : (prevState.alice_b.hi & (1<<(from-32)));
+        let isB = from < 32 ? (prevState.alice_b_lo & (1<<from)) : (prevState.alice_b_hi & (1<<(from-32)));
         
         // 1. Clear the old square on the Phase mask
-        if (from < 32) next.alice_b.lo &= ~(1<<from); else next.alice_b.hi &= ~(1<<(from-32));
+        if (from < 32) next.alice_b_lo &= ~(1<<from); else next.alice_b_hi &= ~(1<<(from-32));
         
         // 2. Transfer the moving piece to the OPPOSITE board!
         if (isB) {
-            if (to < 32) next.alice_b.lo &= ~(1<<to); else next.alice_b.hi &= ~(1<<(to-32));
+            if (to < 32) next.alice_b_lo &= ~(1<<to); else next.alice_b_hi &= ~(1<<(to-32));
         } else {
-            if (to < 32) next.alice_b.lo |= (1<<to); else next.alice_b.hi |= (1<<(to-32));
+            if (to < 32) next.alice_b_lo |= (1<<to); else next.alice_b_hi |= (1<<(to-32));
         }
 
         // 3. Handle Castling Transfer (Rook also jumps!)
@@ -770,12 +770,12 @@ var Chess = function(fen, gameMode = 'classical') {
             let r_to = us === WHITE ? (isK ? 5 : 3) : (isK ? 61 : 59);
             
             if (r_from !== -1) {
-                let r_isB = r_from < 32 ? (prevState.alice_b.lo & (1<<r_from)) : (prevState.alice_b.hi & (1<<(r_from-32)));
-                if (r_from < 32) next.alice_b.lo &= ~(1<<r_from); else next.alice_b.hi &= ~(1<<(r_from-32));
+                let r_isB = r_from < 32 ? (prevState.alice_b_lo & (1<<r_from)) : (prevState.alice_b_hi & (1<<(r_from-32)));
+                if (r_from < 32) next.alice_b_lo &= ~(1<<r_from); else next.alice_b_hi &= ~(1<<(r_from-32));
                 if (r_isB) {
-                    if (r_to < 32) next.alice_b.lo &= ~(1<<r_to); else next.alice_b.hi &= ~(1<<(r_to-32));
+                    if (r_to < 32) next.alice_b_lo &= ~(1<<r_to); else next.alice_b_hi &= ~(1<<(r_to-32));
                 } else {
-                    if (r_to < 32) next.alice_b.lo |= (1<<r_to); else next.alice_b.hi |= (1<<(r_to-32));
+                    if (r_to < 32) next.alice_b_lo |= (1<<r_to); else next.alice_b_hi |= (1<<(r_to-32));
                 }
             }
         }
@@ -783,7 +783,7 @@ var Chess = function(fen, gameMode = 'classical') {
         // 4. Handle En Passant Erase
         if (flags & BITS.EP_CAPTURE) {
             let ep_sq = prevState.turn === WHITE ? to - 8 : to + 8;
-            if (ep_sq < 32) next.alice_b.lo &= ~(1<<ep_sq); else next.alice_b.hi &= ~(1<<(ep_sq-32));
+            if (ep_sq < 32) next.alice_b_lo &= ~(1<<ep_sq); else next.alice_b_hi &= ~(1<<(ep_sq-32));
         }
         return next;
     }
@@ -944,9 +944,9 @@ var Chess = function(fen, gameMode = 'classical') {
 
         let bMaskL = 0xFFFFFFFF, bMaskH = 0xFFFFFFFF;
         if (state.gameMode === 'alice') {
-            let isB = sq < 32 ? (state.alice_b.lo & (1<<sq)) : (state.alice_b.hi & (1<<(sq-32)));
-            bMaskL = isB ? state.alice_b.lo : ~state.alice_b.lo;
-            bMaskH = isB ? state.alice_b.hi : ~state.alice_b.hi;
+            let isB = sq < 32 ? (state.alice_b_lo & (1<<sq)) : (state.alice_b_hi & (1<<(sq-32)));
+            bMaskL = isB ? state.alice_b_lo : ~state.alice_b_lo;
+            bMaskH = isB ? state.alice_b_hi : ~state.alice_b_hi;
         }
         if (state.gameMode === 'spell' && state.frozen) {
             bMaskL &= ~state.frozen.lo;
@@ -1441,6 +1441,50 @@ var Chess = function(fen, gameMode = 'classical') {
         return valid; 
     }
     function generate_bughouse_moves(state, options) { return generate_crazyhouse_moves(state, options); }
+    function generate_crazyhouse_moves(state, options) {
+        var moves = generate_standard_moves(state, options);
+        var us = state.turn;
+        var pocket = us === WHITE ? state.pocket_w : state.pocket_b;
+        
+        var occL = 0, occH = 0;
+        for (let i = 0; i < 12; i++) { occL |= state.bb_lo[i]; occH |= state.bb_hi[i]; }
+        var emptyL = (~occL) >>> 0, emptyH = (~occH) >>> 0;
+        
+        for (var p_type = PAWN; p_type <= QUEEN; p_type++) {
+            if (pocket[p_type] > 0) {
+                let eL = emptyL, eH = emptyH;
+                while (eL || eH) {
+                    let sq = ctz(eL, eH);
+                    if (sq < 32) eL &= ~(1<<sq); else eH &= ~(1<<(sq-32));
+                    
+                    var rank = sq >> 3;
+                    if (p_type === PAWN && (rank === 0 || rank === 7)) continue; 
+                    
+                    var m = p_type | (sq << 6) | (BITS.DROP << 12);
+                    if (!options || options.legal !== false) {
+                        var nextState = apply_crazyhouse_move(state, m);
+                        if (!is_checked(nextState, us)) moves.push(m);
+                    } else {
+                        moves.push(m);
+                    }
+                }
+            }
+        }
+        
+        if (options && options.square) {
+            var filtered = [];
+            for(var i=0; i<moves.length; i++) {
+                var m = moves[i];
+                if ((m >>> 12 & 0xFF) & BITS.DROP) {
+                    if (options.square === '@' || options.square.includes('@')) filtered.push(m);
+                } else {
+                    if (SQ_STR[m & 0x3F] === options.square) filtered.push(m);
+                }
+            }
+            return filtered;
+        }
+        return moves;
+    }
     function generate_placement_moves(state, options) {
         var moves = [];
         var us = state.turn;
@@ -1464,8 +1508,13 @@ var Chess = function(fen, gameMode = 'classical') {
                         if (sq < 32) eL &= ~(1<<sq); else eH &= ~(1<<(sq-32));
                         
                         var rank = sq >> 3;
-                        var validRank = us === WHITE ? 0 : 7;
-                        if (rank !== validRank) continue;
+                        if (us === WHITE) {
+                            if (rank > 3) continue;
+                            if (p_type === PAWN && rank === 0) continue;
+                        } else {
+                            if (rank < 4) continue;
+                            if (p_type === PAWN && rank === 7) continue;
+                        }
                         
                         if (p_type === BISHOP) {
                             var hasLight = false, hasDark = false;
@@ -1848,9 +1897,9 @@ var Chess = function(fen, gameMode = 'classical') {
             let f = ctz(tempL, tempH);
             if(f<32) tempL &= ~(1<<f); else tempH &= ~(1<<(f-32));
             
-            let isB = f < 32 ? (state.alice_b.lo & (1<<f)) : (state.alice_b.hi & (1<<(f-32)));
-            let bMaskL = isB ? state.alice_b.lo : ~state.alice_b.lo;
-            let bMaskH = isB ? state.alice_b.hi : ~state.alice_b.hi;
+            let isB = f < 32 ? (state.alice_b_lo & (1<<f)) : (state.alice_b_hi & (1<<(f-32)));
+            let bMaskL = isB ? state.alice_b_lo : ~state.alice_b_lo;
+            let bMaskH = isB ? state.alice_b_hi : ~state.alice_b_hi;
             
             let occAllL = 0, occAllH = 0;
             for(let i=0; i<12; i++) { occAllL|=state.bb_lo[i]; occAllH|=state.bb_hi[i]; }
@@ -2760,7 +2809,7 @@ return {
                             if (pType === PAWN && (r === 0 || r === 7)) {
                                 m = null; // Pawns can't be dropped on the 1st or 8th rank
                             } else if (currentState.pocket && currentState.pocket[activeColor] && currentState.pocket[activeColor].includes(pType)) {
-                                // ✅ VALID PLACEMENT DROP! Keep 'm' intact so the move executes.
+                                // VALID PLACEMENT DROP! Keep 'm' intact so the move executes.
                             } else {
                                 m = null; // Piece not in pocket
                             }
@@ -2784,7 +2833,38 @@ return {
                 }
             }
             
-            if (m === null) { error("INVALID_MOVE", input); return null; }
+            if (currentState.gameMode === 'duck') {
+                if (((m >>> 22) & 0x3F) === 0 && explicit_duck === -1) {
+                    let duckToUse = currentState.duck_sq !== -1 ? currentState.duck_sq : 0; 
+                    m = (m & 0x3FFFFF) | (duckToUse << 22);
+                }
+            }
+            
+            var ret = to_obj(currentState, m, nag, clean_san);
+            
+            if (isSpellMove) {
+                ret.isSpell = true;
+                ret.spellType = o.spellType;
+                ret.target = o.target; 
+
+                let prefix = o.spellType === 'freeze' ? 'Fz' : 'Jp';
+                let targetStr = typeof o.target === 'number' ? sq_str(o.target) : o.target;
+                ret.spellSan = `${prefix}@${targetStr}`;
+                
+                if (!ret.san.startsWith('Fz@') && !ret.san.startsWith('Jp@')) {
+                    ret.san = `${ret.spellSan} ${ret.san}`;
+                }
+            }
+            if (currentState.gameMode === 'duck') {
+                let dIdx = (m >>> 22) & 0x3F;
+                let duckSqStr = SQ_STR[dIdx] || 'a1'; 
+                ret.uci = ret.from + ret.to + (ret.promotion ? ret.promotion : '') + ',' + duckSqStr; // Dọn rác nối chuỗi dư
+            } else if ((currentState.gameMode === 'crazyhouse' || currentState.gameMode === 'bughouse'|| currentState.gameMode === 'placement') && (((m >>> 12) & 0xFF) & BITS.DROP)) {
+                let pType = m & 0x3F;
+                ret.uci = PIECE_TO_CHAR[pType].toUpperCase() + '@' + ret.to; 
+            } else {
+                ret.uci = ret.from + ret.to + (ret.promotion ? ret.promotion : '');
+            }
             
             if (currentState.gameMode === 'duck') {
                 if (((m >>> 22) & 0x3F) === 0) {

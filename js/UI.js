@@ -4842,33 +4842,38 @@ renderAnalysisLine(index, type, val, moves, startFen) {
                     moveObj = tempChess.move(uci, { sloppy: true });
                     if (!moveObj) {
                         let baseUci = uci;
-                        if (baseUci.includes(',')) baseUci = baseUci.split(',')[0];
-                        else if (baseUci.includes('@')) baseUci = baseUci.split('@')[0];
-
-                        const from = baseUci.substring(0, 2); const to = baseUci.substring(2, 4);
-                        const pPromo = baseUci.length > 4 ? baseUci.substring(4, 5) : undefined;
+                        let isDrop = baseUci.includes('@');
                         
-                        if (is960) {
-                            const p1 = tempChess.get(from); const p2 = tempChess.get(to);
-                            if (p1 && p2 && p1.type === 'k' && p2.type === 'r' && p1.color === p2.color) {
-                                let newCastling = parts[2].replace(turn === 'w' ? 'K' : '', '').replace(turn === 'w' ? 'Q' : '', '').replace(turn === 'b' ? 'k' : '', '').replace(turn === 'b' ? 'q' : '', '');
-                                if (newCastling === '') newCastling = '-';
+                        if (baseUci.includes(',')) baseUci = baseUci.split(',')[0];
+                        if (isDrop) {
+                            let parts = baseUci.split('@');
+                            moveObj = tempChess.move({ from: '@', to: parts[1], drop: parts[0].toLowerCase() });
+                        } else {
+                            const from = baseUci.substring(0, 2); const to = baseUci.substring(2, 4);
+                            const pPromo = baseUci.length > 4 ? baseUci.substring(4, 5) : undefined;
+                            
+                            if (is960) {
+                                const p1 = tempChess.get(from); const p2 = tempChess.get(to);
+                                if (p1 && p2 && p1.type === 'k' && p2.type === 'r' && p1.color === p2.color) {
+                                    let newCastling = parts[2].replace(turn === 'w' ? 'K' : '', '').replace(turn === 'w' ? 'Q' : '', '').replace(turn === 'b' ? 'k' : '', '').replace(turn === 'b' ? 'q' : '', '');
+                                    if (newCastling === '') newCastling = '-';
 
-                                const isKingside = to.charCodeAt(0) > from.charCodeAt(0);
-                                let ranks = parts[0].split('/'); let rIdx = turn === 'w' ? 7 : 0; let exp = '';
-                                for (let c of ranks[rIdx]) exp += isNaN(c) ? c : ' '.repeat(parseInt(c));
-                                exp = exp.split(''); exp[from.charCodeAt(0) - 97] = ' '; exp[to.charCodeAt(0) - 97] = ' ';
-                                exp[isKingside ? 6 : 2] = turn === 'w' ? 'K' : 'k'; exp[isKingside ? 5 : 3] = turn === 'w' ? 'R' : 'r'; 
-                                
-                                let comp = '', empties = 0;
-                                for (let char of exp) { if (char === ' ') empties++; else { if (empties > 0) { comp += empties; empties = 0; } comp += char; } }
-                                if (empties > 0) comp += empties;
-                                ranks[rIdx] = comp; parts[0] = ranks.join('/'); parts[1] = turn === 'w' ? 'b' : 'w'; parts[2] = newCastling; parts[3] = '-';
-                                if (turn === 'b') parts[5] = parseInt(parts[5]) + 1;
-                                
-                                tempChess.load(parts.join(' ')); moveObj = { san: isKingside ? 'O-O' : 'O-O-O' };
+                                    const isKingside = to.charCodeAt(0) > from.charCodeAt(0);
+                                    let ranks = parts[0].split('/'); let rIdx = turn === 'w' ? 7 : 0; let exp = '';
+                                    for (let c of ranks[rIdx]) exp += isNaN(c) ? c : ' '.repeat(parseInt(c));
+                                    exp = exp.split(''); exp[from.charCodeAt(0) - 97] = ' '; exp[to.charCodeAt(0) - 97] = ' ';
+                                    exp[isKingside ? 6 : 2] = turn === 'w' ? 'K' : 'k'; exp[isKingside ? 5 : 3] = turn === 'w' ? 'R' : 'r'; 
+                                    
+                                    let comp = '', empties = 0;
+                                    for (let char of exp) { if (char === ' ') empties++; else { if (empties > 0) { comp += empties; empties = 0; } comp += char; } }
+                                    if (empties > 0) comp += empties;
+                                    ranks[rIdx] = comp; parts[0] = ranks.join('/'); parts[1] = turn === 'w' ? 'b' : 'w'; parts[2] = newCastling; parts[3] = '-';
+                                    if (turn === 'b') parts[5] = parseInt(parts[5]) + 1;
+                                    
+                                    tempChess.load(parts.join(' ')); moveObj = { san: isKingside ? 'O-O' : 'O-O-O' };
+                                } else { moveObj = tempChess.move({ from, to, promotion: pPromo }); }
                             } else { moveObj = tempChess.move({ from, to, promotion: pPromo }); }
-                        } else { moveObj = tempChess.move({ from, to, promotion: pPromo }); }
+                        }
                     }
                 } catch(e) { }
 
@@ -6923,9 +6928,7 @@ updatePieceImagesSafe() {
         const selector = document.getElementById('assetType');
         if (selector) this.pieceTheme = selector.value;
         if (this.pieceTheme === 'local' && !this.customPieces) return;
-        this.preloadPieceImages().then(() => {
-            this.renderBoard(false);
-        });
+        this.renderBoard(false);
     }
 updatePlayerNames(topName, bottomName, skipRender = false) {
         if (this.flipped) {

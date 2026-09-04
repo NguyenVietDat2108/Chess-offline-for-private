@@ -274,8 +274,10 @@ getReader() {
 #reconcileBoardIds(fen, move) {
         if (!fen) return;
         const cleanFen = fen.split(' ')[0];
-        const rows = cleanFen.split('/');
-        const newPieces = []; 
+        let boardStr = cleanFen;
+        if (boardStr.includes('[')) boardStr = boardStr.split('[')[0];
+        const rows = boardStr.split('/');
+        const newPieces = [];
         let idx = 0;
 
         for (let r = 0; r < 8; r++) {
@@ -371,7 +373,9 @@ getReader() {
         }
 
         const cleanFen = fen.trim().split(' ')[0];
-        const fenRows = cleanFen.split('/');
+        let boardStr = cleanFen;
+        if (boardStr.includes('[')) boardStr = boardStr.split('[')[0];
+        const fenRows = boardStr.split('/');
         if (fenRows.length !== 8) {
             this.#reconcileBoardIds(fen, null);
             return;
@@ -4304,7 +4308,9 @@ loadFEN(fen, gameMode = null, isLoadMode = false) {
 
         this.#board = Array(64).fill(null);
         const parts = fen.trim().split(/\s+/); 
-        const rows = parts[0].split('/'); 
+        let boardStr = parts[0];
+        if (boardStr.includes('[')) boardStr = boardStr.split('[')[0];
+        const rows = boardStr.split('/'); 
 
         let visualRow = 0; 
         for (let rStr of rows) {
