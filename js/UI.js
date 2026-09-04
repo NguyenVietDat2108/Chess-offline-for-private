@@ -45,7 +45,7 @@ constructor() {
         this.isPeeking = false;
         this.DEFAULT_SETTINGS_OPEN = true;
         this.errorNavState = {};
-
+        this.isAnalysisHidden = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_hide_analysis') : 'false') === 'true';
         setTimeout(() => {
             if (typeof this.resizeApp === 'function') this.resizeApp();
 
@@ -78,12 +78,14 @@ init() {
         this.populatePieceSets();
         this.#bindDOMEvents(); 
         this.initKeyboardEvents();
+        this.injectPanelToggle();
         this.initEditorBars();
         this.initSoundSettings();
         this.initVolume();
         this.initResizer();
         this.initSidebarResizers();
         this.initThemeButtons();
+        this.startClockRenderLoop();
         this.boardWrapper = document.getElementById('board-wrapper');
         if (this.boardWrapper) this.boardWrapper.style.width = '632px';
         
@@ -592,6 +594,95 @@ initThemeButtons() {
             });
         });
     }
+toggleAnalysisPanel() {
+        this.isAnalysisHidden = !this.isAnalysisHidden;
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('chess_hide_analysis', this.isAnalysisHidden);
+        }
+        
+        this.resizeApp();
+        
+        const btn = document.getElementById('toggleLeftPanelBtn');
+        const img = document.getElementById('toggleLeftPanelImg');
+        if (btn) {
+            if (this.isAnalysisHidden) {
+                btn.style.left = '-65px';
+                btn.style.bottom = '30px';
+                btn.style.borderColor = '#334155';
+                if (img) img.style.filter = 'grayscale(100%) opacity(0.5)';
+            } else {
+                btn.style.left = '20px';
+                btn.style.bottom = '20px';
+                btn.style.borderColor = '#0284c7';
+                if (img) img.style.filter = 'none';
+            }
+        }
+    }
+injectPanelToggle() {
+        if (document.getElementById('toggleLeftPanelBtn')) return;
+
+        const scaler = document.getElementById('app-scaler') || document.body;
+
+        const btn = document.createElement('button');
+        btn.id = 'toggleLeftPanelBtn';
+        
+        btn.innerHTML = `<img id="toggleLeftPanelImg" src="./assets/tabs-icon/rating-stats.svg" style="width: 28px; height: 28px; object-fit: contain; transition: filter 0.2s;">`; 
+        btn.title = "Toggle Analysis & Stats Panel";
+        const initialLeft = this.isAnalysisHidden ? '-65px' : '20px';
+        const initialBottom = this.isAnalysisHidden ? '30px' : '20px';
+
+        btn.style.cssText = `
+            position: absolute; 
+            bottom: ${initialBottom}; 
+            left: ${initialLeft}; 
+            z-index: 100; 
+            background: rgba(30, 30, 30, 0.85); 
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid #334155; 
+            border-radius: 12px; 
+            width: 50px; 
+            height: 50px; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Chuyển động mượt khi dời vị trí */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        `;
+        
+        btn.onmouseenter = () => { 
+            btn.style.background = 'rgba(45, 45, 45, 0.95)';
+            btn.style.borderColor = '#38bdf8';
+            btn.style.transform = 'translateY(-2px)';
+            btn.style.boxShadow = '0 6px 16px rgba(0,0,0,0.6)';
+            
+            const img = document.getElementById('toggleLeftPanelImg');
+            if (img) img.style.filter = 'drop-shadow(0px 0px 4px rgba(56, 189, 248, 0.8))'; 
+        };
+        
+        btn.onmouseleave = () => { 
+            btn.style.transform = 'translateY(0)';
+            btn.style.boxShadow = '0 4px 8px rgba(0,0,0,0.4)';
+            const img = document.getElementById('toggleLeftPanelImg');
+
+            if (this.isAnalysisHidden) {
+                btn.style.background = 'rgba(30, 30, 30, 0.85)';
+                btn.style.borderColor = '#334155';
+                if (img) img.style.filter = 'grayscale(100%) opacity(0.5)';
+            } else {
+                btn.style.background = 'rgba(30, 30, 30, 0.95)';
+                btn.style.borderColor = '#0284c7';
+                if (img) img.style.filter = 'none';
+            }
+        };
+
+        btn.onclick = () => this.toggleAnalysisPanel();
+        
+        scaler.appendChild(btn);
+        
+        btn.onmouseleave();
+    }
 switchTab(tabName) {
         if (!tabName) return;
         if (typeof this.hideGameOver === 'function') this.hideGameOver();
@@ -965,6 +1056,7 @@ resizeApp() {
         const game = this.#game;
         const isAnalysis = game ? game.mode === 'analysis' : false;
         const isStudy = game ? game.mode === 'study' : false;
+        const showAnalysis = isAnalysis && !this.isAnalysisHidden;
         const isWideMode = isAnalysis || isStudy;
         
         let isDuckMode = false;
@@ -1038,7 +1130,6 @@ resizeApp() {
                 el.style.maxHeight = safeSidebarHeight + 'px';
                 el.style.minHeight = '0px';
                 
-                // ✨ FIX: Permanently enforce scrolling on the left panels!
                 if (el.id === 'analysisPanel' || el.id === 'study-sidebar') {
                     el.style.overflowY = 'auto';
                     el.style.overflowX = 'hidden';
@@ -1046,7 +1137,14 @@ resizeApp() {
                     el.style.overflow = '';
                 }
                 
-                el.style.display = (el.id === 'study-sidebar' && !isStudy) || (el.id === 'analysisPanel' && !isAnalysis) ? 'none' : 'flex';
+                if (el.id === 'analysisPanel') {
+                    el.style.display = showAnalysis ? 'flex' : 'none';
+                } else if (el.id === 'study-sidebar') {
+                    el.style.display = isStudy ? 'flex' : 'none';
+                } else {
+                    el.style.display = 'flex';
+                }
+                
                 el.style.flexDirection = 'column';
             }
         });
@@ -1696,22 +1794,17 @@ renderHeaders() {
             const bar3 = document.getElementById(`spell-${prefix}-${spellType}-bar-3`);
 
             if (!iconEl) return;
-
-            // ✨ FIX 1: Restore the strict 3-charge expectation to match the engine!
+            iconEl.onclick = () => this.toggleSpell(spellType, colorClass);
             let cd = (state.mana && state.mana[colorClass] && state.mana[colorClass][spellType] !== undefined)
                 ? state.mana[colorClass][spellType]
                 : 3;
 
-            // Read remaining uses purely from the engine FEN.
             let uses = engineUses[colorClass][spellType];
 
-            // Update Badge
             if (countEl) {
                 countEl.innerText = uses;
                 countEl.style.display = uses > 0 ? 'block' : 'none';
             }
-
-            // ✨ FIX 2: Icon only lights up when charge hits 3
             const isReady = cd >= 3 && uses > 0;
             iconEl.style.opacity = isReady ? '1' : '0.4';
             iconEl.style.filter = isReady ? 'none' : 'grayscale(100%)';
@@ -1723,11 +1816,9 @@ renderHeaders() {
                 iconEl.style.borderColor = '#555';
                 iconEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.6)';
             }
-
-            // ✨ FIX 3: Always draw and evaluate all 3 bars!
             const drawBar = (bar, threshold) => {
                 if (bar) {
-                    bar.style.display = 'block'; // Force all 3 bars to be visible
+                    bar.style.display = 'block';
                     bar.style.backgroundColor = cd >= threshold ? '#82b41d' : '#444';
                     bar.style.boxShadow = cd >= threshold ? '0 0 4px #82b41d' : 'none';
                 }
@@ -2702,10 +2793,32 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
 
         const squares = this.squaresLayer.children;
         let frozenClusters = new Map();
-        if (state.gameMode === 'spell' && state.frozenSquares) {
+        if (state.gameMode === 'spell') {
+            let combinedFrozen = new Array(64).fill(false);
+            
+            if (state.frozenSquares) {
+                for (let i = 0; i < 64; i++) {
+                    if (state.frozenSquares[i]) combinedFrozen[i] = true;
+                }
+            }
+            
+            if (this.pendingSpell && (this.pendingSpell.spellType === 'freeze' || this.pendingSpell.type === 'freeze')) {
+                let target = this.pendingSpell.target !== undefined ? this.pendingSpell.target : this.pendingSpell.square;
+                let pr = Math.floor(target / 8);
+                let pc = target % 8;
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        let nr = pr + dr, nc = pc + dc;
+                        if (nr >= 0 && nr < 8 && nc >= 0 && nc < 8) {
+                            combinedFrozen[nr * 8 + nc] = true;
+                        }
+                    }
+                }
+            }
+
             let visited = new Set();
             for (let i = 0; i < 64; i++) {
-                if (state.frozenSquares[i] && !visited.has(i)) {
+                if (combinedFrozen[i] && !visited.has(i)) {
                     let cluster = [];
                     let q = [i];
                     visited.add(i);
@@ -2715,7 +2828,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                         let r = Math.floor(curr/8), c = curr%8;
                         let neighbors = [curr-8, curr+8, curr-1, curr+1, curr-9, curr-7, curr+7, curr+9];
                         for (let n of neighbors) {
-                            if (n >= 0 && n < 64 && state.frozenSquares[n] && !visited.has(n)) {
+                            if (n >= 0 && n < 64 && combinedFrozen[n] && !visited.has(n)) {
                                 let nr = Math.floor(n/8), nc = n%8;
                                 if (Math.abs(nr-r) <= 1 && Math.abs(nc-c) <= 1) {
                                     visited.add(n);
@@ -2727,10 +2840,8 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     let minR = 8, maxR = -1, minC = 8, maxC = -1;
                     for (let sq of cluster) {
                         let r = Math.floor(sq/8), c = sq%8;
-                        if (r < minR) minR = r;
-                        if (r > maxR) maxR = r;
-                        if (c < minC) minC = c;
-                        if (c > maxC) maxC = c;
+                        if (r < minR) minR = r; if (r > maxR) maxR = r;
+                        if (c < minC) minC = c; if (c > maxC) maxC = c;
                     }
                     let W = maxC - minC + 1;
                     let H = maxR - minR + 1;
@@ -2750,102 +2861,110 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             
             let sq = squares[v];
             sq.className = `square ${(r_log + c_log) % 2 === 0 ? 'light' : 'dark'}`;
-            sq.dataset.index = logical_i; 
-            sq.innerHTML = '';
-
-            sq.classList.remove('frozen');
+            sq.dataset.index = logical_i;
             let oldIce = sq.querySelector('.spell-ice');
-            if (oldIce) oldIce.remove();
             let oldPortal = sq.querySelector('.spell-portal');
-            if (oldPortal) oldPortal.remove();
+            
+            Array.from(sq.children).forEach(child => {
+                if (!child.classList.contains('spell-ice') && !child.classList.contains('spell-portal')) {
+                    child.remove();
+                }
+            });
+            let isFrozen = state.gameMode === 'spell' && frozenClusters.has(logical_i);
+            let mapping = isFrozen ? frozenClusters.get(logical_i) : null;
+            let mappingStr = mapping ? `${mapping.minR}_${mapping.minC}_${mapping.W}_${mapping.H}_${this.flipped}` : "";
 
-            if (state.gameMode === 'spell' && state.frozenSquares && state.frozenSquares[logical_i]) {
+            if (isFrozen) {
                 sq.classList.add('frozen');
-                let ice = document.createElement('div');
-                ice.className = 'spell-ice';
-                
-                let mapping = frozenClusters.get(logical_i);
-                if (mapping) {
-                    let r_log = Math.floor(logical_i / 8);
-                    let c_log = logical_i % 8;
+                if (!oldIce || oldIce.dataset.mapping !== mappingStr) {
+                    if (oldIce) oldIce.remove();
+                    let ice = document.createElement('div');
+                    ice.className = 'spell-ice';
+                    ice.dataset.mapping = mappingStr;
                     
-                    let x_offset = c_log - mapping.minC;
-                    let y_offset = r_log - mapping.minR;
-                    
-                    let vis_x = this.flipped ? (mapping.W - 1) - x_offset : x_offset;
-                    let vis_y = this.flipped ? (mapping.H - 1) - y_offset : y_offset;
-                    
-                    let bgX = mapping.W > 1 ? (vis_x / (mapping.W - 1)) * 100 : 50;
-                    let bgY = mapping.H > 1 ? (vis_y / (mapping.H - 1)) * 100 : 50;
-                    
-                    let svgSnowFlower = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><filter id='glow'><feGaussianBlur stdDeviation='1.2' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><g id='branch'><line x1='50' y1='50' x2='50' y2='0' stroke='%23fff' stroke-width='1.5' stroke-linecap='round'/><path d='M 50 6 L 30 26 M 50 6 L 70 26 M 50 14 L 28 36 M 50 14 L 72 36 M 50 22 L 32 40 M 50 22 L 68 40 M 50 30 L 38 42 M 50 30 L 62 42 M 50 38 L 42 46 M 50 38 L 58 46' stroke='%230af' stroke-width='1' fill='none' stroke-linecap='round'/><path d='M 50 10 L 40 20 M 50 10 L 60 20 M 50 18 L 36 32 M 50 18 L 64 32 M 50 26 L 40 36 M 50 26 L 60 36 M 50 34 L 44 40 M 50 34 L 56 40' stroke='%23fff' stroke-width='0.6' fill='none' stroke-linecap='round'/></g><g id='spike'><line x1='50' y1='50' x2='50' y2='10' stroke='%2308f' stroke-width='1.2' stroke-linecap='round'/><path d='M 50 16 L 38 28 M 50 16 L 62 28 M 50 26 L 42 34 M 50 26 L 58 34 M 50 36 L 46 40 M 50 36 L 54 40' stroke='%234df' stroke-width='0.8' fill='none' stroke-linecap='round'/></g></defs><g filter='url(%23glow)'><polygon points='50,15 75,25 85,50 75,75 50,85 25,75 15,50 25,25' fill='rgba(0,60,150,0.5)'/><use href='%23branch' transform='rotate(0 50 50)'/><use href='%23branch' transform='rotate(45 50 50)'/><use href='%23branch' transform='rotate(90 50 50)'/><use href='%23branch' transform='rotate(135 50 50)'/><use href='%23branch' transform='rotate(180 50 50)'/><use href='%23branch' transform='rotate(225 50 50)'/><use href='%23branch' transform='rotate(270 50 50)'/><use href='%23branch' transform='rotate(315 50 50)'/><use href='%23spike' transform='rotate(22.5 50 50)'/><use href='%23spike' transform='rotate(67.5 50 50)'/><use href='%23spike' transform='rotate(112.5 50 50)'/><use href='%23spike' transform='rotate(157.5 50 50)'/><use href='%23spike' transform='rotate(202.5 50 50)'/><use href='%23spike' transform='rotate(247.5 50 50)'/><use href='%23spike' transform='rotate(292.5 50 50)'/><use href='%23spike' transform='rotate(337.5 50 50)'/><polygon points='50,25 68,32 75,50 68,68 50,75 32,68 25,50 32,32' fill='rgba(0,150,255,0.4)' stroke='%23fff' stroke-width='1.5'/><polygon points='50,35 61,39 65,50 61,61 50,65 39,61 35,50 39,39' fill='rgba(150,240,255,0.6)' stroke='%230af' stroke-width='1.5'/><circle cx='50' cy='50' r='8' fill='%23fff'/><circle cx='50' cy='50' r='3' fill='%230bf'/></g></svg>`;
+                    if (mapping) {
+                        let x_offset = c_log - mapping.minC;
+                        let y_offset = r_log - mapping.minR;
+                        let vis_x = this.flipped ? (mapping.W - 1) - x_offset : x_offset;
+                        let vis_y = this.flipped ? (mapping.H - 1) - y_offset : y_offset;
+                        let bgX = mapping.W > 1 ? (vis_x / (mapping.W - 1)) * 100 : 50;
+                        let bgY = mapping.H > 1 ? (vis_y / (mapping.H - 1)) * 100 : 50;
+                        
+                        let svgSnowFlower = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><filter id='glow'><feGaussianBlur stdDeviation='1.2' result='blur'/><feMerge><feMergeNode in='blur'/><feMergeNode in='SourceGraphic'/></feMerge></filter><g id='branch'><line x1='50' y1='50' x2='50' y2='0' stroke='%23fff' stroke-width='1.5' stroke-linecap='round'/><path d='M 50 6 L 30 26 M 50 6 L 70 26 M 50 14 L 28 36 M 50 14 L 72 36 M 50 22 L 32 40 M 50 22 L 68 40 M 50 30 L 38 42 M 50 30 L 62 42 M 50 38 L 42 46 M 50 38 L 58 46' stroke='%230af' stroke-width='1' fill='none' stroke-linecap='round'/><path d='M 50 10 L 40 20 M 50 10 L 60 20 M 50 18 L 36 32 M 50 18 L 64 32 M 50 26 L 40 36 M 50 26 L 60 36 M 50 34 L 44 40 M 50 34 L 56 40' stroke='%23fff' stroke-width='0.6' fill='none' stroke-linecap='round'/></g><g id='spike'><line x1='50' y1='50' x2='50' y2='10' stroke='%2308f' stroke-width='1.2' stroke-linecap='round'/><path d='M 50 16 L 38 28 M 50 16 L 62 28 M 50 26 L 42 34 M 50 26 L 58 34 M 50 36 L 46 40 M 50 36 L 54 40' stroke='%234df' stroke-width='0.8' fill='none' stroke-linecap='round'/></g></defs><g filter='url(%23glow)'><polygon points='50,15 75,25 85,50 75,75 50,85 25,75 15,50 25,25' fill='rgba(0,60,150,0.5)'/><use href='%23branch' transform='rotate(0 50 50)'/><use href='%23branch' transform='rotate(45 50 50)'/><use href='%23branch' transform='rotate(90 50 50)'/><use href='%23branch' transform='rotate(135 50 50)'/><use href='%23branch' transform='rotate(180 50 50)'/><use href='%23branch' transform='rotate(225 50 50)'/><use href='%23branch' transform='rotate(270 50 50)'/><use href='%23branch' transform='rotate(315 50 50)'/><use href='%23spike' transform='rotate(22.5 50 50)'/><use href='%23spike' transform='rotate(67.5 50 50)'/><use href='%23spike' transform='rotate(112.5 50 50)'/><use href='%23spike' transform='rotate(157.5 50 50)'/><use href='%23spike' transform='rotate(202.5 50 50)'/><use href='%23spike' transform='rotate(247.5 50 50)'/><use href='%23spike' transform='rotate(292.5 50 50)'/><use href='%23spike' transform='rotate(337.5 50 50)'/><polygon points='50,25 68,32 75,50 68,68 50,75 32,68 25,50 32,32' fill='rgba(0,150,255,0.4)' stroke='%23fff' stroke-width='1.5'/><polygon points='50,35 61,39 65,50 61,61 50,65 39,61 35,50 39,39' fill='rgba(150,240,255,0.6)' stroke='%230af' stroke-width='1.5'/><circle cx='50' cy='50' r='8' fill='%23fff'/><circle cx='50' cy='50' r='3' fill='%230bf'/></g></svg>`;
 
-                    let bgSize = `${mapping.W * 100}% ${mapping.H * 100}%`;
-                    let bgPos = `${bgX}% ${bgY}%`;
+                        let bgSize = `${mapping.W * 100}% ${mapping.H * 100}%`;
+                        let bgPos = `${bgX}% ${bgY}%`;
 
-                    ice.style.cssText = `
-                        position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-                        background-image: 
-                            url("${svgSnowFlower}"),
-                            repeating-conic-gradient(from 0deg at 50% 50%, transparent 0deg, transparent 3deg, rgba(200, 240, 255, 0.3) 4deg, transparent 5deg),
-                            repeating-conic-gradient(from 1.5deg at 50% 50%, transparent 0deg, transparent 5deg, rgba(50, 150, 255, 0.25) 6deg, transparent 7deg),
-                            radial-gradient(circle at 50% 50%, rgba(40, 180, 255, 0.6) 0%, rgba(10, 60, 160, 0.85) 45%, rgba(2, 10, 30, 0.98) 100%),
-                            repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255, 255, 255, 0.15) 6px, transparent 7px),
-                            repeating-linear-gradient(-45deg, transparent, transparent 9px, rgba(100, 200, 255, 0.15) 10px, transparent 11px);
-                        background-size: ${bgSize}, ${bgSize}, ${bgSize}, ${bgSize}, ${bgSize}, ${bgSize};
-                        background-position: ${bgPos}, ${bgPos}, ${bgPos}, ${bgPos}, ${bgPos}, ${bgPos};
-                        opacity: 0.95; pointer-events: none; z-index: 20; 
-                        backdrop-filter: blur(5px) brightness(0.5);
-                        animation: iceCrystallize 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards, icePulse 2.5s infinite alternate ease-in-out 0.5s;
-                        box-sizing: border-box;
-                    `;
-                    
-                    let rad = '10px';
-                    if (vis_x === 0 && vis_y === 0) ice.style.borderTopLeftRadius = rad;
-                    if (vis_x === mapping.W - 1 && vis_y === 0) ice.style.borderTopRightRadius = rad;
-                    if (vis_x === 0 && vis_y === mapping.H - 1) ice.style.borderBottomLeftRadius = rad;
-                    if (vis_x === mapping.W - 1 && vis_y === mapping.H - 1) ice.style.borderBottomRightRadius = rad;
+                        ice.style.cssText = `
+                            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+                            background-image: 
+                                url("${svgSnowFlower}"),
+                                repeating-conic-gradient(from 0deg at 50% 50%, transparent 0deg, transparent 3deg, rgba(200, 240, 255, 0.3) 4deg, transparent 5deg),
+                                repeating-conic-gradient(from 1.5deg at 50% 50%, transparent 0deg, transparent 5deg, rgba(50, 150, 255, 0.25) 6deg, transparent 7deg),
+                                radial-gradient(circle at 50% 50%, rgba(40, 180, 255, 0.6) 0%, rgba(10, 60, 160, 0.85) 45%, rgba(2, 10, 30, 0.98) 100%),
+                                repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255, 255, 255, 0.15) 6px, transparent 7px),
+                                repeating-linear-gradient(-45deg, transparent, transparent 9px, rgba(100, 200, 255, 0.15) 10px, transparent 11px);
+                            background-size: ${bgSize}, ${bgSize}, ${bgSize}, ${bgSize}, ${bgSize}, ${bgSize};
+                            background-position: ${bgPos}, ${bgPos}, ${bgPos}, ${bgPos}, ${bgPos}, ${bgPos};
+                            opacity: 0.95; pointer-events: none; z-index: 20; 
+                            backdrop-filter: blur(5px) brightness(0.5);
+                            animation: iceCrystallize 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards, icePulse 2.5s infinite alternate ease-in-out 0.5s;
+                            box-sizing: border-box;
+                        `;
+                        
+                        let rad = '10px';
+                        if (vis_x === 0 && vis_y === 0) ice.style.borderTopLeftRadius = rad;
+                        if (vis_x === mapping.W - 1 && vis_y === 0) ice.style.borderTopRightRadius = rad;
+                        if (vis_x === 0 && vis_y === mapping.H - 1) ice.style.borderBottomLeftRadius = rad;
+                        if (vis_x === mapping.W - 1 && vis_y === mapping.H - 1) ice.style.borderBottomRightRadius = rad;
 
-                    let shadows = [];
-                    let glowOuter = 'rgba(0, 120, 255, 0.9)'; 
-                    let glowInner = 'rgba(100, 220, 255, 0.6)';
-                    let borderStr = '1px solid rgba(150, 240, 255, 0.8)';
-                    
-                    if (vis_y === 0) { shadows.push(`inset 0 10px 12px -5px ${glowOuter}, inset 0 2px 3px ${glowInner}`); ice.style.borderTop = borderStr; }
-                    if (vis_y === mapping.H - 1) { shadows.push(`inset 0 -10px 12px -5px ${glowOuter}, inset 0 -2px 3px ${glowInner}`); ice.style.borderBottom = borderStr; }
-                    if (vis_x === 0) { shadows.push(`inset 10px 0 12px -5px ${glowOuter}, inset 2px 0 3px ${glowInner}`); ice.style.borderLeft = borderStr; }
-                    if (vis_x === mapping.W - 1) { shadows.push(`inset -10px 0 12px -5px ${glowOuter}, inset -2px 0 3px ${glowInner}`); ice.style.borderRight = borderStr; }
-                    
-                    if (shadows.length > 0) ice.style.boxShadow = shadows.join(', ');
+                        let shadows = [];
+                        let glowOuter = 'rgba(0, 120, 255, 0.9)'; 
+                        let glowInner = 'rgba(100, 220, 255, 0.6)';
+                        let borderStr = '1px solid rgba(150, 240, 255, 0.8)';
+                        
+                        if (vis_y === 0) { shadows.push(`inset 0 10px 12px -5px ${glowOuter}, inset 0 2px 3px ${glowInner}`); ice.style.borderTop = borderStr; }
+                        if (vis_y === mapping.H - 1) { shadows.push(`inset 0 -10px 12px -5px ${glowOuter}, inset 0 -2px 3px ${glowInner}`); ice.style.borderBottom = borderStr; }
+                        if (vis_x === 0) { shadows.push(`inset 10px 0 12px -5px ${glowOuter}, inset 2px 0 3px ${glowInner}`); ice.style.borderLeft = borderStr; }
+                        if (vis_x === mapping.W - 1) { shadows.push(`inset -10px 0 12px -5px ${glowOuter}, inset -2px 0 3px ${glowInner}`); ice.style.borderRight = borderStr; }
+                        
+                        if (shadows.length > 0) ice.style.boxShadow = shadows.join(', ');
+                    }
+                    if (!document.getElementById('ice-anim-style')) {
+                        let style = document.createElement('style'); style.id = 'ice-anim-style';
+                        style.innerHTML = `
+                            @keyframes iceCrystallize { 0% { opacity: 0; transform: scale(0.8) rotate(-5deg); filter: brightness(2); backdrop-filter: blur(0px); } 100% { opacity: 0.95; transform: scale(1) rotate(0deg); filter: brightness(1); backdrop-filter: blur(5px) brightness(0.5); } }
+                            @keyframes icePulse { 0% { filter: brightness(1) drop-shadow(0 0 2px rgba(0, 100, 255, 0.3)); } 100% { filter: brightness(1.25) drop-shadow(0 0 15px rgba(0, 180, 255, 0.9)); } }
+                        `;
+                        document.head.appendChild(style);
+                    }
+                    sq.appendChild(ice);
                 }
-                
-                if (!document.getElementById('ice-anim-style')) {
-                    let style = document.createElement('style'); style.id = 'ice-anim-style';
-                    style.innerHTML = `
-                        @keyframes iceCrystallize { 
-                            0% { opacity: 0; transform: scale(0.8) rotate(-5deg); filter: brightness(2); backdrop-filter: blur(0px); } 
-                            100% { opacity: 0.95; transform: scale(1) rotate(0deg); filter: brightness(1); backdrop-filter: blur(5px) brightness(0.5); } 
-                        }
-                        @keyframes icePulse {
-                            0% { filter: brightness(1) drop-shadow(0 0 2px rgba(0, 100, 255, 0.3)); }
-                            100% { filter: brightness(1.25) drop-shadow(0 0 15px rgba(0, 180, 255, 0.9)); }
-                        }
-                    `;
-                    document.head.appendChild(style);
-                }
-                sq.appendChild(ice);
+            } else {
+                sq.classList.remove('frozen');
+                if (oldIce) oldIce.remove();
             }
 
-            if (state.gameMode === 'spell' && state.jump_sq !== undefined && state.jump_sq === logical_i) {
-                let portal = document.createElement('div');
-                portal.className = 'spell-portal';
-                portal.style.cssText = `position:absolute; top:10%; left:10%; width:80%; height:80%; background:radial-gradient(circle, rgba(0,0,0,0.95) 30%, rgba(138,43,226,0.8) 60%, transparent 85%); border-radius:50%; pointer-events:none; z-index:15; box-shadow: inset 0 0 10px #000, 0 0 20px #8a2be2; animation: pulsePortal 2s infinite alternate;`;
-                if (!document.getElementById('portal-anim-style')) {
-                    let style = document.createElement('style'); style.id = 'portal-anim-style';
-                    style.innerHTML = `@keyframes pulsePortal { 0% { transform: scale(0.95); opacity: 0.8; } 100% { transform: scale(1.05); opacity: 1; } }`;
-                    document.head.appendChild(style);
+            let isPortal = state.gameMode === 'spell' && state.jump_sq !== undefined && state.jump_sq === logical_i;
+            if (this.pendingSpell && (this.pendingSpell.spellType === 'jump' || this.pendingSpell.type === 'jump')) {
+                let target = this.pendingSpell.target !== undefined ? this.pendingSpell.target : this.pendingSpell.square;
+                if (target === logical_i) isPortal = true;
+            }
+
+            if (isPortal) {
+                if (!oldPortal) {
+                    let portal = document.createElement('div');
+                    portal.className = 'spell-portal';
+                    portal.style.cssText = `position:absolute; top:10%; left:10%; width:80%; height:80%; background:radial-gradient(circle, rgba(0,0,0,0.95) 30%, rgba(138,43,226,0.8) 60%, transparent 85%); border-radius:50%; pointer-events:none; z-index:15; box-shadow: inset 0 0 10px #000, 0 0 20px #8a2be2; animation: pulsePortal 2s infinite alternate;`;
+                    if (!document.getElementById('portal-anim-style')) {
+                        let style = document.createElement('style'); style.id = 'portal-anim-style';
+                        style.innerHTML = `@keyframes pulsePortal { 0% { transform: scale(0.95); opacity: 0.8; } 100% { transform: scale(1.05); opacity: 1; } }`;
+                        document.head.appendChild(style);
+                    }
+                    sq.appendChild(portal);
                 }
-                sq.appendChild(portal);
+            } else {
+                if (oldPortal) oldPortal.remove();
             }
             if (this.coordsPosition === 'inside') {
                 const rankVal = 8 - r_log;
@@ -4813,7 +4932,41 @@ renderAnalysisLine(index, type, val, moves, startFen) {
             console.error("[UI RENDER FATAL ERROR]", err);
         }
     }
-hoverEngineMove(fen, e, duckSq = -1) {
+    initPreviewGridDOM() {
+        const grid = document.getElementById('previewGrid');
+        if (!grid || grid.children.length === 64) return;
+        
+        grid.innerHTML = ''; 
+        const currentTheme = document.getElementById('assetType')?.value;
+        const isDisguised = currentTheme === 'disguised';
+        
+        for (let i = 0; i < 64; i++) {
+            let r = Math.floor(i / 8); let c = i % 8;
+            const isLight = (r + c) % 2 === 0;
+            const sq = document.createElement('div');
+            sq.className = `preview-square ${isLight ? 'light' : 'dark'}`;
+            sq.style.cssText = 'position:relative; box-sizing:border-box; display:flex; justify-content:center; align-items:center; overflow:hidden;';
+            
+            // Xử lý Giao diện ngụy trang luôn 1 lần ở đây
+            if (isDisguised) {
+                const colorClass = isLight ? 'light' : 'dark';
+                const cleanSq = document.querySelector(`.square.${colorClass}:not(.last-move):not(.selected):not(.in-check)`);
+                if (cleanSq) {
+                    const comp = window.getComputedStyle(cleanSq);
+                    sq.style.backgroundColor = comp.backgroundColor;
+                    const bStyle = comp.borderTopStyle;
+                    sq.style.border = (bStyle && bStyle !== 'none') ? `${comp.borderTopWidth} ${bStyle} ${comp.borderTopColor}` : '1px solid #555';
+                } else {
+                    sq.style.backgroundColor = '#2c2c2c'; sq.style.border = '1px solid #555';   
+                }
+            } else {
+                const gridColor = this.currentGridColor || 'transparent';
+                sq.style.border = gridColor !== 'transparent' ? `1px solid ${gridColor}` : 'none';
+            }
+            grid.appendChild(sq);
+        }
+    }
+    hoverEngineMove(fen, e, duckSq = -1) {
         const popup = document.getElementById('previewPopup');
         const grid = document.getElementById('previewGrid');
         if (!popup || !grid) return;
@@ -4833,7 +4986,8 @@ hoverEngineMove(fen, e, duckSq = -1) {
         if (top + scaledSize > window.innerHeight) top = rect.top - scaledSize - 10; 
         
         popup.style.top = top + 'px'; popup.style.left = left + 'px'; popup.style.display = 'block';
-        grid.innerHTML = ''; 
+        this.initPreviewGridDOM();
+        const squares = grid.children;
         
         let targetGridIndex = -1;
         if (duckSq !== -1 && duckSq !== undefined && duckSq !== null) {
@@ -4852,50 +5006,53 @@ hoverEngineMove(fen, e, duckSq = -1) {
                     let renderPiece = char === '*' ? null : char;
                     let isAliceB = false;
                     
-                    // ✨ FIX: Check for Alice B board marker (e.g. ~)
                     if (i + 1 < rankStr.length && rankStr[i+1] === '~') {
-                        isAliceB = true;
-                        i++; // Skip the '~'
+                        isAliceB = true; i++; 
                     }
 
                     if (currentSq === targetGridIndex) renderPiece = 'duck';
-                    this.renderPreviewSquare(grid, r, fileIdx, renderPiece, isAliceB); 
+                    
+                    // Truyền thẳng vào ô DOM có sẵn
+                    this.renderPreviewSquare(squares[currentSq], renderPiece, isAliceB); 
                     fileIdx++;
                 } else {
                     let empties = parseInt(char); 
                     for (let k = 0; k < empties; k++) {
                         let currentSq = r * 8 + fileIdx;
-                        this.renderPreviewSquare(grid, r, fileIdx, (currentSq === targetGridIndex) ? 'duck' : null);
+                        this.renderPreviewSquare(squares[currentSq], (currentSq === targetGridIndex) ? 'duck' : null, false);
                         fileIdx++;
                     }
                 }
             }
         }
-    }
-renderPreviewSquare(container, r, c, pieceChar, isAliceB = false) {
-        const isLight = (r + c) % 2 === 0;
-        const sq = document.createElement('div');
-        sq.className = `preview-square ${isLight ? 'light' : 'dark'}`;
-        sq.style.cssText = 'position:relative; box-sizing:border-box; display:flex; justify-content:center; align-items:center; overflow:hidden;';
-        
+
         const currentTheme = document.getElementById('assetType')?.value;
         const isDisguised = currentTheme === 'disguised';
-
         if (isDisguised) {
-            const colorClass = isLight ? 'light' : 'dark';
-            const cleanSq = document.querySelector(`.square.${colorClass}:not(.last-move):not(.selected):not(.in-check)`);
-            if (cleanSq) {
-                const comp = window.getComputedStyle(cleanSq);
-                sq.style.backgroundColor = comp.backgroundColor;
-                const bStyle = comp.borderTopStyle;
-                sq.style.border = (bStyle && bStyle !== 'none') ? `${comp.borderTopWidth} ${bStyle} ${comp.borderTopColor}` : '1px solid #555';
-            } else {
-                sq.style.backgroundColor = '#2c2c2c'; sq.style.border = '1px solid #555';   
+            grid.classList.add('theme-disguised');
+            const mainBoard = document.getElementById('chessBoard');
+            if (mainBoard) {
+                const compBoard = window.getComputedStyle(mainBoard);
+                const bbStyle = compBoard.borderTopStyle;
+                if (bbStyle && bbStyle !== 'none') grid.style.border = `${compBoard.borderTopWidth} ${bbStyle} ${compBoard.borderTopColor}`;
             }
         } else {
-            const gridColor = this.currentGridColor || 'transparent';
-            sq.style.border = gridColor !== 'transparent' ? `1px solid ${gridColor}` : 'none';
+            grid.classList.remove('theme-disguised'); grid.style.border = ''; 
         }
+
+        if (this.flipped) {
+            grid.style.transform = 'rotate(180deg)';
+            grid.querySelectorAll('.preview-piece').forEach(p => p.style.transform = 'rotate(180deg)');
+        } else {
+            grid.style.transform = 'none';
+            grid.querySelectorAll('.preview-piece').forEach(p => p.style.transform = 'none');
+        }
+    }
+    renderPreviewSquare(sqDOM, pieceChar, isAliceB = false) {
+        const stateSig = (pieceChar || 'empty') + (isAliceB ? '_A' : '');
+        if (sqDOM._stateSig === stateSig) return;
+
+        sqDOM.innerHTML = '';
         
         if (pieceChar) {
             let color, type;
@@ -4912,42 +5069,12 @@ renderPreviewSquare(container, r, c, pieceChar, isAliceB = false) {
             }
 
             const pDiv = document.createElement('div'); pDiv.className = 'preview-piece';
-            
-            // ✨ ALICE CHESS FIX: Apply the same visual filter used on the main board
-            let aliceStyle = '';
-            if (isAliceB) {
-                aliceStyle = 'filter: hue-rotate(180deg) drop-shadow(0 0 5px cyan); opacity: 0.6; transform: scale(0.80);';
-            }
-            
+            let aliceStyle = isAliceB ? 'filter: hue-rotate(180deg) drop-shadow(0 0 5px cyan); opacity: 0.6; transform: scale(0.80);' : '';
             pDiv.style.cssText = `position:absolute; top:0; left:0; width:100%; height:100%; display:flex; justify-content:center; align-items:center; transform-origin:center; ${aliceStyle}`;
             pDiv.innerHTML = htmlBuffer || '';
-            sq.appendChild(pDiv);
+            sqDOM.appendChild(pDiv);
         }
-        
-        container.appendChild(sq);
-        
-        const grid = document.getElementById('previewGrid');
-        if (grid) {
-            if (isDisguised) {
-                grid.classList.add('theme-disguised');
-                const mainBoard = document.getElementById('chessBoard');
-                if (mainBoard) {
-                    const compBoard = window.getComputedStyle(mainBoard);
-                    const bbStyle = compBoard.borderTopStyle;
-                    if (bbStyle && bbStyle !== 'none') grid.style.border = `${compBoard.borderTopWidth} ${bbStyle} ${compBoard.borderTopColor}`;
-                }
-            } else {
-                grid.classList.remove('theme-disguised'); grid.style.border = ''; 
-            }
-
-            if (this.flipped) {
-                grid.style.transform = 'rotate(180deg)';
-                grid.querySelectorAll('.preview-piece').forEach(p => p.style.transform = 'rotate(180deg)');
-            } else {
-                grid.style.transform = 'none';
-                grid.querySelectorAll('.preview-piece').forEach(p => p.style.transform = 'none');
-            }
-        }
+        sqDOM._stateSig = stateSig;
     }
 stopHoverEngineMove() {
         const popup = document.getElementById('previewPopup');
@@ -4986,6 +5113,15 @@ getPly(node) {
 updateStatus(msg) {
         const box = document.getElementById('commentaryBox');
         if (box) box.innerText = msg;
+    }
+    startClockRenderLoop() {
+        const renderLoop = () => {
+            if (this.#game && this.#game.isPlayingLiveGame && !this.#game.gameOver && !this.#game.isPaused) {
+                this.updateClocks(); 
+            }
+            requestAnimationFrame(renderLoop);
+        };
+        requestAnimationFrame(renderLoop);
     }
 getPieceHTML(piece) {
         if (piece.type === 'duck') return `<img src="assets/tabs-icon/variant-duckchess.svg" style="width:100%; height:100%; display:block; pointer-events:none; z-index: 100;">`;
@@ -5785,31 +5921,63 @@ quickImport() {
         document.getElementById('quickImportModal').style.display = 'none';
     }
 async _drawBoardToCanvas(canvas, ctx) { 
+        // 1. Vẽ phông nền bàn cờ
         ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--board-light').trim() || '#f0d9b5';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         const darkColor = getComputedStyle(document.documentElement).getPropertyValue('--board-dark').trim() || '#b58863';
         const canvasSq = canvas.width / 8;
-        for (let r = 0; r < 8; r++) { for (let c = 0; c < 8; c++) { if ((r + c) % 2 !== 0) { ctx.fillStyle = darkColor; ctx.fillRect(c * canvasSq, r * canvasSq, canvasSq, canvasSq); } } }
         
-        const piecesLayer = document.getElementById('piecesLayer'); if (!piecesLayer) return;
-        const pieces = Array.from(piecesLayer.children).filter(p => { const style = window.getComputedStyle(p); return style.display !== 'none' && style.opacity !== '0' && style.visibility !== 'hidden'; });
+        for (let r = 0; r < 8; r++) { 
+            for (let c = 0; c < 8; c++) { 
+                if ((r + c) % 2 !== 0) { 
+                    ctx.fillStyle = darkColor; 
+                    ctx.fillRect(c * canvasSq, r * canvasSq, canvasSq, canvasSq); 
+                } 
+            } 
+        }
         
-        const drawPromises = pieces.map(p => {
-            return new Promise((resolve) => {
-                const left = parseFloat(p.style.transform.match(/translate\(([-\d.]+)%,\s*([-\d.]+)%\)/)[1]);
-                const top = parseFloat(p.style.transform.match(/translate\(([-\d.]+)%,\s*([-\d.]+)%\)/)[2]);
-                const col = Math.round(left / 100); const row = Math.round(top / 100);
-                if (col < 0 || col > 7 || row < 0 || row > 7) { resolve(); return; }
+        // 2. TỐI ƯU CỰC HẠN: Lấy mảng gốc của Engine và chập thẳng ảnh Cache (O(1))
+        const state = this.#game ? this.#game.getReader() : null;
+        if (!state || !state.board || !this._imgCache) return;
+
+        for (let i = 0; i < 64; i++) {
+            const p = state.board[i];
+            if (p) {
+                let r = Math.floor(i / 8);
+                let c = i % 8;
+                if (this.flipped) { r = 7 - r; c = 7 - c; }
                 
-                let src = null; const img = p.tagName.toLowerCase() === 'img' ? p : p.querySelector('img'); const svg = p.querySelector('svg'); const bgImg = window.getComputedStyle(p).backgroundImage;
-                if (img && img.src) { src = img.src; } else if (svg) { const svgString = new XMLSerializer().serializeToString(svg); src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString))); } else if (bgImg && bgImg !== 'none' && bgImg.includes('url')) { src = bgImg.slice(4, -1).replace(/"/g, "").replace(/'/g, ""); }
-                if (!src) { resolve(); return; }
-                const tempImg = new Image(); tempImg.crossOrigin = "Anonymous";
-                tempImg.onload = () => { ctx.drawImage(tempImg, col * canvasSq, row * canvasSq, canvasSq, canvasSq); resolve(); };
-                tempImg.onerror = () => resolve(); tempImg.src = src;
-            });
-        });
-        await Promise.all(drawPromises);
+                // Định tuyến con trỏ ảnh (O(1))
+                let code = p.type === 'duck' ? 'duck' : (p.color + p.type.toUpperCase());
+                const cachedImg = this._imgCache[code];
+                
+                if (cachedImg) {
+                    // Áp dụng bộ lọc quang học cho Alice Chess
+                    if (p.isBoardB) {
+                        ctx.filter = 'hue-rotate(180deg) drop-shadow(0 0 5px cyan)';
+                        ctx.globalAlpha = 0.6;
+                    }
+                    
+                    ctx.drawImage(cachedImg, c * canvasSq, r * canvasSq, canvasSq, canvasSq);
+                    
+                    if (p.isBoardB) {
+                        ctx.filter = 'none';
+                        ctx.globalAlpha = 1.0;
+                    }
+                }
+            }
+        }
+
+        // 3. Render ngoại lệ (Duck Chess) nếu con vịt không nằm trong mảng cờ
+        if (state.gameMode === 'duck' && state.duck_sq !== undefined && state.duck_sq !== -1) {
+            let dr = Math.floor(state.duck_sq / 8);
+            let dc = state.duck_sq % 8;
+            if (this.flipped) { dr = 7 - dr; dc = 7 - dc; }
+            
+            if (this._imgCache['duck']) {
+                ctx.drawImage(this._imgCache['duck'], dc * canvasSq, dr * canvasSq, canvasSq, canvasSq);
+            }
+        }
     }
 generateGIF() { 
         const previewArea = document.getElementById('gifPreviewArea'); 
@@ -6826,8 +6994,12 @@ setBackground(input) {
 updatePieceImagesSafe() {
         const selector = document.getElementById('assetType');
         if (selector) this.pieceTheme = selector.value;
-        if (this.pieceTheme === 'local') return;
-        this.renderBoard(false);
+        if (this.pieceTheme === 'local' && !this.customPieces) return;
+        
+        // Đồng bộ hóa: Load bộ nhớ đệm xong rồi mới nhả Render
+        this.preloadPieceImages().then(() => {
+            this.renderBoard(false);
+        });
     }
 updatePlayerNames(topName, bottomName, skipRender = false) {
         if (this.flipped) {
@@ -7308,7 +7480,6 @@ castSpell(spellType, targetSq) {
         }
         this.renderFullGraph(); 
     }
-
     changeGraphZoom(val) {
         this.graphZoom = parseFloat(val);
         const label = document.getElementById('graphZoomLabel');
@@ -7387,84 +7558,6 @@ castSpell(spellType, targetSq) {
             this.renderFullGraph();
         }
     }
-    renderFullGraph(skipCamera = false) {
-        if (typeof this.initGraphEvents === 'function') this.initGraphEvents();
-        if (!this.graphMode && typeof localStorage !== 'undefined') {
-            this.graphMode = localStorage.getItem('chess_graph_mode') || 'focused';
-        }
-        const container = document.getElementById('treeGraphContainer');
-        const tab = document.getElementById('tabContent-Graph');
-        if (!container || !this.#game || !this.#game.rootNode) return;
-        const selSource = document.getElementById('graphSourceSelect');
-        const chapWrapper = document.getElementById('graphChapterWrapper');
-        const chapSelect = document.getElementById('graphChapterSelect');
-        const flipSelect = document.getElementById('graphFlipSelect');
-
-        if (flipSelect) flipSelect.value = this.flipped ? 'b' : 'w';
-
-        if (selSource) {
-            const isStudy = (this._previousTabBeforeGraph === 'study' || this._previousTabBeforeGraph === 'trainer');
-            selSource.value = isStudy ? 'study' : 'analysis';
-
-            if (isStudy && chapWrapper && chapSelect && this.#game.chapters) {
-                chapWrapper.style.display = 'flex';
-                chapSelect.innerHTML = '';
-                this.#game.chapters.forEach((ch, idx) => {
-                    const opt = document.createElement('option');
-                    opt.value = idx;
-                    opt.text = `${idx + 1}. ${ch.title}`;
-                    if (idx === this.#game.activeChapterIndex) opt.selected = true;
-                    chapSelect.appendChild(opt);
-                });
-            } else if (chapWrapper) {
-                chapWrapper.style.display = 'none';
-            }
-        }
-
-        container.innerHTML = '';
-        const svgNS = "http://www.w3.org/2000/svg";
-        
-        const zoomWrapper = document.createElement('div');
-        zoomWrapper.id = 'graphZoomWrapper';
-        const currentZoom = this.graphZoom || 1;
-        zoomWrapper.style.cssText = `position: relative; display: inline-block; transform: scale(${currentZoom}); transform-origin: top left; transition: transform 0.1s ease;`;
-
-        const svgLayer = document.createElementNS(svgNS, "svg");
-        svgLayer.setAttribute("class", "graph-svg-layer");
-        zoomWrapper.appendChild(svgLayer);
-
-        const treeRoot = document.createElement('div');
-        treeRoot.id = 'graphTreeRoot';
-        treeRoot.style.cssText = "display: inline-block; width: max-content; height: max-content;";
-        
-        let activePathIds = new Set();
-        let curr = this.#game.currentNode;
-        while(curr) { activePathIds.add(curr.id); curr = curr.parent; }
-
-        this.renderGraphNode(this.#game.rootNode, treeRoot, this.#game.currentNode, 0, activePathIds, this.getPly(this.#game.currentNode));
-        zoomWrapper.appendChild(treeRoot);
-        container.appendChild(zoomWrapper); 
-
-        requestAnimationFrame(() => {
-            const w = treeRoot.offsetWidth;
-            const h = treeRoot.offsetHeight;
-            zoomWrapper.style.width = w + 'px';
-            zoomWrapper.style.height = h + 'px';
-            zoomWrapper.style.marginRight = (w * currentZoom - w) + 'px';
-            zoomWrapper.style.marginBottom = (h * currentZoom - h) + 'px';
-            
-            this.drawGraphLines(zoomWrapper, svgLayer);
-
-            const modeSelect = document.getElementById('graphModeSelect');
-            if (modeSelect) modeSelect.value = this.graphMode || 'focused';
-            const zoomSlider = document.getElementById('graphZoomSlider');
-            if (zoomSlider) zoomSlider.value = this.graphZoom || 1;
-            
-            if (!skipCamera) {
-                this.scrollToActiveGraphNode('auto');
-            }
-        });
-    }
     scrollToActiveGraphNode(behavior = 'smooth', targetId = null) {
         const tab = document.getElementById('tabContent-Graph');
         const activeEl = targetId ? document.querySelector(`.g-node-content[data-id="${targetId}"]`) : document.querySelector('.g-node-content.active');
@@ -7519,139 +7612,6 @@ castSpell(spellType, targetSq) {
         }
         
         requestAnimationFrame(() => this._animateCamera());
-    }
-    renderGraphNode(node, container, activeNode, depth, activePathIds, activeDepth) {
-        if (!node) return;
-
-        const mode = this.graphMode || 'focused';
-        const isFullMode = (mode === 'full');
-
-        let myDepth = this.getPly(node);
-        let isOnActivePath = activePathIds.has(node.id);
-        let isPast = isOnActivePath && myDepth < activeDepth;
-
-        if (!isFullMode && !isOnActivePath && myDepth > activeDepth + 2) return;
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'g-node-wrapper';
-
-        const content = document.createElement('div');
-        content.className = 'g-node-content';
-        content.dataset.id = node.id;
-        
-        if (node === activeNode) {
-            content.classList.add('g-focus', 'active');
-        } 
-        else if (node.parent === activeNode) {
-            content.classList.add('g-focus');
-        } 
-        else if (isOnActivePath && isPast) {
-            if (activeDepth - myDepth >= 2) content.classList.add('g-blur-past');
-            else content.classList.add('g-focus');
-        } 
-        else {
-            content.classList.add('g-blur-future');
-        }
-
-        const boardDiv = document.createElement('div');
-        boardDiv.className = 'g-mini-board';
-        
-        const layout = this.parseFenToGridLocal(node.fen);
-        let piecesHtml = '';
-        
-        for (let i = 0; i < 64; i++) {
-            let logical_i = this.flipped ? 63 - i : i;
-            if (layout[logical_i]) {
-                const color = layout[logical_i][0];
-                const type = layout[logical_i][1].toUpperCase();
-                const rawHTML = this.getPieceHTML({ color, type });
-                
-                if (rawHTML) {
-                    let r = Math.floor(i / 8); 
-                    let c = i % 8;
-                    let trimmed = rawHTML.trim();
-                    let imgTag = trimmed.startsWith('<svg') 
-                        ? `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}" style="width:100%;height:100%;object-fit:contain;pointer-events:none;">`
-                        : trimmed.replace('<img', '<img style="width:100%;height:100%;object-fit:contain;pointer-events:none;"');
-                    
-                    piecesHtml += `<div class="g-mini-piece" style="left:${c * 12.5}%; top:${r * 12.5}%;">${imgTag}</div>`;
-                }
-            }
-        }
-        boardDiv.innerHTML = piecesHtml;
-
-        const moveTxt = document.createElement('div');
-        moveTxt.className = 'g-move-text';
-        let nagStr = "";
-        if (node.nag) {
-            node.nag.toString().split(',').forEach(n => {
-                const info = this.getNagInfo(n.trim());
-                if(info) nagStr += `<span style="color:${info.color}; margin-left:3px;">${info.symbol}</span>`;
-            });
-        }
-        moveTxt.innerHTML = (node.moveSan || "Start") + nagStr;
-
-        content.appendChild(boardDiv);
-        content.appendChild(moveTxt);
-
-        if (node.comment) {
-            let cleanComment = node.comment.replace(/\[%(eval|clk|cal|csl|emt)[^\]]*\]/g, "").trim();
-            cleanComment = cleanComment.replace(/\bbook\b/ig, "").trim();
-            if (cleanComment.length > 0) {
-                const commentDiv = document.createElement('div');
-                commentDiv.style.cssText = 'color: #aaa; font-size: 13px; font-style: italic; background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 4px; width: 100%; box-sizing: border-box; text-align: center; white-space: normal; word-break: break-word; overflow: hidden; max-height: 80px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; margin-top: 4px; border-top: 1px solid #444;';
-                commentDiv.innerText = cleanComment;
-                content.appendChild(commentDiv);
-            }
-        }
-
-        content.onclick = (e) => {
-            e.stopPropagation();
-
-            this._virtualNode = node;
-            this._isKeyboardNavigating = false;
-
-            if (typeof this.fastUpdateGraphVisuals === 'function') {
-                this.fastUpdateGraphVisuals(node);
-                this.scrollToActiveGraphNode('smooth', node.id); 
-            }
-
-            setTimeout(() => {
-                if (this.#game.goToNodeId(node.id)) {
-                    const freshState = this.#game.getReader();
-                    this.renderBoard(false);
-                    this.updateHistory(true);
-                    this.renderArrows();
-                    
-                    if (freshState.mode !== 'play' && this.#game.updateStockfish) {
-                        this.#game.updateStockfish();
-                    }
-                }
-            }, 10);
-        };
-
-        wrapper.appendChild(content);
-
-        if (node.children && node.children.length > 0) {
-            const childrenContainer = document.createElement('div');
-            childrenContainer.className = 'g-children';
-            let childrenToRender = [];
-            
-            if (isFullMode) {
-                childrenToRender = node.children;
-            } else {
-                if (isPast) childrenToRender = node.children.filter(c => activePathIds.has(c.id));
-                else if (myDepth === activeDepth || myDepth === activeDepth + 1) childrenToRender = node.children;
-            }
-
-            if (childrenToRender.length > 0) {
-                childrenToRender.forEach(child => {
-                    this.renderGraphNode(child, childrenContainer, activeNode, depth + 1, activePathIds, activeDepth);
-                });
-                wrapper.appendChild(childrenContainer);
-            }
-        }
-        container.appendChild(wrapper);
     }
     drawGraphLines(listContainer, svgLayer) {
         const svgNS = "http://www.w3.org/2000/svg";
@@ -7789,90 +7749,6 @@ castSpell(spellType, targetSq) {
         this.scrollToActiveMove();
         if (typeof this.updateChartActiveLine === 'function') this.updateChartActiveLine();
     }
-    _renderGraphRecursive(node, container, activeNode, depth) {
-        if (!node) return;
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'g-node-wrapper';
-        const content = document.createElement('div');
-        content.className = 'g-node-content';
-        content.dataset.id = node.id;
-        
-        if (node === activeNode) content.classList.add('active');
-
-        let activeDepth = this.getPly(activeNode);
-        let myDepth = this.getPly(node);
-        
-        if (myDepth < activeDepth) content.classList.add('g-blur-past');
-        else if (myDepth === activeDepth || myDepth === activeDepth + 1) content.classList.add('g-focus');
-        else content.classList.add('g-blur-future');
-
-        const moveTxt = document.createElement('div');
-        moveTxt.className = 'g-move-text';
-        moveTxt.innerText = node.moveSan || "Start";
-        
-        const boardDiv = document.createElement('div');
-        boardDiv.className = 'g-mini-board';
-        const fenRows = node.fen.split(' ')[0].split('/');
-        for (let r = 0; r < 8; r++) {
-            let c = 0;
-            for (let char of fenRows[r]) {
-                if (/\d/.test(char)) c += parseInt(char, 10);
-                else {
-                    const color = char === char.toUpperCase() ? 'w' : 'b';
-                    const type = char.toLowerCase();
-                    const sq = document.createElement('div');
-                    sq.className = (r + c) % 2 === 0 ? 'light' : 'dark';
-                    sq.style.gridColumn = c + 1;
-                    sq.style.gridRow = r + 1;
-                    
-                    const img = this.getPieceHTML({color, type});
-                    if(img) sq.innerHTML = img.replace(/style="[^"]*"/g, 'style="width:100%;height:100%"');
-                    boardDiv.appendChild(sq);
-                    c++;
-                }
-            }
-        }
-        
-        for (let i = 0; i < 64; i++) {
-            let r = Math.floor(i/8), c = i%8;
-            if(!boardDiv.querySelector(`[style*="grid-column: ${c+1}"][style*="grid-row: ${r+1}"]`)){
-                const emptySq = document.createElement('div');
-                emptySq.className = (r + c) % 2 === 0 ? 'light' : 'dark';
-                emptySq.style.gridColumn = c + 1; emptySq.style.gridRow = r + 1;
-                boardDiv.appendChild(emptySq);
-            }
-        }
-
-        content.appendChild(boardDiv);
-        content.appendChild(moveTxt);
-
-        content.onclick = (e) => {
-            e.stopPropagation();
-            if (this.#game.goToNodeId(node.id)) {
-                const freshState = this.#game.getReader();
-                this.renderBoard(false);
-                this.updateHistory(true);
-                this.renderArrows();
-                if (freshState.mode !== 'play' && this.#game.updateStockfish) this.#game.updateStockfish();
-            }
-        };
-
-        wrapper.appendChild(content);
-
-        if (node.children && node.children.length > 0) {
-            const childrenContainer = document.createElement('div');
-            childrenContainer.className = 'g-children';
-            
-            node.children.forEach(child => {
-                this._renderGraphRecursive(child, childrenContainer, activeNode, depth + 1);
-            });
-            
-            wrapper.appendChild(childrenContainer);
-        }
-
-        container.appendChild(wrapper);
-    }
     fastUpdateGraphVisuals(customNode = null) {
         if (!this.#game || !this.#game.rootNode) return;
         const activeNode = customNode || this.#game.currentNode;
@@ -7917,6 +7793,393 @@ castSpell(spellType, targetSq) {
         if (zoomWrapper && svgLayer) {
             this.drawGraphLines(zoomWrapper, svgLayer);
         }
+    }
+    parseFenToGridLocal(fen) {
+    const grid = new Array(64).fill(null);
+    const boardPart = fen.split(' ')[0];
+    let i = 0;
+    
+    for (let idx = 0; idx < boardPart.length; idx++) {
+        const char = boardPart[idx];
+        if (char === '/') continue;
+        
+        const code = char.charCodeAt(0);
+        if (code >= 48 && code <= 57) {
+            i += code - 48;
+        } else {
+            const isLower = code >= 97;
+            grid[i] = (isLower ? 'b' : 'w') + (isLower ? char : String.fromCharCode(code + 32));
+            i++;
+        }
+    }
+    return grid;
+    }
+    async preloadPieceImages() {
+        if (!this._imgCache) this._imgCache = {};
+        const selector = document.getElementById('assetType');
+        const theme = selector ? selector.value : 'cburnett';
+        
+        // Xử lý bộ cờ tải lên từ thư mục máy tính
+        if (theme === 'local' && this.customPieces) {
+            const loadPromises = Object.keys(this.customPieces).map(code => {
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    img.crossOrigin = "Anonymous";
+                    img.onload = () => { this._imgCache[code] = img; resolve(); };
+                    img.onerror = () => resolve();
+                    img.src = this.customPieces[code];
+                });
+            });
+            await Promise.all(loadPromises);
+            return;
+        }
+
+        // Xử lý bộ cờ hệ thống
+        const set = PIECE_SETS[theme];
+        if (!set) return;
+
+        const loadPromises = ['wP','wN','wB','wR','wQ','wK','bP','bN','bB','bR','bQ','bK'].map(code => {
+            return new Promise((resolve) => {
+                const rawSVG = set.pieces[code];
+                if (!rawSVG) { resolve(); return; }
+                
+                let src = "";
+                let trimmed = rawSVG.trim();
+                
+                if (trimmed.startsWith('<svg')) {
+                    src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(trimmed);
+                } else if (trimmed.startsWith('<img')) {
+                    const match = trimmed.match(/src=["'](.*?)["']/);
+                    if (match) src = match[1];
+                } else {
+                    src = trimmed;
+                }
+
+                const img = new Image();
+                img.crossOrigin = "Anonymous";
+                img.onload = () => { this._imgCache[code] = img; resolve(); };
+                img.onerror = () => resolve(); // Vẫn giải phóng Promise để không treo luồng
+                img.src = src;
+            });
+        });
+        
+        // Cache luôn con Vịt cho Duck Chess
+        const duckPromise = new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => { this._imgCache['duck'] = img; resolve(); };
+            img.onerror = () => resolve();
+            img.src = 'assets/tabs-icon/variant-duckchess.svg';
+        });
+        loadPromises.push(duckPromise);
+
+        await Promise.all(loadPromises);
+    }
+    drawMiniBoardToCanvas(fen, canvas) {
+        const ctx = canvas.getContext('2d', { alpha: true });
+        const size = canvas.width;
+        const sqSize = size / 8;
+        
+        ctx.clearRect(0, 0, size, size);
+        
+        if (!this._imgCache || !fen) return;
+        const rows = fen.split(' ')[0].split('/');
+        for (let r = 0; r < 8; r++) {
+            let c = 0;
+            for (let char of rows[r]) {
+                if (/\d/.test(char)) c += parseInt(char, 10);
+                else if (char !== '~' && char !== '*') {
+                    const color = char === char.toUpperCase() ? 'w' : 'b';
+                    const type = char.toUpperCase();
+                    const img = this._imgCache[color + type];
+                    if (img) {
+                        const padding = sqSize * 0.05;
+                        const drawFn = () => {
+                            ctx.drawImage(img, c * sqSize + padding, r * sqSize + padding, sqSize * 0.9, sqSize * 0.9);
+                        };
+                        // Nếu ảnh đã sẵn sàng trên RAM -> Vẽ luôn. Nếu chưa -> Chờ load xong rồi vẽ!
+                        if (img.complete && img.naturalWidth !== 0) drawFn();
+                        else img.addEventListener('load', drawFn, { once: true });
+                    }
+                    c++;
+                } else if (char === '*') c++;
+            }
+        }
+    }
+    renderGraphNode(node, container, activeNode, depth, activePathIds, activeDepth) {
+        if (!node) return;
+        // ✨ THE ROOT NODE FIX: Gán ID ngay lập tức nếu nó chưa có (chống lỗi canvas "undefined")
+        if (!node.id) node.id = 'n_' + Math.random().toString(36).substr(2, 9);
+
+        const mode = this.graphMode || 'focused';
+        const isFullMode = (mode === 'full');
+
+        let myDepth = this.getPly(node);
+        let isOnActivePath = activePathIds.has(node.id);
+        let isPast = isOnActivePath && myDepth < activeDepth;
+
+        if (!isFullMode && !isOnActivePath && myDepth > activeDepth + 2) return;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'g-node-wrapper';
+
+        const content = document.createElement('div');
+        content.className = 'g-node-content';
+        content.dataset.id = node.id;
+        
+        if (node === activeNode) {
+            content.classList.add('g-focus', 'active');
+        } 
+        else if (node.parent === activeNode && isOnActivePath) { 
+            content.classList.add('g-focus', 'path-next');
+        }
+        else if (node.parent === activeNode) {
+            content.classList.add('g-focus');
+        } 
+        else if (isOnActivePath && isPast) {
+            if (activeDepth - myDepth >= 2) content.classList.add('g-blur-past');
+            else content.classList.add('g-focus');
+        } 
+        else {
+            content.classList.add('g-blur-future');
+        }
+
+        const boardDiv = document.createElement('div');
+        boardDiv.className = 'g-mini-board';
+        boardDiv.innerHTML = `<canvas id="gcanv-${node.id}" width="200" height="200" style="display: block; width:100%; height:100%;"></canvas>`;
+
+        const moveTxt = document.createElement('div');
+        moveTxt.className = 'g-move-text';
+        let nagStr = "";
+        if (node.nag) {
+            node.nag.toString().split(',').forEach(n => {
+                const info = this.getNagInfo(n.trim());
+                if(info) nagStr += `<span style="display:inline-block; font-size:12px; font-weight:bold; color:#fff; background:${info.color}; border:2px solid ${info.borderColor}; border-radius:50%; width:18px; height:18px; text-align:center; line-height:14px; margin-left:4px; box-shadow:0 1px 3px rgba(0,0,0,0.5);">${info.symbol}</span>`;
+            });
+        }
+        
+        let sanText = node.moveSan || "Start";
+        if (node === this.#game.rootNode) sanText = "Start";
+        else if (sanText.includes('from:')) sanText = "...";
+
+        moveTxt.innerHTML = sanText + nagStr;
+
+        content.appendChild(boardDiv);
+        content.appendChild(moveTxt);
+
+        if (node.comment) {
+            let cleanComment = node.comment.replace(/\[%(eval|clk|cal|csl|emt)[^\]]*\]/g, "").trim();
+            cleanComment = cleanComment.replace(/\bbook\b/ig, "").trim();
+            if (cleanComment.length > 0) {
+                const commentDiv = document.createElement('div');
+                commentDiv.style.cssText = 'color: #aaa; font-size: 13px; font-style: italic; background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 4px; width: 100%; box-sizing: border-box; text-align: center; white-space: normal; word-break: break-word; overflow: hidden; max-height: 80px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; margin-top: 4px; border-top: 1px solid #444;';
+                commentDiv.innerText = cleanComment;
+                content.appendChild(commentDiv);
+            }
+        }
+
+        content.onclick = (e) => {
+            e.stopPropagation();
+
+            this._virtualNode = node;
+            this._isKeyboardNavigating = false;
+
+            if (typeof this.fastUpdateGraphVisuals === 'function') {
+                this.fastUpdateGraphVisuals(node);
+                this.scrollToActiveGraphNode('smooth', node.id); 
+            }
+
+            setTimeout(() => {
+                if (this.#game.goToNodeId(node.id)) {
+                    const freshState = this.#game.getReader();
+                    this.renderBoard(false);
+                    this.updateHistory(true);
+                    this.renderArrows();
+                    
+                    if (freshState.mode !== 'play' && this.#game.updateStockfish) {
+                        this.#game.updateStockfish();
+                    }
+                }
+            }, 10);
+        };
+
+        wrapper.appendChild(content);
+
+        if (node.children && node.children.length > 0) {
+            const childrenContainer = document.createElement('div');
+            childrenContainer.className = 'g-children';
+            let childrenToRender = [];
+            
+            if (isFullMode) {
+                childrenToRender = node.children;
+            } else {
+                if (isPast) childrenToRender = node.children.filter(c => activePathIds.has(c.id));
+                else if (myDepth === activeDepth || myDepth === activeDepth + 1) childrenToRender = node.children;
+            }
+
+            if (childrenToRender.length > 0) {
+                childrenToRender.forEach(child => {
+                    this.renderGraphNode(child, childrenContainer, activeNode, depth + 1, activePathIds, activeDepth);
+                });
+                wrapper.appendChild(childrenContainer);
+            }
+        }
+        container.appendChild(wrapper);
+    }
+    renderFullGraph(skipCamera = false) {
+        if (typeof this.initGraphEvents === 'function') this.initGraphEvents();
+        if (!this.graphMode && typeof localStorage !== 'undefined') {
+            this.graphMode = localStorage.getItem('chess_graph_mode') || 'focused';
+        }
+        const container = document.getElementById('treeGraphContainer');
+        const tab = document.getElementById('tabContent-Graph');
+        if (!container || !this.#game || !this.#game.rootNode) return;
+        const selSource = document.getElementById('graphSourceSelect');
+        const chapWrapper = document.getElementById('graphChapterWrapper');
+        const chapSelect = document.getElementById('graphChapterSelect');
+        const flipSelect = document.getElementById('graphFlipSelect');
+
+        if (flipSelect) flipSelect.value = this.flipped ? 'b' : 'w';
+
+        if (selSource) {
+            const isStudy = (this._previousTabBeforeGraph === 'study' || this._previousTabBeforeGraph === 'trainer');
+            selSource.value = isStudy ? 'study' : 'analysis';
+
+            if (isStudy && chapWrapper && chapSelect && this.#game.chapters) {
+                chapWrapper.style.display = 'flex';
+                chapSelect.innerHTML = '';
+                this.#game.chapters.forEach((ch, idx) => {
+                    const opt = document.createElement('option');
+                    opt.value = idx;
+                    opt.text = `${idx + 1}. ${ch.title}`;
+                    if (idx === this.#game.activeChapterIndex) opt.selected = true;
+                    chapSelect.appendChild(opt);
+                });
+            } else if (chapWrapper) {
+                chapWrapper.style.display = 'none';
+            }
+        }
+
+        // ✨ PRELOAD ẢNH CANVAS
+        if (!this._imgCache) this.preloadPieceImages();
+
+        container.innerHTML = '';
+        const svgNS = "http://www.w3.org/2000/svg";
+        
+        const zoomWrapper = document.createElement('div');
+        zoomWrapper.id = 'graphZoomWrapper';
+        const currentZoom = this.graphZoom || 1;
+        zoomWrapper.style.cssText = `position: relative; display: inline-block; transform: scale(${currentZoom}); transform-origin: top left; transition: transform 0.1s ease;`;
+
+        const svgLayer = document.createElementNS(svgNS, "svg");
+        svgLayer.setAttribute("class", "graph-svg-layer");
+        zoomWrapper.appendChild(svgLayer);
+
+        const treeRoot = document.createElement('div');
+        treeRoot.id = 'graphTreeRoot';
+        treeRoot.style.cssText = "display: inline-block; width: max-content; height: max-content;";
+        
+        let activePathIds = new Set();
+        let curr = this.#game.currentNode;
+        while(curr) { activePathIds.add(curr.id); curr = curr.parent; }
+
+        this.renderGraphNode(this.#game.rootNode, treeRoot, this.#game.currentNode, 0, activePathIds, this.getPly(this.#game.currentNode));
+        zoomWrapper.appendChild(treeRoot);
+        container.appendChild(zoomWrapper); 
+
+        // ✨ VẼ BOARD LÊN CANVAS THEO LIST
+        const canvases = treeRoot.querySelectorAll('canvas[id^="gcanv-"]');
+        canvases.forEach(canvas => {
+            const nodeId = canvas.id.replace('gcanv-', '');
+            const findNodeHelper = (currNode, id) => {
+                if (currNode.id === id) return currNode;
+                for(let c of currNode.children) { let res = findNodeHelper(c, id); if (res) return res; }
+                return null;
+            };
+            const node = findNodeHelper(this.#game.rootNode, nodeId);
+            if (node) this.drawMiniBoardToCanvas(node.fen, canvas);
+        });
+
+        requestAnimationFrame(() => {
+            const w = treeRoot.offsetWidth;
+            const h = treeRoot.offsetHeight;
+            zoomWrapper.style.width = w + 'px';
+            zoomWrapper.style.height = h + 'px';
+            zoomWrapper.style.marginRight = (w * currentZoom - w) + 'px';
+            zoomWrapper.style.marginBottom = (h * currentZoom - h) + 'px';
+            
+            this.drawGraphLines(zoomWrapper, svgLayer);
+
+            const modeSelect = document.getElementById('graphModeSelect');
+            if (modeSelect) modeSelect.value = this.graphMode || 'focused';
+            const zoomSlider = document.getElementById('graphZoomSlider');
+            if (zoomSlider) zoomSlider.value = this.graphZoom || 1;
+            
+            if (!skipCamera) {
+                this.scrollToActiveGraphNode('auto');
+            }
+        });
+    }
+    _renderGraphRecursive(node, container, activeNode, depth) {
+        if (!node) return;
+        // ✨ THE ROOT NODE FIX: Gán ID để không bị miss Canvas!
+        if (!node.id) node.id = 'n_' + Math.random().toString(36).substr(2, 9);
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'g-node-wrapper';
+        const content = document.createElement('div');
+        content.className = 'g-node-content';
+        content.dataset.id = node.id;
+        
+        if (node === activeNode) content.classList.add('active');
+
+        let activeDepth = this.getPly(activeNode);
+        let myDepth = this.getPly(node);
+        
+        if (myDepth < activeDepth) content.classList.add('g-blur-past');
+        else if (myDepth === activeDepth || myDepth === activeDepth + 1) content.classList.add('g-focus');
+        else content.classList.add('g-blur-future');
+
+        const moveTxt = document.createElement('div');
+        moveTxt.className = 'g-move-text';
+        
+        let sanText = node.moveSan || "Start";
+        if (node === this.#game.rootNode) sanText = "Start";
+        else if (sanText.includes('from:')) sanText = "...";
+
+        moveTxt.innerText = sanText;
+        
+        const boardDiv = document.createElement('div');
+        boardDiv.className = 'g-mini-board';
+        boardDiv.innerHTML = `<canvas id="gcanv-${node.id}" width="200" height="200" style="display: block; width:100%; height:100%; border-radius: 4px;"></canvas>`;
+
+        content.appendChild(boardDiv);
+        content.appendChild(moveTxt);
+
+        content.onclick = (e) => {
+            e.stopPropagation();
+            if (this.#game.goToNodeId(node.id)) {
+                const freshState = this.#game.getReader();
+                this.renderBoard(false);
+                this.updateHistory(true);
+                this.renderArrows();
+                if (freshState.mode !== 'play' && this.#game.updateStockfish) this.#game.updateStockfish();
+            }
+        };
+
+        wrapper.appendChild(content);
+
+        if (node.children && node.children.length > 0) {
+            const childrenContainer = document.createElement('div');
+            childrenContainer.className = 'g-children';
+            
+            node.children.forEach(child => {
+                this._renderGraphRecursive(child, childrenContainer, activeNode, depth + 1);
+            });
+            
+            wrapper.appendChild(childrenContainer);
+        }
+
+        container.appendChild(wrapper);
     }
     initKeyboardEvents() {
         document.addEventListener('keydown', (e) => {
@@ -8043,26 +8306,15 @@ castSpell(spellType, targetSq) {
                 this.isPeeking = false;
                 if (typeof this.renderBoard === 'function') this.renderBoard(false);
             }
+
+            // ✨ BỔ SUNG PHÍM X ĐỂ THOÁT GRAPH THEO YÊU CẦU
+            if (e.code === 'KeyX' || e.key === 'x') {
+                const graphTab = document.getElementById('tabContent-Graph');
+                if (graphTab && graphTab.classList.contains('active')) {
+                    const prevMode = this._previousTabBeforeGraph || 'analysis';
+                    this.switchTab(prevMode);
+                }
+            }
         });
     }
-    parseFenToGridLocal(fen) {
-    const grid = new Array(64).fill(null);
-    const boardPart = fen.split(' ')[0];
-    let i = 0;
-    
-    for (let idx = 0; idx < boardPart.length; idx++) {
-        const char = boardPart[idx];
-        if (char === '/') continue;
-        
-        const code = char.charCodeAt(0);
-        if (code >= 48 && code <= 57) {
-            i += code - 48;
-        } else {
-            const isLower = code >= 97;
-            grid[i] = (isLower ? 'b' : 'w') + (isLower ? char : String.fromCharCode(code + 32));
-            i++;
-        }
-    }
-    return grid;
-}
 }

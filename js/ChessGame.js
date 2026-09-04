@@ -1,5 +1,10 @@
 import {INITIAL_FEN,FILES, RANKS, ICON_BOOK_SVG, SETTINGS_ICON_IMG, VARIANT_STARTING_FENS, nnueMap } from './constants.js';
 import { MoveNode } from './MoveNode.js';
+export const EV_UPDATE_BOARD = 1;
+export const EV_ANIMATE = 2;
+export const EV_SKIP_ENGINE = 4;
+export const EV_SOUND_MOVE = 8;
+export const EV_FEN_CHANGED = 16;
 export class ChessGame {
     #engine;
     #pieceIdCounter;
@@ -114,6 +119,11 @@ on(eventName, callback) {
 #emit(eventName, data) {
         if (this.#callbacks[eventName]) {
             this.#callbacks[eventName](data);
+        }
+    }
+#emitMask(mask, payload = null) {
+        if (this.#callbacks['bitmask_event']) {
+            this.#callbacks['bitmask_event'](mask, payload);
         }
     }
 isVariantSuspended(mode) {
@@ -468,24 +478,99 @@ getReader() {
 
         this.#board = finalBoard;
     }
-#squareToIndex(sq) {
-if (!sq || typeof sq !== 'string') return -1; 
-
-let f = FILES.indexOf(sq[0]);
-let r = 8 - parseInt(sq[1]);
-return r * 8 + f;
-}
-#indexToSquare(idx) {
-let r = Math.floor(idx / 8);
-let f = idx % 8;
-return FILES[f] + (8 - r);
-}
-#engineIndexToSquare(idx) {
-        let r = Math.floor(idx / 8);
-        let f = idx % 8;
-        return FILES[f] + (r + 1); 
+// ✨ TỐI ƯU 4: ASCII Math (0 String Allocation)
+    #squareToIndex(sq) {
+        if (!sq || sq.length < 2) return -1;
+        // Dịch thẳng bit ASCII (a=97, 1=49)
+        let f = sq.charCodeAt(0);
+        if (f < 97) f += 32; 
+        return (sq.charCodeAt(1) - 49) * 8 + (f - 97);
     }
-#triggerBotMove(ignoreBook = false) {
+
+    #indexToSquare(idx) {
+        if (idx < 0 || idx > 63) return "";
+        let r = Math.floor(idx / 8); let f = idx % 8;
+        return String.fromCharCode(97 + f) + String.fromCharCode(49 + (7 - r));
+    }
+
+    #engineIndexToSquare(idx) {
+        if (idx < 0 || idx > 63) return "";
+        let r = Math.floor(idx / 8); let f = idx % 8;
+        return String.fromCharCode(97 + f) + String.fromCharCode(49 + r);
+    }
+    #postEngineCommand(cmdString) {
+        if (!window.sfWorker) return;
+        window.sfWorker.postMessage(cmdString);
+    }
+
+    // 2. ÉP ZERO-COPY CHO HÀM KÍCH HOẠT ENGINE
+    #triggerEngineGo(fen) {
+        let targetNode = this.analyzingNode || this.currentNode;
+
+        let isOver = false, isMate = false, tTurn = 'w';
+        try {
+            const tempChess = new (typeof Chess === 'function' ? Chess : window.Chess)();
+            tempChess.setGameMode(this.gameMode);
+            let loaded = tempChess.load(fen);
+            if (!loaded && typeof this.patchEngineFor960 === 'function') {
+                this.patchEngineFor960.call(tempChess);
+                loaded = tempChess.load(fen);
+            }
+            if (loaded) {
+                isOver = tempChess.isGameOver ? tempChess.isGameOver() : tempChess.game_over?.();
+                isMate = tempChess.isCheckmate ? tempChess.isCheckmate() : tempChess.in_checkmate?.();
+                tTurn = tempChess.turn();
+            }
+        } catch(e) { }
+
+        if (isOver) {
+            if (isMate) {
+                let whiteWon = tTurn === 'b';
+                let score = whiteWon ? 100000 : -100000;
+                let str = whiteWon ? "+M0" : "-M0";
+                if (this.mode === 'bot' || this.mode === 'local') { targetNode.evalScore = score; targetNode.eval = str; } 
+                else { targetNode.localEvalScore = score; targetNode.localEval = str; }
+                
+                if (this.#ui && typeof this.#ui.updateEvalBar === 'function' && targetNode === this.currentNode) {
+                    this.#ui.updateEvalBar('mate', whiteWon ? 1 : -1);
+                }
+            } else { 
+                if (this.mode === 'bot' || this.mode === 'local') { targetNode.evalScore = 0; targetNode.eval = "0.00"; } 
+                else { targetNode.localEvalScore = 0; targetNode.localEval = "0.00"; }
+                
+                if (this.#ui && typeof this.#ui.updateEvalBar === 'function' && targetNode === this.currentNode) {
+                    this.#ui.updateEvalBar('cp', 0);
+                }
+            }
+            
+            if (targetNode === this.currentNode) {
+                const box = document.getElementById('engine-lines-box');
+                if (box) box.innerHTML = '';
+                if (this.#ui && typeof this.#ui.renderCharts === 'function') requestAnimationFrame(() => {this.#ui.renderCharts();});
+            }
+            return; 
+        }
+
+        window.engineReady = true; 
+
+        if (this.activeEngineType === 'fairy' || this.activeEngineType === 'custom') {
+            const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
+            this.#postEngineCommand('setoption name UCI_Variant value ' + sfVariant);
+        } else {
+            this.#postEngineCommand('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+        }
+        
+        this.#postEngineCommand('setoption name UCI_LimitStrength value false');
+        this.#postEngineCommand('setoption name Skill Level value 20');
+        this.#postEngineCommand('setoption name MultiPV value 3');
+        this.#postEngineCommand('position fen ' + fen);
+        
+        const depth = document.getElementById('engineDepth')?.value || 99;
+        this.#postEngineCommand('go depth ' + depth);
+    }
+
+    // 3. ÉP ZERO-COPY CHO BOT THỰC THI NƯỚC ĐI
+    #triggerBotMove(ignoreBook = false) {
         const now = Date.now();
         if (this._lastBotTrigger && (now - this._lastBotTrigger < 100)) return;
         this._lastBotTrigger = now;
@@ -506,7 +591,6 @@ return FILES[f] + (8 - r);
         const blunderMap = { 1: 0.25, 2: 0.10 };
         const blunderChance = blunderMap[level] || 0;
 
-        // 1. LOW LEVEL BLUNDER INJECTION (STRICTLY VALIDATED)
         if (level <= 2 && Math.random() < blunderChance) {
             const tempEngine = new (typeof Chess === 'function' ? Chess : window.Chess)(fen, this.gameMode);
             const legalMoves = tempEngine.moves({ verbose: true });
@@ -539,7 +623,6 @@ return FILES[f] + (8 - r);
                             let testUci = randomUCI + ',' + duckSq;
                             let testRes = tempEngine.move({ from: choice.from, to: choice.to, promotion: choice.promotion, duck_sq: duckSq });
                             if (testRes) {
-                                // ✨ STRICT CHECK: Verify King cannot be captured
                                 let enemyCanCaptureKing = false;
                                 let enemyMoves = tempEngine.moves({ verbose: true });
                                 for (let em of enemyMoves) {
@@ -564,7 +647,6 @@ return FILES[f] + (8 - r);
                         }
                         
                         if (testRes) {
-                            // ✨ STRICT CHECK: Ensure Crazyhouse/Classical moves don't leave King in check!
                             let enemyCanCaptureKing = false;
                             let enemyMoves = tempEngine.moves({ verbose: true });
                             for (let em of enemyMoves) {
@@ -596,7 +678,6 @@ return FILES[f] + (8 - r);
             }
         }
 
-        // 2. OPENING BOOK
         if (!ignoreBook && this.gameMode === 'classical') {
             let bookCandidates = null;
             if (typeof this.getBookMove === 'function') bookCandidates = this.getBookMove(fen, level);
@@ -606,23 +687,16 @@ return FILES[f] + (8 - r);
                 const candidate = bookCandidates[Math.floor(Math.random() * bookCandidates.length)];
                 
                 if (window.sfWorker && level >= 3) {
-                    const thresholds = {
-                        3: -300,
-                        4: -200,
-                        5: -150,
-                        6: -100,
-                        7: -50,
-                        8: -25
-                    };
+                    const thresholds = { 3: -300, 4: -200, 5: -150, 6: -100, 7: -50, 8: -25 };
 
                     this.verifyingBookMove = candidate;
                     this.verifyingBookScore = null;
                     this.verifyingBookType = null;
                     this.verifyingBookThreshold = thresholds[level] || -150; 
                     
-                    window.sfWorker.postMessage('stop');
-                    window.sfWorker.postMessage('position fen ' + fen);
-                    window.sfWorker.postMessage(`go depth 8 searchmoves ${candidate}`);
+                    this.#postEngineCommand('stop');
+                    this.#postEngineCommand('position fen ' + fen);
+                    this.#postEngineCommand(`go depth 8 searchmoves ${candidate}`);
                     return; 
                 } else {
                     if (typeof this.#executeBotMoveWithDelay === 'function') {
@@ -635,31 +709,383 @@ return FILES[f] + (8 - r);
             }
         }
 
-        // 3. STANDARD ENGINE CALCULATION
         if (window.sfWorker) {
             const difficultyMap = {
-                1: { uciElo: 1000 }, 2: { uciElo: 1200 },
-                3: { uciElo: 1500 }, 4: { uciElo: 1800 },
-                5: { uciElo: 2100 }, 6: { uciElo: 2400 },
-                7: { uciElo: 2700 }, 8: { uciElo: 3000 }
+                1: { uciElo: 1000 }, 2: { uciElo: 1200 }, 3: { uciElo: 1500 }, 4: { uciElo: 1800 },
+                5: { uciElo: 2100 }, 6: { uciElo: 2400 }, 7: { uciElo: 2700 }, 8: { uciElo: 3000 }
             };
             const settings = difficultyMap[level] || difficultyMap[8];
             
-            window.sfWorker.postMessage('stop');
-            window.sfWorker.postMessage('setoption name MultiPV value 1');
+            this.#postEngineCommand('stop');
+            this.#postEngineCommand('setoption name MultiPV value 1');
             
             if (this.activeEngineType === 'fairy') {
                 const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-                window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
+                this.#postEngineCommand('setoption name UCI_Variant value ' + sfVariant);
             } else {
-                window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+                this.#postEngineCommand('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
             }
             
-            window.sfWorker.postMessage('setoption name UCI_LimitStrength value true');
-            window.sfWorker.postMessage(`setoption name UCI_Elo value ${settings.uciElo}`);
-            window.sfWorker.postMessage('position fen ' + fen);
-            window.sfWorker.postMessage(`go movetime ${this.currentBotThinkTime}`); 
+            this.#postEngineCommand('setoption name UCI_LimitStrength value true');
+            this.#postEngineCommand(`setoption name UCI_Elo value ${settings.uciElo}`);
+            this.#postEngineCommand('position fen ' + fen);
+            this.#postEngineCommand(`go movetime ${this.currentBotThinkTime}`); 
         }
+    }
+
+    // 4. KIỂM SOÁT LUỒNG DỮ LIỆU ĐẾN
+    #handleEngineMessage(e) {
+        if (typeof e.data !== 'string') return;
+        const line = e.data.trim(); 
+        if (!line) return;
+        console.log("%c⬅️ [ENGINE SAYS]: " + line, "color: #a3e635");
+
+        if (line === 'WORKER_INITIALIZED') {
+            this.#postEngineCommand('uci');
+            return;
+        }
+
+        if (line === 'readyok') {
+            window.engineReady = true; 
+            window.engineBooting = false; 
+
+            if (this.mode === 'bot' && this._pendingBotStart) {
+                this._pendingBotStart = false;
+                this.#postEngineCommand('ucinewgame');
+                if (this.turn === this.botColor) {
+                    setTimeout(() => this.#triggerBotMove(), 500);
+                }
+                return;
+            }
+
+            const isAnalysingOrStudy = (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'puzzle');
+            
+            if (isAnalysingOrStudy && window.engineAnalysing && this._pendingFen) {
+                const targetFen = this._pendingFen;
+                this.analyzingNode = this._pendingNode;
+                this._pendingFen = null; 
+                this._pendingNode = null;
+                this.#triggerEngineGo(targetFen); 
+            }
+            return; 
+        }
+
+        const isAnalysingOrStudy = (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'puzzle');
+        
+        if (isAnalysingOrStudy && window.engineAnalysing && !window.engineReady && (line.startsWith('info') || line.startsWith('bestmove'))) {
+            return; 
+        }
+
+        if (line.startsWith('id name ')) {
+            const engineName = line.replace('id name ', '');
+            if (this.#ui && typeof this.#ui.updateEngineName === 'function') this.#ui.updateEngineName(engineName);
+            return;
+        }
+
+        if (line === 'uciok') {
+            let threads = Math.floor(navigator.hardwareConcurrency - 1);
+            if (threads < 1) threads = 1;
+            if (this.gameMode === 'alice' || this.gameMode === 'spell') {
+                this.#postEngineCommand('setoption name Threads value 1');
+                this.#postEngineCommand('setoption name Hash value 32');
+            } else {            
+                this.#postEngineCommand('setoption name Threads value ' + threads);
+                this.#postEngineCommand('setoption name Hash value 1024');
+            }
+            this.#postEngineCommand('setoption name MultiPV value 3');
+            this.#postEngineCommand('setoption name Move Overhead value 10');
+            this.#postEngineCommand('setoption name UCI_LimitStrength value false');
+            this.#postEngineCommand('setoption name Skill Level value 20');
+            
+            if (this.activeEngineType === 'fairy' || this.activeEngineType === 'custom') {
+                const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
+                if (this.gameMode === 'alice' || this.gameMode === 'spell') {
+                    this.#postEngineCommand('setoption name Use NNUE value false');
+                    this.#postEngineCommand('setoption name EvalFile value ');
+                    this.#postEngineCommand('setoption name UCI_Variant value ' + sfVariant);
+                    this.#postEngineCommand('isready');
+                    return;
+                }
+                const nnueFile = nnueMap[this.gameMode];
+                if (nnueFile) {
+                    fetch('./engine/nnue/' + nnueFile)
+                        .then(res => {
+                            if (!res.ok) throw new Error("NNUE not found");
+                            return res.arrayBuffer();
+                        })
+                        .then(buffer => {
+                            // NNUE Buffer phải giữ nguyên Object Transfer, không dùng String Command
+                            window.sfWorker.postMessage({ action: 'INJECT_NNUE', name: nnueFile, buffer: buffer });
+                            setTimeout(() => {
+                                this.#postEngineCommand('setoption name EvalFile value ' + nnueFile);
+                                this.#postEngineCommand('isready'); 
+                            }, 50);
+                        })
+                        .catch(err => {
+                            console.warn("[ENGINE] Playing without NNUE:", err);
+                            this.#postEngineCommand('isready'); 
+                        });
+                    return;
+                } else {
+                    this.#postEngineCommand('isready');
+                    return;
+                }
+            }  else {
+                this.#postEngineCommand('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+            }
+            
+            this.#postEngineCommand('isready'); 
+            return;
+        }
+
+        if (line.startsWith('bestmove')) {
+            const liveTurn = this.currentLiveTurn || this.turn;
+            if (this.mode === 'bot' && liveTurn === this.botColor) {
+                const match = line.match(/bestmove\s+(\S+)/);
+                const isVerifying = !!this.verifyingBookMove;
+                const candidate = this.verifyingBookMove;
+                const score = this.verifyingBookScore;
+                const type = this.verifyingBookType;
+                const threshold = this.verifyingBookThreshold;
+                
+                this.verifyingBookMove = null;
+                this.verifyingBookScore = null;
+                this.verifyingBookType = null;
+                this.verifyingBookThreshold = null;
+
+                if (match) {
+                    let moveUCI = match[1];
+
+                    if (isVerifying) {
+                        let isBadMove = false;
+                        if (type === 'mate' && score < 0) isBadMove = true;
+                        else if (type === 'cp' && (score === null || score < threshold)) isBadMove = true;
+
+                        if (isBadMove) {
+                            console.log(`%c[BOT] Book move ${candidate} rejected. Searching for best engine move...`, "color:#fa412d");
+                            const difficultyMap = {
+                                1: { uciElo: 1000 }, 2: { uciElo: 1200 },
+                                3: { uciElo: 1500 }, 4: { uciElo: 1800 },
+                                5: { uciElo: 2100 }, 6: { uciElo: 2400 },
+                                7: { uciElo: 2700 }, 8: { uciElo: 3000 }
+                            };
+                            const level = this.botLevel || 8;
+                            this.verifyingBookMove = null;
+                            this.verifyingBookScore = null;
+                            this.verifyingBookType = null;
+                            this.verifyingBookThreshold = null;
+
+                            const fen = this.#engine.fen();
+                            const settings = difficultyMap[level] || difficultyMap[8];
+
+                            if (window.sfWorker) {
+                                this.#postEngineCommand('stop');
+                                this.#postEngineCommand('setoption name MultiPV value 1');
+                                
+                                if (this.activeEngineType === 'fairy') {
+                                    const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
+                                    this.#postEngineCommand('setoption name UCI_Variant value ' + sfVariant);
+                                } else {
+                                    this.#postEngineCommand('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+                                }
+                                
+                                this.#postEngineCommand('setoption name UCI_LimitStrength value true');
+                                this.#postEngineCommand(`setoption name UCI_Elo value ${settings.uciElo}`);
+                                this.#postEngineCommand('position fen ' + fen);
+                                this.#postEngineCommand(`go movetime ${this.currentBotThinkTime}`);
+                            }
+                            return; 
+                        } else {
+                            console.log(`%c[BOT] Book move ${candidate} verified.`, "color:#96bc4b");
+                            this.#executeBotMoveWithDelay(candidate);
+                        }
+                        return;
+                    }
+                    this.#executeBotMoveWithDelay(moveUCI);
+                } else {
+                    if (isVerifying) {
+                        this.#triggerBotMove(true); 
+                    } else {
+                        const legalMoves = this.#engine.moves({ verbose: true });
+                        if (legalMoves.length > 0) {
+                            const choice = legalMoves[0];
+                            let fallbackUCI = "";
+                            if (choice.from === '@' || choice.drop || choice.flags === 'd') {
+                                fallbackUCI = (choice.drop || choice.piece).toUpperCase() + '@' + choice.to;
+                            } else {
+                                fallbackUCI = choice.from + choice.to + (choice.promotion || '');
+                                if (this.gameMode === 'duck') {
+                                    let emptySqs = [];
+                                    for (let i = 0; i < 64; i++) {
+                                        let sqStr = this.#indexToSquare(i);
+                                        if (sqStr === choice.from) {
+                                            emptySqs.push(sqStr);
+                                        } else if (sqStr !== choice.to && !this.#engine.get(sqStr)) {
+                                            emptySqs.push(sqStr);
+                                        }
+                                    }
+                                    if (emptySqs.length > 0) {
+                                        fallbackUCI += ',' + emptySqs[Math.floor(Math.random() * emptySqs.length)];
+                                    }
+                                }
+                            }
+                            this.#executeBotMoveWithDelay(fallbackUCI);
+                        }
+                    }
+                }
+            }
+            return;
+        }
+
+        if (line.startsWith('info') && line.includes('score')) {
+            const multiPvMatch = line.match(/multipv (\d+)/);
+            const lineIndex = multiPvMatch ? parseInt(multiPvMatch[1]) : 1;
+            const depthMatch = line.match(/depth (\d+)/);
+            const depth = depthMatch ? parseInt(depthMatch[1]) : 0;
+            const pvMatch = line.match(/ pv (.+)/);
+            let rawMoves = pvMatch ? pvMatch[1].split(' ') : [];
+            const targetNode = this.analyzingNode || this.currentNode;
+            const currentFen = targetNode ? targetNode.fen : this.generateFEN();
+
+            if (rawMoves.length > 0) {
+                const tempValidator = new (typeof Chess === 'function' ? Chess : window.Chess)(currentFen, this.gameMode);
+                const validSan = [];
+                const validFull = [];
+                
+                for (let m of rawMoves) {
+                    let uM = m.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
+                    let eInput = m;
+                    if (uM) {
+                        eInput = { from: uM[1], to: uM[2] };
+                        if (uM[3]) eInput.promotion = uM[3].toLowerCase();
+                    }
+
+                    let res = null;
+                    let capturedLogs = [];
+
+                    const originalError = console.error;
+                    console.error = (...args) => { capturedLogs.push(args); }; 
+                    
+                    try { 
+                        res = tempValidator.move(eInput); 
+                    } catch(e) { capturedLogs.push([e]); }
+                    
+                    if (!res) {
+                        try { res = tempValidator.move(m, { sloppy: true }); } catch(e) { capturedLogs.push([e]); }
+                    }
+                    
+                    console.error = originalError;
+
+                    if (!res) break; 
+                    
+                    validSan.push(res.san); 
+                    validFull.push(res);    
+                }
+                
+                rawMoves = validSan; 
+                if (validFull.length > 0) rawMoves.bestMoveFull = validFull[0]; 
+            }
+            if (rawMoves.length === 0) return;
+
+            let score = 0; let type = 'cp'; let rawEval = 0; 
+            const cpMatch = line.match(/score cp (-?\d+)/);
+            const mateMatch = line.match(/score mate (-?\d+)/);
+
+            if (mateMatch) { score = parseInt(mateMatch[1]); type = 'mate'; }
+            else if (cpMatch) { score = parseInt(cpMatch[1]); }
+
+            if (this.mode === 'bot' && this.verifyingBookMove) {
+                this.verifyingBookScore = score;
+                this.verifyingBookType = type;
+                return; 
+            }
+            
+            let isBlackTurn = currentFen.split(' ')[1] === 'b';
+            if (isBlackTurn) score *= -1; 
+
+            if (type === 'mate') {
+                if (score === 0) rawEval = isBlackTurn ? 100000 : -100000;
+                else rawEval = score > 0 ? 100000 - Math.abs(score) : -100000 + Math.abs(score);
+            } else {
+                rawEval = score;
+            }
+
+            if (window.engineAnalysing && this.#ui && this.#ui.renderAnalysisLine && targetNode === this.currentNode) {
+                const placeholder = document.getElementById('calc-placeholder');
+                if (placeholder) placeholder.remove();
+                this.#ui.renderAnalysisLine(lineIndex, type, score, rawMoves, currentFen);
+            }
+
+            if (depth >= 4 && lineIndex === 1) {
+                if (targetNode) {
+                    let evalFloat = rawEval / 100;
+                    let evalString = type === 'mate' ? 
+                        (rawEval > 0 ? "+M" : "-M") + Math.abs(score) : 
+                        (evalFloat > 0 ? "+" : "") + evalFloat.toFixed(2);
+                    
+                    if (this.mode === 'bot' || this.mode === 'local') {
+                        targetNode.evalScore = rawEval;
+                        targetNode.eval = evalString;
+                        targetNode.depth = depth;
+                        targetNode.pv = ''; 
+                    } else {
+                        targetNode.localEvalScore = rawEval;
+                        targetNode.localEval = evalString;
+                        targetNode.depth = depth;
+                        targetNode.pv = '';
+                    }
+                
+                if (window.engineAnalysing && targetNode === this.currentNode) {
+                    const nps = line.match(/nps (\d+)/);
+                    this.#emit('engineEval', {
+                        type, score, depth,
+                        nps: nps ? nps[1] : '-',
+                        node: targetNode,
+                        bestMove: rawMoves.bestMoveFull ? rawMoves.bestMoveFull.uci : rawMoves[0]
+                    });
+                }
+                }
+            }
+        }
+    }
+
+    // 5. CẤU TRÚC LỊCH SỬ BIT-PACKED (Tuyệt đối không cấp phát String hay Object)
+    #syncMoveHistory() {
+        this.moveList = [];
+        // Mảng Float64 siêu tốc tĩnh
+        this.history = new BigUint64Array(1000); 
+        let histIndex = 0;
+        
+        let path = [];
+        let trace = this.currentNode;
+        
+        while (trace && trace !== this.rootNode) {
+            path.unshift(trace);
+            trace = trace.parent;
+        }
+        
+        const rootZobrist = BigInt(this.rootNode.zobrist || 0);
+        this.history[histIndex++] = rootZobrist;
+
+        path.forEach(node => {
+            if (node.lastMove) {
+                // Mã hóa nước cờ: Từ (7 bit), Đến (6 bit), Cờ (8 bit) -> Cực kỳ tiết kiệm RAM
+                const from = node.lastMove.from === '@' ? 64 : node.lastMove.from;
+                const to = node.lastMove.to;
+                const flags = node.lastMove.flags || 0;
+                
+                const packedMove = (from & 0x7F) | ((to & 0x3F) << 7) | ((flags & 0xFF) << 13);
+                this.moveList.push(packedMove);
+            } else if (node.moveSan) {
+                this.moveList.push(node.moveSan);
+            }
+            
+            const zHash = BigInt(node.zobrist || 0);
+            this.history[histIndex++] = zHash;
+        });
+        
+        // Co mảng về đúng kích cỡ thực
+        this.history = this.history.slice(0, histIndex);
     }
 #executeBotMoveWithDelay(uciMove, isBookMove = false) {
         const now = Date.now();
@@ -809,411 +1235,22 @@ return move.san;
     this._kingCache[color] = -1;
     return -1;
 }
-#triggerEngineGo(fen) {
-        let targetNode = this.analyzingNode || this.currentNode;
-
-        let isOver = false, isMate = false, tTurn = 'w';
-        try {
-            const tempChess = new (typeof Chess === 'function' ? Chess : window.Chess)();
-            tempChess.setGameMode(this.gameMode);
-            let loaded = tempChess.load(fen);
-            if (!loaded && typeof this.patchEngineFor960 === 'function') {
-                this.patchEngineFor960.call(tempChess);
-                loaded = tempChess.load(fen);
-            }
-            if (loaded) {
-                isOver = tempChess.isGameOver ? tempChess.isGameOver() : tempChess.game_over?.();
-                isMate = tempChess.isCheckmate ? tempChess.isCheckmate() : tempChess.in_checkmate?.();
-                tTurn = tempChess.turn();
-            }
-        } catch(e) { }
-
-        if (isOver) {
-            if (isMate) {
-                let whiteWon = tTurn === 'b';
-                let score = whiteWon ? 100000 : -100000;
-                let str = whiteWon ? "+M0" : "-M0";
-                if (this.mode === 'bot' || this.mode === 'local') { targetNode.evalScore = score; targetNode.eval = str; } 
-                else { targetNode.localEvalScore = score; targetNode.localEval = str; }
-                
-                if (this.#ui && typeof this.#ui.updateEvalBar === 'function' && targetNode === this.currentNode) {
-                    this.#ui.updateEvalBar('mate', whiteWon ? 1 : -1);
-                }
-            } else { 
-                if (this.mode === 'bot' || this.mode === 'local') { targetNode.evalScore = 0; targetNode.eval = "0.00"; } 
-                else { targetNode.localEvalScore = 0; targetNode.localEval = "0.00"; }
-                
-                if (this.#ui && typeof this.#ui.updateEvalBar === 'function' && targetNode === this.currentNode) {
-                    this.#ui.updateEvalBar('cp', 0);
-                }
-            }
-            
-            if (targetNode === this.currentNode) {
-                const box = document.getElementById('engine-lines-box');
-                if (box) box.innerHTML = '';
-                if (this.#ui && typeof this.#ui.renderCharts === 'function') requestAnimationFrame(() => {this.#ui.renderCharts();});
-            }
-            return; 
-        }
-
-        window.engineReady = true; 
-
-        if (this.activeEngineType === 'fairy' || this.activeEngineType === 'custom') {
-    const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-    window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-} else {
-    window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
-}
-        
-        window.sfWorker.postMessage('setoption name UCI_LimitStrength value false');
-        window.sfWorker.postMessage('setoption name Skill Level value 20');
-        window.sfWorker.postMessage('setoption name MultiPV value 3');
-        window.sfWorker.postMessage('position fen ' + fen);
-        
-        const depth = document.getElementById('engineDepth')?.value || 99;
-        window.sfWorker.postMessage('go depth ' + depth);
-    }
-#handleEngineMessage(e) {
-        if (typeof e.data !== 'string') return;
-        const line = e.data.trim(); 
-        if (!line) return;
-        console.log("%c⬅️ [ENGINE SAYS]: " + line, "color: #a3e635");
-
-        if (line === 'WORKER_INITIALIZED') {
-            window.sfWorker.postMessage('uci');
-            return;
-        }
-
-        if (line === 'readyok') {
-            window.engineReady = true; 
-            window.engineBooting = false; 
-
-            if (this.mode === 'bot' && this._pendingBotStart) {
-                this._pendingBotStart = false;
-                window.sfWorker.postMessage('ucinewgame');
-                if (this.turn === this.botColor) {
-                    setTimeout(() => this.#triggerBotMove(), 500);
-                }
-                return;
-            }
-
-            // ✨ THE FIX: We must allow 'puzzle' mode to pass the gatekeeper!
-            // Without this, the engine gets 'readyok' but never receives the 'go depth' command.
-            const isAnalysingOrStudy = (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'puzzle');
-            
-            if (isAnalysingOrStudy && window.engineAnalysing && this._pendingFen) {
-                const targetFen = this._pendingFen;
-                this.analyzingNode = this._pendingNode;
-                this._pendingFen = null; 
-                this._pendingNode = null;
-                this.#triggerEngineGo(targetFen); 
-            }
-            return; 
-        }
-
-        // ✨ THE FIX: Ensure early engine logs don't break the puzzle engine!
-        const isAnalysingOrStudy = (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'puzzle');
-        
-        if (isAnalysingOrStudy && window.engineAnalysing && !window.engineReady && (line.startsWith('info') || line.startsWith('bestmove'))) {
-            return; 
-        }
-
-        if (line.startsWith('id name ')) {
-            const engineName = line.replace('id name ', '');
-            if (this.#ui && typeof this.#ui.updateEngineName === 'function') this.#ui.updateEngineName(engineName);
-            return;
-        }
-
-        if (line === 'uciok') {
-            let threads = Math.floor(navigator.hardwareConcurrency - 1);
-            if (threads < 1) threads = 1;
-            if (this.gameMode === 'alice' || this.gameMode === 'spell') {
-                window.sfWorker.postMessage('setoption name Threads value 1');
-                window.sfWorker.postMessage('setoption name Hash value 32');
-            } else {            
-                window.sfWorker.postMessage('setoption name Threads value ' + threads);
-                window.sfWorker.postMessage('setoption name Hash value 1024');
-            }
-            window.sfWorker.postMessage('setoption name MultiPV value 3');
-            window.sfWorker.postMessage('setoption name Move Overhead value 10');
-            window.sfWorker.postMessage('setoption name UCI_LimitStrength value false');
-            window.sfWorker.postMessage('setoption name Skill Level value 20');
-            
-            if (this.activeEngineType === 'fairy' || this.activeEngineType === 'custom') {
-                const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-                if (this.gameMode === 'alice' || this.gameMode === 'spell') {
-                    window.sfWorker.postMessage('setoption name Use NNUE value false');
-                    window.sfWorker.postMessage('setoption name EvalFile value ');
-                    window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-                    window.sfWorker.postMessage('isready');
-                    return;
-                }
-                const nnueFile = nnueMap[this.gameMode];
-                if (nnueFile) {
-                    fetch('./engine/nnue/' + nnueFile)
-                        .then(res => {
-                            if (!res.ok) throw new Error("NNUE not found");
-                            return res.arrayBuffer();
-                        })
-                        .then(buffer => {
-                            window.sfWorker.postMessage({ action: 'INJECT_NNUE', name: nnueFile, buffer: buffer });
-                            setTimeout(() => {
-                                window.sfWorker.postMessage('setoption name EvalFile value ' + nnueFile);
-                                window.sfWorker.postMessage('isready'); 
-                            }, 50);
-                        })
-                        .catch(err => {
-                            console.warn("[ENGINE] Playing without NNUE:", err);
-                            window.sfWorker.postMessage('isready'); 
-                        });
-                    return;
-                } else {
-                    window.sfWorker.postMessage('isready');
-                    return;
-                }
-            }  else {
-                window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
-            }
-            
-            window.sfWorker.postMessage('isready'); 
-            return;
-        }
-
-        if (line.startsWith('bestmove')) {
-            const liveTurn = this.currentLiveTurn || this.turn;
-            if (this.mode === 'bot' && liveTurn === this.botColor) {
-                const match = line.match(/bestmove\s+(\S+)/);
-                const isVerifying = !!this.verifyingBookMove;
-                const candidate = this.verifyingBookMove;
-                const score = this.verifyingBookScore;
-                const type = this.verifyingBookType;
-                const threshold = this.verifyingBookThreshold;
-                
-                this.verifyingBookMove = null;
-                this.verifyingBookScore = null;
-                this.verifyingBookType = null;
-                this.verifyingBookThreshold = null;
-
-                if (match) {
-                    let moveUCI = match[1];
-
-                    if (isVerifying) {
-                        let isBadMove = false;
-                        if (type === 'mate' && score < 0) isBadMove = true;
-                        else if (type === 'cp' && (score === null || score < threshold)) isBadMove = true;
-
-                        if (isBadMove) {
-                            console.log(`%c[BOT] Book move ${candidate} rejected. Searching for best engine move...`, "color:#fa412d");
-                            const difficultyMap = {
-                                1: { uciElo: 1000 }, 2: { uciElo: 1200 },
-                                3: { uciElo: 1500 }, 4: { uciElo: 1800 },
-                                5: { uciElo: 2100 }, 6: { uciElo: 2400 },
-                                7: { uciElo: 2700 }, 8: { uciElo: 3000 }
-                            };
-                            const level = this.botLevel || 8;
-                            this.verifyingBookMove = null;
-                            this.verifyingBookScore = null;
-                            this.verifyingBookType = null;
-                            this.verifyingBookThreshold = null;
-
-                            const fen = this.#engine.fen();
-                            const settings = difficultyMap[level] || difficultyMap[8];
-
-                            if (window.sfWorker) {
-                                window.sfWorker.postMessage('stop');
-                                window.sfWorker.postMessage('setoption name MultiPV value 1');
-                                
-                                if (this.activeEngineType === 'fairy') {
-                                    const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-                                    window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-                                } else {
-                                    window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
-                                }
-                                
-                                window.sfWorker.postMessage('setoption name UCI_LimitStrength value true');
-                                window.sfWorker.postMessage(`setoption name UCI_Elo value ${settings.uciElo}`);
-                                window.sfWorker.postMessage('position fen ' + fen);
-                                window.sfWorker.postMessage(`go movetime ${this.currentBotThinkTime}`);
-                            }
-                            return; 
-                        } else {
-                            console.log(`%c[BOT] Book move ${candidate} verified.`, "color:#96bc4b");
-                            this.#executeBotMoveWithDelay(candidate);
-                        }
-                        return;
-                    }
-                    this.#executeBotMoveWithDelay(moveUCI);
-                } else {
-                    if (isVerifying) {
-                        this.#triggerBotMove(true); 
-                    } else {
-                        const legalMoves = this.#engine.moves({ verbose: true });
-                        if (legalMoves.length > 0) {
-                            const choice = legalMoves[0];
-                            let fallbackUCI = "";
-                            if (choice.from === '@' || choice.drop || choice.flags === 'd') {
-                                fallbackUCI = (choice.drop || choice.piece).toUpperCase() + '@' + choice.to;
-                            } else {
-                                fallbackUCI = choice.from + choice.to + (choice.promotion || '');
-                                if (this.gameMode === 'duck') {
-                                    let emptySqs = [];
-                                    for (let i = 0; i < 64; i++) {
-                                        let sqStr = this.#indexToSquare(i);
-                                        if (sqStr === choice.from) {
-                                            emptySqs.push(sqStr);
-                                        } else if (sqStr !== choice.to && !this.#engine.get(sqStr)) {
-                                            emptySqs.push(sqStr);
-                                        }
-                                    }
-                                    if (emptySqs.length > 0) {
-                                        fallbackUCI += ',' + emptySqs[Math.floor(Math.random() * emptySqs.length)];
-                                    }
-                                }
-                            }
-                            this.#executeBotMoveWithDelay(fallbackUCI);
-                        }
-                    }
-                }
-            }
-            return;
-        }
-
-        if (line.startsWith('info') && line.includes('score')) {
-            const multiPvMatch = line.match(/multipv (\d+)/);
-            const lineIndex = multiPvMatch ? parseInt(multiPvMatch[1]) : 1;
-            const depthMatch = line.match(/depth (\d+)/);
-            const depth = depthMatch ? parseInt(depthMatch[1]) : 0;
-            const pvMatch = line.match(/ pv (.+)/);
-            let rawMoves = pvMatch ? pvMatch[1].split(' ') : [];
-            const targetNode = this.analyzingNode || this.currentNode;
-            const currentFen = targetNode ? targetNode.fen : this.generateFEN();
-
-            if (rawMoves.length > 0) {
-                // Initialize the validator at the current position
-                const tempValidator = new (typeof Chess === 'function' ? Chess : window.Chess)(currentFen, this.gameMode);
-                const validSan = [];
-                const validFull = [];
-                
-                for (let m of rawMoves) {
-                    let uM = m.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
-                    let eInput = m;
-                    if (uM) {
-                        eInput = { from: uM[1], to: uM[2] };
-                        if (uM[3]) eInput.promotion = uM[3].toLowerCase();
-                    }
-
-                    let res = null;
-                    let capturedLogs = [];
-
-                    const originalError = console.error;
-                    console.error = (...args) => { capturedLogs.push(args); }; 
-                    
-                    try { 
-                        // ✨ THE ROOT FIX:
-                        // By actually calling .move(), the tempValidator updates its internal state.
-                        // When the next move in the PV loop arrives, the validator knows it is the 
-                        // OPPONENT's turn, so pawn promotions won't be flagged as wrong-color moves!
-                        res = tempValidator.move(eInput); 
-                    } catch(e) { capturedLogs.push([e]); }
-                    
-                    if (!res) {
-                        try { res = tempValidator.move(m, { sloppy: true }); } catch(e) { capturedLogs.push([e]); }
-                    }
-                    
-                    console.error = originalError;
-
-                    if (!res) {
-                        // If it genuinely hallucinates, we silently break the PV line instead of crashing.
-                        // We do NOT throw a red console error anymore, because silent truncation is the expected
-                        // behavior for multi-pv engine analysis when a line hits a variant discrepancy.
-                        break; 
-                    }
-                    
-                    validSan.push(res.san); 
-                    validFull.push(res);    
-                }
-                
-                rawMoves = validSan; 
-                if (validFull.length > 0) rawMoves.bestMoveFull = validFull[0]; 
-            }
-            if (rawMoves.length === 0) return;
-
-            let score = 0; let type = 'cp'; let rawEval = 0; 
-            const cpMatch = line.match(/score cp (-?\d+)/);
-            const mateMatch = line.match(/score mate (-?\d+)/);
-
-            if (mateMatch) { score = parseInt(mateMatch[1]); type = 'mate'; }
-            else if (cpMatch) { score = parseInt(cpMatch[1]); }
-
-            if (this.mode === 'bot' && this.verifyingBookMove) {
-                this.verifyingBookScore = score;
-                this.verifyingBookType = type;
-                return; 
-            }
-            
-            let isBlackTurn = currentFen.split(' ')[1] === 'b';
-            if (isBlackTurn) score *= -1; 
-
-            if (type === 'mate') {
-                if (score === 0) rawEval = isBlackTurn ? 100000 : -100000;
-                else rawEval = score > 0 ? 100000 - Math.abs(score) : -100000 + Math.abs(score);
-            } else {
-                rawEval = score;
-            }
-
-            if (window.engineAnalysing && this.#ui && this.#ui.renderAnalysisLine && targetNode === this.currentNode) {
-                const placeholder = document.getElementById('calc-placeholder');
-                if (placeholder) placeholder.remove();
-                this.#ui.renderAnalysisLine(lineIndex, type, score, rawMoves, currentFen);
-            }
-
-            if (depth >= 4 && lineIndex === 1) {
-                if (targetNode) {
-                    let evalFloat = rawEval / 100;
-                    let evalString = type === 'mate' ? 
-                        (rawEval > 0 ? "+M" : "-M") + Math.abs(score) : 
-                        (evalFloat > 0 ? "+" : "") + evalFloat.toFixed(2);
-                    
-                    if (this.mode === 'bot' || this.mode === 'local') {
-                        targetNode.evalScore = rawEval;
-                        targetNode.eval = evalString;
-                        targetNode.depth = depth;
-                        targetNode.pv = ''; 
-                    } else {
-                        targetNode.localEvalScore = rawEval;
-                        targetNode.localEval = evalString;
-                        targetNode.depth = depth;
-                        targetNode.pv = '';
-                    }
-                
-                if (window.engineAnalysing && targetNode === this.currentNode) {
-                    const nps = line.match(/nps (\d+)/);
-                    this.#emit('engineEval', {
-                        type, score, depth,
-                        nps: nps ? nps[1] : '-',
-                        node: targetNode,
-                        bestMove: rawMoves.bestMoveFull ? rawMoves.bestMoveFull.uci : rawMoves[0]
-                    });
-                }
-                }
-            }
-        }
-    }
-#saveState(stateName) {
-        if (!stateName) return;
-        
-        if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
-        
+    #flatCloneState(stateName) {
         const memSlot = (stateName === 'local' || stateName === 'bot' || stateName === 'play') ? 'play' : stateName;
         
-        const stateSnapshot = {
+        return {
             variant: this.gameMode || 'classical',
             mode: this.mode || stateName,
-            fen: this.currentNode ? this.currentNode.fen : INITIAL_FEN,
+            fen: this.currentNode ? this.currentNode.fen : (typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'),
             pgn: typeof this.generatePGN === 'function' ? this.generatePGN() : "",
-            headers: this.pgnHeaders ? JSON.parse(JSON.stringify(this.pgnHeaders)) : {},
-            history: this.history ? JSON.parse(JSON.stringify(this.history)) : [],
-            moveList: this.moveList ? JSON.parse(JSON.stringify(this.moveList)) : [],
+            
+            // Shallow Copy siêu tốc độ (Tránh GC Allocation)
+            headers: this.pgnHeaders ? { ...this.pgnHeaders } : {},
+            
+            // ✨ FIX LỖI BIGINT: Chuyển BigInt thành String để JSON.stringify không bị crash
+            history: this.history ? Array.from(this.history, val => val.toString()) : [],
+            moveList: this.moveList ? [...this.moveList] : [],
+            
             activeNodeId: this.currentNode ? this.currentNode.id : null,
             wTime: this.whiteTime,
             bTime: this.blackTime,
@@ -1229,17 +1266,37 @@ return move.san;
             puzzleActive: this.puzzleActive || false,
             puzzleMode: this.puzzleMode || 'rush',
             puzzleSolved: this.puzzleSolved || false,
-            puzzleQueue: this.puzzleQueue || [],
+            puzzleQueue: this.puzzleQueue ? [...this.puzzleQueue] : [],
             puzzleIndex: this.puzzleIndex || 0,
             currentSessionId: this.currentSessionId || null,
             activeChapterIndex: this.activeChapterIndex,
             currentStudyId: this.currentStudyId
         };
-
-        this.tabMemory[memSlot] = JSON.parse(JSON.stringify(stateSnapshot));
-        localStorage.setItem(`chess_tab_snapshot_${memSlot}`, JSON.stringify(stateSnapshot));
     }
-#restoreState(stateName) {
+    #saveState(stateName) {
+        if (!stateName) return;
+        
+        if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
+        
+        const memSlot = (stateName === 'local' || stateName === 'bot' || stateName === 'play') ? 'play' : stateName;
+        
+        // Snapshot ngay lập tức lên RAM (0 ms)
+        const stateSnapshot = this.#flatCloneState(stateName);
+        this.tabMemory[memSlot] = stateSnapshot;
+        
+        // Dừng các lệnh ghi Disk rác nếu user đang thao tác liên tục
+        clearTimeout(this._saveStateDebounce);
+        
+        // Chỉ thực sự ghi vào LocalStorage (Disk I/O) khi CPU rảnh rỗi 1 giây
+        this._saveStateDebounce = setTimeout(() => {
+            try {
+                localStorage.setItem(`chess_tab_snapshot_${memSlot}`, JSON.stringify(stateSnapshot));
+            } catch(e) {
+                console.error("Lỗi khi ghi LocalStorage:", e);
+            }
+        }, 1000); 
+    }
+    #restoreState(stateName) {
         if (!stateName) return false;
         if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
         
@@ -1247,7 +1304,8 @@ return move.san;
         
         let state = null;
         if (this.tabMemory[memSlot]) {
-            state = JSON.parse(JSON.stringify(this.tabMemory[memSlot]));
+            // Shallow Copy từ RAM ra, tránh Tab Switch làm dơ bộ nhớ gốc
+            state = { ...this.tabMemory[memSlot] };
         } else {
             try {
                 const stored = localStorage.getItem(`chess_tab_snapshot_${memSlot}`);
@@ -1256,28 +1314,25 @@ return move.san;
                     this.tabMemory[memSlot] = state;
                 }
             } catch (e) {
-                console.error(`Failed to parse stored tab state for ${memSlot}`, e);
+                console.error(`Lỗi khi Parse bộ nhớ Tab ${memSlot}`, e);
             }
         }
         
-        // Align active context variables cleanly
         this.mode = (memSlot === 'play') ? (state?.mode || 'local') : memSlot;
 
         if (state) {
-            // Restore variant assignment before re-initializing rulesets
             this.gameMode = state.variant || 'classical';
             
-            // Re-instantiate engine instance scratchpad to dump cached states
             this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
             if (this.#engine && typeof this.#engine.setGameMode === 'function') {
                 this.#engine.setGameMode(this.gameMode);
             }
             
-            this.history = [];
+            this.history = new BigUint64Array(1000); // 💥 FIX: Khởi tạo mảng kiểu tĩnh ngay từ đầu
             this.moveList = [];
             this.pgnHeaders = {};
 
-            // Interpret clean isolated text data stream
+            // Nạp Cây Nước Đi
             if (state.pgn && state.pgn.trim() !== "") {
                 if (typeof this.loadPGN === 'function') {
                     this.loadPGN(state.pgn, false, true);
@@ -1290,10 +1345,20 @@ return move.san;
                 this.currentNode = this.rootNode;
             }
 
-            // Bind primitives securely
-            if (state.headers) this.pgnHeaders = JSON.parse(JSON.stringify(state.headers));
-            if (state.history) this.history = JSON.parse(JSON.stringify(state.history));
-            if (state.moveList) this.moveList = JSON.parse(JSON.stringify(state.moveList));
+            // Giải phóng rác: Tái nạp bằng phép gán phẳng!
+            if (state.headers) this.pgnHeaders = { ...state.headers };
+            
+            // ✨ FIX LỖI BIGINT TẠI ĐÂY: Ép chuỗi ngược về BigInt
+            if (state.history) {
+                this.history = new BigUint64Array(state.history.length);
+                for (let i = 0; i < state.history.length; i++) {
+                    this.history[i] = BigInt(state.history[i]);
+                }
+            } else {
+                this.history = new BigUint64Array(1000);
+            }
+            
+            if (state.moveList) this.moveList = [...state.moveList];
             
             this.whiteTime = state.wTime !== undefined ? state.wTime : 600;
             this.blackTime = state.bTime !== undefined ? state.bTime : 600;
@@ -1301,11 +1366,13 @@ return move.san;
             this.myColor = state.myColor;
             this.botLevel = state.botLevel;
             this.puzzleCursor = state.puzzleCursor || 0;
-            this.puzzleSolution = state.puzzleSolution || [];
+            this.puzzleSolution = state.puzzleSolution ? [...state.puzzleSolution] : [];
             this.puzzleScore = state.puzzleScore || 0;
             this.puzzleStrikes = state.puzzleStrikes || 0;
+            
             if (state.activeChapterIndex !== undefined) this.activeChapterIndex = state.activeChapterIndex;
             if (state.currentStudyId !== undefined) this.currentStudyId = state.currentStudyId;
+            
             if (state.activeNodeId && typeof this.goToNodeId === 'function') {
                 this.goToNodeId(state.activeNodeId);
             }
@@ -1316,8 +1383,8 @@ return move.san;
             return true;
         }
 
-        // Clean slate fallback block if no previous snapshot data was saved
-        let startFen = this.#getStartingFen(this.gameMode);
+        // Tình huống xấu nhất: Rỗng trơn (Mới tinh)
+        let startFen = typeof this.#getStartingFen === 'function' ? this.#getStartingFen(this.gameMode) : (typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
             
         this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
         if (this.#engine && typeof this.#engine.setGameMode === 'function') {
@@ -1325,7 +1392,7 @@ return move.san;
         }
         this.rootNode = new MoveNode(startFen, null);
         this.currentNode = this.rootNode;
-        this.history = [];
+        this.history = new BigUint64Array(1000); // 💥 FIX: Tránh crash cho ván rỗng
         this.moveList = [];
         this.pgnHeaders = {};
         
@@ -1544,7 +1611,7 @@ return move.san;
                         cleanComment = cleanComment.replace(/DEPTH:\s*\d+\s*/gi, ""); 
                     }
 
-                    // 👉 FIX 3: Strip "book" out of the visible user comment
+                    // Strip "book" out of the visible user comment
                     cleanComment = cleanComment.replace(/(^|,\s*)\bbook\b(\s*,|$)/ig, "").trim();
                     cleanComment = cleanComment.replace(/^,?\s*/, "").replace(/,?\s*$/, "").trim();
                     cleanComment = cleanComment.replace(/\s{2,}/g, ' ');
@@ -1575,10 +1642,6 @@ return move.san;
 
                     let moveText = token;
                     let attachedNag = "";
-                    
-                    // ✨ THE PROMOTION FIX ✨
-                    // We extract the pure chess move (including =Q) first, and then capture any 
-                    // trailing annotations (!, ?, !!, etc.) into the attachedNag group.
                     const sanRegex = /^([KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?(?:@[a-h][1-8])?[\+#]?|[a-h][1-8](?:=[QRBN])?[\+#]?|O-O-O(?:@[a-h][1-8])?[\+#]?|O-O(?:@[a-h][1-8])?[\+#]?)(.*)$/;
                     let match = token.match(sanRegex);
                     
@@ -1586,7 +1649,6 @@ return move.san;
                         moveText = match[1]; 
                         attachedNag = match[2]; 
                     } else {
-                        // Fallback: Ensure '=' inside a promotion doesn't get ripped off and treated as a draw evaluation!
                         let fallbackMatch = token.match(/^([a-zA-Z0-9\+#\-@=]+?)([!?[\]±∓∞⩲⩱]|\+\-|\-\+|\+\/-|-\/\+)+$/);
                         if (fallbackMatch) {
                             moveText = fallbackMatch[1];
@@ -1614,20 +1676,6 @@ return move.san;
                     } catch(e) {
                         moveObj = null;
                     }
-
-                    // Fallback 1: Strip trailing '+' if engine stylistically rejects it
-                    if (!moveObj && typeof engineInput === 'string' && engineInput.endsWith('+')) {
-                        try { moveObj = this.#engine.move(engineInput.slice(0, -1)); } catch(e) {}
-                        if (moveObj) moveText = engineInput.slice(0, -1);
-                    }
-                    
-                    // Fallback 2: Handle standard PGN 'b8=Q' to strict engine 'b8Q'
-                    if (!moveObj && typeof engineInput === 'string' && engineInput.includes('=')) {
-                       let cleanSan = engineInput.replace('=', '');
-                       try { moveObj = this.#engine.move(cleanSan); } catch(e) {}
-                       if (moveObj) moveText = cleanSan;
-                    }
-
                     console.error = originalError;
                     
                     let isIllegal = !moveObj;
@@ -1885,26 +1933,23 @@ return move.san;
         let wWarningPlayed = false;
         let bWarningPlayed = false;
 
-        // Track the exact timestamp so the clock doesn't drift
         let lastTime = Date.now();
 
-        // ✨ Run the loop every 50ms (20 frames per second) for buttery smooth decimal ticking!
+        // CHỈ LÀM TOÁN - KHÔNG GỌI UI Ở ĐÂY NỮA
         this.#timerInterval = setInterval(() => {
             let now = Date.now();
-            let deltaSeconds = (now - lastTime) / 1000; // Calculate exact fraction of a second passed
+            let deltaSeconds = (now - lastTime) / 1000; 
             lastTime = now;
 
             if (this.gameOver || this.isEditing || this.isAnalysisMode || this.isPaused || !this.isPlayingLiveGame) {
-                return; // Paused, do not subtract time
+                return; 
             }
             
             const liveTurn = this.currentLiveTurn;
 
             if (liveTurn === 'w') {
-                // Subtract the exact fraction of a second
                 this.whiteTime = Math.max(0, this.whiteTime - deltaSeconds);
                 
-                // Play sound when dropping below 10 seconds
                 if (this.whiteTime <= 10 && this.whiteTime > 0 && !wWarningPlayed) {
                     this.#emit('soundTriggered', { type: 'lowtime' });
                     wWarningPlayed = true;
@@ -1932,11 +1977,6 @@ return move.san;
                         this.#endGame('1-0', 'White wins on time'); 
                     }
                 }
-            }
-            
-            // Push the rapidly updating decimals to the UI
-            if (typeof window !== 'undefined' && this.#ui && typeof this.#ui.updateClocks === 'function') {
-                this.#ui.updateClocks();
             }
         }, 50); 
     }
@@ -2640,32 +2680,6 @@ return move.san;
         const diff = Math.max(0, dropInWinPct); 
         const acc = 103.1668 * Math.exp(-0.04354 * diff) - 3.1669;
         return Math.max(0, Math.min(100, acc)); 
-    }
-#syncMoveHistory() {
-        this.moveList = [];
-        this.history = [];
-        
-        let path = [];
-        let trace = this.currentNode;
-        
-        // 1. Trace back to the root instantly
-        while (trace && trace !== this.rootNode) {
-            path.unshift(trace);
-            trace = trace.parent;
-        }
-        
-        // 2. Push the starting FEN
-        const startFen = this.rootNode.fen === 'start' ? INITIAL_FEN : this.rootNode.fen;
-        this.history.push(startFen);
-
-        // 3. Populate arrays using the pre-calculated node data! NO CHESS.JS VALIDATION!
-        path.forEach(node => {
-            if (node.lastMove) this.moveList.push(node.lastMove);
-            else if (node.moveSan) this.moveList.push(node.moveSan); // Fallback
-            
-            // Trust the node's saved FEN instead of recalculating the whole game
-            this.history.push(node.fen);
-        });
     }
 #translate4PCtoStandard(str) {
         // Maps files d-k to a-h, and ranks 4-11 to 1-8
@@ -4039,6 +4053,21 @@ goToStart(animate = true) {
 
         const startFen = this.rootNode.fen;
         const previousBoardSnapshot = this.#board.map(p => p ? { ...p } : null);
+        if (animate && this.#ui && typeof this.#ui.animateToStartPosition === 'function') {
+            this.#ui.animateToStartPosition(startFen, previousBoardSnapshot, () => {
+                this.currentNode = this.rootNode;
+                this.loadFEN(startFen, this.gameMode, true); 
+
+                this.#emit('fenChanged', { fen: startFen });
+                this.#emit('boardUpdated', { animate: false });
+
+                if (this._audioDebounce) clearTimeout(this._audioDebounce);
+                this._audioDebounce = setTimeout(() => {
+                    this.#emit('soundTriggered', { type: 'move-self' });
+                }, 25);
+            });
+            return true;
+        }
 
         this.currentNode = this.rootNode;
         this.loadFEN(startFen, this.gameMode, true); 
@@ -4049,10 +4078,9 @@ goToStart(animate = true) {
             isGoToStart: true, 
             targetFen: startFen, 
             previousBoard: previousBoardSnapshot,
-            animate: animate 
+            animate: false 
         });
 
-        // ✨ ROOT FIX: Debounce the audio queue!
         if (animate) {
             if (this._audioDebounce) clearTimeout(this._audioDebounce);
             this._audioDebounce = setTimeout(() => {
@@ -4797,7 +4825,7 @@ makeMainline(nodeId) {
         }
         if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory(); 
         
-        // 🔥 THE FIX: Save to Study if in study mode!
+        // Save to Study if in study mode!
         if (this.mode === 'study') this.saveActiveChapter();
         else if (this.mode === 'analysis') this.#saveState('analysis');
         
@@ -6391,7 +6419,6 @@ loadAllStudies() {
             const stored = localStorage.getItem('chess_studies_library');
             const lastStudyId = localStorage.getItem('chess_last_study_id'); 
 
-            // ✨ FIX 1: Do not treat empty arrays "[]" as valid data that forces a placeholder
             if (stored && stored !== "[]") {
                 this.allStudies = JSON.parse(stored);
                 
@@ -6637,7 +6664,7 @@ importStudy(pgnText) {
                 activeChapterIndex: 0
             });
             
-            // ✨ FIX: Load the study FIRST, then save it so the correct ID writes to memory!
+            //  FIX: Load the study FIRST, then save it so the correct ID writes to memory!
             this.loadStudy(newStudyId, true);
             this.saveAllStudies();
             
@@ -6649,7 +6676,7 @@ importStudy(pgnText) {
             
             this.chapters.push({ title: title, pgn: gameStr.trim(), analysisMode: 'Normal analysis' });
             
-            // ✨ FIX: Complete the save cycle for Text-box imports!
+            //  FIX: Complete the save cycle for Text-box imports!
             this.loadChapter(this.chapters.length - 1, true);
             this.saveAllStudies();
         }
@@ -6700,7 +6727,7 @@ importStudyFromFile(input) {
                 activeChapterIndex: 0
             });
             
-            // ✨ FIX: Ensure memory locks onto the new ID before saving!
+            //  FIX: Ensure memory locks onto the new ID before saving!
             this.loadStudy(newId, true);
             this.saveAllStudies();
             
@@ -6744,7 +6771,7 @@ importChaptersFromFile(input) {
                 this.chapters.push({ title: title, pgn: gamePgn, analysisMode: 'Normal analysis' });
             });
             
-            // ✨ FIX: Load the newly appended chapter FIRST, then save the array!
+            //  FIX: Load the newly appended chapter FIRST, then save the array!
             this.loadChapter(jumpToIdx, true);
             this.saveAllStudies();
             
@@ -6873,7 +6900,7 @@ saveActiveChapter() {
         }
     }
 saveAllStudies() {
-        // ✨ FIX 1: If there are no studies or no ID, just save the empty state.
+        // FIX 1: If there are no studies or no ID, just save the empty state.
         if (!this.currentStudyId || this.allStudies.length === 0) {
             localStorage.setItem('chess_studies_library', JSON.stringify(this.allStudies));
             if (!this.currentStudyId) {
@@ -6884,7 +6911,7 @@ saveAllStudies() {
 
         let current = this.allStudies.find(s => s.id === this.currentStudyId);
 
-        // ✨ FIX 2: ONLY update the study if it actually exists! 
+        // FIX 2: ONLY update the study if it actually exists! 
         // We completely removed the `else` block that was resurrecting deleted ghosts!
         if (current) {
             let indexToSave = 0;
@@ -6905,7 +6932,7 @@ saveAllStudies() {
 deleteStudy(id) {
         const isDeletingCurrent = (this.currentStudyId === id);
 
-        // ✨ FIX 3: If we are deleting a background study, ensure the current one is saved first!
+        // FIX 3: If we are deleting a background study, ensure the current one is saved first!
         if (!isDeletingCurrent) {
             this.saveActiveChapter();
         }
@@ -6925,7 +6952,7 @@ deleteStudy(id) {
                 this.loadStudy(this.allStudies[0].id, true);
             }
             
-            // ✨ FIX 4: Explicitly command the system to save the deletion!
+            //  FIX 4: Explicitly command the system to save the deletion!
             this.saveAllStudies();
         }
     }
@@ -6950,7 +6977,7 @@ deleteSelectedStudies() {
             if (deletingCurrent) {
                 this.loadStudy(this.allStudies[0].id, true);
             }
-            // ✨ FIX 5: Explicitly command the system to save the deletion!
+            // FIX 5: Explicitly command the system to save the deletion!
             this.saveAllStudies();
         }
 
@@ -7259,7 +7286,7 @@ triggerMoveSound(move) {
         const flags = move.flags || '';
         let type = 'move-self';
 
-        // ✨ 1. PUZZLE GRADING (Only for Player Moves)
+        //  1. PUZZLE GRADING (Only for Player Moves)
         if (this.mode === 'puzzle' && move.color === this.playerColor) {
             const pStatus = move.puzzleStatus || move.status;
             
@@ -7276,7 +7303,7 @@ triggerMoveSound(move) {
             }
         }
 
-        // ✨ 2. GAME OVER
+        //  2. GAME OVER
         if (this.#engine.game_over()) {
             if (this.#engine.in_draw() || this.#engine.in_stalemate() || (typeof this.#engine.in_threefold_repetition === 'function' && this.#engine.in_threefold_repetition())) {
                 type = 'draw';
@@ -7298,7 +7325,7 @@ triggerMoveSound(move) {
             return;
         }
 
-        // ✨ 3. ACTION SOUNDS (Captures, Checks, etc.)
+        // 3. ACTION SOUNDS (Captures, Checks, etc.)
         if (this.#engine.in_check()) {
             type = 'check';
         } else if (flags.includes('p')) {
@@ -7308,7 +7335,7 @@ triggerMoveSound(move) {
         } else if (flags.includes('k') || flags.includes('q')) {
             type = 'castle';
         } else {
-            // ✨ 4. STANDARD MOVES
+            //  4. STANDARD MOVES
             if (this.mode === 'bot' && move.color === this.botColor) {
                 type = 'move-opponent';
             } else if (this.mode === 'puzzle' && move.color !== this.playerColor) {
@@ -7318,7 +7345,7 @@ triggerMoveSound(move) {
             }
         }
 
-        // ✨ ROOT FIX: Debounce the audio queue to prevent lag explosions!
+        // ROOT FIX: Debounce the audio queue to prevent lag explosions!
         // This tiny 25ms delay allows the browser to clear out backed-up DOM processing
         // and instantly destroys previously queued sounds so they don't stack up.
         if (this._audioDebounce) clearTimeout(this._audioDebounce);

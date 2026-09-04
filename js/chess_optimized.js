@@ -29,7 +29,20 @@ var Chess = function(fen, gameMode = 'classical') {
     const PAWN_HI = [new Int32Array(64), new Int32Array(64)];
     const BETWEEN_LO = new Int32Array(4096), BETWEEN_HI = new Int32Array(4096);
     const ALIGNED = new Uint8Array(4096);
-
+    const ZOBRIST = {
+        pieces: new Int32Array(768),
+        castling: new Int32Array(16),
+        ep: new Int32Array(64),
+        turn: 0
+    };
+    const RAY_N_LO = new Int32Array(64), RAY_N_HI = new Int32Array(64); // Hướng Bắc
+    const RAY_S_LO = new Int32Array(64), RAY_S_HI = new Int32Array(64); // Hướng Nam
+    const RAY_E_LO = new Int32Array(64), RAY_E_HI = new Int32Array(64); // Hướng Đông
+    const RAY_W_LO = new Int32Array(64), RAY_W_HI = new Int32Array(64); // Hướng Tây
+    const RAY_NW_LO = new Int32Array(64), RAY_NW_HI = new Int32Array(64);
+    const RAY_NE_LO = new Int32Array(64), RAY_NE_HI = new Int32Array(64);
+    const RAY_SW_LO = new Int32Array(64), RAY_SW_HI = new Int32Array(64);
+    const RAY_SE_LO = new Int32Array(64), RAY_SE_HI = new Int32Array(64);
     (function init_tables() {
         for (let i = 0; i < 64; i++) {
             if (i < 32) { MASKS_LO[i] = (1 << i); MASKS_HI[i] = 0; }
@@ -79,38 +92,116 @@ var Chess = function(fen, gameMode = 'classical') {
                 }
             }
         }
+    function rand32() { return (Math.random() * 0x100000000) | 0; }
+        for (let i = 0; i < 768; i++) ZOBRIST.pieces[i] = rand32();
+        for (let i = 0; i < 16; i++) ZOBRIST.castling[i] = rand32();
+        for (let i = 0; i < 64; i++) ZOBRIST.ep[i] = rand32();
+        ZOBRIST.turn = rand32();
+        const set_ray = (obj, sq, dr, df) => {
+        let r = sq >> 3, f = sq & 7;
+        let lo = 0, hi = 0;
+        while (true) {
+            r += dr; f += df;
+            if (r < 0 || r > 7 || f < 0 || f > 7) break;
+            let targetSq = r * 8 + f;
+            if (targetSq < 32) lo |= (1 << targetSq); else hi |= (1 << (targetSq - 32));
+        }
+        obj.lo[sq] = lo; obj.hi[sq] = hi;
+    };
+    
+    for (let i = 0; i < 64; i++) {
+        set_ray({lo: RAY_N_LO, hi: RAY_N_HI}, i, 1, 0);   // N (Lưu ý: rank tăng là đi lên)
+        set_ray({lo: RAY_S_LO, hi: RAY_S_HI}, i, -1, 0);  // S
+        set_ray({lo: RAY_E_LO, hi: RAY_E_HI}, i, 0, 1);   // E
+        set_ray({lo: RAY_W_LO, hi: RAY_W_HI}, i, 0, -1);  // W
+        set_ray({lo: RAY_NE_LO, hi: RAY_NE_HI}, i, 1, 1); // NE
+        set_ray({lo: RAY_NW_LO, hi: RAY_NW_HI}, i, 1, -1);// NW
+        set_ray({lo: RAY_SE_LO, hi: RAY_SE_HI}, i, -1, 1);// SE
+        set_ray({lo: RAY_SW_LO, hi: RAY_SW_HI}, i, -1, -1);// SW
+    }
     })();
+    function compute_zobrist(s) {
+        let z = 0;
+        if (s.turn === BLACK) z ^= ZOBRIST.turn;
+        z ^= ZOBRIST.castling[s.castling];
+        if (s.ep_square !== -1) z ^= ZOBRIST.ep[s.ep_square];
 
+        for (let i = 0; i < 64; i++) {
+            let p = s.board[i];
+            if (p !== -1) {
+                let col = p >> 3;
+                let typ = p & 7;
+                z ^= ZOBRIST.pieces[(col * 6 + typ) * 64 + i];
+            }
+        }
+        if (s.pocket && (s.gameMode === 'crazyhouse' || s.gameMode === 'placement' || s.gameMode === 'bughouse')) {
+            for(let i=0; i<s.pocket.w.length; i++) z ^= ZOBRIST.pieces[(WHITE*6 + s.pocket.w[i])*64]; 
+            for(let i=0; i<s.pocket.b.length; i++) z ^= ZOBRIST.pieces[(BLACK*6 + s.pocket.b[i])*64];
+        }
+        return z;
+    }
     function ctz(lo, hi) {
         if (lo !== 0) return 31 - Math.clz32(lo & -lo);
         return 32 + (31 - Math.clz32(hi & -hi));
     }
+    function clz(lo, hi) {
+        if (hi !== 0) return 32 + (31 - Math.clz32(hi));
+        if (lo !== 0) return 31 - Math.clz32(lo);
+        return -1;
+    }
+    function sq_str(sq) { 
+    if (sq < 0 || sq > 63) return "";
+    return String.fromCharCode(97 + (sq & 7)) + String.fromCharCode(49 + (sq >> 3));
+    }
+
     function str_to_sq(s) { 
-        if (!s) return -1;
+        if (!s || s.length < 2) return -1;
         let f = s.charCodeAt(0);
-        if (f < 97) f += 32; // ✨ FIX: Instantly convert uppercase A-H to lowercase a-h
+        if (f < 97) f += 32; 
         return (s.charCodeAt(1) - 49) * 8 + (f - 97); 
     }
-    function sq_str(sq) { return SQ_STR[sq]; }
     
     function get_slider_attacks(type, sq, occL, occH) {
-        let lo=0, hi=0;
-        let r = sq >> 3, f = sq & 7;
-        const dirs = (type===ROOK) ? [[0,1],[0,-1],[1,0],[-1,0]] : 
-                     (type===BISHOP) ? [[1,1],[1,-1],[-1,1],[-1,-1]] : 
-                     [[0,1],[0,-1],[1,0],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
-        for(let i=0; i<dirs.length; i++) {
-            let cr=r+dirs[i][0], cf=f+dirs[i][1];
-            while(cr>=0&&cr<8&&cf>=0&&cf<8) {
-                let s = cr*8+cf;
-                let isLo = s<32;
-                let mask = isLo ? (1<<s) : (1<<(s-32));
-                if(isLo) lo|=mask; else hi|=mask;
-                if(isLo ? (occL&mask) : (occH&mask)) break;
-                cr+=dirs[i][0]; cf+=dirs[i][1];
+        let attL = 0, attH = 0;
+
+        // XỬ LÝ HƯỚNG DƯƠNG (Bắc, Đông) - Dùng CTZ
+        const rayPositive = (rayLoArr, rayHiArr) => {
+            let rL = rayLoArr[sq], rH = rayHiArr[sq];
+            let blockL = rL & occL, blockH = rH & occH;
+            if (blockL || blockH) {
+                let blocker = ctz(blockL, blockH); // Tìm quân cản gần nhất
+                rL ^= rayLoArr[blocker]; // Chặt đứt tia từ quân cản đổ về sau
+                rH ^= rayHiArr[blocker];
             }
+            attL |= rL; attH |= rH;
+        };
+
+        // XỬ LÝ HƯỚNG ÂM (Nam, Tây) - Dùng CLZ
+        const rayNegative = (rayLoArr, rayHiArr) => {
+            let rL = rayLoArr[sq], rH = rayHiArr[sq];
+            let blockL = rL & occL, blockH = rH & occH;
+            if (blockL || blockH) {
+                let blocker = clz(blockL, blockH); // Tìm quân cản gần nhất chiều ngược lại
+                rL ^= rayLoArr[blocker];
+                rH ^= rayHiArr[blocker];
+            }
+            attL |= rL; attH |= rH;
+        };
+
+        if (type === ROOK || type === QUEEN) {
+            rayPositive(RAY_N_LO, RAY_N_HI);
+            rayPositive(RAY_E_LO, RAY_E_HI);
+            rayNegative(RAY_S_LO, RAY_S_HI);
+            rayNegative(RAY_W_LO, RAY_W_HI);
         }
-        return {lo:lo, hi:hi}; // V8 handles this instantly via Escape Analysis
+        if (type === BISHOP || type === QUEEN) {
+            rayPositive(RAY_NE_LO, RAY_NE_HI);
+            rayPositive(RAY_NW_LO, RAY_NW_HI);
+            rayNegative(RAY_SE_LO, RAY_SE_HI);
+            rayNegative(RAY_SW_LO, RAY_SW_HI);
+        }
+
+        return {lo: attL, hi: attH};
     }
 
     function create_empty_state() {
@@ -118,69 +209,51 @@ var Chess = function(fen, gameMode = 'classical') {
             bb_lo: new Int32Array(12), 
             bb_hi: new Int32Array(12), 
             board: new Int8Array(64).fill(-1), 
-            turn: WHITE, 
-            castling: 0, 
-            ep_square: -1, 
-            half_moves: 0, 
-            move_number: 1, 
-            gameMode: 'classical',
-            checks: { w: 0, b: 0 },         
-            pocket: { w: [], b: [] },       
-            promoted: { lo: 0, hi: 0 },     
+            turn: WHITE, castling: 0, ep_square: -1, half_moves: 0, move_number: 1, gameMode: 'classical', zobrist: 0,
+            
+            // FLATTEN OBJECT: Khai báo tĩnh 100% thuộc tính của mọi biến thể. Không shape change, không deopt!
+            checks_w: 0, checks_b: 0,         
+            // MẢNG CỐ ĐỊNH O(1): Túi chứa tối đa 6 loại quân. 
+            pocket_w: new Int8Array(6), pocket_b: new Int8Array(6), 
+            promoted_lo: 0, promoted_hi: 0,     
             duck_sq: -1,                    
-            alice_b: { lo: 0, hi: 0 }       // ✨ ALICE CHESS: The Looking Glass Tracker
+            alice_b_lo: 0, alice_b_hi: 0,
+            frozen_lo: 0, frozen_hi: 0,
+            mana_w_freeze: 0, mana_w_jump: 0, mana_b_freeze: 0, mana_b_jump: 0,
+            spell_uses_w_freeze: 5, spell_uses_w_jump: 2, spell_uses_b_freeze: 5, spell_uses_b_jump: 2,
+            active_w_frozen_sq: -1, active_w_frozen_timer: 0,
+            active_b_frozen_sq: -1, active_b_frozen_timer: 0,
+            active_w_jump_sq: -1, active_w_jump_timer: 0,
+            active_b_jump_sq: -1, active_b_jump_timer: 0
         };
     }
     function clone_state(s) {
-        var c = STATE_POOL.pop();
-        if (!c) {
-            c = {
-                bb_lo: new Int32Array(12),
-                bb_hi: new Int32Array(12),
-                board: new Int8Array(64)
-            };
-        }
+        var c = STATE_POOL.pop() || create_empty_state();
         
+        // SHALLOW COPY: Không rác, không duyệt cây JSON
         c.bb_lo.set(s.bb_lo);
         c.bb_hi.set(s.bb_hi);
         c.board.set(s.board);
         
-        c.turn = s.turn;
-        c.castling = s.castling;
-        c.ep_square = s.ep_square;
-        c.half_moves = s.half_moves;
-        c.move_number = s.move_number;
-        c.gameMode = s.gameMode;
+        c.turn = s.turn; c.castling = s.castling; c.ep_square = s.ep_square;
+        c.half_moves = s.half_moves; c.move_number = s.move_number; 
+        c.gameMode = s.gameMode; c.zobrist = s.zobrist;
         
-        if (s.gameMode !== 'classical' && s.gameMode !== 'chess960') {
-            c.checks = { w: s.checks.w, b: s.checks.b };
-            c.pocket = { w: [...s.pocket.w], b: [...s.pocket.b] };
-            c.promoted = s.promoted ? { lo: s.promoted.lo, hi: s.promoted.hi } : { lo: 0, hi: 0 }; 
-            c.duck_sq = s.duck_sq;
-            c.alice_b = s.alice_b ? { lo: s.alice_b.lo, hi: s.alice_b.hi } : { lo: 0, hi: 0 };
-        }
-        if (s.gameMode === 'spell') {
-            c.frozen = s.frozen ? { lo: s.frozen.lo, hi: s.frozen.hi } : { lo: 0, hi: 0 };
-            c.mana = s.mana ? { 
-                w: { freeze: s.mana.w.freeze, jump: s.mana.w.jump }, 
-                b: { freeze: s.mana.b.freeze, jump: s.mana.b.jump } 
-            } : { w: {freeze: 0, jump: 0}, b: {freeze: 0, jump: 0} }; 
-            
-            c.active_spells = s.active_spells ? { 
-                w_frozen_sq: s.active_spells.w_frozen_sq, w_frozen_timer: s.active_spells.w_frozen_timer,
-                b_frozen_sq: s.active_spells.b_frozen_sq, b_frozen_timer: s.active_spells.b_frozen_timer,
-                w_jump_sq: s.active_spells.w_jump_sq, w_jump_timer: s.active_spells.w_jump_timer,
-                b_jump_sq: s.active_spells.b_jump_sq, b_jump_timer: s.active_spells.b_jump_timer
-            } : { w_frozen_sq:-1, w_frozen_timer:0, b_frozen_sq:-1, b_frozen_timer:0, w_jump_sq:-1, w_jump_timer:0, b_jump_sq:-1, b_jump_timer:0 };
-            
-            c.spell_uses = s.spell_uses ? {
-                w: { freeze: s.spell_uses.w.freeze, jump: s.spell_uses.w.jump },
-                b: { freeze: s.spell_uses.b.freeze, jump: s.spell_uses.b.jump }
-            } : { w: {freeze: 5, jump: 2}, b: {freeze: 5, jump: 2} };
-        }
-        if (s.gameMode === 'alice') {
-            c.alice_b = s.alice_b ? { lo: s.alice_b.lo, hi: s.alice_b.hi } : { lo: 0, hi: 0 };
-        }
+        c.checks_w = s.checks_w; c.checks_b = s.checks_b;
+        c.pocket_w.set(s.pocket_w); c.pocket_b.set(s.pocket_b);
+        c.promoted_lo = s.promoted_lo; c.promoted_hi = s.promoted_hi;
+        c.duck_sq = s.duck_sq;
+        c.alice_b_lo = s.alice_b_lo; c.alice_b_hi = s.alice_b_hi;
+        c.frozen_lo = s.frozen_lo; c.frozen_hi = s.frozen_hi;
+        c.mana_w_freeze = s.mana_w_freeze; c.mana_w_jump = s.mana_w_jump;
+        c.mana_b_freeze = s.mana_b_freeze; c.mana_b_jump = s.mana_b_jump;
+        c.spell_uses_w_freeze = s.spell_uses_w_freeze; c.spell_uses_w_jump = s.spell_uses_w_jump;
+        c.spell_uses_b_freeze = s.spell_uses_b_freeze; c.spell_uses_b_jump = s.spell_uses_b_jump;
+        c.active_w_frozen_sq = s.active_w_frozen_sq; c.active_w_frozen_timer = s.active_w_frozen_timer;
+        c.active_b_frozen_sq = s.active_b_frozen_sq; c.active_b_frozen_timer = s.active_b_frozen_timer;
+        c.active_w_jump_sq = s.active_w_jump_sq; c.active_w_jump_timer = s.active_w_jump_timer;
+        c.active_b_jump_sq = s.active_b_jump_sq; c.active_b_jump_timer = s.active_b_jump_timer;
+        
         return c;
     }
     function load_fen(fen, setGameMode = 'classical') {
@@ -376,10 +449,13 @@ var Chess = function(fen, gameMode = 'classical') {
     }
     function apply_standard_move(prevState, m) {
         var next = clone_state(prevState);
+        next.zobrist = prevState.zobrist !== undefined ? prevState.zobrist : compute_zobrist(prevState);
+        
         var us = next.turn, them = us ^ 1;
         var from = m & 0x3F, to = (m >>> 6) & 0x3F;
         var flags = (m >>> 12) & 0x7F, promo = (m >>> 19) & 0x7;
         var p_type = (next.board[from] & 7); 
+        next.zobrist ^= ZOBRIST.pieces[(us * 6 + p_type) * 64 + from];
 
         if (from < 32) next.bb_lo[us*6+p_type] &= ~(1<<from); else next.bb_hi[us*6+p_type] &= ~(1<<(from-32));
         next.board[from] = -1;
@@ -387,10 +463,12 @@ var Chess = function(fen, gameMode = 'classical') {
         if (flags & BITS.CAPTURE) {
             var cap = (next.board[to] & 7);
             if (next.board[to] !== -1 && (next.board[to]>>3) === them) {
+                next.zobrist ^= ZOBRIST.pieces[(them * 6 + cap) * 64 + to];
                 if (to < 32) next.bb_lo[them*6+cap] &= ~(1<<to); else next.bb_hi[them*6+cap] &= ~(1<<(to-32));
             }
         } else if (flags & BITS.EP_CAPTURE) {
             var ep_sq = us===WHITE ? to-8 : to+8;
+            next.zobrist ^= ZOBRIST.pieces[(them * 6 + PAWN) * 64 + ep_sq];
             if (ep_sq < 32) next.bb_lo[them*6+PAWN] &= ~(1<<ep_sq); else next.bb_hi[them*6+PAWN] &= ~(1<<(ep_sq-32));
             next.board[ep_sq] = -1;
         }
@@ -401,7 +479,6 @@ var Chess = function(fen, gameMode = 'classical') {
             let r_to = us === WHITE ? (isK ? 5 : 3) : (isK ? 61 : 59); 
             
             let rf = -1;
-            // ✨ OPTIMIZED: Hardcode standard chess Rook castling squares!
             if (prevState.gameMode !== 'chess960') {
                 rf = us === WHITE ? (isK ? 7 : 0) : (isK ? 63 : 56);
             } else {
@@ -417,33 +494,44 @@ var Chess = function(fen, gameMode = 'classical') {
             }
 
             if (rf !== -1) {
+                next.zobrist ^= ZOBRIST.pieces[(us * 6 + ROOK) * 64 + rf];
+                next.zobrist ^= ZOBRIST.pieces[(us * 6 + ROOK) * 64 + r_to];
+
                 if(rf<32) next.bb_lo[us*6+ROOK] &= ~(1<<rf); else next.bb_hi[us*6+ROOK] &= ~(1<<(rf-32));
                 next.board[rf] = -1;
             }
+            next.zobrist ^= ZOBRIST.pieces[(us * 6 + KING) * 64 + k_to];
+
             if(k_to<32) next.bb_lo[us*6+KING] |= (1<<k_to); else next.bb_hi[us*6+KING] |= (1<<(k_to-32));
             next.board[k_to] = (us << 3) | KING;
             if(r_to<32) next.bb_lo[us*6+ROOK] |= (1<<r_to); else next.bb_hi[us*6+ROOK] |= (1<<(r_to-32));
             next.board[r_to] = (us << 3) | ROOK;
         } else {
             var placed = (flags & BITS.PROMOTION) ? promo : p_type;
+            next.zobrist ^= ZOBRIST.pieces[(us * 6 + placed) * 64 + to];
+
             if (to < 32) next.bb_lo[us*6+placed] |= (1<<to); else next.bb_hi[us*6+placed] |= (1<<(to-32));
             next.board[to] = (us << 3) | placed;
         }
-
         next.turn ^= 1;
+        next.zobrist ^= ZOBRIST.turn;
+
         let isBigStep = (flags & BITS.BIG_PAWN);
         if (prevState.gameMode === 'horde' && p_type === PAWN && us === WHITE) {
             if ((from >> 3) === 0 && (to - from) === 16) {
                 isBigStep = true;
             }
         }
+        if (prevState.ep_square !== -1) next.zobrist ^= ZOBRIST.ep[prevState.ep_square];
         next.ep_square = (flags & BITS.BIG_PAWN) ? ((us === WHITE) ? to - 8 : to + 8) : -1;
+        if (next.ep_square !== -1) next.zobrist ^= ZOBRIST.ep[next.ep_square];
+
         if (p_type === PAWN || (flags & BITS.CAPTURE)) next.half_moves = 0; else next.half_moves++;
         if (us === BLACK) next.move_number++;
+        let old_castling = next.castling;
 
         if (p_type === KING) next.castling &= (us === WHITE) ? ~3 : ~12;
         
-        // ✨ OPTIMIZED: Dynamic Rights Stripping (Standard chess doesn't need to scan for the king!)
         if (p_type === ROOK) {
             let file = from & 7, rank = from >> 3;
             if (prevState.gameMode !== 'chess960') {
@@ -484,9 +572,13 @@ var Chess = function(fen, gameMode = 'classical') {
                 }
             }
         }
+        if (old_castling !== next.castling) {
+            next.zobrist ^= ZOBRIST.castling[old_castling];
+            next.zobrist ^= ZOBRIST.castling[next.castling];
+        }
+
         if (next.gameMode === 'spell') {
             if (next.active_spells) {
-                // Decrement the split timers independently
                 if (next.active_spells.w_frozen_timer > 0) next.active_spells.w_frozen_timer--;
                 if (next.active_spells.b_frozen_timer > 0) next.active_spells.b_frozen_timer--;
                 if (next.active_spells.w_jump_timer > 0) next.active_spells.w_jump_timer--;
@@ -544,14 +636,13 @@ var Chess = function(fen, gameMode = 'classical') {
         var us = prevState.turn;
         var to = (m >>> 6) & 0x3F;
 
-        // 1. Handle Drops from Pocket
         if (flags & BITS.DROP) {
             var next = clone_state(prevState);
-            var p_type = m & 0x3F; // For drops, 'from' holds the piece type
+            var p_type = m & 0x3F; 
             
-            var pocketStr = us === WHITE ? 'w' : 'b';
-            var idx = next.pocket[pocketStr].indexOf(p_type);
-            if (idx !== -1) next.pocket[pocketStr].splice(idx, 1);
+            // O(1) DROP: Chỉ trừ số đếm, không dịch mảng Array!
+            if (us === WHITE) next.pocket_w[p_type]--;
+            else next.pocket_b[p_type]--;
             
             if (to < 32) next.bb_lo[us*6+p_type] |= (1<<to); else next.bb_hi[us*6+p_type] |= (1<<(to-32));
             next.board[to] = (us << 3) | p_type;
@@ -563,32 +654,31 @@ var Chess = function(fen, gameMode = 'classical') {
             return next;
         }
 
-        // 2. Normal Moves & Captures
         var next = apply_standard_move(prevState, m);
         var from = m & 0x3F;
         
-        // Track promoted pieces so they demote properly upon capture
         var isPromoted = false;
-        if ((from < 32) ? (prevState.promoted.lo & (1<<from)) : (prevState.promoted.hi & (1<<(from-32)))) {
+        if ((from < 32) ? (prevState.promoted_lo & (1<<from)) : (prevState.promoted_hi & (1<<(from-32)))) {
             isPromoted = true;
-            if (from < 32) next.promoted.lo &= ~(1<<from); else next.promoted.hi &= ~(1<<(from-32));
-            if (to < 32) next.promoted.lo |= (1<<to); else next.promoted.hi |= (1<<(to-32));
+            if (from < 32) next.promoted_lo &= ~(1<<from); else next.promoted_hi &= ~(1<<(from-32));
+            if (to < 32) next.promoted_lo |= (1<<to); else next.promoted_hi |= (1<<(to-32));
         }
         if (flags & BITS.PROMOTION) {
-            if (to < 32) next.promoted.lo |= (1<<to); else next.promoted.hi |= (1<<(to-32));
+            if (to < 32) next.promoted_lo |= (1<<to); else next.promoted_hi |= (1<<(to-32));
         }
 
-        // Handle Captures -> Pocket
         if (flags & BITS.CAPTURE || flags & BITS.EP_CAPTURE) {
             var cap_sq = (flags & BITS.EP_CAPTURE) ? ((us === WHITE) ? to - 8 : to + 8) : to;
             var cap_piece = prevState.board[cap_sq] & 7;
             
-            var capPromoted = (cap_sq < 32) ? (prevState.promoted.lo & (1<<cap_sq)) : (prevState.promoted.hi & (1<<(cap_sq-32)));
+            var capPromoted = (cap_sq < 32) ? (prevState.promoted_lo & (1<<cap_sq)) : (prevState.promoted_hi & (1<<(cap_sq-32)));
             if (capPromoted) {
-                cap_piece = PAWN; // Demote!
-                if (cap_sq < 32) next.promoted.lo &= ~(1<<cap_sq); else next.promoted.hi &= ~(1<<(cap_sq-32));
+                cap_piece = PAWN; 
+                if (cap_sq < 32) next.promoted_lo &= ~(1<<cap_sq); else next.promoted_hi &= ~(1<<(cap_sq-32));
             }
-            next.pocket[us === WHITE ? 'w' : 'b'].push(cap_piece);
+            // O(1) CAPTURE: Chỉ cộng số đếm!
+            if (us === WHITE) next.pocket_w[cap_piece]++;
+            else next.pocket_b[cap_piece]++;
         }
         return next;
     }
@@ -736,6 +826,9 @@ var Chess = function(fen, gameMode = 'classical') {
         let myColor = us === WHITE ? 'w' : 'b';
         if (!next.mana) next.mana = { w: {freeze: 0, jump: 0}, b: {freeze: 0, jump: 0} };
         next.mana[myColor][spellType] = 6; 
+        if (next.spell_uses && next.spell_uses[myColor]) {
+            next.spell_uses[myColor][spellType] = Math.max(0, next.spell_uses[myColor][spellType] - 1);
+        }
 
         return next;
     }
@@ -789,6 +882,9 @@ var Chess = function(fen, gameMode = 'classical') {
                 if (us === WHITE) nextState.checks.w++;
                 else nextState.checks.b++;
             }
+        }
+        if (prevState.gameMode !== 'classical' && prevState.gameMode !== 'chess960' && prevState.gameMode !== 'horde') {
+             nextState.zobrist = compute_zobrist(nextState);
         }
         return nextState;
     }
@@ -970,18 +1066,22 @@ var Chess = function(fen, gameMode = 'classical') {
         let us = state.turn;
         let them = us ^ 1;
 
-        // ✨ THE COLLISION FIX: Copy the arrays locally so we can mask them safely
-        let bb_lo = new Int32Array(state.bb_lo);
-        let bb_hi = new Int32Array(state.bb_hi);
+        // Dùng thẳng mảng tham chiếu, không nhân bản!
+        let bb_lo = state.bb_lo;
+        let bb_hi = state.bb_hi;
 
-        let occUsL = 0, occUsH = 0, occThemL = 0, occThemH = 0;
-        for(let i=us*6; i<us*6+6; i++) { occUsL|=bb_lo[i]; occUsH|=bb_hi[i]; }
-        for(let i=them*6; i<them*6+6; i++) { occThemL|=bb_lo[i]; occThemH|=bb_hi[i]; }
+        let uBase = us * 6;
+        let tBase = them * 6;
+        
+        // ✨ LOOP UNROLLING: Gom OCC mà không dùng vòng lặp for
+        let occUsL = bb_lo[uBase] | bb_lo[uBase+1] | bb_lo[uBase+2] | bb_lo[uBase+3] | bb_lo[uBase+4] | bb_lo[uBase+5];
+        let occUsH = bb_hi[uBase] | bb_hi[uBase+1] | bb_hi[uBase+2] | bb_hi[uBase+3] | bb_hi[uBase+4] | bb_hi[uBase+5];
+        let occThemL = bb_lo[tBase] | bb_lo[tBase+1] | bb_lo[tBase+2] | bb_lo[tBase+3] | bb_lo[tBase+4] | bb_lo[tBase+5];
+        let occThemH = bb_hi[tBase] | bb_hi[tBase+1] | bb_hi[tBase+2] | bb_hi[tBase+3] | bb_hi[tBase+4] | bb_hi[tBase+5];
         
         let occAllL = occUsL | occThemL;
         let occAllH = occUsH | occThemH;
         
-        // ✨ FIX: Main generator dual jump mask
         if (state.gameMode === 'spell' && state.active_spells) {
             let jW = state.active_spells.w_jump_timer > 0 ? state.active_spells.w_jump_sq : -1;
             let jB = state.active_spells.b_jump_timer > 0 ? state.active_spells.b_jump_sq : -1;
@@ -994,7 +1094,7 @@ var Chess = function(fen, gameMode = 'classical') {
             else { occUsH |= (1 << (state.duck_sq - 32)); occAllH |= (1 << (state.duck_sq - 32)); }
         }
         let emptyL = ~occAllL, emptyH = ~occAllH;
-        let pL = bb_lo[us*6+PAWN], pH = bb_hi[us*6+PAWN];
+        let pL = bb_lo[uBase+PAWN], pH = bb_hi[uBase+PAWN];
 
         let sL, sH;
         if (us === WHITE) {
@@ -1055,31 +1155,43 @@ var Chess = function(fen, gameMode = 'classical') {
         add_caps(capL_LO, capL_HI, -1);
         add_caps(capR_LO, capR_HI, 1);
 
-        // ✨ PROPERLY DECLARED KNIGHTS
-        let nL = bb_lo[us*6+KNIGHT], nH = bb_hi[us*6+KNIGHT];
+        let nL = bb_lo[uBase+KNIGHT], nH = bb_hi[uBase+KNIGHT];
         while (nL || nH) {
             let f = ctz(nL, nH);
             if(f<32) nL &= ~(1<<f); else nH &= ~(1<<(f-32));
             serialize_moves(moves, f, KNIGHT_LO[f]&~occUsL, KNIGHT_HI[f]&~occUsH, {lo:occThemL, hi:occThemH});
         }
         
-        // ✨ PROPERLY DECLARED KINGS
-        let kgL = bb_lo[us*6+KING], kgH = bb_hi[us*6+KING];
+        let kgL = bb_lo[uBase+KING], kgH = bb_hi[uBase+KING];
         if(kgL || kgH) {
             let f = ctz(kgL, kgH);
             serialize_moves(moves, f, KING_LO[f]&~occUsL, KING_HI[f]&~occUsH, {lo:occThemL, hi:occThemH});
         }
 
-        // SLIDERS
-        [ROOK, QUEEN, BISHOP].forEach(type => {
-            let pL_slider = bb_lo[us*6+type], pH_slider = bb_hi[us*6+type];
-            while (pL_slider || pH_slider) {
-                let f = ctz(pL_slider, pH_slider);
-                if(f<32) pL_slider &= ~(1<<f); else pH_slider &= ~(1<<(f-32));
-                let att = get_slider_attacks(type, f, occAllL, occAllH);
-                serialize_moves(moves, f, att.lo&~occUsL, att.hi&~occUsH, {lo:occThemL, hi:occThemH});
-            }
-        });
+        // Tượng, Xe, Hậu (Áp dụng O(1) Ray Masks)
+        let bL = bb_lo[uBase+BISHOP], bH = bb_hi[uBase+BISHOP];
+        while (bL || bH) {
+            let f = ctz(bL, bH);
+            if(f<32) bL &= ~(1<<f); else bH &= ~(1<<(f-32));
+            let att = get_slider_attacks(BISHOP, f, occAllL, occAllH);
+            serialize_moves(moves, f, att.lo&~occUsL, att.hi&~occUsH, {lo:occThemL, hi:occThemH});
+        }
+
+        let rL = bb_lo[uBase+ROOK], rH = bb_hi[uBase+ROOK];
+        while (rL || rH) {
+            let f = ctz(rL, rH);
+            if(f<32) rL &= ~(1<<f); else rH &= ~(1<<(f-32));
+            let att = get_slider_attacks(ROOK, f, occAllL, occAllH);
+            serialize_moves(moves, f, att.lo&~occUsL, att.hi&~occUsH, {lo:occThemL, hi:occThemH});
+        }
+
+        let qL = bb_lo[uBase+QUEEN], qH = bb_hi[uBase+QUEEN];
+        while (qL || qH) {
+            let f = ctz(qL, qH);
+            if(f<32) qL &= ~(1<<f); else qH &= ~(1<<(f-32));
+            let att = get_slider_attacks(QUEEN, f, occAllL, occAllH);
+            serialize_moves(moves, f, att.lo&~occUsL, att.hi&~occUsH, {lo:occThemL, hi:occThemH});
+        }
 
         if (state.gameMode !== 'chess960') {
             if (us === WHITE) {
@@ -1098,7 +1210,7 @@ var Chess = function(fen, gameMode = 'classical') {
                 }
             }
         } else {
-            let klo = bb_lo[us*6+KING], khi = bb_hi[us*6+KING];
+            let klo = bb_lo[uBase+KING], khi = bb_hi[uBase+KING];
             if (klo || khi) {
                 let kSq = ctz(klo, khi);
                 const addCastle = (isK) => {
@@ -1147,7 +1259,6 @@ var Chess = function(fen, gameMode = 'classical') {
         for (let i = 0; i < moves.length; i++) {
             let m = moves[i];
 
-            // ✨ FIX 1: Pieces CAN move INTO frozen squares! We only block moves FROM frozen squares.
             if (fL || fH) {
                 let from = m & 0x3F;
                 let fromMaskL = from < 32 ? (1<<from) : 0;
@@ -1160,8 +1271,6 @@ var Chess = function(fen, gameMode = 'classical') {
                 if ((m & 0x3F) !== ((options.square.charCodeAt(1)-49)*8 + (options.square.charCodeAt(0)-97))) continue;
             }
             if (!options || options.legal !== false) {
-                
-                // ✨ FAST-PATH RESTORED SAFELY
                 if (state.gameMode === 'classical' || state.gameMode === 'chess960' || state.gameMode === '3check' || state.gameMode === 'horde' || state.gameMode === 'chaturanga') {
                     let flags = (m >>> 12) & 0xFF;
                     if (state.gameMode === 'chess960' && (flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE))) {
@@ -1174,7 +1283,6 @@ var Chess = function(fen, gameMode = 'classical') {
                     let nextState = apply_move(state, m);
                     if (!is_checked(nextState, us)) final_moves.push(m);
                 }
-                
             } else {
                 final_moves.push(m);
             }
@@ -1248,22 +1356,18 @@ var Chess = function(fen, gameMode = 'classical') {
             if(rt<32) state.bb_lo[us*6+ROOK] &= ~rtM; else state.bb_hi[us*6+ROOK] &= ~rtM;
             if(rf<32) state.bb_lo[us*6+ROOK] |= rfM; else state.bb_hi[us*6+ROOK] |= rfM;
         }
-        
-        // ✨ THE FIX: Revert the base piece move FIRST, before touching the promotion/capture logic!
-        // This ensures the bitmasks don't cannibalize each other if piece === captured === PAWN
-        if(isLoTo) state.bb_lo[us*6+piece] &= ~toMask; else state.bb_hi[us*6+piece] &= ~toMask;
-        if(isLoFrom) state.bb_lo[us*6+piece] |= fromMask; else state.bb_hi[us*6+piece] |= fromMask;
-
-        // Now revert the promotion overwrite
-        if (flags & 16) {
+        if (flags & 16) { 
             if(isLoTo) {
                 state.bb_lo[us*6+promo] &= ~toMask;
+                state.bb_lo[us*6+PAWN] |= fromMask;
             } else {
                 state.bb_hi[us*6+promo] &= ~toMask;
+                state.bb_hi[us*6+PAWN] |= fromMask;
             }
+        } else {
+            if(isLoTo) state.bb_lo[us*6+piece] &= ~toMask; else state.bb_hi[us*6+piece] &= ~toMask;
+            if(isLoFrom) state.bb_lo[us*6+piece] |= fromMask; else state.bb_hi[us*6+piece] |= fromMask;
         }
-        
-        // Finally, restore the captured piece (or EP pawn) to the board cleanly
         if (flags & 8) {
             let capMask = (cap_sq<32) ? (1<<cap_sq) : (1<<(cap_sq-32));
             if(cap_sq<32) state.bb_lo[them*6+PAWN] |= capMask; else state.bb_hi[them*6+PAWN] |= capMask;
@@ -1561,23 +1665,20 @@ var Chess = function(fen, gameMode = 'classical') {
     function generate_crazyhouse_moves(state, options) {
         var moves = generate_standard_moves(state, options);
         var us = state.turn;
-        var pocket = state.pocket[us === WHITE ? 'w' : 'b'];
+        var pocket = us === WHITE ? state.pocket_w : state.pocket_b;
         
-        if (pocket.length > 0) {
-            var unique_pocket = [];
-            for (var i=0; i<pocket.length; i++) if (!unique_pocket.includes(pocket[i])) unique_pocket.push(pocket[i]);
-            
-            var empty_sqs = [];
-            for (var sq = 0; sq < 64; sq++) {
-                if (state.board[sq] === -1) empty_sqs.push(sq);
-            }
-            
-            for (var i=0; i<unique_pocket.length; i++) {
-                var p_type = unique_pocket[i];
-                for (var j=0; j<empty_sqs.length; j++) {
+        var empty_sqs = [];
+        for (var sq = 0; sq < 64; sq++) {
+            if (state.board[sq] === -1) empty_sqs.push(sq);
+        }
+        
+        // Quét cố định 6 loại quân (O(1)) thay vì vòng lặp For of qua mảng biến đổi.
+        for (var p_type = PAWN; p_type <= QUEEN; p_type++) {
+            if (pocket[p_type] > 0) {
+                for (var j = 0; j < empty_sqs.length; j++) {
                     var sq = empty_sqs[j];
                     var rank = Math.floor(sq / 8);
-                    if (p_type === PAWN && (rank === 0 || rank === 7)) continue; // Pawns can't drop on edges
+                    if (p_type === PAWN && (rank === 0 || rank === 7)) continue; 
                     
                     var m = p_type | (sq << 6) | (BITS.DROP << 12);
                     
@@ -2199,32 +2300,23 @@ var Chess = function(fen, gameMode = 'classical') {
         var ambigFile = false, ambigRank = false;
         var us = state.turn;
         
-        // ✨ SAFETY FIX: Guard against undefined bitboards
-        var pL = state.bb_lo[us*6+pType] || 0;
-        var pH = state.bb_hi[us*6+pType] || 0;
-        
-        var tempL = pL, tempH = pH;
-        let count = 0;
-        while (tempL || tempH) {
-             let _sq = ctz(tempL, tempH);
-             if(_sq<32) tempL &= ~(1<<_sq); else tempH &= ~(1<<(_sq-32));
-             count++;
-             if (count > 1) break; 
-        }
-
-        if (count > 1 && pType !== 0 && pType !== KING) { 
-            // ✨ FIX: Use the actual legal move generator to find TRUE ambiguities
-            // instead of blindly trusting King-safety checks on impossible jumps!
+        if (pType !== 0 && pType !== KING) { 
             var legals = generate_moves(state, {legal: true});
+            var attackers = [];
+            
             for (var i = 0; i < legals.length; i++) {
                 var lm = legals[i];
                 var l_from = lm & 0x3F;
                 var l_to = (lm >>> 6) & 0x3F;
-                
-                if (l_to === to && l_from !== from) {
-                    if ((state.board[l_from] & 7) === pType) {
+                if (l_to === to && (state.board[l_from] & 7) === pType) {
+                    attackers.push(l_from);
+                }
+            }
+            if (attackers.length > 1) {
+                for (var i = 0; i < attackers.length; i++) {
+                    if (attackers[i] !== from) {
                         var mStr = SQ_STR[from];
-                        var oStr = SQ_STR[l_from];
+                        var oStr = SQ_STR[attackers[i]];
                         if (mStr && oStr) {
                             if (mStr[0] === oStr[0]) ambigRank = true; 
                             else ambigFile = true;
@@ -2427,21 +2519,18 @@ return {
         },
         // ✨ NATIVE DRAFT API: Applies a temporary spell to the board physics interactively
         draft_spell: function(spellType, targetSq) {
+            console.log(`[ENGINE API] draft_spell called. Target: ${targetSq}`);
             if (!this._draftBackup) {
-                this._draftBackup = currentState; // Save real state
+                this._draftBackup = currentState; 
             }
             let sq = typeof targetSq === 'number' ? targetSq : (isNaN(targetSq) ? str_to_sq(targetSq) : parseInt(targetSq));
-            // Apply spell to the BACKUP state, overriding any previous drafts seamlessly
+            
+            console.log(`[ENGINE API] Parsed engine index: ${sq} (${sq_str(sq)})`);
+            
             currentState = apply_spell(this._draftBackup, spellType, sq); 
+            console.log(`[ENGINE API] State jump_sq is now: ${this.jump_sq()}`);
+            
             return { isStandaloneSpell: true, san: (spellType === 'freeze' ? 'Fz@' : 'Jp@') + sq_str(sq) };
-        },
-        cancel_draft: function() {
-            if (this._draftBackup) {
-                currentState = this._draftBackup; // Revert physics
-                this._draftBackup = null;
-                return true;
-            }
-            return false;
         },
         draft_spell: function(spellType, targetSq) {
             console.log(`[ENGINE API] draft_spell called. Target: ${targetSq}`);
@@ -2466,17 +2555,16 @@ return {
             }
             return false;
         },
-        moves: function(o, ignoreGameOver = false) {
+        moves: function(o) {
             console.log(`[ENGINE API] moves() called. Current State jump_sq = ${currentState.jump_sq}`);
-            if (!ignoreGameOver && this.game_over()) return [];
+            if (this.game_over()) return [];
             var ms = generate_moves(currentState, o); 
             return (o && o.verbose) ? ms.map(m=>to_obj(currentState,m)) : ms.map(m=>get_san(currentState,m)); 
         },
-        move: function(o, ignoreGameOver = false) {
-            this.cancel_draft(); // ✨ ALWAYS revert draft before processing a permanent move!
-
+        move: function(o) {
+            this.cancel_draft();
             if (!o) return null;
-            if (!ignoreGameOver && this.game_over()) return null;
+            if (this.game_over()) return null;
 
             let activeColor = currentState.turn === WHITE ? 'w' : 'b';
 
@@ -2573,11 +2661,10 @@ return {
                     
                     let legals = generate_moves(currentState, {legal: true});
                     if (!legals.includes(m)) {
-                        // ✨ PLACEMENT FIX: Authorize drops (like Kings) that Crazyhouse generators ignore!
                         if (currentState.gameMode === 'placement' && currentState.board[toSq] === -1) {
                             let r = toSq >> 3;
-                            if (pType === PAWN && (r === 0 || r === 7)) m = null; // Pawns can't be on 1st/8th
-                            else if (currentState.reserve && currentState.reserve[activeColor] && currentState.reserve[activeColor][pType] > 0) { } 
+                            if (pType === PAWN && (r === 0 || r === 7)) m = null;
+                            else if (currentState.pocket && currentState.pocket[activeColor] && currentState.pocket[activeColor].includes(pType)) { } 
                             else m = null;
                         } else m = null;
                     }
@@ -2781,14 +2868,18 @@ return {
         },
         in_stalemate: function() { if (currentState.gameMode === 'duck') return false; return !is_checked(currentState, currentState.turn) && generate_moves(currentState, {legal:true}).length === 0; },
         in_threefold_repetition: function() {
-            var current_key = generate_fen(currentState).split(' ').slice(0, 4).join(' ');
+            if (currentState.zobrist === undefined) {
+                currentState.zobrist = compute_zobrist(currentState);
+            }
+            
+            var current_key = currentState.zobrist;
             var count = 0;
             var limit = Math.max(0, history.length - currentState.half_moves - 1);
             
             for (var i = history.length - 1; i >= limit; i--) {
                 var s = history[i];
-                var k = generate_fen(s).split(' ').slice(0, 4).join(' ');
-                if (k === current_key) {
+                if (s.zobrist === undefined) s.zobrist = compute_zobrist(s);
+                if (s.zobrist === current_key) {
                     count++;
                     if (count >= 3) return true;
                 }
