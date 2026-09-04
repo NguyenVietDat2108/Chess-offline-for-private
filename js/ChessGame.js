@@ -14,6 +14,7 @@ export class ChessGame {
     #ui;
     #callbacks;
     SUSPENDED_VARIANTS = ['bughouse','placement'];
+    #EMPTY_ARRAY = [];
 constructor() {
         this.#callbacks = {};
         this.#ui = null;
@@ -24,7 +25,7 @@ constructor() {
         this.#_isBooting = true;
         this.gameMode = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_last_variant') : 'classical') || 'classical';
         
-        // 🌟 FIX 1: Establish a strict default engine context on boot
+        // Establish a strict default engine context on boot
         this.mode = 'analysis'; 
         
         // Ensure the engine is set to the correct variant ruleset immediately
@@ -35,7 +36,6 @@ constructor() {
         let startingFen = this.#getStartingFen(this.gameMode);
 
         if (typeof localStorage !== 'undefined') {
-            // 🌟 FIX 2: Stop pulling the old corrupted global key! 
             // Explicitly load the isolated analysis bucket on startup.
             const savedPgn = localStorage.getItem(`chess_analysis_variant_pgn_${this.gameMode}`);
             
@@ -98,8 +98,6 @@ constructor() {
         this.isPaused = false;
         this.botColor = null;
         this.puzzleActive = false;
-
-        // ✨ THE FIX: Initialize all puzzle tracking variables here so the QA scanner sees them instantly!
         this.isFetchingPuzzles = false;
         this.puzzleQueue = [];
         this.puzzleCursor = 0;
@@ -168,7 +166,6 @@ get currentLiveFen() {
         return this.generateFEN();
     }
 getReader() {
-        // ✨ 1. DUCK CHESS TRANSLATOR
         let engineDuck = (this.#engine && typeof this.#engine.get_duck_sq === 'function') ? this.#engine.get_duck_sq() : -1;
         let uiDuckSq = -1;
         if (engineDuck !== -1 && engineDuck !== undefined && engineDuck !== null) {
@@ -180,7 +177,6 @@ getReader() {
 
         if (this.gameMode === 'spell' && this.#engine) {
             
-            // ✨ 2. FREEZE SPELL TRANSLATOR
             if (typeof this.#engine.frozen === 'function') {
                 const f = this.#engine.frozen();
                 if (f && (f.lo !== 0 || f.hi !== 0)) {
@@ -203,7 +199,6 @@ getReader() {
                 }
             }
             
-            // ✨ 3. JUMP SPELL TRANSLATOR
             if (typeof this.#engine.jump_sq === 'function') {
                 let js = this.#engine.jump_sq();
                 if (js !== -1) {
@@ -232,8 +227,8 @@ getReader() {
             blackTime: this.blackTime,
             board: this.#board,
             premoves: this.premoveQueue,
-            arrows: this.currentNode && this.currentNode.arrows ? this.currentNode.arrows : [],
-            circles: this.currentNode && this.currentNode.circles ? this.currentNode.circles : [],
+            arrows: (this.currentNode && this.currentNode.arrows && this.currentNode.arrows.length > 0) ? this.currentNode.arrows : this.#EMPTY_ARRAY,
+            circles: (this.currentNode && this.currentNode.circles && this.currentNode.circles.length > 0) ? this.currentNode.circles : this.#EMPTY_ARRAY,
             puzzle: {
                 active: this.puzzleActive,
                 mode: this.puzzleMode,
@@ -278,8 +273,6 @@ getReader() {
     }
 #reconcileBoardIds(fen, move) {
         if (!fen) return;
-
-        // 1. Parse Target FEN into a list of pieces
         const cleanFen = fen.split(' ')[0];
         const rows = cleanFen.split('/');
         const newPieces = []; 
@@ -291,30 +284,27 @@ getReader() {
                 if (/\d/.test(char)) {
                     idx += parseInt(char);
                 } else if (char === '~') {
-                    // ✨ CRAZYHOUSE / ALICE FIX: '~' means promoted OR phased to Board B!
                     if (newPieces.length > 0) {
                         if (this.gameMode === 'alice') newPieces[newPieces.length - 1].isBoardB = true;
                         else newPieces[newPieces.length - 1].promoted = true;
                     }
                 } else if (char === '*') {
-                    newPieces.push({ type: 'duck', color: 'none', idx, r: Math.floor(idx / 8), c: idx % 8, id: null });
+                    newPieces.push({ type: 'duck', color: 'none', idx, r: idx >> 3, c: idx & 7, id: null });
                     idx++;
                 } else {
                     const color = (char === char.toUpperCase()) ? 'w' : 'b';
                     const type = char.toLowerCase();
-                    newPieces.push({ type, color, idx, r: Math.floor(idx / 8), c: idx % 8, id: null });
+                    newPieces.push({ type, color, idx, r: idx >> 3, c: idx & 7, id: null });
                     idx++;
                 }
             }
         }
 
-        // 2. Get Current Board pieces
         const oldPieces = [];
         this.#board.forEach((p, i) => {
             if (p) oldPieces.push({ ...p, idx: i, assigned: false });
         });
 
-        // 3. MATCHING ALGORITHM
         if (move && move.from !== '@') {
             const srcIdx = typeof move.from === 'number' ? move.from : this.#squareToIndex(move.from);
             const dstIdx = typeof move.to === 'number' ? move.to : this.#squareToIndex(move.to);
@@ -346,7 +336,7 @@ getReader() {
 
             oldPieces.forEach(op => {
                 if (op.assigned || op.type !== np.type || op.color !== np.color) return;
-                const dist = Math.abs((op.idx % 8) - np.c) + Math.abs(Math.floor(op.idx / 8) - np.r);
+                const dist = Math.abs((op.idx & 7) - np.c) + Math.abs((op.idx >> 3) - np.r);
                 if (dist < minDistance) {
                     minDistance = dist;
                     bestMatch = op;
@@ -362,12 +352,11 @@ getReader() {
             }
         });
 
-        // 4. Rebuild Board Array
         const finalBoard = new Array(64).fill(null);
         newPieces.forEach(p => {
             finalBoard[p.idx] = { type: p.type, color: p.color, id: p.id };
             if (p.promoted) finalBoard[p.idx].promoted = true; 
-            if (p.isBoardB) finalBoard[p.idx].isBoardB = true; // ✨ ALICE CHESS: Expose the mirror dimension to UI.js!
+            if (p.isBoardB) finalBoard[p.idx].isBoardB = true;
         });
         
         this.#board = finalBoard;
@@ -400,18 +389,17 @@ getReader() {
                 if (/\d/.test(char)) {
                     idx += parseInt(char, 10);
                 } else if (char === '~') {
-                    // ✨ CRAZYHOUSE / ALICE FIX
                     if (newPieces.length > 0) {
                         if (this.gameMode === 'alice') newPieces[newPieces.length - 1].isBoardB = true;
                         else newPieces[newPieces.length - 1].promoted = true;
                     }
                 } else if (char === '*') {
-                    newPieces.push({ type: 'duck', color: 'none', idx, r: Math.floor(idx / 8), c: idx % 8, id: null });
+                    newPieces.push({ type: 'duck', color: 'none', idx, r: idx >> 3, c: idx & 7, id: null });
                     idx++;
                 } else {
                     const color = (char === char.toUpperCase()) ? 'w' : 'b';
                     const type = char.toLowerCase();
-                    newPieces.push({ type, color, idx, r: Math.floor(idx / 8), c: idx % 8, id: null });
+                    newPieces.push({ type, color, idx, r: idx >> 3, c: idx & 7, id: null });
                     idx++;
                 }
             }
@@ -453,7 +441,7 @@ getReader() {
 
             oldPieces.forEach(op => {
                 if (op.assigned || op.type !== np.type || op.color !== np.color) return;
-                const dist = Math.abs((op.idx % 8) - np.c) + Math.abs(Math.floor(op.idx / 8) - np.r);
+                const dist = Math.abs((op.idx & 7) - np.c) + Math.abs((op.idx >> 3) - np.r);
                 if (dist < minDistance) {
                     minDistance = dist;
                     bestMatch = op;
@@ -473,38 +461,32 @@ getReader() {
         newPieces.forEach(p => {
             finalBoard[p.idx] = { type: p.type, color: p.color, id: p.id };
             if (p.promoted) finalBoard[p.idx].promoted = true; 
-            if (p.isBoardB) finalBoard[p.idx].isBoardB = true; // ✨ ALICE CHESS: Expose the mirror dimension to UI.js!
+            if (p.isBoardB) finalBoard[p.idx].isBoardB = true; 
         });
 
         this.#board = finalBoard;
     }
-// ✨ TỐI ƯU 4: ASCII Math (0 String Allocation)
-    #squareToIndex(sq) {
+#squareToIndex(sq) {
         if (!sq || sq.length < 2) return -1;
-        // Dịch thẳng bit ASCII (a=97, 1=49)
-        let f = sq.charCodeAt(0);
-        if (f < 97) f += 32; 
-        return (sq.charCodeAt(1) - 49) * 8 + (f - 97);
+        let f = (sq.charCodeAt(0) | 32) - 97; 
+        let r = 56 - sq.charCodeAt(1);
+        return (r * 8) + f;
     }
-
-    #indexToSquare(idx) {
+#indexToSquare(idx) {
         if (idx < 0 || idx > 63) return "";
-        let r = Math.floor(idx / 8); let f = idx % 8;
-        return String.fromCharCode(97 + f) + String.fromCharCode(49 + (7 - r));
+        let r = idx >> 3; let f = idx & 7;
+        return String.fromCharCode(97 + f) + String.fromCharCode(56 - r);
     }
-
-    #engineIndexToSquare(idx) {
+#engineIndexToSquare(idx) {
         if (idx < 0 || idx > 63) return "";
-        let r = Math.floor(idx / 8); let f = idx % 8;
+        let r = idx >> 3; let f = idx & 7;
         return String.fromCharCode(97 + f) + String.fromCharCode(49 + r);
     }
-    #postEngineCommand(cmdString) {
+#postEngineCommand(cmdString) {
         if (!window.sfWorker) return;
         window.sfWorker.postMessage(cmdString);
     }
-
-    // 2. ÉP ZERO-COPY CHO HÀM KÍCH HOẠT ENGINE
-    #triggerEngineGo(fen) {
+#triggerEngineGo(fen) {
         let targetNode = this.analyzingNode || this.currentNode;
 
         let isOver = false, isMate = false, tTurn = 'w';
@@ -568,9 +550,7 @@ getReader() {
         const depth = document.getElementById('engineDepth')?.value || 99;
         this.#postEngineCommand('go depth ' + depth);
     }
-
-    // 3. ÉP ZERO-COPY CHO BOT THỰC THI NƯỚC ĐI
-    #triggerBotMove(ignoreBook = false) {
+#triggerBotMove(ignoreBook = false) {
         const now = Date.now();
         if (this._lastBotTrigger && (now - this._lastBotTrigger < 100)) return;
         this._lastBotTrigger = now;
@@ -732,9 +712,7 @@ getReader() {
             this.#postEngineCommand(`go movetime ${this.currentBotThinkTime}`); 
         }
     }
-
-    // 4. KIỂM SOÁT LUỒNG DỮ LIỆU ĐẾN
-    #handleEngineMessage(e) {
+#handleEngineMessage(e) {
         if (typeof e.data !== 'string') return;
         const line = e.data.trim(); 
         if (!line) return;
@@ -814,7 +792,6 @@ getReader() {
                             return res.arrayBuffer();
                         })
                         .then(buffer => {
-                            // NNUE Buffer phải giữ nguyên Object Transfer, không dùng String Command
                             window.sfWorker.postMessage({ action: 'INJECT_NNUE', name: nnueFile, buffer: buffer });
                             setTimeout(() => {
                                 this.#postEngineCommand('setoption name EvalFile value ' + nnueFile);
@@ -1048,11 +1025,8 @@ getReader() {
             }
         }
     }
-
-    // 5. CẤU TRÚC LỊCH SỬ BIT-PACKED (Tuyệt đối không cấp phát String hay Object)
-    #syncMoveHistory() {
+#syncMoveHistory() {
         this.moveList = [];
-        // Mảng Float64 siêu tốc tĩnh
         this.history = new BigUint64Array(1000); 
         let histIndex = 0;
         
@@ -1069,7 +1043,6 @@ getReader() {
 
         path.forEach(node => {
             if (node.lastMove) {
-                // Mã hóa nước cờ: Từ (7 bit), Đến (6 bit), Cờ (8 bit) -> Cực kỳ tiết kiệm RAM
                 const from = node.lastMove.from === '@' ? 64 : node.lastMove.from;
                 const to = node.lastMove.to;
                 const flags = node.lastMove.flags || 0;
@@ -1084,7 +1057,6 @@ getReader() {
             this.history[histIndex++] = zHash;
         });
         
-        // Co mảng về đúng kích cỡ thực
         this.history = this.history.slice(0, histIndex);
     }
 #executeBotMoveWithDelay(uciMove, isBookMove = false) {
@@ -1114,7 +1086,6 @@ getReader() {
                     let parts = cleanUci.split(separator);
                     cleanUci = parts[0];
                     let d_str = parts[1].replace(/[^a-h1-8]/g, '');
-                    // ✨ FIX: Always take the final destination (the last 2 chars)
                     duck_sq = this.#squareToIndex(d_str.slice(-2));
                 } else {
                     // Handle concatenated UCI like e2e4g8
@@ -1235,7 +1206,7 @@ return move.san;
     this._kingCache[color] = -1;
     return -1;
 }
-    #flatCloneState(stateName) {
+#flatCloneState(stateName) {
         const memSlot = (stateName === 'local' || stateName === 'bot' || stateName === 'play') ? 'play' : stateName;
         
         return {
@@ -1243,11 +1214,7 @@ return move.san;
             mode: this.mode || stateName,
             fen: this.currentNode ? this.currentNode.fen : (typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'),
             pgn: typeof this.generatePGN === 'function' ? this.generatePGN() : "",
-            
-            // Shallow Copy siêu tốc độ (Tránh GC Allocation)
             headers: this.pgnHeaders ? { ...this.pgnHeaders } : {},
-            
-            // ✨ FIX LỖI BIGINT: Chuyển BigInt thành String để JSON.stringify không bị crash
             history: this.history ? Array.from(this.history, val => val.toString()) : [],
             moveList: this.moveList ? [...this.moveList] : [],
             
@@ -1273,30 +1240,25 @@ return move.san;
             currentStudyId: this.currentStudyId
         };
     }
-    #saveState(stateName) {
+#saveState(stateName) {
         if (!stateName) return;
         
         if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
         
         const memSlot = (stateName === 'local' || stateName === 'bot' || stateName === 'play') ? 'play' : stateName;
         
-        // Snapshot ngay lập tức lên RAM (0 ms)
         const stateSnapshot = this.#flatCloneState(stateName);
         this.tabMemory[memSlot] = stateSnapshot;
-        
-        // Dừng các lệnh ghi Disk rác nếu user đang thao tác liên tục
         clearTimeout(this._saveStateDebounce);
-        
-        // Chỉ thực sự ghi vào LocalStorage (Disk I/O) khi CPU rảnh rỗi 1 giây
         this._saveStateDebounce = setTimeout(() => {
             try {
                 localStorage.setItem(`chess_tab_snapshot_${memSlot}`, JSON.stringify(stateSnapshot));
             } catch(e) {
-                console.error("Lỗi khi ghi LocalStorage:", e);
+                console.error("Error when record in LocalStorage:", e);
             }
         }, 1000); 
     }
-    #restoreState(stateName) {
+#restoreState(stateName) {
         if (!stateName) return false;
         if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
         
@@ -1304,7 +1266,6 @@ return move.san;
         
         let state = null;
         if (this.tabMemory[memSlot]) {
-            // Shallow Copy từ RAM ra, tránh Tab Switch làm dơ bộ nhớ gốc
             state = { ...this.tabMemory[memSlot] };
         } else {
             try {
@@ -1314,7 +1275,7 @@ return move.san;
                     this.tabMemory[memSlot] = state;
                 }
             } catch (e) {
-                console.error(`Lỗi khi Parse bộ nhớ Tab ${memSlot}`, e);
+                console.error(`Error when parsing into Memory Tab ${memSlot}`, e);
             }
         }
         
@@ -1328,11 +1289,9 @@ return move.san;
                 this.#engine.setGameMode(this.gameMode);
             }
             
-            this.history = new BigUint64Array(1000); // 💥 FIX: Khởi tạo mảng kiểu tĩnh ngay từ đầu
+            this.history = new BigUint64Array(1000);
             this.moveList = [];
             this.pgnHeaders = {};
-
-            // Nạp Cây Nước Đi
             if (state.pgn && state.pgn.trim() !== "") {
                 if (typeof this.loadPGN === 'function') {
                     this.loadPGN(state.pgn, false, true);
@@ -1345,10 +1304,7 @@ return move.san;
                 this.currentNode = this.rootNode;
             }
 
-            // Giải phóng rác: Tái nạp bằng phép gán phẳng!
             if (state.headers) this.pgnHeaders = { ...state.headers };
-            
-            // ✨ FIX LỖI BIGINT TẠI ĐÂY: Ép chuỗi ngược về BigInt
             if (state.history) {
                 this.history = new BigUint64Array(state.history.length);
                 for (let i = 0; i < state.history.length; i++) {
@@ -1382,8 +1338,6 @@ return move.san;
             }
             return true;
         }
-
-        // Tình huống xấu nhất: Rỗng trơn (Mới tinh)
         let startFen = typeof this.#getStartingFen === 'function' ? this.#getStartingFen(this.gameMode) : (typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
             
         this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
@@ -1392,7 +1346,7 @@ return move.san;
         }
         this.rootNode = new MoveNode(startFen, null);
         this.currentNode = this.rootNode;
-        this.history = new BigUint64Array(1000); // 💥 FIX: Tránh crash cho ván rỗng
+        this.history = new BigUint64Array(1000);
         this.moveList = [];
         this.pgnHeaders = {};
         
@@ -1460,7 +1414,6 @@ return move.san;
             else if (token.startsWith('{')) {
                 let rawComment = token.replace(/^\{|\}$/g, '').trim();
                 
-                // 👉 FIX 1: Flexible book detection (finds it even if mixed with evals/clocks)
                 if (/\bbook\b/i.test(rawComment)) this.currentNode.isBook = true;
 
                 // 1. PARSE LICHESS EVAL
@@ -1821,7 +1774,6 @@ return move.san;
             newNode.lastMove = moveData;
             newNode.isPV = isPVMove;
             
-            // ✨ ROOT FIX: The broken clock logic block that was sitting right here 
             // has been completely nuked! makeMove() already handles the clock perfectly 
             // with the correct color and increment math!
 
@@ -1914,9 +1866,7 @@ return move.san;
         
         let reason = statusMsg;
         if (statusMsg.includes(' wins ')) reason = statusMsg.split(' wins ')[1]; 
-        else if (statusMsg.startsWith('Draw ')) reason = statusMsg.substring(5); 
-
-        // ✨ UPGRADE: Pure Event Emission. No DOM elements. No UI calls!
+        else if (statusMsg.startsWith('Draw ')) reason = statusMsg.substring(5);
         this.#emit('gameOver', { winner, reason, statusMsg });
     }
 #stopTimer() {
@@ -1934,8 +1884,6 @@ return move.san;
         let bWarningPlayed = false;
 
         let lastTime = Date.now();
-
-        // CHỈ LÀM TOÁN - KHÔNG GỌI UI Ở ĐÂY NỮA
         this.#timerInterval = setInterval(() => {
             let now = Date.now();
             let deltaSeconds = (now - lastTime) / 1000; 
@@ -1998,8 +1946,6 @@ return move.san;
         const p = this.puzzleQueue[this.puzzleIndex];
         console.log(`%c[PUZZLE LOADED] ID: ${p.id} | Rating: ${p.rating}`, "color: #38bdf8; font-weight: bold;");
         
-        // 🔥 THE RACE CONDITION FIX: Safe background loading!
-        // If the fetch finished but the user already swapped to the Analysis tab, buffer the puzzle safely!
         if (this.mode !== 'puzzle' && this.mode !== 'puzzles') {
             if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
             
@@ -2009,7 +1955,6 @@ return move.san;
                 currentNode: pRoot,
                 history: [],
                 moveList: [],
-                // ✨ FIX: Properly inject headers in the background buffer!
                 headers: {
                     "Event": `Chess Puzzle #${p.id || 'Unknown'}`,
                     "FEN": p.fen,
@@ -2037,7 +1982,6 @@ return move.san;
         this.history = [];  
         this.pgn = "";  
         
-        // ✨ THE FIX: We MUST inject the puzzle FEN into the headers so the exporter knows it doesn't start from standard position!
         this.pgnHeaders = {
             "Event": `Chess Puzzle #${p.id || 'Unknown'}`,
             "Site": "Chess.com",
@@ -2081,7 +2025,6 @@ return move.san;
         this.currentPuzzle = p;
         this.mode = 'puzzle';
 
-        // ✨ THE FIX: Protect the global gameMode from being permanently overwritten!
         const protectedMode = this.gameMode; 
 
         if (this.#engine && typeof this.#engine.setGameMode === 'function') {
@@ -2172,8 +2115,6 @@ return move.san;
                 animate: true, 
                 overrideMove: this.currentNode.lastMove 
             });
-            
-            // ✨ Replace the hardcoded emit with the smart sound trigger!
             if (res) this.triggerMoveSound(res);
             
             this.puzzleCursor++;
@@ -2245,7 +2186,6 @@ return move.san;
                 const nextBtn = document.getElementById('nextPuzzleBtn');
                 if (nextBtn) nextBtn.style.display = 'block';
                 
-                // ✨ FIX: Hide the Analysis button so they can't cheat!
                 const analysisBtn = document.getElementById('analysisBtn');
                 if (analysisBtn) analysisBtn.style.display = 'none';
 
@@ -2258,8 +2198,6 @@ return move.san;
             if (this.#ui.updatePuzzleStats) this.#ui.updatePuzzleStats();
         }
 
-        // ✨ THE FIX: Explicitly keep the engine locked on failure!
-        // The user must solve it or use the "Show Solution" button.
         const engineBtn = document.querySelector('.engine-toggle-btn');
         if (engineBtn) { 
             engineBtn.style.opacity = '0.5'; 
@@ -2286,7 +2224,6 @@ return move.san;
         document.body.removeChild(a); URL.revokeObjectURL(url);
     }
 #parseMultiPGN(pgnString) {
-        // Slices a massive text file into individual PGN game strings!
         const games = [];
         const lines = pgnString.split(/\r?\n/);
         let currentGame = [];
@@ -2306,7 +2243,6 @@ return move.san;
         return games;
     }
 #resetGameMemory(fen) {
-        // 1. Wipe everything
         this.gameOver = false;
         this.isPaused = false;
         if (this.#timerInterval) {
@@ -2563,7 +2499,6 @@ return move.san;
         let isFirstNode = (node === this.rootNode);
         let colorChanged = (moveColor !== lastColor);
 
-        // 🔥 THE PGN FIX: Only print the move number if the turn color ACTUALLY switches.
         if (colorChanged || isFirstNode) {
             if (moveColor === 'w') {
                 prefix = `${mNum}. `;
@@ -2779,7 +2714,7 @@ switchToAnalysis() {
             headers: { ...this.pgnHeaders },
             wTime: this.whiteTime,
             bTime: this.blackTime,
-            pgn: solvedPgn // ✨ INJECT THE GENERATED PGN HERE!
+            pgn: solvedPgn
         };
 
         // 4. Switch the internal game state over
@@ -2800,7 +2735,6 @@ switchToAnalysis() {
                 this.#ui.switchTab('analysis');
             }
             
-            // ✨ THE FIX: Force the engine to parse the solved PGN we generated in Step 1!
             if (solvedPgn && typeof this.loadPGN === 'function') {
                 this.loadPGN(solvedPgn, false, true);
             }
@@ -2858,7 +2792,6 @@ toggleArrow(from, to, color) {
         if (this.mode === 'study') this.saveActiveChapter(); 
         else if (this.mode === 'analysis') this.#saveState('analysis'); 
         
-        // ✨ FIX: Safely emit the event so main.js routes it to the UI!
         this.#emit('boardUpdated', { skipEngine: true });
     }
 toggleCircle(sq, color) {
@@ -2880,7 +2813,6 @@ toggleCircle(sq, color) {
         if (this.mode === 'study') this.saveActiveChapter();
         else if (this.mode === 'analysis') this.#saveState('analysis');
         
-        // ✨ FIX: Safely emit the event!
         this.#emit('boardUpdated', { skipEngine: true });
     }
 clearAnnotations() {
@@ -2891,7 +2823,6 @@ clearAnnotations() {
         if (this.mode === 'study') this.saveActiveChapter();
         else if (this.mode === 'analysis') this.#saveState('analysis');
         
-        // ✨ FIX: Safely emit the event!
         this.#emit('boardUpdated', { skipEngine: true });
     }
 updateComment(nodeId, text) {
@@ -2904,13 +2835,11 @@ updateComment(nodeId, text) {
         }
     }
 draftSpell(spellType, targetSq) {
-        // We MUST translate the raw UI index into an algebraic string so the engine doesn't misinterpret it!
         let algSq = typeof targetSq === 'number' ? this.#indexToSquare(targetSq) : targetSq;
         
         if (this.#engine && typeof this.#engine.draft_spell === 'function') {
             let res = this.#engine.draft_spell(spellType, algSq);
             
-            // ✨ FIX: Fire board updated so UI redraws to show the frozen squares!
             this.#emit('boardUpdated', { skipEngine: true });
             
             return res;
@@ -3001,8 +2930,6 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
         const oldMode = this.gameMode;
         const isSuspended = this.isVariantSuspended(mode);
         const oldIsSuspended = this.isVariantSuspended(oldMode);
-        
-        // ✨ SMART WARNING: Only warn if the user is about to abandon an unsavable Sandboxed game!
         if (!isInitialLoad && !skipStorage && oldIsSuspended && this.currentNode && this.currentNode !== this.rootNode) {
             const confirmReset = confirm(`You are leaving a Suspended Variant (${oldMode.toUpperCase()}).\nBecause it runs in isolated memory, your current board will be permanently lost.\n\nContinue?`);
             
@@ -3015,14 +2942,11 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             }
         }
 
-        // ✨ SMART BACKUP: Only save to LocalStorage if the variant we are leaving is officially supported and stable
         if (!isInitialLoad && !skipStorage && this.gameMode && oldMode !== mode) {
             if (!oldIsSuspended) {
                 this.saveVariantState(this.gameMode);
             }
         }
-
-        // ✨ THE OFFLINE MEMORY FIX ✨
         // If you change the variant while playing a Puzzle, we intercept the change,
         // route it to the offline Analysis memory slot, and abort! This ensures the Puzzle 
         // doesn't get destroyed, but the Analysis tab wakes up in the new variant!
@@ -3070,7 +2994,6 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             let safeSkipStorage = skipStorage || isSuspended; 
             
             if (!safeSkipStorage) {
-                // 🌟 Pull variant text strictly from the matching tab namespace prefix!
                 const tabContext = (this.mode === 'local' || this.mode === 'bot' || this.mode === 'play') ? 'play' : (this.mode || 'analysis');
                 const savedPgn = typeof localStorage !== 'undefined' ? localStorage.getItem(`chess_${tabContext}_variant_pgn_${mode}`) : null;
                 
@@ -3185,8 +3108,6 @@ handleTabSwitch(newTabName) {
                 if (typeof this.loadFEN === 'function') this.loadFEN(currentFen, this.gameMode, true);
             } 
             else if (targetTabContext === 'study' || targetTabContext === 'trainer') {
-                // CRITICAL FIX: Ensure Chapter is loaded explicitly when switching to Study/Trainer 
-                // to prevent blank-slate wipes!
                 let savedChap = parseInt(localStorage.getItem('chess_active_chapter_idx'), 10);
                 if (isNaN(savedChap)) savedChap = this.activeChapterIndex || 0;
                 this.loadChapter(savedChap, true, true);
@@ -3232,8 +3153,6 @@ async loadEngineFromFolder() {
                 
                 const box = document.getElementById('assetEngineFolder');
                 if (box) box.value = folderName;
-                
-                // 🔥 NO MORE BLOBS! We map it to the pure native Server URL!
                 const nativeUrl = '/engine/' + jsFile.webkitRelativePath;
                 this.initEngine(nativeUrl, folderName, 'custom');
             } else {
@@ -3261,14 +3180,14 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
             this.activeEngineType = engineType;
 
             // ==========================================
-            // 🔥 NATIVE CUSTOM ENGINE
+            // NATIVE CUSTOM ENGINE
             // ==========================================
             if (this.activeEngineType === 'custom' && customUrl) {
                 engineDisplayName = customName || "Custom Engine";
                 window.sfWorker = new Worker(customUrl);
             } 
             // ==========================================
-            // 🔥 FAIRY STOCKFISH (Message Queue + VFS)
+            // FAIRY STOCKFISH (Message Queue + VFS)
             // ==========================================
             else if (this.activeEngineType === 'fairy') {
                 engineDisplayName = "Fairy-Stockfish 14 NNUE";
@@ -3331,7 +3250,7 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                     self.URL.revokeObjectURL = NativeURL.revokeObjectURL;
 
                     var engineInstance = null;
-                    var messageQueue = []; // 🔥 Buffer commands while booting!
+                    var messageQueue = [];
                     
                     var Module = { 
                         locateFile: function(path) { return resolveUrl(path); },
@@ -3375,7 +3294,6 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                                 else if (typeof engineInstance.onCustomMessage === 'function') engineInstance.onCustomMessage(cmd);
                             else if (typeof engineInstance === 'function') engineInstance(cmd);
                             } else {
-                                // 🔥 Engine isn't ready yet! Save the command to the queue!
                                 messageQueue.push(cmd);
                             }
                         }
@@ -3387,7 +3305,6 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                         Stockfish(Module).then(function(engine) {
                             engineInstance = engine; 
                             
-                            // 🔥 Flush the queue immediately upon boot!
                             messageQueue.forEach(function(cmd) {
                                 // Add the ccall line right here too!
                                 if (engineInstance.ccall) engineInstance.ccall('push_cmd', 'null', ['string'], [cmd]);
@@ -3419,7 +3336,6 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                 window.sfWorker = new Worker(URL.createObjectURL(blob));
             }
             else {
-                // ✨ INSTANT LOAD FIX: Push the cached name to the UI instantly before the network fetch begins!
                 let cachedName = typeof localStorage !== 'undefined' ? localStorage.getItem('chess_cached_engine_name') : "Stockfish 18";
                 if (this.#ui && typeof this.#ui.updateEngineName === 'function') {
                     this.#ui.updateEngineName(cachedName);
@@ -3501,9 +3417,6 @@ updateStockfish() {
 
         this._pendingFen = this.currentNode ? this.currentNode.fen : this.generateFEN();
         this._pendingNode = this.currentNode;
-
-        // 🔥 THE GUARD: Stop it from spamming 'isready' while NNUE is downloading!
-        // The engine's boot sequence will naturally process this._pendingFen when it finishes!
         if (window.engineBooting) return;
 
         this._engineTimeout = setTimeout(() => {
@@ -3942,7 +3855,6 @@ retryPuzzle() {
             this.puzzleCursor = 0;
             this.gameOver = false;
             
-            // ✨ Apply the protection shield during retries
             const protectedMode = this.gameMode;
             if (this.#engine && typeof this.#engine.setGameMode === 'function') {
                 this.#engine.setGameMode('classical');
@@ -3954,7 +3866,6 @@ retryPuzzle() {
             if (this.#ui && typeof this.#ui.renderBoard === 'function') this.#ui.renderBoard(true);
             if (this.#ui && typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory();
             
-            // ✨ NEW: Hide the Hint and Reset buttons once the board is reset
             const hintBtn = document.getElementById('hintBtn');
             if (hintBtn) hintBtn.style.display = 'none';
             const resetBtn = document.getElementById('resetPuzzleBtn');
@@ -4011,13 +3922,12 @@ stepBack(animate = true) {
                 from: undoneNode.lastMove.to,
                 to: undoneNode.lastMove.from,
                 color: undoneNode.lastMove.color,
-                flags: undoneNode.lastMove.flags
+                flags: undoneNode.lastMove.flags,
+                isReverse: true
             };
         }
 
         this.#emit('boardUpdated', { animate: animate, overrideMove: reverseMove });
-        
-        // ✨ ROOT FIX: Debounce the audio queue!
         if (animate) {
             if (this._audioDebounce) clearTimeout(this._audioDebounce);
             this._audioDebounce = setTimeout(() => {
@@ -4102,7 +4012,6 @@ goToEnd(animate = true) {
         if (animate) {
             if (this.currentNode.lastMove) this.triggerMoveSound(this.currentNode.lastMove);
             else {
-                // ✨ ROOT FIX: Debounce the audio queue!
                 if (this._audioDebounce) clearTimeout(this._audioDebounce);
                 this._audioDebounce = setTimeout(() => {
                     this.#emit('soundTriggered', { type: 'move-self' });
@@ -4378,8 +4287,6 @@ loadFEN(fen, gameMode = null, isLoadMode = false) {
         let loaded = false;
         try {
             if (!this.#engine) this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
-            
-            // Set the game mode if provided, otherwise default to classical
             this.gameMode = gameMode || this.gameMode || 'classical';
             if (typeof this.#engine.setGameMode === 'function') this.#engine.setGameMode(this.gameMode);
             
@@ -4400,27 +4307,26 @@ loadFEN(fen, gameMode = null, isLoadMode = false) {
         const rows = parts[0].split('/'); 
 
         let visualRow = 0; 
-        // ✨ THE FIX: Correctly parse `~` (Alice/Crazyhouse) and `*` (Duck) to prevent board misalignment!
         for (let rStr of rows) {
             let file = 0; 
-            for (let char of rStr) {
-                if (/\d/.test(char)) {
-                    file += parseInt(char, 10);
-                } else if (char === '~') {
-                    // Apply property to the previously placed piece
-                    const prevSqIndex = (visualRow * 8) + file - 1;
+            for (let i = 0; i < rStr.length; i++) {
+                let char = rStr.charCodeAt(i);
+                if (char >= 48 && char <= 57) {
+                    file += (char - 48);
+                } else if (char === 126) {
+                    const prevSqIndex = (visualRow << 3) | (file - 1);
                     if (this.#board[prevSqIndex]) {
                         if (this.gameMode === 'alice') this.#board[prevSqIndex].isBoardB = true;
                         else this.#board[prevSqIndex].promoted = true;
                     }
-                } else if (char === '*') {
-                    const sqIndex = (visualRow * 8) + file;
+                } else if (char === 42) {
+                    const sqIndex = (visualRow << 3) | file;
                     this.#board[sqIndex] = { type: 'duck', color: 'none', id: this.getUID() };
                     file++;
                 } else {
-                    const color = (char === char.toUpperCase()) ? 'w' : 'b';
-                    const type = char.toLowerCase();
-                    const sqIndex = (visualRow * 8) + file;
+                    const color = (char < 97) ? 'w' : 'b';
+                    const type = String.fromCharCode(char | 32);
+                    const sqIndex = (visualRow << 3) | file;
                     this.#board[sqIndex] = { type: type, color: color, id: this.getUID() };
                     file++;
                 }
@@ -4632,13 +4538,11 @@ startAnalysisMode(transferGame = false) {
             return;
         }
 
-        // 🌟 FIX: Allow 'puzzle' data to be transferred into Analysis!
         let pgnToTransfer = null;
         if (transferGame && (previousMode === 'local' || previousMode === 'bot' || previousMode === 'puzzle')) {
             pgnToTransfer = typeof this.generatePGN === 'function' ? this.generatePGN() : "";
         }
         
-        // ✨ ROOT FIX: Force standard rules when analyzing a puzzle to stop variant bleed-over!
         if (previousMode === 'puzzle') {
             this.setGameMode('classical', false, true);
             
@@ -4804,7 +4708,6 @@ promoteVariation(nodeId) {
             p.selectedChildIndex = idx - 1;
             if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory(); 
             
-            // 🔥 THE FIX: Save to Study if in study mode!
             if (this.mode === 'study') this.saveActiveChapter();
             else if (this.mode === 'analysis') this.#saveState('analysis');
             
@@ -4984,7 +4887,6 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 this.pgnHeaders[match[1]] = match[2];
             }
 
-            // ✨ ROOT LOGIC FIX 1: Detect 4-Player Chess directly from the headers!
             // Do this BEFORE the headers get sanitized/deleted below.
             let isFFA = false;
             if (this.pgnHeaders['Variant'] === 'FFA' || this.pgnHeaders['StartFen4']) {
@@ -5044,7 +4946,6 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 }
             }
             
-            // ✨ THE SANITIZATION FIX: Erase the 14x14 tags from memory so they never export!
             delete this.pgnHeaders['StartFen4'];
             if (this.pgnHeaders['Variant'] === 'FFA') {
                 let formattedMode = this.gameMode === 'chess960' ? 'Chess960' : this.gameMode.charAt(0).toUpperCase() + this.gameMode.slice(1);
@@ -5098,8 +4999,6 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 newTokensArray.push(moveStr);
             }
             moveTextRaw = newTokensArray.join(' ');
-
-            // 🌟 FIX 1: THE SMART REGEX BRIDGE
             moveTextRaw = moveTextRaw.replace(/([A-Za-z]+@[a-h][1-8])\s+([A-Za-z0-9+#=O\-]+)/g, "$1_$2");
 
             let initialTime = 600;
@@ -5198,14 +5097,12 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             const originalMakeMove = this.makeMove.bind(this);
             this.makeMove = (move, promo, batchMode, pgnText, muteEngine, isAutoReply) => {
                 
-                // 🌟 FIX 2: RESTORE THE SPACE
                 if (typeof move === 'string') {
                     move = move.replace(/([A-Za-z]+@[a-h][1-8])_([A-Za-z0-9+#=O\-]+)/, "$1 $2");
                 }
 
                 let result = originalMakeMove(move, promo, true, pgnText, true, true);
                 
-                // 🌟 FIX 3: REPAIRED UNREACHABLE CODE
                 if (typeof move === 'string' && move.includes('@') && this.currentNode) {
                     if (this.currentNode.moveSan && !this.currentNode.moveSan.includes('@')) {
                         this.currentNode.moveSan = move;
@@ -5412,7 +5309,6 @@ exportPGN() {
         
         let pgnData = "";
 
-        // ✨ THE FIX: Read the active Analysis PGN from the text box!
         // When you switch to the Editor tab, the game switches memory contexts.
         // But the UI perfectly pastes the Analysis game's PGN into the editorPgnInput box.
         // We MUST export that box's value instead of the Editor's separate memory!
@@ -5614,7 +5510,6 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         if (this.#engine && this.#engine.game_over()) return null;
         const ui = (typeof window !== 'undefined' && this.#ui) ? this.#ui : null;
         
-        // ✨ FIX 1: BUFFER SPELLS ON PGN RELOAD
         // When loadPGN fires "Fz@f7", we buffer it and wait for the piece move to arrive!
         if (typeof move === 'string') {
             if (this.gameMode === 'spell' && move.includes('@') && move.match(/^[FJ]z?p?@/)) {
@@ -5633,7 +5528,6 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             }
         }
 
-        // ✨ FIX: ATTACH BUFFERED SPELL TO INCOMING MOVE (STRING OR OBJECT)
         if (this._pendingReloadSpell) {
             if (typeof move === 'object') {
                 move.isSpell = true;
@@ -5677,7 +5571,6 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
 
         if (batchMode) {
             const batchObj = {};
-            // ✨ FIX 3: Removed "else if". We now process BOTH Spell and Piece move into the same batchObj!
             if (move.isSpell) {
                 batchObj.isSpell = true; 
                 batchObj.spellType = move.spellType; 
@@ -5857,7 +5750,6 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             color: result.color 
         };
         
-        // ✨ FIX 6: Same combined SAN fix for normal mode history tracking
         let finalSan = result.san;
         
         if (move.isSpell) {
@@ -5957,7 +5849,7 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
                         
                         if (this.#ui && botRes) {
                             this.#ui.renderBoard(true); 
-                            if (typeof this.#ui.renderHeaders === 'function') this.#ui.renderHeaders(); // ✨ FIX 5: Sync the Bot's spells/mana!
+                            if (typeof this.#ui.renderHeaders === 'function') this.#ui.renderHeaders();
                             if (!this.isAnalysisMode) setTimeout(() => this.attemptPremove(), 100);
                         }
                     }
@@ -6159,14 +6051,14 @@ startBotGame(level, colorPreference, startFen = null) {
             if (arrowContainer) arrowContainer.innerHTML = '';
         }
 
-        // 🌟 FIX 1: Save exiting mode safely to protect its PGN before swapping to 'bot'
+        // Save exiting mode safely to protect its PGN before swapping to 'bot'
         if (this.mode && this.mode !== 'local' && this.mode !== 'bot' && this.mode !== 'play') {
             if (typeof this.saveVariantState === 'function') this.saveVariantState(this.gameMode);
         }
 
         this.mode = 'bot';
 
-        // 🌟 FIX 2: Hard Reboot the engine! Purges all invisible cached PGN headers.
+        // Hard Reboot the engine! Purges all invisible cached PGN headers.
         this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, this.gameMode);
 
         this.loadFEN(startFen);
@@ -6214,7 +6106,7 @@ startBotGame(level, colorPreference, startFen = null) {
             this.pgnHeaders['Variant'] = this.gameMode;
         }
 
-        // 🌟 FIX 3: Force the engine's internal cache to match our fresh headers!
+        // Force the engine's internal cache to match our fresh headers!
         if (typeof this.#engine.header === 'function') {
             this.#engine.header('Event', this.pgnHeaders.Event, 'Site', this.pgnHeaders.Site, 'White', this.pgnHeaders.White, 'Black', this.pgnHeaders.Black);
             if (this.pgnHeaders.Variant) this.#engine.header('Variant', this.pgnHeaders.Variant);
@@ -6442,7 +6334,7 @@ loadAllStudies() {
                     this.activeChapterIndex = -1;
                 }
             } else {
-                // ✨ FIX 2: If the library is empty, LEAVE IT EMPTY. Do not generate a placeholder!
+                // If the library is empty, LEAVE IT EMPTY. Do not generate a placeholder!
                 this.allStudies = [];
                 this.chapters = [];
                 this.studyTitle = "My Study";
@@ -6465,7 +6357,7 @@ createNewStudy() {
         
         const newId = 'study_' + Date.now();
         
-        // ✨ THE FIX: Inject the Variant Tag!
+        // Inject the Variant Tag!
         let variantTag = this.gameMode !== 'classical' ? `[Variant "${this.gameMode}"]\n` : '';
         let startFen = typeof this.generateFEN === 'function' ? this.generateFEN() : INITIAL_FEN;
         let initPgn = `${variantTag}[FEN "${startFen}"]\n\n*`;
@@ -6664,7 +6556,7 @@ importStudy(pgnText) {
                 activeChapterIndex: 0
             });
             
-            //  FIX: Load the study FIRST, then save it so the correct ID writes to memory!
+            // Load the study FIRST, then save it so the correct ID writes to memory!
             this.loadStudy(newStudyId, true);
             this.saveAllStudies();
             
@@ -6676,7 +6568,7 @@ importStudy(pgnText) {
             
             this.chapters.push({ title: title, pgn: gameStr.trim(), analysisMode: 'Normal analysis' });
             
-            //  FIX: Complete the save cycle for Text-box imports!
+            // Complete the save cycle for Text-box imports!
             this.loadChapter(this.chapters.length - 1, true);
             this.saveAllStudies();
         }
@@ -6727,7 +6619,7 @@ importStudyFromFile(input) {
                 activeChapterIndex: 0
             });
             
-            //  FIX: Ensure memory locks onto the new ID before saving!
+            // Ensure memory locks onto the new ID before saving!
             this.loadStudy(newId, true);
             this.saveAllStudies();
             
@@ -6771,7 +6663,7 @@ importChaptersFromFile(input) {
                 this.chapters.push({ title: title, pgn: gamePgn, analysisMode: 'Normal analysis' });
             });
             
-            //  FIX: Load the newly appended chapter FIRST, then save the array!
+            // Load the newly appended chapter FIRST, then save the array!
             this.loadChapter(jumpToIdx, true);
             this.saveAllStudies();
             
@@ -6900,7 +6792,7 @@ saveActiveChapter() {
         }
     }
 saveAllStudies() {
-        // FIX 1: If there are no studies or no ID, just save the empty state.
+        // If there are no studies or no ID, just save the empty state.
         if (!this.currentStudyId || this.allStudies.length === 0) {
             localStorage.setItem('chess_studies_library', JSON.stringify(this.allStudies));
             if (!this.currentStudyId) {
@@ -6911,7 +6803,7 @@ saveAllStudies() {
 
         let current = this.allStudies.find(s => s.id === this.currentStudyId);
 
-        // FIX 2: ONLY update the study if it actually exists! 
+        // ONLY update the study if it actually exists! 
         // We completely removed the `else` block that was resurrecting deleted ghosts!
         if (current) {
             let indexToSave = 0;
@@ -6932,7 +6824,7 @@ saveAllStudies() {
 deleteStudy(id) {
         const isDeletingCurrent = (this.currentStudyId === id);
 
-        // FIX 3: If we are deleting a background study, ensure the current one is saved first!
+        // If we are deleting a background study, ensure the current one is saved first!
         if (!isDeletingCurrent) {
             this.saveActiveChapter();
         }
@@ -6952,7 +6844,7 @@ deleteStudy(id) {
                 this.loadStudy(this.allStudies[0].id, true);
             }
             
-            //  FIX 4: Explicitly command the system to save the deletion!
+            // Explicitly command the system to save the deletion!
             this.saveAllStudies();
         }
     }
@@ -6977,7 +6869,7 @@ deleteSelectedStudies() {
             if (deletingCurrent) {
                 this.loadStudy(this.allStudies[0].id, true);
             }
-            // FIX 5: Explicitly command the system to save the deletion!
+            // Explicitly command the system to save the deletion!
             this.saveAllStudies();
         }
 
@@ -7345,7 +7237,7 @@ triggerMoveSound(move) {
             }
         }
 
-        // ROOT FIX: Debounce the audio queue to prevent lag explosions!
+        // Debounce the audio queue to prevent lag explosions!
         // This tiny 25ms delay allows the browser to clear out backed-up DOM processing
         // and instantly destroys previously queued sounds so they don't stack up.
         if (this._audioDebounce) clearTimeout(this._audioDebounce);

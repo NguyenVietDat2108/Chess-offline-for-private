@@ -244,8 +244,6 @@ init() {
                 const currentMode = document.getElementById('editorVariantSelect')?.value || this.#game.gameMode;
                 
                 const validation = this.#game.validateFen(newFen);
-                
-                // FIX: Update Editor board directly without switching to Analysis mode
                 if (validation.valid) {
                     this.#game.loadFEN(newFen, currentMode);
                     if (this.#game.rootNode) {
@@ -329,7 +327,7 @@ init() {
                 this.setPresetTheme(
                     savedTheme.lightHex,
                     savedTheme.darkHex,
-                    null, // ✨ FIX: Pass null so the UI auto-detects the correct preset HTML button
+                    null,
                     savedTheme.accentColor,
                     savedTheme.gridColor,
                     savedTheme.pieceSet,
@@ -647,7 +645,7 @@ injectPanelToggle() {
             display: flex; 
             align-items: center; 
             justify-content: center; 
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Chuyển động mượt khi dời vị trí */
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: 0 4px 8px rgba(0,0,0,0.4);
         `;
         
@@ -899,8 +897,6 @@ async fetchPlayerStats() {
             resultDiv.innerHTML = `<span style="color:#fa412d">Please enter a username.</span>`;
             return;
         }
-
-        // ✨ LAYOUT FIX: Prevent the container from expanding infinitely and breaking the Chart panel
         resultDiv.style.overflowY = 'auto';
         resultDiv.style.maxHeight = '350px'; 
         resultDiv.style.paddingRight = '5px';
@@ -911,7 +907,6 @@ async fetchPlayerStats() {
             let games = [];
 
             if (platform === 'lichess') {
-                // ✨ FETCH FIX: Request 200 games instead of 50
                 const res = await fetch(`https://lichess.org/api/games/user/${username}?max=200&perfType=${timeControl}`);
                 if (!res.ok) throw new Error("User not found or API limited.");
                 const pgnData = await res.text();
@@ -923,9 +918,6 @@ async fetchPlayerStats() {
 
                 let chessComTimeClass = timeControl;
                 if (timeControl === 'classical') chessComTimeClass = 'daily';
-
-                // ✨ FETCH FIX: Chess.com only gives 1 month per API call. 
-                // We will loop backwards up to 4 months until we hit exactly 200 games!
                 for (let i = 0; i < 4; i++) {
                     const monthStr = String(month).padStart(2, '0');
                     try {
@@ -1376,7 +1368,6 @@ populatePieceSets() {
         selector.appendChild(localOpt);
     }
 toggleHideNextMoves(forceState = null) {
-        // ✨ THE FIX: Allow the engine to explicitly command the state!
         if (forceState !== null) {
             this.hideNextMoves = forceState;
         } else {
@@ -1409,9 +1400,6 @@ toggleHideNextMoves(forceState = null) {
 applyHideNextMoves() {
         const pgnBox = document.getElementById('moveHistory');
         if (!pgnBox) return;
-
-        // ✨ TRUE TREE MATH: Get the EXACT path of the current variation from the engine memory!
-        // This guarantees that alternate sublines stay blurred out.
         const activePathIds = new Set();
         if (this.#game) {
             let curr = this.#game.currentNode;
@@ -1474,8 +1462,6 @@ toggleAnimations() {
     }
 toggleEngine(forceOff = false) {
         const isLiveGame = this.#game && this.#game.isPlayingLiveGame;
-        
-        // ✨ THE FIX: We use the new variable that respects the puzzleSolved flag!
         const isUnfinishedPuzzle = this.#game && 
                                    this.#game.mode === 'puzzle' && 
                                    !this.#game.gameOver && 
@@ -1664,14 +1650,9 @@ renderHeaders() {
         const botData = this.playerInfo[botColor] || {};
 
         const state = this.#game ? this.#game.getReader() : null;
-
-        // ✨ Get spell uses directly from engine state
         const engineUses = (this.#game && this.#game.engine && typeof this.#game.engine.spell_uses === 'function') 
             ? this.#game.engine.spell_uses() 
             : { w: { freeze: 5, jump: 2 }, b: { freeze: 5, jump: 2 } };
-
-        // ✨ FIX: Update cache key to include spellUses! 
-        // Otherwise, the headers won't redraw when you spend a charge!
         const cacheKey = JSON.stringify({ 
             topData, botData, flipped: this.flipped, avatars: this.avatars,
             activeSpell: this.activeSpell, 
@@ -1984,15 +1965,12 @@ showPuzzleHint() {
         }
     }
 getSquareFromCoords(x, y) {
-        // ✨ FIX: Use squaresLayer to bypass CSS borders
         const rect = this.squaresLayer.getBoundingClientRect();
         if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return -1;
         
         const size = rect.width / 8;
         let c = Math.floor((x - rect.left) / size);
         let r = Math.floor((y - rect.top) / size);
-        
-        // ✨ FIX: Clamp bounds safely
         c = Math.max(0, Math.min(7, c));
         r = Math.max(0, Math.min(7, r));
         
@@ -2188,15 +2166,15 @@ updateGhostPosition(e) {
         this.draggedPieceGhost.style.left = (localX - w / 2) + 'px';
         this.draggedPieceGhost.style.top = (localY - h / 2) + 'px';
     }
-drawGhostPiece(container, sqIdx, pieceType, color) {
+    drawGhostPiece(container, sqIdx, pieceType, color) {
         this._lastGhostParams = { sqIdx, pieceType, color };
         const board = this.boardEl;
         if (!board) return;
         board.querySelectorAll('.ghost-suggestion').forEach(el => el.remove());
 
         const size = 100 / 8;
-        const file = sqIdx % 8;
-        const rank = Math.floor(sqIdx / 8);
+        const file = sqIdx & 7;
+        const rank = sqIdx >> 3;
         const finalFile = this.flipped ? 7 - file : file;
         const finalRank = this.flipped ? 7 - rank : rank;
 
@@ -2361,9 +2339,7 @@ cleanupDrag(keepSelection = false) {
 finishDrag(e) {
         const state = this.#game ? this.#game.getReader() : null;
         if (!state) return;
-        if (this.dragData && this.dragData.source === '@') return; 
-
-        // ✨ FIX: Use squaresLayer to bypass CSS borders
+        if (this.dragData && this.dragData.source === '@') return;
         const rect = this.squaresLayer.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
@@ -2374,7 +2350,6 @@ finishDrag(e) {
             let col = Math.floor(x / size);
             let row = Math.floor(y / size);
             
-            // ✨ FIX: Clamp bounds safely
             col = Math.max(0, Math.min(7, col));
             row = Math.max(0, Math.min(7, row));
             
@@ -2647,8 +2622,6 @@ executeMove(move, animate = true, overridePromo = null) {
         const isPawn = (piece && piece.type.toLowerCase() === 'p');
         const destRank = Math.floor(destIdx / 8);
         const isRank8 = (destRank === 0 || destRank === 7);
-        
-        // ✨ FIX: Set the variable using the new argument!
         let promoChar = overridePromo; 
         
         if (!isDrop && isPawn && isRank8 && !promoChar) {
@@ -2657,7 +2630,6 @@ executeMove(move, animate = true, overridePromo = null) {
                 promoChar = 'q'; 
             } else {
                 this.showPromotionModal(piece.color, destIdx, (selectedType) => { 
-                    // ✨ FIX: Pass the modal choice correctly!
                     this.executeMove(move, animate, selectedType.toLowerCase()); 
                 });
                 return;
@@ -2676,7 +2648,6 @@ executeMove(move, animate = true, overridePromo = null) {
         }
 
         this._isExecutingMove = true;
-        // ✨ FIX: Pass the securely captured promo string into the engine!
         let res = this.#game.makeMove(moveAttempt, promoChar || move.promotion || 'q');
         this._isExecutingMove = false;
         
@@ -2704,14 +2675,11 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         const theme = document.getElementById('assetType') ? document.getElementById('assetType').value : 'merida';
         const boardContainer = document.getElementById('chessBoard');
         if (boardContainer) {
-            // Assign container query to allow mathematical CSS scaling
             boardContainer.style.containerType = 'inline-size';
-            
             if (theme === 'disguised') boardContainer.classList.add('theme-disguised');
             else boardContainer.classList.remove('theme-disguised');
         }
 
-        // Apply mathematical layout sync for perfectly scaled CSS badges
         if (this.boardWrapper) {
             const bw = this.boardWrapper.offsetWidth || 600;
             this.boardWrapper.style.setProperty('--board-width', bw + 'px');
@@ -2804,8 +2772,8 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             
             if (this.pendingSpell && (this.pendingSpell.spellType === 'freeze' || this.pendingSpell.type === 'freeze')) {
                 let target = this.pendingSpell.target !== undefined ? this.pendingSpell.target : this.pendingSpell.square;
-                let pr = Math.floor(target / 8);
-                let pc = target % 8;
+                let pr = target >> 3;
+                let pc = target & 7;
                 for (let dr = -1; dr <= 1; dr++) {
                     for (let dc = -1; dc <= 1; dc++) {
                         let nr = pr + dr, nc = pc + dc;
@@ -2825,11 +2793,11 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     while(q.length > 0) {
                         let curr = q.shift();
                         cluster.push(curr);
-                        let r = Math.floor(curr/8), c = curr%8;
+                        let r = curr >> 3, c = curr & 7;
                         let neighbors = [curr-8, curr+8, curr-1, curr+1, curr-9, curr-7, curr+7, curr+9];
                         for (let n of neighbors) {
                             if (n >= 0 && n < 64 && combinedFrozen[n] && !visited.has(n)) {
-                                let nr = Math.floor(n/8), nc = n%8;
+                                let nr = n >> 3, nc = n & 7;
                                 if (Math.abs(nr-r) <= 1 && Math.abs(nc-c) <= 1) {
                                     visited.add(n);
                                     q.push(n);
@@ -2839,7 +2807,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     }
                     let minR = 8, maxR = -1, minC = 8, maxC = -1;
                     for (let sq of cluster) {
-                        let r = Math.floor(sq/8), c = sq%8;
+                        let r = sq >> 3, c = sq & 7;
                         if (r < minR) minR = r; if (r > maxR) maxR = r;
                         if (c < minC) minC = c; if (c > maxC) maxC = c;
                     }
@@ -2852,8 +2820,8 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             }
         }
         for (let v = 0; v < 64; v++) {
-            let r_vis = Math.floor(v / 8); 
-            let c_vis = v % 8;
+            let r_vis = v >> 3; 
+            let c_vis = v & 7;
             
             let r_log = this.flipped ? 7 - r_vis : r_vis;
             let c_log = this.flipped ? 7 - c_vis : c_vis;
@@ -3006,8 +2974,8 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
 
                     if (this.activeSpell === 'freeze') {
-                        const r = Math.floor(logical_i / 8);
-                        const c = logical_i % 8;
+                        const r = logical_i >> 3;
+                        const c = logical_i & 7;
 
                         for (let dr = -1; dr <= 1; dr++) {
                             for (let dc = -1; dc <= 1; dc++) {
@@ -3208,7 +3176,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             const activeNode = (this.#game && this.#game.currentNode) ? this.#game.currentNode : null;
             const nodeMove = activeNode ? activeNode.lastMove : null;
             
-            // Strict check: NAG only renders on the destination of the move that created this position
             if (nodeMove && p.idx === nodeMove.to && activeNode) {
                 let evalNags = [];
                 let qualityNags = [];
@@ -3232,7 +3199,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     });
                 }
 
-                // Render Qualities (!, ?) FIRST, then Evaluations (+-, =)
                 const finalNagsInfo = [...qualityNags, ...evalNags];
                 
                 if (finalNagsInfo.length > 0) {
@@ -3250,7 +3216,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                         return `<div class="nag-indicator" style="background-color:${info.color} !important; border:3cqi solid ${info.borderColor} !important; color:${tColor} !important; width:40cqi !important; height:40cqi !important; min-width:40cqi !important; min-height:40cqi !important; max-width:40cqi !important; max-height:40cqi !important; flex-shrink:0 !important; flex-grow:0 !important; border-radius:50% !important; display:flex !important; flex-direction:column !important; align-items:center !important; justify-content:center !important; padding:0 !important; margin:0 0 0 ${marginLeft} !important; font-size:${fontSize} !important; letter-spacing:${letterSpacing} !important; font-weight:800 !important; box-shadow:0 2cqi 4cqi rgba(0,0,0,0.6) !important; box-sizing:border-box !important; z-index:${zIndex} !important; line-height:1 !important; white-space:nowrap !important; overflow:hidden !important; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important; text-shadow:none !important;">${info.symbol}</div>`;
                     }).join('');
                     
-                    // Create an inline-size container matching the piece boundaries to anchor the CQI units
                     htmlBuffer += `
                         <div class="nag-wrapper" style="position:absolute !important; top:0 !important; left:0 !important; width:100% !important; height:100% !important; container-type:inline-size !important; pointer-events:none !important; z-index:100 !important;">
                             <div style="position:absolute !important; top:-10% !important; right:-10% !important; display:flex !important; flex-direction:row !important; align-items:center !important;">
@@ -3278,8 +3243,8 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(s => s.classList.remove('spell-target-hover'));
                     
                     if (this.activeSpell === 'freeze') {
-                        const r = Math.floor(p.idx / 8);
-                        const c = p.idx % 8;
+                        const r = p.idx >> 3;
+                        const c = p.idx & 7;
                         for (let dr = -1; dr <= 1; dr++) {
                             for (let dc = -1; dc <= 1; dc++) {
                                 const nr = r + dr, nc = c + dc;
@@ -3333,13 +3298,12 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 if (innerImg) innerImg.style.transform = 'none';
             }
 
-            let r = Math.floor(p.idx / 8); let c = p.idx % 8;
+            let r = p.idx >> 3; let c = p.idx & 7;
             if (this.flipped) { r = 7 - r; c = 7 - c; }
             const targetTransform = `translate(${c * 100}%, ${r * 100}%)`;
             el.style.width = '12.5%'; el.style.height = '12.5%';
 
-            const currentTransform = el.style.transform;
-            const positionChanged = (currentTransform && currentTransform !== targetTransform);
+            const positionChanged = (el._lastTransform && el._lastTransform !== targetTransform);
             const targetMove = activeMove;
 
             let isCastleRook = false;
@@ -3381,19 +3345,14 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
 
             let isMovedPiece = !!(targetMove && p.idx === targetMove.to);
             let forceAnimate = isMovedPiece || isCastlingMove;
-
-            let startTransform = currentTransform;
+            let startTransform = el._lastTransform;
             let startC = c, startR = r;
 
-            if (startTransform && startTransform.includes('translate')) {
-                const match = startTransform.match(/translate\(([-\d.]+)%,\s*([-\d.]+)%\)/);
-                if (match) {
-                    startC = parseFloat(match[1]) / 100;
-                    startR = parseFloat(match[2]) / 100;
-                }
-            }
-            
-            if (isNew || !startTransform || startTransform === 'none' || startTransform === '') {
+            if (!isNew && el._lastC !== undefined && el._lastR !== undefined) {
+                startC = el._lastC;
+                startR = el._lastR;
+                startTransform = `translate(${startC * 100}%, ${startR * 100}%)`;
+            } else {
                 const getSafeIndex = (val) => {
                     if (val === '@') return p.idx; 
                     if (typeof val === 'number') return val;
@@ -3403,55 +3362,67 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     return val;
                 };
                 const fromGridSq = isCastlingMove ? p._castleStartIdx : (isMovedPiece ? getSafeIndex(targetMove.from) : p.idx);
-                startR = Math.floor(fromGridSq / 8); 
-                startC = fromGridSq % 8;
+                
+                startR = fromGridSq >> 3; 
+                startC = fromGridSq & 7;
                 if (this.flipped) { startR = 7 - startR; startC = 7 - startC; }
                 startTransform = `translate(${startC * 100}%, ${startR * 100}%)`;
 
                 if (targetMove && targetMove.from === '@' && isMovedPiece) startTransform += ' scale(1.5)';
             }
+            el._lastC = c;
+            el._lastR = r;
+            el._lastTransform = targetTransform;
+
+            const isReverseMove = targetMove && targetMove.isReverse;
 
             if (animate && (positionChanged || forceAnimate) && (!isNew || forceAnimate)) {
-                el.style.transition = 'none'; 
-                el.style.transform = startTransform;
-                void el.offsetWidth; 
                 
-                requestAnimationFrame(() => {
-                    el.style.transition = ''; 
-                    el.classList.add('animating');
-                    if (isCastlingMove) el.classList.add('castling-jump');
+                if (isReverseMove && !isMovedPiece && !isCastlingMove) {
+                    el.style.transition = 'none';
+                    el.style.transform = targetTransform;
+                } else {
+                    el.style.transition = 'none'; 
+                    el.style.transform = startTransform;
+                    void el.offsetWidth; 
+                    
+                    requestAnimationFrame(() => {
+                        el.style.transition = ''; 
+                        el.classList.add('animating');
+                        if (isCastlingMove && !isReverseMove) el.classList.add('castling-jump');
 
-                    el.style.transitionDuration = `${isCastlingMove ? castleDuration : moveDuration}ms`;
-                    el.style.transform = targetTransform; 
+                        el.style.transitionDuration = `${isCastlingMove ? castleDuration : moveDuration}ms`;
+                        el.style.transform = targetTransform; 
 
-                    const sqEl = this.squaresLayer.querySelector(`[data-index="${p.idx}"]`);
-                    if (isMovedPiece && sqEl) {
-                        let wave = document.createElement('div');
-                        wave.className = 'shockwave'; 
-                        let waveColor = p.color === 'w' ? 'rgba(56, 189, 248, 0.6)' : 'rgba(250, 65, 45, 0.6)';
-                        wave.style.cssText = `position:absolute; top:0; left:0; width:100%; height:100%; border-radius:50%; box-shadow: 0 0 20px 8px ${waveColor}; transform: scale(0); animation: shockwaveAnim 0.4s ease-out; pointer-events:none; z-index:5;`;
-                        if (!document.getElementById('sw-style')) {
-                            let style = document.createElement('style'); style.id = 'sw-style';
-                            style.innerHTML = `@keyframes shockwaveAnim { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }`;
-                            document.head.appendChild(style);
+                        const sqEl = this.squaresLayer.querySelector(`[data-index="${p.idx}"]`);
+                        
+                        if (isMovedPiece && sqEl && !isReverseMove) {
+                            let wave = document.createElement('div');
+                            wave.className = 'shockwave'; 
+                            let waveColor = p.color === 'w' ? 'rgba(56, 189, 248, 0.6)' : 'rgba(250, 65, 45, 0.6)';
+                            wave.style.cssText = `position:absolute; top:0; left:0; width:100%; height:100%; border-radius:50%; box-shadow: 0 0 20px 8px ${waveColor}; transform: scale(0); animation: shockwaveAnim 0.4s ease-out; pointer-events:none; z-index:5;`;
+                            if (!document.getElementById('sw-style')) {
+                                let style = document.createElement('style'); style.id = 'sw-style';
+                                style.innerHTML = `@keyframes shockwaveAnim { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }`;
+                                document.head.appendChild(style);
+                            }
+                            sqEl.appendChild(wave);
+                            setTimeout(() => wave.remove(), 400);
                         }
-                        sqEl.appendChild(wave);
-                        setTimeout(() => wave.remove(), 400);
-                    }
 
-                    el.dataset.animTimeout = setTimeout(() => {
-                        el.classList.remove('animating', 'castling-jump');
-                        el.style.transition = 'none';
-                        el.style.transitionDuration = ''; 
-                    }, isCastlingMove ? castleDuration + 50 : moveDuration + 50);
-                });
+                        el.dataset.animTimeout = setTimeout(() => {
+                            el.classList.remove('animating', 'castling-jump');
+                            el.style.transition = 'none';
+                            el.style.transitionDuration = ''; 
+                        }, isCastlingMove ? castleDuration + 50 : moveDuration + 50);
+                    });
+                }
 
             } else {
                 el.style.transition = 'none';
                 el.style.transform = targetTransform;
             }
-
-            if (showMangaTail && (isMovedPiece || isCastlingMove) && targetMove && targetMove.from !== '@') {
+            if (showMangaTail && (isMovedPiece || isCastlingMove) && targetMove && targetMove.from !== '@' && !isReverseMove) {
                 const dx = (c - startC); const dy = (r - startR);
                 const dist = Math.sqrt(dx*dx + dy*dy);
                 
@@ -3674,12 +3645,7 @@ animateToStartPosition(targetFen, previousBoard, onCompleteCallback) {
 
         // 6. SYNC RENDER CYCLE
         this._startAnimTimeout = setTimeout(() => {
-            // Unlock the rendering engine
             this._isExecutingMove = false;
-            
-            // 🔥 THE FIX: Atomically purge all animation fragments from the DOM.
-            // When onCompleteCallback triggers renderBoard(false), it will draw 
-            // a flawless, pristine 32-piece setup without any stacking conflicts.
             piecesLayer.innerHTML = ''; 
             
             if (onCompleteCallback) onCompleteCallback();
@@ -3798,8 +3764,6 @@ getNagInfo(nag) {
     }
 updateEditorState() {
         if (!this.#game || this.#game.mode !== 'editor') return;
-        
-        // FIX: Instead of overwriting the DOM, push the DOM checkbox changes to the game engine
         if (typeof this.#game.syncEngineToBoard === 'function') {
             this.#game.syncEngineToBoard();
         }
@@ -4607,8 +4571,6 @@ updateEvalBar(type = this._lastEvalType, val = this._lastEvalVal) {
             text.style.padding = '4px 0';
             text.style.zIndex = '5';
             
-            // ✨ COLOR LOGIC FIX: Text shadows act as a shield against Dark Mode extensions.
-            // If the extension turns the background dark but leaves the text black, the white shadow makes it pop.
             if (isWhiteWinning) {
                 text.style.color = '#rgb(213,191,191)'; // Dark text
                 text.style.textShadow = '0px 0px 3px rgba(0, 0, 0, 0.9)'; // Anti-blend shield
@@ -4668,8 +4630,6 @@ showAnnotationPopup(e, node) {
             if (typeof this.renderCharts === 'function') this.renderCharts();
             if (this.renderBoard) this.renderBoard(false, false);
             if (this.#game && this.#game.updateStockfish) this.#game.updateStockfish();
-            
-            // ✨ FIX: Force the system to save changes to LocalStorage/Memory after modifying Book status or NAGs
             if (this.#game) {
                 if (this.#game.mode === 'study' && typeof this.#game.saveActiveChapter === 'function') {
                     this.#game.saveActiveChapter();
@@ -4941,13 +4901,12 @@ renderAnalysisLine(index, type, val, moves, startFen) {
         const isDisguised = currentTheme === 'disguised';
         
         for (let i = 0; i < 64; i++) {
-            let r = Math.floor(i / 8); let c = i % 8;
+            let r = i >> 3; let c = i & 7;
             const isLight = (r + c) % 2 === 0;
             const sq = document.createElement('div');
             sq.className = `preview-square ${isLight ? 'light' : 'dark'}`;
             sq.style.cssText = 'position:relative; box-sizing:border-box; display:flex; justify-content:center; align-items:center; overflow:hidden;';
             
-            // Xử lý Giao diện ngụy trang luôn 1 lần ở đây
             if (isDisguised) {
                 const colorClass = isLight ? 'light' : 'dark';
                 const cleanSq = document.querySelector(`.square.${colorClass}:not(.last-move):not(.selected):not(.in-check)`);
@@ -5012,7 +4971,6 @@ renderAnalysisLine(index, type, val, moves, startFen) {
 
                     if (currentSq === targetGridIndex) renderPiece = 'duck';
                     
-                    // Truyền thẳng vào ô DOM có sẵn
                     this.renderPreviewSquare(squares[currentSq], renderPiece, isAliceB); 
                     fileIdx++;
                 } else {
@@ -5167,16 +5125,12 @@ processTrashAction(e) {
 editorClear() {
     if (this.#game) {
         const emptyFen = "8/8/8/8/8/8/8/8 w - - 0 1";
-        
-        // ✅ FIX 1: Use the class method instead of setting .board directly
         this.#game.loadFEN(emptyFen);
         
         // Ensure the engine and visual board are in sync
         if (typeof this.#game.syncEngineToBoard === 'function') this.#game.syncEngineToBoard(); 
         
         this.renderBoard(false);
-        
-        // ✅ FIX 2: Explicitly update the FEN input text box
         const fenInput = document.getElementById('fenInput');
         if (fenInput) fenInput.value = emptyFen;
 
@@ -5217,8 +5171,6 @@ editorReset() {
         const ep = parts[3] || '-';
         const halfMove = parts[4] || '0';
         const fullMove = parts[5] || '1';
-
-        // ✅ FIX 3: Update the main FEN input text box
         const fenInput = document.getElementById('fenInput');
         if (fenInput) fenInput.value = startFen;
 
@@ -5316,8 +5268,6 @@ copyFEN() {
     }
 copyPGN() {
         if (!this.#game) return;
-        
-        // FIX: Dynamically read the format selected in the UI dropdown
         const formatMenu = document.getElementById('pgnFormatSelect');
         const exportFormat = formatMenu ? formatMenu.value : 'both';
         
@@ -5342,10 +5292,9 @@ copyPGN() {
 showPromotionModal(color, destIdx, callback) {
         const overlay = document.getElementById('promotion-overlay');
         if (!overlay) return;
-
-        const file = destIdx % 8; const rank = Math.floor(destIdx / 8);
+        const file = destIdx & 7; const rank = destIdx >> 3;
         const targetX = (this.flipped ? (7 - file) : file) * 12.5; 
-        const targetY = (this.flipped ? rank : (7 - rank)) * 12.5; 
+        const targetY = (this.flipped ? (7 - rank) : rank) * 12.5; 
 
         const pieceEls = this.piecesLayer.children;
         for (let el of pieceEls) {
@@ -5395,7 +5344,6 @@ renderCharts(force = false) {
 
         let lastNode = this.#game.rootNode;
         
-        // ✨ FIX: Lock the chart to the Main Line (the actual game) instead of following sub-variations
         while (lastNode && lastNode.children.length > 0) lastNode = lastNode.children[0];
 
         if (!force && this.evalChart && this._lastChartedFen === lastNode.fen) return; 
@@ -5552,7 +5500,6 @@ handleMouseDown(e) {
         if (e.button === 2) { 
             e.preventDefault(); e.stopPropagation();
             
-            // ✨ FIX: Cancel Spell Draft on right click
             if (this.pendingSpell) {
                 this.pendingSpell = null;
                 if (this.#game && typeof this.#game.cancelDraft === 'function') this.#game.cancelDraft();
@@ -5564,7 +5511,6 @@ handleMouseDown(e) {
             if (sq !== -1) { this.isRightClick = true; this.arrowDragStart = sq; }
         } else if (e.button === 0) { 
             
-            // ✨ FIX: Cancel Spell Draft on blank left click
             if (this.pendingSpell) {
                 this.pendingSpell = null;
                 if (this.#game && typeof this.#game.cancelDraft === 'function') this.#game.cancelDraft();
@@ -5599,7 +5545,7 @@ handleMouseUp(e) {
         }
     }
 getSquareCenter(idx) {
-        let r = Math.floor(idx / 8); let c = idx % 8;
+        let r = idx >> 3; let c = idx & 7;
         if (this.flipped) { r = 7 - r; c = 7 - c; }
         return { x: (c * 12.5) + 6.25, y: (r * 12.5) + 6.25 };
     }
@@ -5680,7 +5626,7 @@ initDraggableSettings() {
 drawArrow(container, fromIdx, toIdx, colorName, opacity=0.5) { 
         const cMap = { 'green': '#15781B', 'red': '#882020', 'blue': '#003088', 'orange': '#e68f00' };
         const color = cMap[colorName] || colorName;
-        const fR = Math.floor(fromIdx / 8), fC = fromIdx % 8; const tR = Math.floor(toIdx / 8), tC = toIdx % 8;
+        const fR = fromIdx >> 3, fC = fromIdx & 7; const tR = toIdx >> 3, tC = toIdx & 7;
         let x1 = (fC + 0.5) * 12.5, y1 = (fR + 0.5) * 12.5; let x2 = (tC + 0.5) * 12.5, y2 = (tR + 0.5) * 12.5;
 
         if (this.flipped) {
@@ -5711,10 +5657,10 @@ drawArrow(container, fromIdx, toIdx, colorName, opacity=0.5) {
         path.setAttribute('d', d); path.setAttribute('fill', color); path.setAttribute('opacity', opacity); path.setAttribute('stroke', 'none');
         container.appendChild(path);
     }
-drawCircle(container, idx, colorName) {
+    drawCircle(container, idx, colorName) {
         const cMap = { 'green':'#15781B', 'red':'#882020', 'blue':'#003088', 'orange':'#e68f00' };
         const color = cMap[colorName] || colorName;
-        const r = Math.floor(idx / 8), c = idx % 8;
+        const r = idx >> 3, c = idx & 7;
         let cx = (c + 0.5) * 12.5; let cy = (r + 0.5) * 12.5;
         if (this.flipped) { cx = ((7 - c) + 0.5) * 12.5; cy = ((7 - r) + 0.5) * 12.5; }
         const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
@@ -5921,7 +5867,6 @@ quickImport() {
         document.getElementById('quickImportModal').style.display = 'none';
     }
 async _drawBoardToCanvas(canvas, ctx) { 
-        // 1. Vẽ phông nền bàn cờ
         ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--board-light').trim() || '#f0d9b5';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         const darkColor = getComputedStyle(document.documentElement).getPropertyValue('--board-dark').trim() || '#b58863';
@@ -5936,30 +5881,25 @@ async _drawBoardToCanvas(canvas, ctx) {
             } 
         }
         
-        // 2. TỐI ƯU CỰC HẠN: Lấy mảng gốc của Engine và chập thẳng ảnh Cache (O(1))
         const state = this.#game ? this.#game.getReader() : null;
         if (!state || !state.board || !this._imgCache) return;
 
         for (let i = 0; i < 64; i++) {
             const p = state.board[i];
             if (p) {
-                let r = Math.floor(i / 8);
-                let c = i % 8;
+                let r = i >> 3;
+                let c = i & 7;
                 if (this.flipped) { r = 7 - r; c = 7 - c; }
                 
-                // Định tuyến con trỏ ảnh (O(1))
                 let code = p.type === 'duck' ? 'duck' : (p.color + p.type.toUpperCase());
                 const cachedImg = this._imgCache[code];
                 
                 if (cachedImg) {
-                    // Áp dụng bộ lọc quang học cho Alice Chess
                     if (p.isBoardB) {
                         ctx.filter = 'hue-rotate(180deg) drop-shadow(0 0 5px cyan)';
                         ctx.globalAlpha = 0.6;
                     }
-                    
                     ctx.drawImage(cachedImg, c * canvasSq, r * canvasSq, canvasSq, canvasSq);
-                    
                     if (p.isBoardB) {
                         ctx.filter = 'none';
                         ctx.globalAlpha = 1.0;
@@ -5968,10 +5908,9 @@ async _drawBoardToCanvas(canvas, ctx) {
             }
         }
 
-        // 3. Render ngoại lệ (Duck Chess) nếu con vịt không nằm trong mảng cờ
         if (state.gameMode === 'duck' && state.duck_sq !== undefined && state.duck_sq !== -1) {
-            let dr = Math.floor(state.duck_sq / 8);
-            let dc = state.duck_sq % 8;
+            let dr = state.duck_sq >> 3;
+            let dc = state.duck_sq & 7;
             if (this.flipped) { dr = 7 - dr; dc = 7 - dc; }
             
             if (this._imgCache['duck']) {
@@ -6028,10 +5967,7 @@ generateGIF() {
             `;
             document.head.appendChild(styleOverride);
         }
-        void document.body.offsetHeight; // Force CSS apply immediately
-
-        // ✨ 4. HIJACK RENDER TO DISABLE JS SLIDING
-        // We let your UI draw the tails and highlights normally, but we FORCE animate to false!
+        void document.body.offsetHeight;
         const originalRenderBoard = this.renderBoard;
         this.renderBoard = (animate, ...args) => {
             this._isExecutingMove = false; 
@@ -6063,7 +5999,7 @@ generateGIF() {
             // Give the browser exactly 250ms to perfectly paint your UI (tails, highlights, CSS)
             await new Promise(r => setTimeout(r, 250));
 
-            // ✨ B) UNIQUE CANVAS (Fixes gif.js memory corruption bug)
+            // B) UNIQUE CANVAS (Fixes gif.js memory corruption bug)
             const frameCanvas = document.createElement('canvas'); 
             frameCanvas.width = gifSize; frameCanvas.height = gifSize; 
             const frameCtx = frameCanvas.getContext('2d', { willReadFrequently: true });
@@ -6072,7 +6008,6 @@ generateGIF() {
             // Because we use your native draw method, the fidelity is 100% perfect!
             await this._drawBoardToCanvas(frameCanvas, frameCtx);
 
-            // ✨ D) FRAME DUPLICATION (Fixes Viewer skipping Move 1)
             if (isFirstFrame) {
                 // Force the Windows viewer to pause by physically printing the Start Position 3 times!
                 gif.addFrame(frameCanvas, { delay: 400, copy: true });
@@ -6115,7 +6050,6 @@ exportEmbed() {
         if (!this.#game) return;
         const modal = document.getElementById('exportEmbededModal');
         if (modal) {
-            // ✨ AUTO-DETECT PIECES FIX
             const mainPieceSelect = document.getElementById('assetType'); 
             const embedPieceSelect = document.getElementById('embedPieceTheme');
             if (!this._embedSelectsPopulated && mainPieceSelect && embedPieceSelect) { 
@@ -6147,7 +6081,6 @@ exportEmbed() {
                         const val = e.target.value; 
                         const heightEl = document.getElementById('embedHeight'); 
                         if (heightEl) heightEl.value = val + 'px';
-                        // ✨ Removed the static scale transform. The live iframe handles itself!
                         this.generateEmbedCodes();
                     });
                 }
@@ -6182,7 +6115,7 @@ generateEmbedCodes(copyToClipboard = false) {
         const height = heightEl && heightEl.value.trim() !== '' ? heightEl.value : '480px';
 
         let params = new URLSearchParams();
-        if (pgn) params.append('pgn', encodeURIComponent(pgn)); // ✨ MUST BE ENCODED for iframe URL
+        if (pgn) params.append('pgn', encodeURIComponent(pgn));
         params.append('theme', theme); 
         params.append('pieces', pieces); 
         params.append('coords', coords); 
@@ -6210,7 +6143,6 @@ generateEmbedCodes(copyToClipboard = false) {
         if (linkBox) linkBox.value = directUrl; 
         if (gidBox) gidBox.value = `[gid=${gameId}]`;
 
-        // ✨ THE FIX: Render the LIVE Iframe into the new Preview Box!
         const previewContainer = document.getElementById('liveEmbedPreview');
         if (previewContainer) {
             previewContainer.innerHTML = `<iframe src="${embedUrl}" style="width: 100%; height: 100%; border: none; position: relative; z-index: 1;"></iframe>`;
@@ -6591,7 +6523,6 @@ forceRenderCharts() {
         let scanNode = this.#game.rootNode;
         
         while (scanNode && scanNode.children.length > 0) {
-            // ✨ FIX: Only scan the main line for evaluations!
             let n = scanNode.children[0]; 
             if (n.evalScore !== undefined) { hasPgnEvals = true; break; }
             scanNode = n;
@@ -6876,13 +6807,11 @@ setPresetTheme(lightHex, darkHex, callerElement, accentColor = null, gridColor =
         this.updateTheme();
         if (typeof this.updatePieceImagesSafe === 'function') this.updatePieceImagesSafe();
 
-        // ✨ FIX 1: Target EVERY possible class name you might have used for the theme buttons
         const themeButtons = document.querySelectorAll('.theme-preset, .theme-box, .theme-btn, .preset-btn, .theme-card, .board-theme-box');
         
         themeButtons.forEach(el => {
             el.classList.remove('active');
             
-            // ✨ FIX 2: Auto-detect the right button by reading its onclick attribute.
             // This prevents bugs where clicking an inner <span> applies the border to the wrong element!
             const onclickStr = el.getAttribute('onclick') || "";
             const cleanClick = onclickStr.replace(/\s+/g, '').toLowerCase();
@@ -6894,7 +6823,6 @@ setPresetTheme(lightHex, darkHex, callerElement, accentColor = null, gridColor =
             }
         });
         
-        // ✨ FIX 3: Safe fallback for custom caller elements
         if (callerElement && callerElement.classList) {
             // If the clicked element is inside a theme button, highlight the parent button, not the child
             const parentThemeBox = callerElement.closest('.theme-preset, .theme-box, .theme-btn, .preset-btn, .theme-card');
@@ -6995,8 +6923,6 @@ updatePieceImagesSafe() {
         const selector = document.getElementById('assetType');
         if (selector) this.pieceTheme = selector.value;
         if (this.pieceTheme === 'local' && !this.customPieces) return;
-        
-        // Đồng bộ hóa: Load bộ nhớ đệm xong rồi mới nhả Render
         this.preloadPieceImages().then(() => {
             this.renderBoard(false);
         });
@@ -7819,7 +7745,6 @@ castSpell(spellType, targetSq) {
         const selector = document.getElementById('assetType');
         const theme = selector ? selector.value : 'cburnett';
         
-        // Xử lý bộ cờ tải lên từ thư mục máy tính
         if (theme === 'local' && this.customPieces) {
             const loadPromises = Object.keys(this.customPieces).map(code => {
                 return new Promise((resolve) => {
@@ -7833,8 +7758,6 @@ castSpell(spellType, targetSq) {
             await Promise.all(loadPromises);
             return;
         }
-
-        // Xử lý bộ cờ hệ thống
         const set = PIECE_SETS[theme];
         if (!set) return;
 
@@ -7858,12 +7781,11 @@ castSpell(spellType, targetSq) {
                 const img = new Image();
                 img.crossOrigin = "Anonymous";
                 img.onload = () => { this._imgCache[code] = img; resolve(); };
-                img.onerror = () => resolve(); // Vẫn giải phóng Promise để không treo luồng
+                img.onerror = () => resolve();
                 img.src = src;
             });
         });
         
-        // Cache luôn con Vịt cho Duck Chess
         const duckPromise = new Promise((resolve) => {
             const img = new Image();
             img.onload = () => { this._imgCache['duck'] = img; resolve(); };
@@ -7896,7 +7818,6 @@ castSpell(spellType, targetSq) {
                         const drawFn = () => {
                             ctx.drawImage(img, c * sqSize + padding, r * sqSize + padding, sqSize * 0.9, sqSize * 0.9);
                         };
-                        // Nếu ảnh đã sẵn sàng trên RAM -> Vẽ luôn. Nếu chưa -> Chờ load xong rồi vẽ!
                         if (img.complete && img.naturalWidth !== 0) drawFn();
                         else img.addEventListener('load', drawFn, { once: true });
                     }
@@ -7907,7 +7828,6 @@ castSpell(spellType, targetSq) {
     }
     renderGraphNode(node, container, activeNode, depth, activePathIds, activeDepth) {
         if (!node) return;
-        // ✨ THE ROOT NODE FIX: Gán ID ngay lập tức nếu nó chưa có (chống lỗi canvas "undefined")
         if (!node.id) node.id = 'n_' + Math.random().toString(36).substr(2, 9);
 
         const mode = this.graphMode || 'focused';
@@ -8058,8 +7978,6 @@ castSpell(spellType, targetSq) {
                 chapWrapper.style.display = 'none';
             }
         }
-
-        // ✨ PRELOAD ẢNH CANVAS
         if (!this._imgCache) this.preloadPieceImages();
 
         container.innerHTML = '';
@@ -8086,7 +8004,6 @@ castSpell(spellType, targetSq) {
         zoomWrapper.appendChild(treeRoot);
         container.appendChild(zoomWrapper); 
 
-        // ✨ VẼ BOARD LÊN CANVAS THEO LIST
         const canvases = treeRoot.querySelectorAll('canvas[id^="gcanv-"]');
         canvases.forEach(canvas => {
             const nodeId = canvas.id.replace('gcanv-', '');
@@ -8121,7 +8038,6 @@ castSpell(spellType, targetSq) {
     }
     _renderGraphRecursive(node, container, activeNode, depth) {
         if (!node) return;
-        // ✨ THE ROOT NODE FIX: Gán ID để không bị miss Canvas!
         if (!node.id) node.id = 'n_' + Math.random().toString(36).substr(2, 9);
 
         const wrapper = document.createElement('div');
@@ -8306,8 +8222,6 @@ castSpell(spellType, targetSq) {
                 this.isPeeking = false;
                 if (typeof this.renderBoard === 'function') this.renderBoard(false);
             }
-
-            // ✨ BỔ SUNG PHÍM X ĐỂ THOÁT GRAPH THEO YÊU CẦU
             if (e.code === 'KeyX' || e.key === 'x') {
                 const graphTab = document.getElementById('tabContent-Graph');
                 if (graphTab && graphTab.classList.contains('active')) {
