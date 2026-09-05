@@ -29,5 +29,17 @@ export class MoveNode {
         this.isIllegal = false;
         this.reviewed = false;
         this.isCollapsed = false;
+        this.graphX = 0;
+        this.graphY = 0;
+        if (fen) {
+            const parts = fen.split(' ');
+            this.turnColor = parts[1] || 'w';
+            this.moveNumber = parseInt(parts[5], 10) || 1;
+            this.hasVariantModifier = fen.includes('~');
+        } else {
+            this.turnColor = 'w';
+            this.moveNumber = 1;
+            this.hasVariantModifier = false;
+        }
     }
 }

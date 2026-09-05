@@ -47,7 +47,7 @@ html, body {
     align-items: center;
     justify-content: center;
     position: relative;
-    width: 600px; /* Lock exactly to your board size */
+    width: var(--board-width, 600px); 
     flex-shrink: 0;
 }
 /* 6. Sidebar Safety Rules */

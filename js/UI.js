@@ -1,4 +1,4 @@
-import { FILES, RANKS, ICON_BOOK_SVG, ICON_BOOK_SVG_IMG_BLUE, INITIAL_FEN, ICON_SETTING_SVG, VARIANT_STARTING_FENS } from './constants.js';
+import { FILES, RANKS, ICON_BOOK_SVG, ICON_BOOK_SVG_IMG_BLUE, INITIAL_FEN, ICON_SETTING_SVG, VARIANT_STARTING_FENS,ISO_TO_COUNTRY_NAME,NAG_MAP } from './constants.js';
 import { MoveNode } from './MoveNode.js';
 import { PIECE_SETS } from './piece.js';
 
@@ -116,9 +116,10 @@ init() {
         if (resignBtn) resignBtn.style.display = 'none';
         if (drawBtn) drawBtn.style.display = 'none';
         
-        setTimeout(() => {
+        // Dùng rAF để chờ DOM sẵn sàng, triệt tiêu Layout Shift (CLS)
+        requestAnimationFrame(() => {
             if (typeof this.resizeApp === 'function') this.resizeApp();
-
+            
             let lastTab = 'play';
             if (typeof localStorage !== 'undefined') {
                 lastTab = localStorage.getItem('chess_last_tab') || 'play';
@@ -126,11 +127,11 @@ init() {
             this.switchTab(lastTab);
 
             if (this.#game) {
-                this.updateHistory();
+                this.updateHistory(true); 
                 this.renderArrows();
                 if (typeof this.updateClocks === 'function') this.updateClocks();
             }
-        }, 50);
+        });
     }
 #bindDOMEvents() {
         const btn = document.getElementById('btnBrowseFolder');
@@ -1664,47 +1665,6 @@ renderHeaders() {
         if (this._lastHeadersCache === cacheKey) return;
         this._lastHeadersCache = cacheKey;
 
-        const isoToCountryName = {
-            "us": "United States", "ca": "Canada", "ar": "Argentina", "be": "Belgium", "af": "Afghanistan",
-            "al": "Albania", "ad": "Andorra", "ai": "Anguilla", "ag": "Antigua and Barbuda", "am": "Armenia",
-            "aw": "Aruba", "au": "Australia", "at": "Austria", "bs": "Bahamas", "bh": "Bahrain", "bb": "Barbados",
-            "xx": "International", "bz": "Belize", "bm": "Bermuda", "bo": "Bolivia", "ba": "Bosnia and Herzegovina",
-            "br": "Brazil", "bg": "Bulgaria", "es-cn": "Canary Islands", "ky": "Cayman Islands", "cl": "Chile",
-            "cn": "China", "co": "Colombia", "cr": "Costa Rica", "hr": "Croatia", "cu": "Cuba", "cw": "Curaçao",
-            "cy": "Cyprus", "cz": "Czech Republic", "dk": "Denmark", "dm": "Dominica", "do": "Dominican Republic",
-            "ec": "Ecuador", "eg": "Egypt", "sv": "El Salvador", "ee": "Estonia", "fk": "Falkland Islands",
-            "fo": "Faroe Islands", "fj": "Fiji", "fi": "Finland", "fr": "France", "ge": "Georgia", "de": "Germany",
-            "gi": "Gibraltar", "gr": "Greece", "gl": "Greenland", "gd": "Grenada", "gp": "Guadeloupe", "gu": "Guam",
-            "gt": "Guatemala", "gg": "Guernsey", "gy": "Guyana", "ht": "Haiti", "hn": "Honduras", "hk": "Hong Kong",
-            "hu": "Hungary", "is": "Iceland", "in": "India", "id": "Indonesia", "ir": "Iran", "iq": "Iraq",
-            "ie": "Ireland", "im": "Isle of Man", "il": "Israel", "it": "Italy", "jm": "Jamaica", "jp": "Japan",
-            "je": "Jersey", "jo": "Jordan", "kz": "Kazakhstan", "ki": "Kiribati", "kw": "Kuwait", "lv": "Latvia",
-            "lb": "Lebanon", "li": "Liechtenstein", "lt": "Lithuania", "lu": "Luxembourg", "mo": "Macau",
-            "mk": "North Macedonia", "my": "Malaysia", "mt": "Malta", "mq": "Martinique", "md": "Moldova",
-            "mx": "Mexico", "mc": "Monaco", "ms": "Montserrat", "nr": "Nauru", "np": "Nepal", "nl": "Netherlands",
-            "nz": "New Zealand", "ni": "Nicaragua", "no": "Norway", "om": "Oman", "pk": "Pakistan", "pa": "Panama",
-            "pg": "Papua New Guinea", "py": "Paraguay", "pe": "Peru", "ph": "Philippines", "pl": "Poland",
-            "pt": "Portugal", "pr": "Puerto Rico", "ro": "Romania", "ru": "Russia", "kn": "Saint Kitts and Nevis",
-            "lc": "Saint Lucia", "pm": "Saint Pierre and Miquelon", "sm": "San Marino", "sa": "Saudi Arabia",
-            "sg": "Singapore", "sk": "Slovakia", "si": "Slovenia", "sb": "Solomon Islands", "za": "South Africa",
-            "gs": "South Georgia", "sr": "Suriname", "se": "Sweden", "ch": "Switzerland", "tw": "Taiwan",
-            "th": "Thailand", "to": "Tonga", "tt": "Trinidad and Tobago", "tr": "Turkey", "tm": "Turkmenistan",
-            "tv": "Tuvalu", "ua": "Ukraine", "ae": "United Arab Emirates", "uy": "Uruguay", "uz": "Uzbekistan",
-            "vu": "Vanuatu", "va": "Vatican City", "ve": "Venezuela", "vn": "Vietnam", "ye": "Yemen",
-            "as": "American Samoa", "vc": "Saint Vincent and the Grenadines", "az": "Azerbaijan", "mn": "Mongolia",
-            "sy": "Syria", "gb-eng": "England", "mh": "Marshall Islands", "gb-sct": "Scotland", "es": "Spain",
-            "gb": "United Kingdom", "vi": "U.S. Virgin Islands", "gb-wls": "Wales", "kr": "South Korea",
-            "kg": "Kyrgyzstan", "bd": "Bangladesh", "sd": "Sudan", "bj": "Benin", "bt": "Bhutan", "bw": "Botswana",
-            "bn": "Brunei", "bi": "Burundi", "kh": "Cambodia", "cm": "Cameroon", "cv": "Cape Verde",
-            "cf": "Central African Republic", "td": "Chad", "cg": "Republic of the Congo", "ci": "Ivory Coast",
-            "dj": "Djibouti", "gq": "Equatorial Guinea", "ga": "Gabon", "gh": "Ghana", "ke": "Kenya", "la": "Laos",
-            "lr": "Liberia", "mg": "Madagascar", "ma": "Morocco", "mz": "Mozambique", "mm": "Myanmar",
-            "na": "Namibia", "ne": "Niger", "ng": "Nigeria", "qa": "Qatar", "rw": "Rwanda", "ws": "Samoa",
-            "st": "Sao Tome and Principe", "sn": "Senegal", "sl": "Sierra Leone", "so": "Somalia", "lk": "Sri Lanka",
-            "sz": "Eswatini", "tj": "Tajikistan", "tz": "Tanzania", "tl": "East Timor", "tg": "Togo", "tn": "Tunisia",
-            "ug": "Uganda", "zm": "Zambia", "zw": "Zimbabwe", "dz": "Algeria", "mr": "Mauritania"
-        };
-
         const updateSlot = (index, data, color) => {
             const rawName = data.name || (color === 'w' ? "White" : "Black");
             let nameTxt = rawName.replace(/\s?\(.*?\)/, '').trim();
@@ -1718,7 +1678,8 @@ renderHeaders() {
 
             let flagHtml = (typeof this.getCountryFlagHtml === 'function') ? this.getCountryFlagHtml(data.country) : '';
             if (flagHtml && data.country) {
-                const fullName = isoToCountryName[data.country.toLowerCase()] || data.country.toUpperCase();
+                // ĐÃ SỬA: Đọc bảng băm toàn cục tĩnh
+                const fullName = ISO_TO_COUNTRY_NAME[data.country.toLowerCase()] || data.country.toUpperCase();
                 flagHtml = `<span title="${fullName}" style="cursor: help; display: flex; align-items: center;">${flagHtml}</span>`;
             }
             
@@ -2589,6 +2550,7 @@ executeMove(move, animate = true, overridePromo = null) {
                 }, 100);
             }
         }
+        
         if (this.pendingSpell) {
             move.isSpell = true;
             move.spellType = this.pendingSpell.spellType || this.pendingSpell.type;
@@ -2596,6 +2558,7 @@ executeMove(move, animate = true, overridePromo = null) {
             move.spellSan = this.pendingSpell.san; 
             this.pendingSpell = null; 
         }
+        
         const isDrop = move.from === '@';
         let destIdx = move.to !== undefined ? move.to : move.target;
         if (typeof destIdx === 'string') {
@@ -2622,6 +2585,7 @@ executeMove(move, animate = true, overridePromo = null) {
         const isPawn = (piece && piece.type.toLowerCase() === 'p');
         const destRank = Math.floor(destIdx / 8);
         const isRank8 = (destRank === 0 || destRank === 7);
+        
         let promoChar = overridePromo; 
         
         if (!isDrop && isPawn && isRank8 && !promoChar) {
@@ -4881,7 +4845,7 @@ renderAnalysisLine(index, type, val, moves, startFen) {
                     cumulativeMoves.push(uci); validMoveCount++; 
                     const fenAtMove = tempChess.fen();
                     const duckSq = tempChess.get_duck_sq ? tempChess.get_duck_sq() : -1;
-                    const seqString = cumulativeMoves.join(',');
+                    const seqString = cumulativeMoves.join(' ');
                     
                     let span = document.createElement('span'); span.className = 'pv-move'; span.innerText = prefix + moveObj.san;
                     span.style.cssText = 'cursor:pointer; margin-right:5px; display:inline-block;';
@@ -7561,8 +7525,11 @@ castSpell(spellType, targetSq) {
             };
         };
 
-        const fragment = document.createDocumentFragment();
         const wrappers = listContainer.querySelectorAll('.g-node-wrapper');
+        
+        // GOM CHUỖI SIÊU TỐC V8
+        let normalPathStr = "";
+        let blurredPathStr = "";
         
         wrappers.forEach(wrapper => {
             const parentNode = wrapper.querySelector('.g-node-content');
@@ -7584,23 +7551,34 @@ castSpell(spellType, targetSq) {
                 const endX = cPos.left;
                 const endY = cPos.top + (cPos.height / 2);
 
-                const curve = document.createElementNS(svgNS, 'path');
                 const cpX = (startX + endX) / 2; 
                 
-                const d = `M ${startX} ${startY} C ${cpX} ${startY}, ${cpX} ${endY}, ${endX} ${endY}`;
+                const curveD = `M ${startX} ${startY} C ${cpX} ${startY}, ${cpX} ${endY}, ${endX} ${endY} `;
                 const isBlurred = childEl.classList.contains('g-blur-future') || parentNode.classList.contains('g-blur-past');
                 
-                curve.setAttribute('d', d);
-                curve.setAttribute('fill', 'transparent');
-                curve.setAttribute('stroke', isBlurred ? 'rgba(56, 189, 248, 0.25)' : '#38bdf8');
-                curve.setAttribute('stroke-width', isBlurred ? '2' : '3');
-                
-                if (!isBlurred) fragment.appendChild(curve);
-                else fragment.insertBefore(curve, fragment.firstChild);
+                if (isBlurred) blurredPathStr += curveD;
+                else normalPathStr += curveD;
             }
         });
 
-        svgLayer.appendChild(fragment);
+        // CHỈ RENDER ĐÚNG 2 THẺ DOM VÀO TRÌNH DUYỆT
+        if (blurredPathStr) {
+            const blurPath = document.createElementNS(svgNS, 'path');
+            blurPath.setAttribute('d', blurredPathStr);
+            blurPath.setAttribute('fill', 'transparent');
+            blurPath.setAttribute('stroke', 'rgba(56, 189, 248, 0.25)');
+            blurPath.setAttribute('stroke-width', '2');
+            svgLayer.appendChild(blurPath);
+        }
+
+        if (normalPathStr) {
+            const normalPath = document.createElementNS(svgNS, 'path');
+            normalPath.setAttribute('d', normalPathStr);
+            normalPath.setAttribute('fill', 'transparent');
+            normalPath.setAttribute('stroke', '#38bdf8');
+            normalPath.setAttribute('stroke-width', '3');
+            svgLayer.appendChild(normalPath);
+        }
     }
     renderHistoryImmediate() {
         const list = document.getElementById('moveHistory');

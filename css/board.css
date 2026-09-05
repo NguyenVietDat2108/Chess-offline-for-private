@@ -5,8 +5,8 @@
 
 #board-wrapper {
     flex-shrink: 0 !important;
-    position: relative; 
-    height: auto; 
+    position: relative;
+    aspect-ratio: 1 / 1; 
     min-width: 300px; 
     display: flex; 
     flex-direction: column; 
@@ -152,10 +152,6 @@ svg, .drawing-layer, #annotationsLayer, .arrow-line, .arrow-head {
 .square.highlight-b { box-shadow: inset 0 0 0 4px #fa412d !important; background-color: rgba(250, 65, 45, 0.2) !important; z-index: 10; }
 
 /* --- Coordinates --- */
-#board-wrapper {
-    overflow: visible !important;
-    margin: 20px;
-}
 #board-wrapper.coords-outside {
     margin: 25px;
     overflow: visible !important;

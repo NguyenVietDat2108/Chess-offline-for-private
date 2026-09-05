@@ -1,4 +1,4 @@
-import {INITIAL_FEN,FILES, RANKS, ICON_BOOK_SVG, SETTINGS_ICON_IMG, VARIANT_STARTING_FENS, nnueMap } from './constants.js';
+import {INITIAL_FEN,FILES, RANKS, ICON_BOOK_SVG, SETTINGS_ICON_IMG, VARIANT_STARTING_FENS, nnueMap,ISO_TO_COUNTRY_NAME,NAG_MAP } from './constants.js';
 import { MoveNode } from './MoveNode.js';
 export const EV_UPDATE_BOARD = 1;
 export const EV_ANIMATE = 2;
@@ -1031,8 +1031,10 @@ getReader() {
     }
 #syncMoveHistory() {
         this.moveList = [];
-        this.history = new BigUint64Array(1000); 
-        let histIndex = 0;
+        if (!this.globalHistoryBuffer) {
+            this.globalHistoryBuffer = new BigUint64Array(2000);
+        }
+        this.globalHistoryCount = 0;
         
         let path = [];
         let trace = this.currentNode;
@@ -1042,8 +1044,7 @@ getReader() {
             trace = trace.parent;
         }
         
-        const rootZobrist = BigInt(this.rootNode.zobrist || 0);
-        this.history[histIndex++] = rootZobrist;
+        this.globalHistoryBuffer[this.globalHistoryCount++] = BigInt(this.rootNode.zobrist || 0);
 
         path.forEach(node => {
             if (node.lastMove) {
@@ -1057,11 +1058,9 @@ getReader() {
                 this.moveList.push(node.moveSan);
             }
             
-            const zHash = BigInt(node.zobrist || 0);
-            this.history[histIndex++] = zHash;
+            this.globalHistoryBuffer[this.globalHistoryCount++] = BigInt(node.zobrist || 0);
         });
-        
-        this.history = this.history.slice(0, histIndex);
+        this.history = this.globalHistoryBuffer.subarray(0, this.globalHistoryCount);
     }
 #executeBotMoveWithDelay(uciMove, isBookMove = false) {
         const now = Date.now();
@@ -1334,7 +1333,16 @@ return move.san;
             if (state.currentStudyId !== undefined) this.currentStudyId = state.currentStudyId;
             
             if (state.activeNodeId && typeof this.goToNodeId === 'function') {
-                this.goToNodeId(state.activeNodeId);
+                let success = this.goToNodeId(state.activeNodeId);
+                if (!success && state.fen) {
+                    let target = null;
+                    const searchFen = (node) => {
+                        if (node.fen === state.fen) { target = node; return; }
+                        for (let c of node.children) searchFen(c);
+                    };
+                    if (this.rootNode) searchFen(this.rootNode);
+                    if (target) this.goToNodeId(target.id);
+                }
             }
 
             if (this.currentNode && typeof this.loadFEN === 'function') {
@@ -4127,7 +4135,7 @@ playEngineSequence(seqString, baseFen) {
             this.#engine.load(this.currentNode.fen);
         }
 
-        const moves = seqString.split(',');
+        const moves = seqString.split(/\s+/);
         if (typeof window.sfWorker !== 'undefined' && window.sfWorker) {
             window.sfWorker.postMessage('stop');
         }
@@ -4144,6 +4152,10 @@ playEngineSequence(seqString, baseFen) {
             // Clean up Duck Chess appended squares
             if (baseMove.includes(',')) {
                 let parts = baseMove.split(',');
+                baseMove = parts[0];
+                duckSq = parts[1];
+            } else if (this.gameMode === 'duck' && baseMove.includes('@')) {
+                let parts = baseMove.split('@');
                 baseMove = parts[0];
                 duckSq = parts[1];
             }
@@ -4164,10 +4176,17 @@ playEngineSequence(seqString, baseFen) {
                 promotion: parsedMove.promotion
             };
             
-            if (baseMove.includes('@')) {
+            if ((this.gameMode === 'crazyhouse' || this.gameMode === 'placement' || this.gameMode === 'bughouse') && rawMove.includes('@')) {
                 moveObj.from = '@';
-                moveObj.drop = baseMove.split('@')[0].toLowerCase() || 'p';
+                moveObj.drop = rawMove.split('@')[0].toLowerCase() || 'p';
                 moveObj.to = typeof this.#squareToIndex === 'function' ? this.#squareToIndex(parsedMove.to) : parsedMove.to;
+            } else if (this.gameMode === 'duck') {
+                // Xử lý gắn tọa độ con vịt an toàn
+                if (duckSq) {
+                    moveObj.duck_sq = typeof this.#squareToIndex === 'function' ? this.#squareToIndex(duckSq) : duckSq;
+                } else if (parsedMove.duck_sq !== undefined) {
+                    moveObj.duck_sq = typeof this.#squareToIndex === 'function' ? this.#squareToIndex(parsedMove.duck_sq) : parsedMove.duck_sq;
+                }
             }
 
             // Undo the translator engine so makeMove can apply it natively
@@ -5178,38 +5197,7 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                         else this.#ui.updatePlayerNames(bLabel, wLabel);
 
                         this.#ui.displayMetadata(this.pgnHeaders);
-                        
-                        const chesscomCountryMap = {
-                            "2": "us", "3": "ca", "4": "ar", "5": "be", "9": "af",
-                            "10": "al", "11": "ad", "12": "ai", "13": "ag", "14": "am", "15": "aw", "17": "au", "18": "at", "19": "bs",
-                            "20": "bh", "21": "bb", "22": "xx", "23": "bz", "24": "bm", "25": "bo", "26": "ba", "27": "br", "28": "bg", "29": "es-cn",
-                            "30": "ky", "32": "cl", "33": "cn", "34": "co", "35": "cr", "36": "hr", "37": "cu", "38": "cw", "39": "cy",
-                            "40": "cz", "41": "dk", "42": "dm", "43": "do", "44": "ec", "45": "eg", "46": "sv", "47": "ee", "48": "fk", "49": "fo",
-                            "50": "fj", "51": "fi", "52": "fr", "53": "ge", "54": "de", "55": "gi", "56": "gr", "57": "gl", "58": "gd", "59": "gp",
-                            "60": "gu", "61": "gt", "62": "gg", "63": "gy", "64": "ht", "65": "hn", "66": "hk", "67": "hu", "68": "is", "69": "in",
-                            "70": "id", "71": "ir", "72": "iq", "73": "ie", "74": "im", "75": "il", "76": "it", "77": "jm", "78": "jp", "79": "je",
-                            "80": "jo", "81": "kz", "82": "ki", "84": "kw", "85": "lv", "86": "lb", "87": "li", "88": "lt", "89": "lu",
-                            "90": "mo", "91": "mk", "92": "my", "93": "mt", "94": "mq", "95": "md", "96": "mx", "97": "mc", "98": "ms", "99": "nr",
-                            "100": "np", "101": "nl", "102": "nz", "103": "ni", "104": "no", "105": "om", "106": "pk", "107": "pa", "108": "pg", "109": "py",
-                            "110": "pe", "111": "ph", "112": "pl", "113": "pt", "114": "pr", "115": "ro", "116": "ru", "118": "kn", "119": "lc",
-                            "120": "pm", "122": "sm", "123": "sa", "125": "sg", "126": "sk", "127": "si", "128": "sb", "129": "za",
-                            "130": "gs", "131": "sr", "132": "se", "133": "ch", "134": "tw", "135": "th", "136": "to", "137": "tt", "138": "tr", "139": "tm",
-                            "140": "tv", "141": "ua", "142": "ae", "143": "uy", "145": "uz", "146": "vu", "147": "va", "148": "ve", "149": "vn",
-                            "151": "ye", "153": "as", "154": "vc", "156": "az", "157": "mn", "158": "sy", "159": "gb-eng",
-                            "160": "mh", "162": "gb-sct", "163": "es", "164": "gb", "165": "vi", "166": "gb-wls",
-                            "175": "kr", "176": "kg", "177": "bd", "178": "sd", "179": "bj",
-                            "180": "bt", "181": "bw", "182": "bn", "183": "bi", "184": "kh", "185": "cm", "186": "cv", "187": "cf", "188": "td", "189": "cg",
-                            "190": "ci", "191": "dj", "192": "gq", "193": "ga", "194": "gh", "195": "ke", "196": "la", "197": "lr", "198": "mg", "199": "ma",
-                            "200": "mz", "201": "mm", "202": "na", "203": "ne", "204": "ng", "206": "qa", "207": "rw", "208": "ws", "209": "st",
-                            "210": "sn", "211": "sl", "212": "so", "213": "lk", "214": "sz", "215": "tj", "216": "tz", "217": "tl", "218": "tg", "219": "tn",
-                            "220": "ug", "221": "zm", "222": "zw", "223": "dz", "224": "mr", "225": "xx"
-                        };
                         this.#ui.playerInfo = this.#ui.playerInfo || { w: {}, b: {} };
-
-                        this.#ui.playerInfo['w'].country = chesscomCountryMap[this.pgnHeaders['WhiteCountry']] || null;
-                        this.#ui.playerInfo['b'].country = chesscomCountryMap[this.pgnHeaders['BlackCountry']] || null;
-                        this.#ui.playerInfo['w'].title = this.pgnHeaders['WhiteTitle'] || null;
-                        this.#ui.playerInfo['b'].title = this.pgnHeaders['BlackTitle'] || null;
                         
                         const fetchMissingFlag = async (username, color) => {
                             if (!username || this.isEngineMatch) return;
@@ -5231,7 +5219,7 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                         if (!this.#ui.playerInfo['b'].country && this.pgnHeaders['BlackCountry']) {
                             fetchMissingFlag(this.pgnHeaders['Black'], 'b');
                         }
-                        
+                        this.#ui.updateHistory(true);
                         this.currentNode = this.rootNode;
                         
                         this.loadFEN(this.rootNode.fen);
@@ -5240,7 +5228,17 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                         this.#ui.renderBoard(true);
                         this.#ui.renderArrows();
                         this.#ui.renderHeaders();
+                        this.#emit('boardUpdated', { animate: false, skipEngine: true });
                         requestAnimationFrame(() => {this.#ui.renderCharts();});
+                        requestAnimationFrame(() => {
+                            requestAnimationFrame(() => {
+                                const graphTab = document.getElementById('tabContent-Graph');
+                                if (graphTab && graphTab.classList.contains('active') && typeof this.#ui.renderFullGraph === 'function') {
+                                    if (this.#ui._graphNodeCache) this.#ui._graphNodeCache = new Map(); 
+                                    this.#ui.renderFullGraph();
+                                }
+                            });
+                        });
                     }
                 } catch (err) {
                     console.warn("UI refresh warning:", err);
@@ -5252,55 +5250,19 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
 getNagInfo(nag) {
         if (!nag) return null;
         let nags = nag.toString().split(',').map(n => n.trim().replace('$', ''));
-        
-        let v = nags.find(n => parseInt(n) >= 1 && parseInt(n) <= 9) || nags[0]; 
-        
-        let info = { symbol:'', cls:'nag-pos', color:'#888888', borderColor:'#aaaaaa', type:'' };
-        switch(v) {
-            // --- COLORED ANNOTATIONS (Move Quality) ---
-            case'1':case'!':
-                return { symbol:'!', cls:'ind-1', color:'#5c8bb0', borderColor:'#28a2e7',type:'good'};
-            case'2':case'?':
-                return { symbol:'?', cls:'ind-2', color:'#ffa700', borderColor:'#af5205',type:'mistake'};
-            case'3':case'!!':
-                return { symbol:'!!', cls:'ind-3', color:'#26c2a3', borderColor:'#09e9ed',type:'brilliant'};
-            case'4':case'??':
-                return { symbol:'??', cls:'ind-4', color:'#fa412d', borderColor:'#892c12',type:'blunder'};
-            case'5':case'!?':
-                return { symbol:'!?', cls:'ind-5', color:'#b369f2', borderColor:'#bd09ed',type:'interesting'};
-            case'6':case'?!':
-                return { symbol:'?!', cls:'ind-6', color:'#f7c045', borderColor:'#f5d91d',type:'inaccuracy'};
-            
-            case'7': // Excellent (Green)
-                return { symbol:'!', cls:'ind-1', color:'#96bc4b', borderColor:'#6c8a32', type:'excellent'};
-            case'8': // Great (Blue)
-                return { symbol:'!', cls:'ind-1', color:'#5c8bb0', borderColor:'#3a6280', type:'great'};
-            case'9': // Miss (Coral Red)
-                return { symbol:'X', cls:'ind-2', color:'#ff7769', borderColor:'#c75446', type:'miss'};
-
-            // --- POSITIONAL EVALUATIONS ---
-            case'10':case'=': info.symbol ='=';  break; // Draw
-            case'13':case'∞': info.symbol ='∞';  break; // Unclear
-            case'14':case'⩲':case'+=':info.symbol ='⩲';  break; // White slight adv
-            case'15':case'⩱':case'=+':info.symbol ='⩱';  break; // Black slight adv
-            case'16':case'±':case'+/-':info.symbol ='±';  break; // White moderate adv
-            case'17':case'∓':case'-/+':info.symbol ='∓';  break; // Black moderate adv
-            case'18':case'+-':info.symbol ='+-'; break; // White winning
-            case'19':case'-+':info.symbol ='-+'; break; // Black winning
-            default:return null;
-        }
-        return info;
+        let v = nags.find(n => NAG_MAP[n]) || nags[0]; 
+        return NAG_MAP[v] || null;
     }
 generatePGN(format = 'both') {
         let pgn = "";
         
         for (let key in this.pgnHeaders) {
+            if (key.toLowerCase() === 'from') continue; 
             pgn += `[${key} "${this.pgnHeaders[key]}"]\n`;
         }
         pgn += "\n";
 
         // Route EVERYTHING through the recursive function
-        // Pass `null` initially for lastColor so the first move triggers normally
         pgn += this.#generatePGNRecursive(this.rootNode, 1, false, format, null);
         
         pgn = pgn.trim().replace(/\s+/g, ' ');
@@ -5514,7 +5476,6 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         }
 
         if (this.#engine && this.#engine.game_over()) return null;
-        const ui = (typeof window !== 'undefined' && this.#ui) ? this.#ui : null;
         
         // When loadPGN fires "Fz@f7", we buffer it and wait for the piece move to arrive!
         if (typeof move === 'string') {
@@ -5548,8 +5509,8 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         }
         
         if (!this.isChess960 && move && move.from !== undefined && move.to !== undefined && !move.isSpell && this.#engine) {
-            const fromStr = typeof move.from === 'number' && this.#indexToSquare ? this.#indexToSquare(move.from) : move.from;
-            const toStr = typeof move.to === 'number' && this.#indexToSquare ? this.#indexToSquare(move.to) : move.to;
+            const fromStr = typeof move.from === 'number' && typeof this.#indexToSquare === 'function' ? this.#indexToSquare(move.from) : move.from;
+            const toStr = typeof move.to === 'number' && typeof this.#indexToSquare === 'function' ? this.#indexToSquare(move.to) : move.to;
 
             if (fromStr && toStr && fromStr !== '@') {
                 const srcPiece = this.#engine.get(fromStr);
@@ -5612,7 +5573,7 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             if (!result) return null;
             
             const newFen = this.#engine.fen();
-            this.#reconcileBoardIds(newFen, move);
+            if (typeof this.#reconcileBoardIds === 'function') this.#reconcileBoardIds(newFen, move);
             
             let finalSan = pgnText || result.san;
 
@@ -5620,7 +5581,6 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
                 let targetStr = typeof move.target === 'number' ? this.#indexToSquare(move.target) : move.target;
                 move.spellSan = `${move.spellType === 'freeze' ? 'Fz' : 'Jp'}@${targetStr}`;
                 
-                // Prevent duplication: Only prepend if it doesn't already exist
                 if (!finalSan.startsWith('Fz@') && !finalSan.startsWith('Jp@')) {
                     finalSan = `${move.spellSan} ${finalSan}`;
                 }
@@ -5635,7 +5595,7 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         }
 
         if (this.isPlayingLiveGame && !this.#timerInterval) {
-            this.#startTimer();
+            if (typeof this.#startTimer === 'function') this.#startTimer();
         }
 
         const moveObj = {};
@@ -5680,13 +5640,11 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         if (!result && move.san) {
             let fallbackSan = move.san;
             if (promotion && fallbackSan.includes('=')) {
-                // If the user picked a different piece in the UI modal, update the SAN
                 fallbackSan = fallbackSan.substring(0, fallbackSan.indexOf('=') + 1) + promotion.toUpperCase();
             }
             try { result = this.#engine.move(fallbackSan, { sloppy: true }); } catch(e) {}
         }
         if (!result && moveObj.from && moveObj.to) {
-            // Nuclear fallback: Raw UCI string (e.g., 'g2g1q')
             const rawUci = moveObj.from + moveObj.to + (promotion || '');
             try { result = this.#engine.move(rawUci, { sloppy: true }); } catch(e) {}
         }
@@ -5706,7 +5664,7 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         let soundFired = false;
         const fireSound = () => {
             if (!soundFired && !muteEngine && !isAutoReply) {
-                this.triggerMoveSound(result);
+                if (typeof this.triggerMoveSound === 'function') this.triggerMoveSound(result);
                 soundFired = true;
             }
         };
@@ -5724,16 +5682,16 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
                     fireSound(); 
                     
                     this.#engine.undo();
-                    this.#reconcileBoardIds(this.#engine.fen());
-                    if (this.#ui) ui.renderBoard(false);
-                    this.#puzzleFail();
+                    if (typeof this.#reconcileBoardIds === 'function') this.#reconcileBoardIds(this.#engine.fen());
+                    if (this.#ui && typeof this.#ui.renderBoard === 'function') this.#ui.renderBoard(false);
+                    if (typeof this.#puzzleFail === 'function') this.#puzzleFail();
                     return null; 
                 }
                 
                 if (this.#engine.in_checkmate() || (this.puzzleCursor >= this.puzzleSolution.length - 1)) {
                     result.puzzleStatus = 'solved';
                     if (window.sfWorker) window.sfWorker.postMessage('stop');
-                    this.#puzzleSuccess();
+                    if (typeof this.#puzzleSuccess === 'function') this.#puzzleSuccess();
                 } else {
                     result.puzzleStatus = 'correct';
                     this.puzzleCursor++;
@@ -5747,7 +5705,7 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         const timeSpent = Math.max(0, (now - (this.lastMoveTime || now)) / 1000);
         this.lastMoveTime = now;
 
-        this.#reconcileBoardIds(newFen, move);
+        if (typeof this.#reconcileBoardIds === 'function') this.#reconcileBoardIds(newFen, move);
 
         const moveData = { 
             from: move.from !== undefined ? move.from : '@', 
@@ -5768,7 +5726,7 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         }
         
         console.log(`🌳 [TREE APPEND] Current mode: '${this.mode}', Appending Move: ${finalSan}`);
-        this.#addMoveToTree(newFen, finalSan, moveData.to, moveData, true);
+        if (typeof this.#addMoveToTree === 'function') this.#addMoveToTree(newFen, finalSan, moveData.to, moveData, true);
         
         if (this.currentNode) this.currentNode.timeSpent = timeSpent;
 
@@ -5790,10 +5748,9 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         }
 
         if (!this.gameOver && !this.isAnalysisMode && !result.isSpell) {
-            setTimeout(() => this.attemptPremove(), 150);
+            setTimeout(() => { if (typeof this.attemptPremove === 'function') this.attemptPremove(); }, 150);
         }
 
-        /// --- GAME OVER LOGIC ---
         if (this.isPlayingLiveGame && this.#engine.game_over()) {
             let resultStr = "1/2-1/2";
             let statusMsg = "Draw by agreement";
@@ -5819,14 +5776,14 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
                 statusMsg = "Draw by 50-Move Rule";
             }
 
-            this.#endGame(resultStr, statusMsg);
+            if (typeof this.#endGame === 'function') this.#endGame(resultStr, statusMsg);
             
-            this.clearPremoves();
+            if (typeof this.clearPremoves === 'function') this.clearPremoves();
             if (window.sfWorker && !window.engineAnalysing) window.sfWorker.postMessage('stop');
             
             if (!muteEngine && window.engineAnalysing && window.sfWorker && this.turn !== this.botColor) {
                 if (this._engineRebootTimeout) clearTimeout(this._engineRebootTimeout);
-                this._engineRebootTimeout = setTimeout(() => this.updateStockfish(), 200);
+                this._engineRebootTimeout = setTimeout(() => { if(typeof this.updateStockfish === 'function') this.updateStockfish(); }, 200);
             }
 
             fireSound(); 
@@ -5836,9 +5793,8 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         const liveTurn = this.currentLiveTurn || this.turn;
         const isBotTurn = (this.mode === 'bot' && liveTurn === this.botColor);
         
-        // --- BOT LOGIC ---
         if (this.isPlayingLiveGame && isBotTurn) {
-            setTimeout(() => this.#triggerBotMove(), 250);
+            setTimeout(() => { if (typeof this.#triggerBotMove === 'function') this.#triggerBotMove(); }, 250);
         } 
         else if (this.mode === 'puzzle' && !this.gameOver) {
             if (this.puzzleCursor % 2 === 0 && this.puzzleCursor < this.puzzleSolution.length) {
@@ -5848,15 +5804,15 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
                 setTimeout(() => {
                     const response = this.puzzleSolution[this.puzzleCursor];
                     if (response) {
-                        const from = this.#squareToIndex(response.substring(0, 2));
-                        const to = this.#squareToIndex(response.substring(2, 4));
-                        const promo = response.length > 4 ? response.substring(4, 5) : undefined;
-                        const botRes = this.makeMove({ from, to }, promo, false, null, false, true);
+                        const from = typeof this.#squareToIndex === 'function' ? this.#squareToIndex(response.substring(0, 2)) : response.substring(0,2);
+                        const to = typeof this.#squareToIndex === 'function' ? this.#squareToIndex(response.substring(2, 4)) : response.substring(2,4);
+                        const prm = response.length > 4 ? response.substring(4, 5) : undefined;
+                        const botRes = this.makeMove({ from, to }, prm, false, null, false, true);
                         
                         if (this.#ui && botRes) {
-                            this.#ui.renderBoard(true); 
+                            if (typeof this.#ui.renderBoard === 'function') this.#ui.renderBoard(true); 
                             if (typeof this.#ui.renderHeaders === 'function') this.#ui.renderHeaders();
-                            if (!this.isAnalysisMode) setTimeout(() => this.attemptPremove(), 100);
+                            if (!this.isAnalysisMode) setTimeout(() => { if (typeof this.attemptPremove === 'function') this.attemptPremove(); }, 100);
                         }
                     }
                 }, delay);
@@ -5865,7 +5821,7 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
 
         if (!muteEngine && window.engineAnalysing && window.sfWorker && !isBotTurn) {
             if (this._engineRebootTimeout) clearTimeout(this._engineRebootTimeout);
-            this._engineRebootTimeout = setTimeout(() => this.updateStockfish(), 200);
+            this._engineRebootTimeout = setTimeout(() => { if(typeof this.updateStockfish === 'function') this.updateStockfish(); }, 200);
         }
 
         fireSound(); 

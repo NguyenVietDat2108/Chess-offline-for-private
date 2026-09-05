@@ -2619,31 +2619,11 @@ return {
             return true;
         },
         draft_spell: function(spellType, targetSq) {
-            console.log(`[ENGINE API] draft_spell called. Target: ${targetSq}`);
             if (!this._draftBackup) {
                 this._draftBackup = currentState; 
             }
             let sq = typeof targetSq === 'number' ? targetSq : (isNaN(targetSq) ? str_to_sq(targetSq) : parseInt(targetSq));
-            
-            console.log(`[ENGINE API] Parsed engine index: ${sq} (${sq_str(sq)})`);
-            
             currentState = apply_spell(this._draftBackup, spellType, sq); 
-            console.log(`[ENGINE API] State jump_sq is now: ${this.jump_sq()}`);
-            
-            return { isStandaloneSpell: true, san: (spellType === 'freeze' ? 'Fz@' : 'Jp@') + sq_str(sq) };
-        },
-        draft_spell: function(spellType, targetSq) {
-            console.log(`[ENGINE API] draft_spell called. Target: ${targetSq}`);
-            if (!this._draftBackup) {
-                this._draftBackup = currentState; 
-            }
-            let sq = typeof targetSq === 'number' ? targetSq : (isNaN(targetSq) ? str_to_sq(targetSq) : parseInt(targetSq));
-            
-            console.log(`[ENGINE API] Parsed engine index: ${sq} (${sq_str(sq)})`);
-            
-            currentState = apply_spell(this._draftBackup, spellType, sq); 
-            console.log(`[ENGINE API] State jump_sq is now: ${currentState.jump_sq}`);
-            
             return { isStandaloneSpell: true, san: (spellType === 'freeze' ? 'Fz@' : 'Jp@') + sq_str(sq) };
         },
         cancel_draft: function() {
@@ -2833,6 +2813,8 @@ return {
                 }
             }
             
+            if (m === null) { error("INVALID_MOVE", input); return null; }
+            
             if (currentState.gameMode === 'duck') {
                 if (((m >>> 22) & 0x3F) === 0 && explicit_duck === -1) {
                     let duckToUse = currentState.duck_sq !== -1 ? currentState.duck_sq : 0; 
@@ -2855,44 +2837,14 @@ return {
                     ret.san = `${ret.spellSan} ${ret.san}`;
                 }
             }
+            
             if (currentState.gameMode === 'duck') {
                 let dIdx = (m >>> 22) & 0x3F;
                 let duckSqStr = SQ_STR[dIdx] || 'a1'; 
-                ret.uci = ret.from + ret.to + (ret.promotion ? ret.promotion : '') + ',' + duckSqStr; // Dọn rác nối chuỗi dư
-            } else if ((currentState.gameMode === 'crazyhouse' || currentState.gameMode === 'bughouse'|| currentState.gameMode === 'placement') && (((m >>> 12) & 0xFF) & BITS.DROP)) {
-                let pType = m & 0x3F;
-                ret.uci = PIECE_TO_CHAR[pType].toUpperCase() + '@' + ret.to; 
-            } else {
-                ret.uci = ret.from + ret.to + (ret.promotion ? ret.promotion : '');
-            }
-            
-            if (currentState.gameMode === 'duck') {
-                if (((m >>> 22) & 0x3F) === 0) {
-                    let duckToUse = currentState.duck_sq !== -1 ? currentState.duck_sq : 0; 
-                    m = (m & 0x3FFFFF) | (duckToUse << 22);
+                ret.uci = ret.from + ret.to + (ret.promotion ? ret.promotion : '') + ',' + duckSqStr;
+                if (!ret.san.includes('@')) {
+                    ret.san += '@' + duckSqStr;
                 }
-            }
-            
-            var ret = to_obj(currentState, m, nag, clean_san);
-            
-            if (isSpellMove) {
-                ret.isSpell = true;
-                ret.spellType = o.spellType;
-                ret.target = o.target; 
-
-                let prefix = o.spellType === 'freeze' ? 'Fz' : 'Jp';
-                let targetStr = typeof o.target === 'number' ? sq_str(o.target) : o.target;
-                ret.spellSan = `${prefix}@${targetStr}`;
-                
-                if (!ret.san.startsWith('Fz@') && !ret.san.startsWith('Jp@')) {
-                    ret.san = `${ret.spellSan} ${ret.san}`;
-                }
-            }
-            
-            if (currentState.gameMode === 'duck') {
-                let dIdx = (m >>> 22) & 0x3F;
-                let duckSqStr = ['a','b','c','d','e','f','g','h'][dIdx & 7] + (8 - (dIdx >> 3)); 
-                ret.uci = ret.from + ret.to + (ret.promotion ? ret.promotion : '') + ',' + ret.to + duckSqStr;
             } else if ((currentState.gameMode === 'crazyhouse' || currentState.gameMode === 'bughouse'|| currentState.gameMode === 'placement') && (((m >>> 12) & 0xFF) & BITS.DROP)) {
                 let pType = m & 0x3F;
                 ret.uci = PIECE_TO_CHAR[pType].toUpperCase() + '@' + ret.to; 
@@ -2944,27 +2896,7 @@ return {
             return generate_fen(currentState);
         },
         board: function() {
-            var b = [];
-            for (var r = 0; r < 8; r++) {
-                var row = [];
-                for (var f = 0; f < 8; f++) {
-                    var sq = (7 - r) * 8 + f;
-                    var val = currentState.board[sq];
-                    if (val !== -1) {
-                        let obj = { type: PIECE_TO_CHAR[val&7], color: (val>>3)===WHITE?'w':'b' };
-                        if (currentState.gameMode === 'alice') {
-                            if (sq < 32 ? (currentState.alice_b.lo & (1<<sq)) : (currentState.alice_b.hi & (1<<(sq-32)))) {
-                                obj.isBoardB = true;
-                            }
-                        }
-                        row.push(obj);
-                    } else {
-                        row.push(null);
-                    }
-                }
-                b.push(row);
-            }
-            return b;
+            return currentState.board;
         },
         turn: function() { return currentState.turn===WHITE?'w':'b'; },
         variant_winner: function() { 
