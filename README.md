@@ -13,8 +13,8 @@ To keep this code repository lightning-fast to download, the massive puzzle data
 ### DOWNLOAD THE FULL PROJECT AT HERE [LATEST]
 🔗 **[Download Here](https://github.com/NguyenVietDat2108/Chess-offline-for-private/releases)**
   
-  **[OLD DOWNLOAD METHOD]**
   
+**[OLD DOWNLOAD METHOD BELOW]**  
 ### 1. Download the Source Code
 Clone or download this repository to your machine. 
 *(Note: You do not need the `lila`, `legacy`, or `backup` folders here; everything you need is already packaged).*
