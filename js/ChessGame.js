@@ -796,7 +796,7 @@ getReader() {
                             return res.arrayBuffer();
                         })
                         .then(buffer => {
-                            window.sfWorker.postMessage({ action: 'INJECT_NNUE', name: nnueFile, buffer: buffer });
+                            window.sfWorker.postMessage({ action: 'INJECT_NNUE', name: nnueFile, buffer: buffer }, [buffer]);
                             setTimeout(() => {
                                 this.#postEngineCommand('setoption name EvalFile value ' + nnueFile);
                                 this.#postEngineCommand('isready'); 

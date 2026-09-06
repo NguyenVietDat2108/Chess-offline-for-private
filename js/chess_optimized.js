@@ -44,7 +44,7 @@ var Chess = function(fen, gameMode = 'classical') {
     const RAY_SW_LO = new Int32Array(64), RAY_SW_HI = new Int32Array(64);
     const RAY_SE_LO = new Int32Array(64), RAY_SE_HI = new Int32Array(64);
     const MOVE_BUFFER = new Int32Array(256);
-    const FEN_BUFFER = new Uint8Array(128);
+    const FEN_BUFFER = new Uint8Array(256);
     const EMPTY_POCKET = { w: [], b: [] };
     let moveCount = 0;
     (function init_tables() {
@@ -138,9 +138,13 @@ var Chess = function(fen, gameMode = 'classical') {
                 z ^= ZOBRIST.pieces[(col * 6 + typ) * 64 + i];
             }
         }
-        if (s.pocket && (s.gameMode === 'crazyhouse' || s.gameMode === 'placement' || s.gameMode === 'bughouse')) {
-            for(let i=0; i<s.pocket.w.length; i++) z ^= ZOBRIST.pieces[(WHITE*6 + s.pocket.w[i])*64]; 
-            for(let i=0; i<s.pocket.b.length; i++) z ^= ZOBRIST.pieces[(BLACK*6 + s.pocket.b[i])*64];
+        if (s.gameMode === 'crazyhouse' || s.gameMode === 'placement' || s.gameMode === 'bughouse') {
+            for(let pType=0; pType<=4; pType++) {
+                let wCount = (s.pocket_w >> (pType * 5)) & 31;
+                let bCount = (s.pocket_b >> (pType * 5)) & 31;
+                for(let i=0; i<wCount; i++) z ^= ZOBRIST.pieces[(WHITE*6 + pType)*64];
+                for(let i=0; i<bCount; i++) z ^= ZOBRIST.pieces[(BLACK*6 + pType)*64];
+            }
         }
         return z;
     }
@@ -245,7 +249,7 @@ var Chess = function(fen, gameMode = 'classical') {
             turn: WHITE, castling: 0, ep_square: -1, half_moves: 0, move_number: 1, gameMode: 'classical', zobrist: 0,
             
             checks_w: 0, checks_b: 0,         
-            pocket_w: new Int8Array(6), pocket_b: new Int8Array(6), 
+            pocket_w: 0, pocket_b: 0,
             promoted_lo: 0, promoted_hi: 0,     
             duck_sq: -1,                    
             alice_b_lo: 0, alice_b_hi: 0,
@@ -270,7 +274,7 @@ var Chess = function(fen, gameMode = 'classical') {
         c.gameMode = s.gameMode; c.zobrist = s.zobrist;
         
         c.checks_w = s.checks_w; c.checks_b = s.checks_b;
-        c.pocket_w.set(s.pocket_w); c.pocket_b.set(s.pocket_b);
+        c.pocket_w = s.pocket_w; c.pocket_b = s.pocket_b;
         c.promoted_lo = s.promoted_lo; c.promoted_hi = s.promoted_hi;
         c.duck_sq = s.duck_sq;
         c.alice_b_lo = s.alice_b_lo; c.alice_b_hi = s.alice_b_hi;
@@ -300,8 +304,8 @@ var Chess = function(fen, gameMode = 'classical') {
                 var c = pocketStr.charCodeAt(i);
                 var col = (c < 97) ? WHITE : BLACK;
                 var typ = CHAR_TO_PIECE[String.fromCharCode(c | 32)];
-                if (col === WHITE) s.pocket_w[typ]++;
-                else s.pocket_b[typ]++;
+                if (col === WHITE) s.pocket_w += (1 << (typ * 5));
+                else s.pocket_b += (1 << (typ * 5));
             }
             tokens[0] = boardToken; 
         }
@@ -428,42 +432,62 @@ var Chess = function(fen, gameMode = 'classical') {
                     if (empty > 0) { FEN_BUFFER[ptr++] = 48 + empty; empty = 0; }
                     var typ = val & 7;
                     var col = val >> 3;
-                    
                     var charCode = 0;
                     if (typ===PAWN) charCode=112; else if(typ===KNIGHT) charCode=110; else if(typ===BISHOP) charCode=98; else if(typ===ROOK) charCode=114; else if(typ===QUEEN) charCode=113; else if(typ===KING) charCode=107;
                     
                     FEN_BUFFER[ptr++] = col === WHITE ? charCode - 32 : charCode;
                     
                     if (s.gameMode === 'crazyhouse' && ((sq < 32) ? (s.promoted_lo & (1<<sq)) : (s.promoted_hi & (1<<(sq-32))))) {
-                        FEN_BUFFER[ptr++] = 126;
+                        FEN_BUFFER[ptr++] = 126; // ~
                     } else if (s.gameMode === 'alice' && ((sq < 32) ? (s.alice_b_lo & (1<<sq)) : (s.alice_b_hi & (1<<(sq-32))))) {
-                        FEN_BUFFER[ptr++] = 126;
+                        FEN_BUFFER[ptr++] = 126; // ~
                     }
                 } 
             }
             if (empty > 0) { FEN_BUFFER[ptr++] = 48 + empty; empty = 0; }
-            if (r > 0) FEN_BUFFER[ptr++] = 47;
+            if (r > 0) FEN_BUFFER[ptr++] = 47; // /
+        }
+        FEN_BUFFER[ptr++] = 32;
+        FEN_BUFFER[ptr++] = s.turn === WHITE ? 119 : 98;
+        
+        FEN_BUFFER[ptr++] = 32; 
+        let cStart = ptr;
+        if (s.castling & 1) FEN_BUFFER[ptr++] = 75; // K
+        if (s.castling & 2) FEN_BUFFER[ptr++] = 81; // Q
+        if (s.castling & 4) FEN_BUFFER[ptr++] = 107; // k
+        if (s.castling & 8) FEN_BUFFER[ptr++] = 113; // q
+        if (ptr === cStart) FEN_BUFFER[ptr++] = 45;
+        
+        FEN_BUFFER[ptr++] = 32; 
+        if (s.ep_square === -1) {
+            FEN_BUFFER[ptr++] = 45; 
+        } else {
+            FEN_BUFFER[ptr++] = 97 + (s.ep_square & 7); 
+            FEN_BUFFER[ptr++] = 49 + (s.ep_square >> 3); 
         }
         
-        var fen = String.fromCharCode.apply(null, FEN_BUFFER.subarray(0, ptr));
+        FEN_BUFFER[ptr++] = 32; 
+        let hmStr = s.half_moves.toString();
+        for (let i = 0; i < hmStr.length; i++) FEN_BUFFER[ptr++] = hmStr.charCodeAt(i);
         
-        var c = "";
-        if (s.castling & 1) c += "K"; if (s.castling & 2) c += "Q";
-        if (s.castling & 4) c += "k"; if (s.castling & 8) c += "q";
-        c = c || "-";
-        
-        var ep = (s.ep_square === -1) ? "-" : sq_str(s.ep_square);
-        
-        let finalFen = fen + " " + (s.turn === WHITE ? 'w' : 'b') + " " + c + " " + ep + " " + s.half_moves + " " + s.move_number;
+        FEN_BUFFER[ptr++] = 32; 
+        let fmStr = s.move_number.toString();
+        for (let i = 0; i < fmStr.length; i++) FEN_BUFFER[ptr++] = fmStr.charCodeAt(i);
         
         if (s.gameMode === 'crazyhouse' || s.gameMode === 'bughouse' || s.gameMode === 'placement') {
-            var pocketStr = "";
-            for (var pType = PAWN; pType <= QUEEN; pType++) {
-                for (var i = 0; i < s.pocket_w[pType]; i++) pocketStr += PIECE_TO_CHAR[pType].toUpperCase();
-                for (var i = 0; i < s.pocket_b[pType]; i++) pocketStr += PIECE_TO_CHAR[pType];
+            FEN_BUFFER[ptr++] = 91; // [
+            for (var pType = 0; pType <= 4; pType++) {
+                let wCount = (s.pocket_w >> (pType * 5)) & 31;
+                let bCount = (s.pocket_b >> (pType * 5)) & 31;
+                let cW = PIECE_TO_CHAR[pType].toUpperCase().charCodeAt(0);
+                let cB = PIECE_TO_CHAR[pType].charCodeAt(0);
+                for (var i = 0; i < wCount; i++) FEN_BUFFER[ptr++] = cW;
+                for (var i = 0; i < bCount; i++) FEN_BUFFER[ptr++] = cB;
             }
-            finalFen = finalFen.replace(fen, fen + "[" + pocketStr + "]");
+            FEN_BUFFER[ptr++] = 93; // ]
         }
+        let finalFen = String.fromCharCode.apply(null, FEN_BUFFER.subarray(0, ptr));
+        
         if (s.gameMode === '3check') {
             finalFen += " +" + s.checks_w + "+" + s.checks_b;
         }
@@ -663,8 +687,8 @@ var Chess = function(fen, gameMode = 'classical') {
             var next = clone_state(prevState);
             var p_type = m & 0x3F; 
             
-            if (us === WHITE) next.pocket_w[p_type]--;
-            else next.pocket_b[p_type]--;
+            if (us === WHITE) next.pocket_w -= (1 << (p_type * 5));
+            else next.pocket_b -= (1 << (p_type * 5));
             
             if (to < 32) next.bb_lo[us*6+p_type] |= (1<<to); else next.bb_hi[us*6+p_type] |= (1<<(to-32));
             next.board[to] = (us << 3) | p_type;
@@ -698,8 +722,8 @@ var Chess = function(fen, gameMode = 'classical') {
                 cap_piece = PAWN; 
                 if (cap_sq < 32) next.promoted_lo &= ~(1<<cap_sq); else next.promoted_hi &= ~(1<<(cap_sq-32));
             }
-            if (us === WHITE) next.pocket_w[cap_piece]++;
-            else next.pocket_b[cap_piece]++;
+            if (us === WHITE) next.pocket_w += (1 << (cap_piece * 5));
+            else next.pocket_b += (1 << (cap_piece * 5));
         }
         return next;
     }
@@ -1451,7 +1475,7 @@ var Chess = function(fen, gameMode = 'classical') {
         var emptyL = (~occL) >>> 0, emptyH = (~occH) >>> 0;
         
         for (var p_type = PAWN; p_type <= QUEEN; p_type++) {
-            if (pocket[p_type] > 0) {
+            if (((pocket >> (p_type * 5)) & 31) > 0) {
                 let eL = emptyL, eH = emptyH;
                 while (eL || eH) {
                     let sq = ctz(eL, eH);
@@ -1490,18 +1514,13 @@ var Chess = function(fen, gameMode = 'classical') {
         var us = state.turn;
         var pocket = us === WHITE ? state.pocket_w : state.pocket_b;
         
-        var hasPieces = false;
-        for (var i = 0; i < 6; i++) {
-            if (pocket[i] > 0) { hasPieces = true; break; }
-        }
-
-        if (hasPieces) {
+        if (pocket > 0) {
             var occL = 0, occH = 0;
             for (let i = 0; i < 12; i++) { occL |= state.bb_lo[i]; occH |= state.bb_hi[i]; }
             var emptyL = (~occL) >>> 0, emptyH = (~occH) >>> 0;
             
             for (var p_type = PAWN; p_type <= QUEEN; p_type++) {
-                if (pocket[p_type] > 0) {
+                if (((pocket >> (p_type * 5)) & 31) > 0) {
                     let eL = emptyL, eH = emptyH;
                     while (eL || eH) {
                         let sq = ctz(eL, eH);
@@ -1541,7 +1560,6 @@ var Chess = function(fen, gameMode = 'classical') {
                     }
                 }
             }
-            
             if (options && options.square) {
                 var filtered = [];
                 for(var i=0; i<moves.length; i++) {
@@ -2939,9 +2957,8 @@ return {
         },
         insufficient_material: function() {
             var s = currentState;
-            if ((s.gameMode === 'placement' || s.gameMode === 'crazyhouse' || s.gameMode === 'bughouse') && s.pocket) {
-                // If there are ANY pieces left to drop, it is mathematically impossible to be insufficient material!
-                if (s.pocket.w.length > 0 || s.pocket.b.length > 0) return false; 
+            if ((s.gameMode === 'placement' || s.gameMode === 'crazyhouse' || s.gameMode === 'bughouse')) {
+                if (s.pocket_w > 0 || s.pocket_b > 0) return false; 
             }
 
             var num_pieces = 0, num_knights = 0, num_bishops = 0, sum_bishop_colors = 0;
@@ -3055,18 +3072,14 @@ return {
             return { valid: true, error: 'No errors.' };
         },
         pocket: function() {
-            if (!currentState.pocket_w || !currentState.pocket_b) return EMPTY_POCKET;
-            
-            let isEmpty = true;
-            for (let i=0; i<6; i++) {
-                if (currentState.pocket_w[i] > 0 || currentState.pocket_b[i] > 0) { isEmpty = false; break; }
-            }
-            if (isEmpty) return EMPTY_POCKET;
+            if (currentState.pocket_w === 0 && currentState.pocket_b === 0) return EMPTY_POCKET;
 
             let wArr = [], bArr = [];
-            for (let p = 0; p < 6; p++) {
-                for (let i = 0; i < currentState.pocket_w[p]; i++) wArr.push(p);
-                for (let i = 0; i < currentState.pocket_b[p]; i++) bArr.push(p);
+            for (let p = 0; p <= 4; p++) {
+                let wC = (currentState.pocket_w >> (p * 5)) & 31;
+                let bC = (currentState.pocket_b >> (p * 5)) & 31;
+                for (let i = 0; i < wC; i++) wArr.push(p);
+                for (let i = 0; i < bC; i++) bArr.push(p);
             }
             return { w: wArr, b: bArr }; 
         },

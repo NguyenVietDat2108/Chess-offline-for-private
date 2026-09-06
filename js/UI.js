@@ -2715,11 +2715,16 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
 
         const activeMove = overrideMove || state.lastMove;
         const nodeMove = state.lastMove;
-
         if (this.squaresLayer.children.length !== 64) {
             this.squaresLayer.innerHTML = '';
             const fragment = document.createDocumentFragment();
-            for (let i = 0; i < 64; i++) { fragment.appendChild(document.createElement('div')); }
+            for (let i = 0; i < 64; i++) { 
+                let sq = document.createElement('div');
+                let rk = document.createElement('span'); rk.className = 'coord rank'; rk.style.display = 'none';
+                let fl = document.createElement('span'); fl.className = 'coord file'; fl.style.display = 'none';
+                sq.appendChild(rk); sq.appendChild(fl);
+                fragment.appendChild(sq); 
+            }
             this.squaresLayer.appendChild(fragment);
         }
 
@@ -2783,6 +2788,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 }
             }
         }
+
         for (let v = 0; v < 64; v++) {
             let r_vis = v >> 3; 
             let c_vis = v & 7;
@@ -2796,12 +2802,12 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             sq.dataset.index = logical_i;
             let oldIce = sq.querySelector('.spell-ice');
             let oldPortal = sq.querySelector('.spell-portal');
-            
             Array.from(sq.children).forEach(child => {
-                if (!child.classList.contains('spell-ice') && !child.classList.contains('spell-portal')) {
+                if (!child.classList.contains('spell-ice') && !child.classList.contains('spell-portal') && !child.classList.contains('coord')) {
                     child.remove();
                 }
             });
+
             let isFrozen = state.gameMode === 'spell' && frozenClusters.has(logical_i);
             let mapping = isFrozen ? frozenClusters.get(logical_i) : null;
             let mappingStr = mapping ? `${mapping.minR}_${mapping.minC}_${mapping.W}_${mapping.H}_${this.flipped}` : "";
@@ -2901,8 +2907,27 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             if (this.coordsPosition === 'inside') {
                 const rankVal = 8 - r_log;
                 const fileVal = ['a','b','c','d','e','f','g','h'][c_log];
-                if (c_vis === 0) sq.innerHTML += `<span class="coord rank">${rankVal}</span>`;
-                if (r_vis === 7) sq.innerHTML += `<span class="coord file">${fileVal}</span>`;
+                let rankSpan = sq.querySelector('.coord.rank');
+                let fileSpan = sq.querySelector('.coord.file');
+                
+                if (c_vis === 0) {
+                    rankSpan.innerText = rankVal;
+                    rankSpan.style.display = 'block';
+                } else {
+                    rankSpan.style.display = 'none';
+                }
+                
+                if (r_vis === 7) {
+                    fileSpan.innerText = fileVal;
+                    fileSpan.style.display = 'block';
+                } else {
+                    fileSpan.style.display = 'none';
+                }
+            } else {
+                let rankSpan = sq.querySelector('.coord.rank');
+                let fileSpan = sq.querySelector('.coord.file');
+                if (rankSpan) rankSpan.style.display = 'none';
+                if (fileSpan) fileSpan.style.display = 'none';
             }
 
             if (state.isCheck && logical_i === kIdx) sq.classList.add('in-check');
