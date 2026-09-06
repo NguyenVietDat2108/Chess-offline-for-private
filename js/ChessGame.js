@@ -490,6 +490,14 @@ getReader() {
         if (!window.sfWorker) return;
         window.sfWorker.postMessage(cmdString);
     }
+#safeSetOption(name, value) {
+        if (!this.engineSupportedOptions) return;
+        if (this.engineSupportedOptions.has(name.toLowerCase())) {
+            this.#postEngineCommand(`setoption name ${name} value ${value}`);
+        } else {
+            console.log(`[UCI] Not supported by engine: ${name}`);
+        }
+    }
 #triggerEngineGo(fen) {
         let targetNode = this.analyzingNode || this.currentNode;
 
@@ -541,14 +549,14 @@ getReader() {
 
         if (this.activeEngineType === 'fairy' || this.activeEngineType === 'custom') {
             const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-            this.#postEngineCommand('setoption name UCI_Variant value ' + sfVariant);
+            this.#safeSetOption('UCI_Variant', sfVariant);
         } else {
-            this.#postEngineCommand('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+            this.#safeSetOption('UCI_Chess960', (this.gameMode === 'chess960' ? 'true' : 'false'));
         }
         
-        this.#postEngineCommand('setoption name UCI_LimitStrength value false');
-        this.#postEngineCommand('setoption name Skill Level value 20');
-        this.#postEngineCommand('setoption name MultiPV value 3');
+        this.#safeSetOption('UCI_LimitStrength', 'false');
+        this.#safeSetOption('Skill Level', '20');
+        this.#safeSetOption('MultiPV', '3');
         this.#postEngineCommand('position fen ' + fen);
         
         const depth = document.getElementById('engineDepth')?.value || 99;
@@ -701,17 +709,17 @@ getReader() {
             const settings = difficultyMap[level] || difficultyMap[8];
             
             this.#postEngineCommand('stop');
-            this.#postEngineCommand('setoption name MultiPV value 1');
+            this.#safeSetOption('MultiPV', '1');
             
             if (this.activeEngineType === 'fairy') {
                 const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-                this.#postEngineCommand('setoption name UCI_Variant value ' + sfVariant);
+                this.#safeSetOption('UCI_Variant', sfVariant);
             } else {
-                this.#postEngineCommand('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+                this.#safeSetOption('UCI_Chess960', (this.gameMode === 'chess960' ? 'true' : 'false'));
             }
             
-            this.#postEngineCommand('setoption name UCI_LimitStrength value true');
-            this.#postEngineCommand(`setoption name UCI_Elo value ${settings.uciElo}`);
+            this.#safeSetOption('UCI_LimitStrength', 'true');
+            this.#safeSetOption('UCI_Elo', settings.uciElo);
             this.#postEngineCommand('position fen ' + fen);
             this.#postEngineCommand(`go movetime ${this.currentBotThinkTime}`); 
         }
@@ -720,6 +728,14 @@ getReader() {
         if (typeof e.data !== 'string') return;
         const line = e.data.trim(); 
         if (!line) return;
+        if (line.startsWith('option name ')) {
+            const optMatch = line.match(/option name (.*?) type/i);
+            if (optMatch) {
+                if (!this.engineSupportedOptions) this.engineSupportedOptions = new Set();
+                this.engineSupportedOptions.add(optMatch[1].trim().toLowerCase());
+            }
+        }
+        
         console.log("%c⬅️ [ENGINE SAYS]: " + line, "color: #a3e635");
 
         if (line === 'WORKER_INITIALIZED') {
@@ -767,52 +783,67 @@ getReader() {
         if (line === 'uciok') {
             let threads = Math.floor(navigator.hardwareConcurrency - 1);
             if (threads < 1) threads = 1;
+            
             if (this.gameMode === 'alice' || this.gameMode === 'spell') {
-                this.#postEngineCommand('setoption name Threads value 1');
-                this.#postEngineCommand('setoption name Hash value 32');
+                this.#safeSetOption('Threads', '1');
+                this.#safeSetOption('Hash', '32');
             } else {            
-                this.#postEngineCommand('setoption name Threads value ' + threads);
-                this.#postEngineCommand('setoption name Hash value 1024');
+                this.#safeSetOption('Threads', threads);
+                this.#safeSetOption('Hash', '1024');
             }
-            this.#postEngineCommand('setoption name MultiPV value 3');
-            this.#postEngineCommand('setoption name Move Overhead value 10');
-            this.#postEngineCommand('setoption name UCI_LimitStrength value false');
-            this.#postEngineCommand('setoption name Skill Level value 20');
+            this.#safeSetOption('MultiPV', '3');
+            this.#safeSetOption('Move Overhead', '10');
+            this.#safeSetOption('UCI_LimitStrength', 'false');
+            this.#safeSetOption('Skill Level', '20');
             
             if (this.activeEngineType === 'fairy' || this.activeEngineType === 'custom') {
                 const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
                 if (this.gameMode === 'alice' || this.gameMode === 'spell') {
-                    this.#postEngineCommand('setoption name Use NNUE value false');
-                    this.#postEngineCommand('setoption name EvalFile value ');
-                    this.#postEngineCommand('setoption name UCI_Variant value ' + sfVariant);
+                    this.#safeSetOption('Use NNUE', 'false');
+                    this.#safeSetOption('EvalFile', '');
+                    this.#safeSetOption('UCI_Variant', sfVariant);
                     this.#postEngineCommand('isready');
                     return;
                 }
-                const nnueFile = nnueMap[this.gameMode];
-                if (nnueFile) {
-                    fetch('./engine/nnue/' + nnueFile)
-                        .then(res => {
-                            if (!res.ok) throw new Error("NNUE not found");
-                            return res.arrayBuffer();
-                        })
-                        .then(buffer => {
-                            window.sfWorker.postMessage({ action: 'INJECT_NNUE', name: nnueFile, buffer: buffer }, [buffer]);
-                            setTimeout(() => {
-                                this.#postEngineCommand('setoption name EvalFile value ' + nnueFile);
-                                this.#postEngineCommand('isready'); 
-                            }, 50);
-                        })
-                        .catch(err => {
-                            console.warn("[ENGINE] Playing without NNUE:", err);
-                            this.#postEngineCommand('isready'); 
+                
+                this.#safeSetOption('UCI_Variant', sfVariant);
+
+                let nnueConfig = nnueMap[this.gameMode];
+                if (nnueConfig) {
+                    let filesToLoad = [];
+                    if (typeof nnueConfig === 'string') {
+                        filesToLoad.push({ key: 'EvalFile', file: nnueConfig });
+                    } else {
+                        if (nnueConfig.big) filesToLoad.push({ key: 'EvalFile', file: nnueConfig.big });
+                        if (nnueConfig.small) filesToLoad.push({ key: 'EvalFileSmall', file: nnueConfig.small });
+                    }
+
+                    filesToLoad = filesToLoad.filter(opt => !this.engineSupportedOptions || this.engineSupportedOptions.has(opt.key.toLowerCase()));
+
+                    if (filesToLoad.length > 0) {
+                        Promise.all(filesToLoad.map(item => 
+                            fetch('./engine/nnue/' + item.file)
+                            .then(res => res.ok ? res.arrayBuffer().then(buf => ({ ...item, buffer: buf })) : null)
+                        )).then(results => {
+                            results.forEach(res => {
+                                if (res && res.buffer) {
+                                    // 👉 [TỐI ƯU ĐIỂM 10]: Zero-copy truyền con trỏ RAM, nhanh 0 mili-giây
+                                    window.sfWorker.postMessage({ action: 'INJECT_NNUE', name: res.file, buffer: res.buffer }, [res.buffer]);
+                                    this.#safeSetOption(res.key, res.file);
+                                }
+                            });
+                            setTimeout(() => { this.#postEngineCommand('isready'); }, 50);
+                        }).catch(err => {
+                            console.warn("[ENGINE] Lỗi nạp NNUE:", err);
+                            this.#postEngineCommand('isready');
                         });
-                    return;
-                } else {
-                    this.#postEngineCommand('isready');
-                    return;
-                }
-            }  else {
-                this.#postEngineCommand('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+                        return;
+                    }
+                } 
+                this.#postEngineCommand('isready');
+                return;
+            } else {
+                this.#safeSetOption('UCI_Chess960', this.gameMode === 'chess960' ? 'true' : 'false');
             }
             
             this.#postEngineCommand('isready'); 
@@ -861,17 +892,17 @@ getReader() {
 
                             if (window.sfWorker) {
                                 this.#postEngineCommand('stop');
-                                this.#postEngineCommand('setoption name MultiPV value 1');
+                                this.#safeSetOption('MultiPV', '1');
                                 
                                 if (this.activeEngineType === 'fairy') {
                                     const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-                                    this.#postEngineCommand('setoption name UCI_Variant value ' + sfVariant);
+                                    this.#safeSetOption('UCI_Variant', sfVariant);
                                 } else {
-                                    this.#postEngineCommand('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+                                    this.#safeSetOption('UCI_Chess960', (this.gameMode === 'chess960' ? 'true' : 'false'));
                                 }
                                 
-                                this.#postEngineCommand('setoption name UCI_LimitStrength value true');
-                                this.#postEngineCommand(`setoption name UCI_Elo value ${settings.uciElo}`);
+                                this.#safeSetOption('UCI_LimitStrength', 'true');
+                                this.#safeSetOption('UCI_Elo', settings.uciElo);
                                 this.#postEngineCommand('position fen ' + fen);
                                 this.#postEngineCommand(`go movetime ${this.currentBotThinkTime}`);
                             }
@@ -2959,9 +2990,7 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
                 this.saveVariantState(this.gameMode);
             }
         }
-        // If you change the variant while playing a Puzzle, we intercept the change,
-        // route it to the offline Analysis memory slot, and abort! This ensures the Puzzle 
-        // doesn't get destroyed, but the Analysis tab wakes up in the new variant!
+        
         if (this.mode === 'puzzle' || this.mode === 'puzzles' || this.mode === 'study') {
             this.gameMode = mode; 
             if (!skipStorage && !isSuspended && typeof localStorage !== 'undefined') {
@@ -2987,7 +3016,7 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             if (typeof localStorage !== 'undefined') {
                 localStorage.setItem('chess_tab_snapshot_analysis', JSON.stringify(this.tabMemory['analysis']));
             }
-            return; // 🛑 Abort before destroying the active Puzzle engine!
+            return;
         }
 
         this.gameMode = mode;
@@ -3023,7 +3052,6 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
                         startFen = this.generateChess960FEN();
                     }
                     
-                    // Manually clear state for new variant.
                     this.history = [];
                     this.moveList = [];
                     this.pgnHeaders = {};
@@ -3035,7 +3063,6 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             } else if (isSuspended) {
                 let startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[mode]) ? VARIANT_STARTING_FENS[mode] : INITIAL_FEN;
                 
-                // Pure memory wipe for suspended variants
                 this.history = [];
                 this.moveList = [];
                 this.pgnHeaders = {};
@@ -3048,9 +3075,9 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             
             if (!didSwitch && window.sfWorker) {
                 if (this.activeEngineType === 'fairy') {
-                    window.sfWorker.postMessage('setoption name UCI_Variant value ' + (mode === 'classical' ? 'chess' : mode));
+                    this.#safeSetOption('UCI_Variant', (mode === 'classical' ? 'chess' : mode));
                 } else {
-                    window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (mode === 'chess960' ? 'true' : 'false'));
+                    this.#safeSetOption('UCI_Chess960', (mode === 'chess960' ? 'true' : 'false'));
                 }
             }
             
@@ -3185,7 +3212,7 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
             let engineDisplayName = "Stockfish"; 
             window.engineReady = false; 
             window.engineBooting = true;
-            
+            this.engineSupportedOptions = new Set();
             if (!engineType) {
                 engineType = ['classical', 'chess960'].includes(this.gameMode) ? 'standard' : 'fairy';
             }
@@ -3469,13 +3496,13 @@ async reviewGame(autoTriggered = false) {
                 const originalOnMessage = window.sfWorker.onmessage;
                 if (this.#ui && this.#ui.showNotification) this.#ui.showNotification("Analyzing game at Depth 20...", "Review Game", "⏳");
 
-                window.sfWorker.postMessage('setoption name MultiPV value 1');
+                this.#safeSetOption('MultiPV', '1');
                 if (this.activeEngineType === 'fairy' || this.activeEngineType === 'custom') {
-    const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-    window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-} else {
-    window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
-}
+                    const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
+                    this.#safeSetOption('UCI_Variant', sfVariant);
+                } else {
+                    this.#safeSetOption('UCI_Chess960', (this.gameMode === 'chess960' ? 'true' : 'false'));
+                }
                 for (let i = 0; i < nodes.length; i++) {
                     let node = nodes[i];
                     if (node.reviewed|| (node.isBook && this.isEngineMatch)) continue;
@@ -3568,7 +3595,7 @@ async reviewGame(autoTriggered = false) {
                     window.sfWorker.postMessage('isready');
                 });
                 
-                window.sfWorker.postMessage('setoption name MultiPV value 3'); 
+                this.#safeSetOption('MultiPV', '3'); 
                 
                 window.sfWorker.onmessage = originalOnMessage;
                 if (this.#ui && this.#ui.showNotification) this.#ui.showNotification("Analysis Complete!", "Review Game", "✅");
@@ -5868,9 +5895,9 @@ startLocalGame(startFen = null) {
         if (window.sfWorker) {
             if (this.activeEngineType === 'fairy' || this.activeEngineType === 'custom') {
                 const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-                window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
+                this.#safeSetOption('UCI_Variant', sfVariant);
             } else {
-                window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+                this.#safeSetOption('UCI_Chess960', (this.gameMode === 'chess960' ? 'true' : 'false'));
             }
         }
 
@@ -5993,9 +6020,9 @@ startBotGame(level, colorPreference, startFen = null) {
         if (window.sfWorker) {
             if (this.activeEngineType === 'fairy' || this.activeEngineType === 'custom') {
                 const sfVariant = this.gameMode === 'classical' ? 'chess' : this.gameMode;
-                window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
+                this.#safeSetOption('UCI_Variant', sfVariant);
             } else {
-                window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (this.gameMode === 'chess960' ? 'true' : 'false'));
+                this.#safeSetOption('UCI_Chess960', (this.gameMode === 'chess960' ? 'true' : 'false'));
             }
         }
 
@@ -6013,14 +6040,12 @@ startBotGame(level, colorPreference, startFen = null) {
             if (arrowContainer) arrowContainer.innerHTML = '';
         }
 
-        // Save exiting mode safely to protect its PGN before swapping to 'bot'
         if (this.mode && this.mode !== 'local' && this.mode !== 'bot' && this.mode !== 'play') {
             if (typeof this.saveVariantState === 'function') this.saveVariantState(this.gameMode);
         }
 
         this.mode = 'bot';
 
-        // Hard Reboot the engine! Purges all invisible cached PGN headers.
         this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, this.gameMode);
 
         this.loadFEN(startFen);
@@ -6068,7 +6093,6 @@ startBotGame(level, colorPreference, startFen = null) {
             this.pgnHeaders['Variant'] = this.gameMode;
         }
 
-        // Force the engine's internal cache to match our fresh headers!
         if (typeof this.#engine.header === 'function') {
             this.#engine.header('Event', this.pgnHeaders.Event, 'Site', this.pgnHeaders.Site, 'White', this.pgnHeaders.White, 'Black', this.pgnHeaders.Black);
             if (this.pgnHeaders.Variant) this.#engine.header('Variant', this.pgnHeaders.Variant);
@@ -6142,12 +6166,12 @@ startBotGame(level, colorPreference, startFen = null) {
         this.#saveState('play');
     }
 startChess960Game(targetMode = 'local', level = 8, colorPref = 'w') {
-    this.#prepareNewGameSetup();
+        this.#prepareNewGameSetup();
         this.gameMode = 'chess960';
         const fen = typeof this.generateChess960FEN === 'function' ? this.generateChess960FEN() : INITIAL_FEN;
         
         if (window.sfWorker) {
-            window.sfWorker.postMessage('setoption name UCI_Chess960 value true');
+            this.#safeSetOption('UCI_Chess960', 'true');
         }
 
         if (targetMode === 'local') {
@@ -6194,7 +6218,7 @@ startChess960Analysis() {
         const fen = typeof this.generateChess960FEN === 'function' ? this.generateChess960FEN() : INITIAL_FEN;
         
         if (window.sfWorker) {
-            window.sfWorker.postMessage('setoption name UCI_Chess960 value true');
+            this.#safeSetOption('UCI_Chess960', 'true');
             window.sfWorker.postMessage('stop');
         }
         if (typeof window.engineAnalysing !== 'undefined') window.engineAnalysing = false;
@@ -6262,11 +6286,9 @@ updateEngineLevel() {
         console.log(`%c[Engine] Updating Level to ${level} (Elo: ${settings.uciElo})`, "color:#96bc4b");
 
         // 3. Send Commands to Engine
-        // Use UCI_LimitStrength + UCI_Elo (Standard for modern Stockfish)
-        // We set Skill Level to 20 to ensure it doesn't conflict (max skill, limited by Elo)
-        window.sfWorker.postMessage('setoption name Skill Level value 20');
-        window.sfWorker.postMessage('setoption name UCI_LimitStrength value true');
-        window.sfWorker.postMessage(`setoption name UCI_Elo value ${settings.uciElo}`);
+        this.#safeSetOption('Skill Level', '20');
+        this.#safeSetOption('UCI_LimitStrength', 'true');
+        this.#safeSetOption('UCI_Elo', settings.uciElo);
     }
 loadAllStudies() {
         try {
