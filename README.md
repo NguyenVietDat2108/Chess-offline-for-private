@@ -12,27 +12,9 @@ To keep this code repository lightning-fast to download, the massive puzzle data
 
 ### DOWNLOAD THE FULL PROJECT AT HERE [LATEST]
 🔗 **[Download Here](https://github.com/NguyenVietDat2108/Chess-offline-for-private/releases)**
-  
-  
-**[OLD DOWNLOAD METHOD BELOW]**  
-### 1. Download the Source Code
-Clone or download this repository to your machine. 
-*(Note: You do not need the `lila`, `legacy`, or `backup` folders here; everything you need is already packaged).*
 
-### 2. Download the Core Assets (Heavy Files)
-Head over to the Releases page to grab the offline puzzle database and the Stockfish 18 WebAssembly engine:
-
-🔗 **[Download the Core Assets Here](https://github.com/NguyenVietDat2108/Chess-offline-for-private/releases)**
-* 📥 `lichess_db_puzzle.csv` *(The massive offline Lichess puzzle DB, or you can download it directly at [database.lichess.org/#puzzles](https://database.lichess.org/#puzzles))* 
-* 📥 `stockfish-18.wasm` *(The Stockfish 18 engine)*
-
-### 3. Place the Files
-Move the files you just downloaded into their exact required locations inside the project:
-* Drop `lichess_db_puzzle.csv` directly into the **root folder**.
-* Drop `stockfish-18.wasm` into the **`engine/stockfish 18/`** folder.
-
-### 4. Start the Server!
-Fire up your local environment and you're ready to play.
+### Start the Server!
+Fire up your local environment Powershell by run the serverChess.ps1 file by Powershell and you're ready to play.
 
 ---
 
