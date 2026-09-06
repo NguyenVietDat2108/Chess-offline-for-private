@@ -1,4 +1,5 @@
 # ♟️ Ultimate Offline Chess Server (Privacy-First)
+<img width="1920" height="878" alt="image" src="https://github.com/user-attachments/assets/958f6e92-610a-40fd-9c73-7e0b227a82da" />
 
 **Your complete, 100% local chess environment.** This server runs entirely on your own machine, ensuring absolute privacy and zero reliance on external web servers. Whether you want to battle the cutting-edge **Stockfish 19** engine in Standard and Chess960, use **Fairy-Stockfish** for crazy variants, use AI to scan physical chessboards from images, or analyze games using standard Lichess and Chess.com formats—everything happens completely offline.
 
