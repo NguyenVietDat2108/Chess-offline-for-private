@@ -1519,7 +1519,7 @@ var Chess = function(fen, gameMode = 'classical') {
             for (let i = 0; i < 12; i++) { occL |= state.bb_lo[i]; occH |= state.bb_hi[i]; }
             var emptyL = (~occL) >>> 0, emptyH = (~occH) >>> 0;
             
-            for (var p_type = PAWN; p_type <= QUEEN; p_type++) {
+            for (var p_type = PAWN; p_type <= KING; p_type++) {
                 if (((pocket >> (p_type * 5)) & 31) > 0) {
                     let eL = emptyL, eH = emptyH;
                     while (eL || eH) {
@@ -1560,6 +1560,7 @@ var Chess = function(fen, gameMode = 'classical') {
                     }
                 }
             }
+            
             if (options && options.square) {
                 var filtered = [];
                 for(var i=0; i<moves.length; i++) {
@@ -3043,6 +3044,9 @@ return {
             } else if (currentState.gameMode === 'horde') {
                 if (wK !== 0) return { valid: false, error: 'White cannot have a King in Horde.' };
                 if (bK !== 1) return { valid: false, error: 'Black must have exactly one King.' };
+            } else if (currentState.gameMode === 'placement') {
+                if (wK > 1) return { valid: false, error: 'White cannot have more than one King.' };
+                if (bK > 1) return { valid: false, error: 'Black cannot have more than one King.' };
             } else {
                 if (wK !== 1) return { valid: false, error: 'White must have exactly one King.' };
                 if (bK !== 1) return { valid: false, error: 'Black must have exactly one King.' };

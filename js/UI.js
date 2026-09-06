@@ -76,6 +76,7 @@ setGame(gameInstance) {
     }
 init() {
         this.populatePieceSets();
+        this.loadUISettings(); 
         this.#bindDOMEvents(); 
         this.initKeyboardEvents();
         this.injectPanelToggle();
@@ -91,11 +92,8 @@ init() {
         
         const animCheckbox = document.getElementById('enableAnimations');
         this.animationsEnabled = animCheckbox ? animCheckbox.checked : true;
-
-        if (this.#game) {
-            const startFen = typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-            this.#game.loadFEN(startFen);
-            this.#game.currentNode = this.#game.rootNode;
+        if (this.#game && this.#game.gameMode) {
+            this.initEditorBars();
         }
         
         this.renderBoard(false);
@@ -116,7 +114,6 @@ init() {
         if (resignBtn) resignBtn.style.display = 'none';
         if (drawBtn) drawBtn.style.display = 'none';
         
-        // Dùng rAF để chờ DOM sẵn sàng, triệt tiêu Layout Shift (CLS)
         requestAnimationFrame(() => {
             if (typeof this.resizeApp === 'function') this.resizeApp();
             
@@ -134,6 +131,16 @@ init() {
         });
     }
 #bindDOMEvents() {
+        const settingIds = ['premoveMode', 'moveMethod', 'pgnStyle', 'pgnFormatSelect', 'assetType', 'assetExt', 'soundSetSelect', 'coordPosition', 'autoQueen', 'pgnIgnoreMove', 'enableAnimations', 'engineDepth', 'wTimeH', 'wTimeM', 'wTimeS', 'wInc', 'bTimeH', 'bTimeM', 'bTimeS', 'bInc', 'assetEngineFolder'];
+        settingIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('change', () => this.saveUISettings());
+                if (el.type === 'text' || el.type === 'number') {
+                    el.addEventListener('input', () => this.saveUISettings());
+                }
+            }
+        });
         const btn = document.getElementById('btnBrowseFolder');
         if (btn) btn.onclick = () => this.loadCustomPieces();
 
@@ -261,11 +268,64 @@ init() {
         if (editorVariantSelect) {
             editorVariantSelect.addEventListener('change', (e) => {
                 if (this.#game) {
-                    this.#game.setGameMode(e.target.value);
-                    this.#game.loadNewPosition(VARIANT_STARTING_FENS[e.target.value], e.target.value);
+                    const newMode = e.target.value;
+                    this.#game.setGameMode(newMode);
+                    
+                    const analysisSelect = document.getElementById('analysisVariantSelect');
+                    if (analysisSelect) analysisSelect.value = newMode;
+                    
+                    const startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[newMode]) ? VARIANT_STARTING_FENS[newMode] : INITIAL_FEN;
+                    
+                    this.#game.loadFEN(startFen, newMode, true);
+                    this.#game.rootNode = new MoveNode(startFen, null);
+                    this.#game.currentNode = this.#game.rootNode;
+                    this.#game.mode = 'editor'; 
+                    this.syncEditorHTMLWithGame();
+                    this.initEditorBars(); 
+                    this.renderBoard(false);
+                    
                     if (window.sfWorker) {
-                        window.sfWorker.postMessage('setoption name UCI_Variant value ' + (e.target.value === 'classical' ? 'chess' : e.target.value));
+                        const sfVariant = newMode === 'classical' ? 'chess' : newMode;
+                        window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
                     }
+                    if (this.#game.tabMemory) {
+                        if (!this.#game.tabMemory['analysis']) this.#game.tabMemory['analysis'] = {};
+                        this.#game.tabMemory['analysis'].variant = newMode;
+                        this.#game.tabMemory['analysis'].fen = startFen;
+                        this.#game.tabMemory['analysis'].pgn = ""; // Dọn sạch PGN của variant cũ
+                        localStorage.setItem('chess_tab_snapshot_analysis', JSON.stringify(this.#game.tabMemory['analysis']));
+                    }
+                }
+            });
+        }
+        const analysisVariantSelect = document.getElementById('analysisVariantSelect');
+        if (analysisVariantSelect) {
+            analysisVariantSelect.addEventListener('change', (e) => {
+                if (this.#game) {
+                    const newMode = e.target.value;
+                    this.#game.setGameMode(newMode);
+                    
+                    const startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[newMode]) ? VARIANT_STARTING_FENS[newMode] : INITIAL_FEN;
+                    
+                    this.#game.loadFEN(startFen, newMode, true);
+                    this.#game.rootNode = new MoveNode(startFen, null);
+                    this.#game.currentNode = this.#game.rootNode;
+                    this.#game.mode = 'analysis'; 
+                    
+                    if (window.sfWorker) {
+                        const sfVariant = newMode === 'classical' ? 'chess' : newMode;
+                        window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
+                    }
+                    if (this.#game.tabMemory) {
+                        if (!this.#game.tabMemory['analysis']) this.#game.tabMemory['analysis'] = {};
+                        this.#game.tabMemory['analysis'].variant = newMode;
+                        this.#game.tabMemory['analysis'].fen = startFen;
+                        this.#game.tabMemory['analysis'].pgn = ""; 
+                        localStorage.setItem('chess_tab_snapshot_analysis', JSON.stringify(this.#game.tabMemory['analysis']));
+                    }
+                    
+                    this.renderBoard(false);
+                    this.updateHistory(true);
                 }
             });
         }
@@ -886,6 +946,45 @@ async loadCustomPieces() {
                 this.showNotification("Error accessing folder. Check console.", "Error", "❌");
             }
         }
+    }
+saveUISettings() {
+        const ids = ['premoveMode', 'moveMethod', 'pgnStyle', 'pgnFormatSelect', 'assetType', 'assetExt', 'soundSetSelect', 'coordPosition', 'autoQueen', 'pgnIgnoreMove', 'enableAnimations', 'engineDepth', 'wTimeH', 'wTimeM', 'wTimeS', 'wInc', 'bTimeH', 'bTimeM', 'bTimeS', 'bInc', 'assetEngineFolder'];
+        const settings = {};
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                if (el.type === 'checkbox') settings[id] = el.checked;
+                else settings[id] = el.value;
+            }
+        });
+        try { localStorage.setItem('chess_ui_settings_v1', JSON.stringify(settings)); } catch(e) {}
+    }
+loadUISettings() {
+        try {
+            const stored = localStorage.getItem('chess_ui_settings_v1');
+            if (!stored) return;
+            const settings = JSON.parse(stored);
+            Object.keys(settings).forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    if (el.type === 'checkbox') el.checked = settings[id];
+                    else el.value = settings[id];
+                }
+            });
+            if (settings.moveMethod) this.moveInputMode = settings.moveMethod;
+            if (settings.pgnStyle) this.pgnStyle = settings.pgnStyle;
+            if (settings.assetType) this.pieceTheme = settings.assetType;
+            if (settings.enableAnimations !== undefined) this.animationsEnabled = settings.enableAnimations;
+            if (settings.coordPosition) this.coordsPosition = settings.coordPosition;
+            if (this.#game) {
+                if (settings.premoveMode && typeof this.#game.setPremoveMode === 'function') {
+                    this.#game.setPremoveMode(settings.premoveMode);
+                }
+                if (typeof this.#game.updateSettingsTime === 'function') {
+                    this.#game.updateSettingsTime();
+                }
+            }
+        } catch(e) { console.error("Lỗi nạp Settings:", e); }
     }
 async fetchPlayerStats() {
         const username = document.getElementById('statUsername')?.value.trim();
@@ -1995,23 +2094,31 @@ toggleEditorMode(active) {
         }
     }
 initEditorBars() {
-        const trashIcon = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
+        const trashIcon = '<svg viewBox="0 0 24 24" fill="currentColor" style="width:24px; height:24px;"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
+        
         const getSafeImgHtml = (color, type) => {
             let rawSVG = this.getPieceHTML({ color, type });
             if (!rawSVG) return '';
             let trimmed = rawSVG.trim();
-            if (trimmed.startsWith('<svg')) {
-                return `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}" class="piece-img" style="width:100%; height:100%; display:block; pointer-events:none;" draggable="false">`;
-            } else if (trimmed.startsWith('data:image/') || trimmed.startsWith('http') || trimmed.endsWith('.svg') || trimmed.endsWith('.png')) {
-                return `<img src="${trimmed}" class="piece-img" style="width:100%; height:100%; display:block; pointer-events:none;" draggable="false">`;
+            
+            let pulseClass = (type === 'duck' || type === '*') ? " piece-heartbeat" : "";
+            const lockStyle = 'width:28px; height:28px; object-fit:contain; pointer-events:none; display:block; margin:auto;';
+            
+            if (trimmed.startsWith('<svg') || trimmed.startsWith('<?xml')) {
+                let cleanSvg = trimmed.replace(/<\?xml.*?\?>/g, '').trim();
+                return `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(cleanSvg)}" class="${pulseClass}" style="${lockStyle}" draggable="false">`;
+            } else if (trimmed.startsWith('<img')) {
+                return trimmed.replace('<img ', `<img class="${pulseClass}" style="${lockStyle}" `);
             }
-            return rawSVG; 
+            return `<img src="${trimmed}" class="${pulseClass}" style="${lockStyle}" draggable="false">`;
         };
 
         const topBar = document.getElementById('editorBarTop');
+        let blackPieces = ['P','N','B','R','Q','K'];
+
         if (topBar) {
             topBar.innerHTML = `<div class="tool-group">
-                ${['P','N','B','R','Q','K'].map(p => `
+                ${blackPieces.map(p => `
                     <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'b','${p}')">
                         ${getSafeImgHtml('b', p)}
                     </div>`).join('')}
@@ -2019,12 +2126,24 @@ initEditorBars() {
         }
 
         const bottomBar = document.getElementById('editorBarBottom');
+        let whitePieces = ['P','N','B','R','Q','K'];
+        let extraBot = '';
+
+        // 👉 TỰ ĐỘNG HIỂN THỊ CON VỊT NẾU LÀ DUCK CHESS
+        if (this.#game && this.#game.gameMode === 'duck') {
+            extraBot = `
+            <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'none','duck')">
+                ${getSafeImgHtml('none', 'duck')}
+            </div>`;
+        }
+
         if (bottomBar) {
             bottomBar.innerHTML = `<div class="tool-group">
-                ${['P','N','B','R','Q','K'].map(p => `
+                ${whitePieces.map(p => `
                     <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'w','${p}')">
                         ${getSafeImgHtml('w', p)}
                     </div>`).join('')}
+                ${extraBot}
             </div><div class="tool-btn trash-btn" onclick="window.app.ui.setEditorTool('trash', this)">${trashIcon}</div>`;
         }
     }
@@ -2068,12 +2187,24 @@ startSpareDrag(e, color, type) {
         this.dragData = { isSpare: true, piece: { color, type } };
         let rawSVG = this.getPieceHTML({ color, type });
         let ghostHTML = rawSVG;
+        
         if (rawSVG) {
             let trimmed = rawSVG.trim();
-            if (trimmed.startsWith('<svg')) ghostHTML = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(trimmed)}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
-            else if (trimmed.startsWith('data:image/') || trimmed.startsWith('http') || trimmed.endsWith('.svg') || trimmed.endsWith('.png')) ghostHTML = `<img src="${trimmed}" style="width:100%; height:100%; display:block; pointer-events:none;">`;
+            let pulseClass = (this.animationsEnabled !== false) ? " piece-heartbeat" : "";
+            const ghostStyle = 'width:100%; height:100%; object-fit:contain; display:block; pointer-events:none;';
+            
+            if (trimmed.startsWith('<svg') || trimmed.startsWith('<?xml')) {
+                let cleanSvg = trimmed.replace(/<\?xml.*?\?>/g, '').trim();
+                ghostHTML = `<img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(cleanSvg)}" class="${pulseClass}" style="${ghostStyle}" draggable="false">`;
+            } else if (trimmed.startsWith('<img')) {
+                ghostHTML = trimmed.replace('<img ', `<img class="${pulseClass}" style="${ghostStyle}" `);
+            } else {
+                ghostHTML = `<img src="${trimmed}" class="${pulseClass}" style="${ghostStyle}" draggable="false">`;
+            }
         }
+        
         this.initDragGhost(e, ghostHTML);
+        this.draggedPieceGhost.classList.add('piece', 'animating');
     }
 initDragGhost(e, html) {
         if (!this.dragData || !this.dragData.piece) return;

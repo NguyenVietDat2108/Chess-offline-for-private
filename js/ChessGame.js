@@ -4252,7 +4252,11 @@ syncEngineToBoard() {
                 let p = this.#board[r * 8 + c];
                 if (!p) { empty++; } else {
                     if (empty > 0) { pieceFen += empty; empty = 0; }
-                    pieceFen += (p.color === 'w' ? p.type.toUpperCase() : p.type.toLowerCase());
+                    if (p.type === 'duck') {
+                        pieceFen += '*';
+                    } else {
+                        pieceFen += (p.color === 'w' ? p.type.toUpperCase() : p.type.toLowerCase());
+                    }
                 }
             }
             if (empty > 0) pieceFen += empty;
@@ -4261,7 +4265,6 @@ syncEngineToBoard() {
 
         let currEngineFen = this.#engine.fen().split(' ');
 
-        
         if (typeof document !== 'undefined') {
             const turnEl = document.getElementById('editorTurn');
             if (turnEl) this.turn = turnEl.value;
@@ -4271,7 +4274,6 @@ syncEngineToBoard() {
             const chkBK = document.getElementById('castling-bK');
             const chkBQ = document.getElementById('castling-bQ');
 
-            // Only overwrite if at least one checkbox is found in the DOM
             if (chkWK || chkWQ || chkBK || chkBQ) {
                 this.castling = {
                     wK: chkWK ? chkWK.checked : this.castling.wK,
@@ -4289,19 +4291,21 @@ syncEngineToBoard() {
         if (this.castling.bQ) castlingStr += "q";
         if (castlingStr === "") castlingStr = "-";
 
-        let fen = pieceFen + " " + (this.turn || 'w') + " " + castlingStr;
-        let currFenBase = currEngineFen[0] + " " + currEngineFen[1] + " " + currEngineFen[2];
+        let fen = pieceFen;
         
-        if (fen === currFenBase) {
-            if (typeof document !== 'undefined') {
-                const fenBox = document.getElementById('fenInput');
-                if (fenBox) fenBox.value = this.#engine.fen();
-            }
-            return; 
+        if (this.gameMode === 'crazyhouse' || this.gameMode === 'bughouse' || this.gameMode === 'placement') {
+            const pocketMatch = currEngineFen[0].match(/\[.*?\]/);
+            if (pocketMatch) fen += pocketMatch[0];
         }
 
-        // Preserve En Passant, Halfmove, and Fullmove safely
+        fen += " " + (this.turn || 'w') + " " + castlingStr;
         fen += ` ${currEngineFen[3] || '-'} ${currEngineFen[4] || '0'} ${currEngineFen[5] || '1'}`; 
+
+        for (let i = 6; i < currEngineFen.length; i++) {
+            fen += ` ${currEngineFen[i]}`;
+        }
+
+        if (fen === this.#engine.fen()) return;
 
         try {
             this.#engine.load(fen);
