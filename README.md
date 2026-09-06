@@ -11,7 +11,7 @@
 To keep this code repository lightning-fast to download, the massive puzzle databases and engine binaries are hosted separately. Follow these steps to get your server running:
 
 ### DOWNLOAD THE FULL PROJECT AT HERE [LATEST]
-🔗 **(https://github.com/NguyenVietDat2108/Chess-offline-for-private/releases)**
+🔗 **[Download Here](https://github.com/NguyenVietDat2108/Chess-offline-for-private/releases)**
   
   **[OLD DOWNLOAD METHOD]**
   
