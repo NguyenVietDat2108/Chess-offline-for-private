@@ -6043,13 +6043,16 @@ async _drawBoardToCanvas(canvas, ctx) {
             }
         }
     }
-generateGIF() { 
+    async generateGIF() { 
         const previewArea = document.getElementById('gifPreviewArea'); 
         if (!previewArea) return;
         if (typeof window.GIF === 'undefined') { 
             previewArea.innerHTML = "<span style='color: #fa412d;'>Error: gif.js library missing!</span>"; 
             return; 
         }
+        previewArea.innerHTML = "Preloading chess pieces... <br>Please wait.";
+        await this.preloadPieceImages();
+
         previewArea.innerHTML = "Recording exact UI frames... <br>(Please do not click the board)";
         
         const gifSize = 400; 
@@ -6154,7 +6157,6 @@ generateGIF() {
                 gif.addFrame(frameCanvas, { delay: 3000, copy: true }); // Hold Checkmate
                 previewArea.innerHTML = "Processing final GIF...<br>Please wait.";
                 
-                // 🌟 RESTORE EVERYTHING
                 if (styleOverride) styleOverride.remove();
                 this.renderBoard = originalRenderBoard;
                 this.#game.mode = originalMode;
@@ -7878,7 +7880,8 @@ castSpell(spellType, targetSq) {
     return grid;
     }
     async preloadPieceImages() {
-        if (!this._imgCache) this._imgCache = {};
+        this._imgCache = {}; 
+        
         const selector = document.getElementById('assetType');
         const theme = selector ? selector.value : 'cburnett';
         

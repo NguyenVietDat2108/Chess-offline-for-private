@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MP3 to Base64 Converter</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #1e293b; color: #f8fafc; padding: 30px; }
+        .container { max-width: 800px; margin: 0 auto; background: #0f172a; padding: 20px; border-radius: 8px; border: 1px solid #334155; }
+        input[type="file"] { display: block; margin: 20px 0; padding: 10px; background: #334155; border-radius: 4px; cursor: pointer; }
+        textarea { width: 100%; height: 400px; background: #1e293b; color: #38bdf8; border: 1px solid #475569; padding: 10px; font-family: monospace; border-radius: 4px; resize: vertical; box-sizing: border-box; }
+        button { background: #26c2a3; color: #000; border: none; padding: 10px 20px; font-weight: bold; border-radius: 4px; cursor: pointer; margin-top: 10px; font-size: 14px; }
+        button:hover { background: #1fa68b; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🎵 Chess MP3 to Base64 Converter</h2>
+    <p>Select all your MP3 files at once. This tool will instantly generate your <code>sound.js</code> code right here in the browser.</p>
+    
+    <input type="file" id="fileInput" multiple accept=".mp3">
+    
+    <textarea id="output" placeholder="Your generated code will appear here..."></textarea>
+    <button onclick="copyCode()">📋 Copy Code</button>
+</div>
+
+<script>
+    document.getElementById('fileInput').addEventListener('change', function(event) {
+        const files = event.target.files;
+        if (files.length === 0) return;
+
+        // Setup the exact structure for your sound.js
+        const soundObject = {
+            "chesscom_sounds": {
+                "sounds": {}
+            }
+        };
+
+        let filesProcessed = 0;
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                // e.target.result contains the Base64 Data URI
+                const base64DataUri = e.target.result;
+                
+                // Get the filename without the .mp3 extension (e.g., 'move', 'capture')
+                const keyName = file.name.replace(/\.[^/.]+$/, "");
+                
+                // Add it to our object
+                soundObject["chesscom_sounds"].sounds[keyName] = base64DataUri;
+                filesProcessed++;
+
+                // When all files are done, generate the text
+                if (filesProcessed === files.length) {
+                    const jsOutput = `const SOUND_SETS = ${JSON.stringify(soundObject, null, 4)};\n`;
+                    document.getElementById('output').value = jsOutput;
+                }
+            };
+
+            reader.readAsDataURL(file);
+        }
+    });
+
+    function copyCode() {
+        const output = document.getElementById('output');
+        if (!output.value) return alert("Nothing to copy yet!");
+        output.select();
+        document.execCommand('copy');
+        alert('✅ Code copied to clipboard! You can now paste this into your sound.js file.');
+    }
+</script>
+
+</body>
+</html>

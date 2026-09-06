@@ -1,0 +1,26 @@
+[GameNr "99806935"]
+[TimeControl "3+2"]
+[Variant "FFA"]
+[RuleVariants "EnPassant 3-check Play4Mate"]
+[StartFen4 "R-0,1,0,1-1,1,1,1-1,1,1,1-0,0,0,0-0-{'lives':(3,3,3,3),'pawnBaseRank':5,'wb':true,'dim':'8x8'}-x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,yR,yN,yB,yQ,yK,yB,yN,yR,x,x,x/x,x,x,yP,yP,yP,yP,yP,yP,yP,yP,x,x,x/x,x,x,8,x,x,x/x,x,x,8,x,x,x/x,x,x,8,x,x,x/x,x,x,8,x,x,x/x,x,x,rP,rP,rP,rP,rP,rP,rP,rP,x,x,x/x,x,x,rR,rN,rB,rQ,rK,rB,rN,rR,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x"]
+[White "IamTyrunny"]
+[WhiteElo "1500"]
+[Black "NathanBob2016"]
+[BlackElo "1502"]
+[Result "1-0"]
+[Termination "Checkmate • 1-0"]
+[Site "www.chess.com/variants/3-check/game/99806935"]
+[Date "Wed Apr 01 2026 10:34:13 GMT+0000 (Coordinated Universal Time)"]
+[CurrentMove "21"]
+
+1. h5-h6 .. h10-h8
+2. f5-f7 .. Qg11-i9
+3. Ne4-f6 .. Qi9xi5+
+4. Kh4xQi5 .. Bi11-f8
+5. g5-g7 .. h8xg7
+6. h6xg7 .. Bf8xg7+
+7. Qg4xBg7 .. Nj11-i9
+8. Qg7-h8+ .. Kh11-i11
+9. Ki5-h4 .. Ni9-j7
+10. Qh8xj10+ .. Ki11-h10
+11. Bf4-j8+#

@@ -728,11 +728,20 @@ getReader() {
         if (typeof e.data !== 'string') return;
         const line = e.data.trim(); 
         if (!line) return;
+        
         if (line.startsWith('option name ')) {
             const optMatch = line.match(/option name (.*?) type/i);
             if (optMatch) {
+                const optName = optMatch[1].trim().toLowerCase();
                 if (!this.engineSupportedOptions) this.engineSupportedOptions = new Set();
-                this.engineSupportedOptions.add(optMatch[1].trim().toLowerCase());
+                this.engineSupportedOptions.add(optName);
+
+                if (optName === 'evalfile') {
+                    const defaultMatch = line.match(/default\s+(nn-[a-z0-9]+\.nnue)/i);
+                    if (defaultMatch && defaultMatch[1]) {
+                        this._defaultNnueFile = defaultMatch[1];
+                    }
+                }
             }
         }
         
@@ -827,14 +836,13 @@ getReader() {
                         )).then(results => {
                             results.forEach(res => {
                                 if (res && res.buffer) {
-                                    // 👉 [TỐI ƯU ĐIỂM 10]: Zero-copy truyền con trỏ RAM, nhanh 0 mili-giây
                                     window.sfWorker.postMessage({ action: 'INJECT_NNUE', name: res.file, buffer: res.buffer }, [res.buffer]);
                                     this.#safeSetOption(res.key, res.file);
                                 }
                             });
                             setTimeout(() => { this.#postEngineCommand('isready'); }, 50);
                         }).catch(err => {
-                            console.warn("[ENGINE] Lỗi nạp NNUE:", err);
+                            console.warn("[ENGINE] Lỗi nạp NNUE variant:", err);
                             this.#postEngineCommand('isready');
                         });
                         return;
@@ -844,10 +852,27 @@ getReader() {
                 return;
             } else {
                 this.#safeSetOption('UCI_Chess960', this.gameMode === 'chess960' ? 'true' : 'false');
+                
+                let nnueToLoad = this._defaultNnueFile || 'nn-1a298aa575a0.nnue';
+                
+                console.log("[ENGINE] Chuẩn bị tải NNUE hệ tiêu chuẩn:", nnueToLoad);
+                fetch('./engine/nnue/' + nnueToLoad)
+                    .then(res => {
+                        if (!res.ok) throw new Error("Thiếu file NNUE: " + nnueToLoad);
+                        return res.arrayBuffer();
+                    })
+                    .then(buffer => {
+                        console.log("[ENGINE] Tải xong NNUE, đang nạp vào bộ nhớ...");
+                        window.sfWorker.postMessage({ action: 'INJECT_NNUE', name: nnueToLoad, buffer: buffer }, [buffer]);
+                        this.#safeSetOption('EvalFile', nnueToLoad);
+                        setTimeout(() => { this.#postEngineCommand('isready'); }, 50);
+                    })
+                    .catch(err => {
+                        console.error("[ENGINE FATAL] Cờ sẽ bị mù (0.00 Eval) vì lỗi NNUE:", err);
+                        this.#postEngineCommand('isready');
+                    });
+                return;
             }
-            
-            this.#postEngineCommand('isready'); 
-            return;
         }
 
         if (line.startsWith('bestmove')) {
@@ -3218,15 +3243,60 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
             }
             this.activeEngineType = engineType;
 
+            const spawnEs6Worker = (jsPath) => {
+                const absoluteUrl = new URL(jsPath, window.location.href).href;
+                const workerCode = `
+                    import Stockfish from "${absoluteUrl}";
+                    
+                    Stockfish({
+                        listen: (line) => self.postMessage(line),
+                        onError: (err) => console.error("Engine Error:", err)
+                    }).then(engine => {
+                        if (typeof engine.addMessageListener === 'function') {
+                            engine.addMessageListener(line => self.postMessage(line));
+                        }
+                        
+                        self.onmessage = (e) => {
+                            if (e.data && e.data.action === 'INJECT_NNUE') {
+                                try {
+                                    if (typeof engine.setNnueBuffer === 'function') {
+                                        engine.setNnueBuffer(new Uint8Array(e.data.buffer));
+                                    } else {
+                                        let fsObj = engine.FS || (typeof FS !== 'undefined' ? FS : null);
+                                        if (fsObj) fsObj.writeFile(e.data.name, new Uint8Array(e.data.buffer));
+                                    }
+                                } catch(err) {
+                                    console.error("NNUE Inject Error:", err);
+                                }
+                            } else if (typeof e.data === 'string') {
+                                if (typeof engine.uci === 'function') {
+                                    engine.uci(e.data);
+                                } else if (engine.ccall) {
+                                    engine.ccall('push_cmd', 'null', ['string'], [e.data]);
+                                } else if (typeof engine.postMessage === 'function') {
+                                    engine.postMessage(e.data);
+                                }
+                            }
+                        };
+                        
+                        self.postMessage('WORKER_INITIALIZED');
+                    }).catch(err => {
+                        console.error("WASM Boot Error:", err);
+                    });
+                `;
+                const blob = new Blob([workerCode], { type: 'application/javascript' });
+                return new Worker(URL.createObjectURL(blob), { type: 'module' });
+            };
+
             // ==========================================
             // NATIVE CUSTOM ENGINE
             // ==========================================
             if (this.activeEngineType === 'custom' && customUrl) {
                 engineDisplayName = customName || "Custom Engine";
-                window.sfWorker = new Worker(customUrl);
+                window.sfWorker = spawnEs6Worker(customUrl);
             } 
             // ==========================================
-            // FAIRY STOCKFISH (Message Queue + VFS)
+            // FAIRY STOCKFISH
             // ==========================================
             else if (this.activeEngineType === 'fairy') {
                 engineDisplayName = "Fairy-Stockfish 14 NNUE";
@@ -3325,7 +3395,6 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                             }
 
                             if (engineInstance) {
-                                // Add the ccall line right here!
                                 if (engineInstance.ccall) {
                                     engineInstance.ccall('push_cmd', 'null', ['string'], [cmd]);
                                 } 
@@ -3345,7 +3414,6 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                             engineInstance = engine; 
                             
                             messageQueue.forEach(function(cmd) {
-                                // Add the ccall line right here too!
                                 if (engineInstance.ccall) engineInstance.ccall('push_cmd', 'null', ['string'], [cmd]);
                                 else if (typeof engineInstance.postMessage === 'function') engineInstance.postMessage(cmd);
                                 else if (typeof engineInstance.onCustomMessage === 'function') engineInstance.onCustomMessage(cmd);
@@ -3374,6 +3442,9 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                 const blob = new Blob([workerScript], { type: 'application/javascript' });
                 window.sfWorker = new Worker(URL.createObjectURL(blob));
             }
+            // ==========================================
+            // STANDARD ENGINE (Stockfish 18, 19...)
+            // ==========================================
             else {
                 let cachedName = typeof localStorage !== 'undefined' ? localStorage.getItem('chess_cached_engine_name') : "Stockfish 18";
                 if (this.#ui && typeof this.#ui.updateEngineName === 'function') {
@@ -3387,13 +3458,14 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                         const data = await response.json();
                         engineDisplayName = data.name; 
                         if (typeof localStorage !== 'undefined') localStorage.setItem('chess_cached_engine_name', engineDisplayName);
-                        window.sfWorker = new Worker(data.path);
+                        
+                        window.sfWorker = spawnEs6Worker(data.path);
                     } else {
                         throw new Error("Server API failed");
                     }
                 } catch(e) {
                     engineDisplayName = cachedName || "Stockfish 18";
-                    window.sfWorker = new Worker('/engine/stockfish 18/stockfish-18.js');
+                    window.sfWorker = spawnEs6Worker('/engine/stockfish 18/stockfish-18.js');
                 }
             }
 

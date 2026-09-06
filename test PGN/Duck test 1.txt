@@ -1,0 +1,48 @@
+[GameNr "99809446"]
+[TimeControl "5+0"]
+[Variant "FFA"]
+[RuleVariants "DuckChess EnPassant Play4Mate Stalemate=win"]
+[StartFen4 "2PC"]
+[White "dasturmi"]
+[WhiteElo "1810"]
+[Black "IamTyrunny"]
+[BlackElo "1524"]
+[Result "1-0"]
+[Termination "Black forfeits on time • 1-0"]
+[Site "www.chess.com/variants/duck-chess/game/99809446"]
+[Date "Wed Apr 01 2026 11:48:20 GMT+0000 (Coordinated Universal Time)"]
+[CurrentMove "66"]
+
+1. h5-h7&Θ-h9 .. f10-f8&Θh9-h5
+2. g5-g6&Θh5-h9 .. j10-j9&Θh9-j10
+3. Bf4-j8&Θj10-h9 .. Bi11-j10&Θh9-h5
+4. Nj4-i6&Θh5-h9 .. Bj10xe5&Θh9-g5
+5. g6-g7&Θg5-f6 .. Be5xRd4&Θf6-g5
+6. g7-g8&Θg5-e5 .. g10-g9&Θe5-g5
+7. Ne4-f6&Θg5-e5 .. Qg11-d8&Θe5-f4
+8. Qg4-g5&Θf4-e5 .. Ne11-g10&Θe5-h5
+9. Qg5-g6&Θh5-e5 .. k10-k9&Θe5-i7
+10. Qg6-e8&Θi7-e5 .. Qd8xQe8&Θe5-i7
+11. Bi4xQe8&Θi7-e5 .. k9xBj8&Θe5-i4
+12. Be8xNg10+&Θi4-e5 .. Bf11xBg10&Θe5-i4
+13. Ni6xj8&Θi4-e5 .. Nj11-i9&Θe5-i4
+14. Nf6-h5&Θi4-e4 .. Rk11-k8&Θe4-i4
+15. Nj8-i6&Θi4-e5 .. Ni9xh7&Θe5-i4
+16. j5-j7&Θi4-k9 .. Bg10xj7&Θk9-i4
+17. Ni6-g5&Θi4-i6 .. Nh7xNg5&Θi6-j4
+18. Kh4xNg5&Θj4-i6 .. Rk8xg8+&Θi6-j4
+19. Kg5-h6&Θj4-e5 .. Bj7xNh5&Θe5-j4
+20. Kh6xBh5&Θj4-e5 .. Rg8-h8+&Θe5-j4
+21. k5-k7&Θj4-h6 .. Bd4-g7&Θh6-i6
+22. Rk4-e4&Θi6-h6 .. O-O-O&Θh6-e5
+23. Kh5-g6&Θe5-h6 .. Rh8-k8&Θh6-e5
+24. f5-f6&Θe5-h6 .. Bg7-i9&Θh6-e5
+25. Re4-k4&Θe5-j8 .. Rg11-k11&Θj8-k6
+26. d5-d7&Θk6-h8 .. Rk8xk7&Θh8-d8
+27. Rk4-k5&Θd8-k6 .. f8-f7+&Θk6-j5
+28. Kg6-h5&Θj5-k6 .. Bi9-h8&Θk6-j5
+29. Rk5-k4&Θj5-k5 .. Rk7-k6&Θk5-j5
+30. Rk4xRk6&Θj5-k10 .. Bh8xf6&Θk10-g6
+31. Rk6xRk11+&Θg6-g7 .. Kf11-f10&Θg7-g6
+32. Rk11-k10&Θg6-g7 .. Kf10-g10&Θg7-j10
+33. Kh5-h6&Θj10-g7 .. T

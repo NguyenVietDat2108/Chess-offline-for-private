@@ -1,0 +1,39 @@
+[GameNr "99820114"]
+[TimeControl "5+2"]
+[Variant "Setup Chess"]
+[RuleVariants "EnPassant Play4Mate Setup=39"]
+[White "IamTyrunny"]
+[WhiteElo "1500"]
+[Black "hoc-co-moi-ngay"]
+[BlackElo "1452"]
+[Result "1-0"]
+[Termination "Checkmate • 1-0"]
+[Site "www.chess.com/variants/setup-chess/game/99820114"]
+[Date "Wed Apr 01 2026 14:40:49 GMT+0000 (Coordinated Universal Time)"]
+
+
+1. @0_rPd2 K@2_yKg7
+2. @0_rPg3 @2_yPh6
+3. @0_rPf2 @2_yPg6
+4. @0_rPh2 @2_yPf6
+5. @0_rPa2 @2_yPe6
+6. @0_rPb2 Q@2_yQa8
+7. @0_rPc2 @2_yPd6
+8. R@0_rRa1 @2_yPc6
+9. N@0_rNf3 @2_yPb6
+10. R@0_rRh1 @2_yPa6
+11. Q@0_rQg2 N@2_yNe7
+12. R@0_rRg1 Q@2_yQd8
+13. K@0_rKb1 Q@2_yQf8
+14. B@0_rBc1 @2_yPf7
+15. @0_rPe2 
+16. @0_rPb3 f6f5
+17. h2h4 g6g5
+18. h4g5 h6g5
+19. Nf3g5 Kg7g6
+20. d2d3 f7f6
+21. Ng5e6 Qd8d7
+22. Ne6f8 Qa8f8
+23. Qg2h3 Qd7e6
+24. Qh3h5 Kg6g7
+25. Qh5h7 1-0

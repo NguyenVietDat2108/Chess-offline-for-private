@@ -1,0 +1,19 @@
+[GameNr "100440310"]
+[TimeControl "5+2"]
+[Variant "FFA"]
+[RuleVariants "EnPassant Play4Mate Spell=1+3"]
+[StartFen4 "R-0,1,0,1-1,1,1,1-1,1,1,1-0,0,0,0-0-{'pawnBaseRank':5,'wb':true,'dim':'8x8','spells':('jump_0x2,freeze_0x5','','jump_0x2,freeze_0x5',''),'spellFields':()}-x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,yR,yN,yB,yQ,yK,yB,yN,yR,x,x,x/x,x,x,yP,yP,yP,yP,yP,yP,yP,yP,x,x,x/x,x,x,8,x,x,x/x,x,x,8,x,x,x/x,x,x,8,x,x,x/x,x,x,8,x,x,x/x,x,x,rP,rP,rP,rP,rP,rP,rP,rP,x,x,x/x,x,x,rR,rN,rB,rQ,rK,rB,rN,rR,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x/x,x,x,x,x,x,x,x,x,x,x,x,x,x"]
+[White "IamTyrunny"]
+[WhiteElo "1502"]
+[Black "Dhivin-boss"]
+[BlackElo "1440"]
+[Result "0-1"]
+[Termination "Checkmate"]
+[Site "www.chess.com/variants/spell-chess/game/100440310"]
+[Date "Sun Apr 12 2026 11:28:04 GMT+0000 (Coordinated Universal Time)"]
+[CurrentMove "8"]
+
+1. h5-h7 .. h10-h9
+2. g5-g7 .. Bi11-e7+
+3. freeze@e7&Bf4-g5 .. freeze@g5&f10-f8
+4. g7xf8 .. jump@g5&Be7xKh4#
