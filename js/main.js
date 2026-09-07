@@ -1,3 +1,19 @@
+/**
+ * Copyright (c) 2026 Ngvida2108
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://gnu.org>.
+ */
 import { ChessGame } from './ChessGame.js';
 import { UI } from './UI.js';
 import { BoardScanner } from './scan.js';
@@ -54,7 +70,6 @@ class ChessApp {
             const shouldAnimate = data && data.animate === true;
             const overrideMove = data && data.overrideMove ? data.overrideMove : null;
             
-            // ✨ THE FIX: Pass the previousBoard snapshot into the UI!
             if (data && data.isGoToStart && typeof this.ui.animateToStartPosition === 'function') {
                 this.ui.animateToStartPosition(data.targetFen, data.previousBoard, () => {
                     this.ui.renderBoard(false);
@@ -64,11 +79,12 @@ class ChessApp {
                     this.ui.renderBoard(shouldAnimate, true, overrideMove);
                 }
             }
-            
-            if (typeof this.ui.updateHistory === 'function') this.ui.updateHistory(true);
-            if (typeof this.ui.updateClocks === 'function') this.ui.updateClocks();
-            if (typeof this.ui.renderArrows === 'function') this.ui.renderArrows();
-            if (typeof this.ui.displayMetadata === 'function') this.ui.displayMetadata(this.game.pgnHeaders);
+            requestAnimationFrame(() => {
+                if (typeof this.ui.updateHistory === 'function') this.ui.updateHistory(true);
+                if (typeof this.ui.updateClocks === 'function') this.ui.updateClocks();
+                if (typeof this.ui.renderArrows === 'function') this.ui.renderArrows();
+                if (typeof this.ui.displayMetadata === 'function') this.ui.displayMetadata(this.game.pgnHeaders);
+            });
             
             if (!data?.skipEngine && window.engineAnalysing && typeof this.game.updateStockfish === 'function') {
                 const state = typeof this.game.getReader === 'function' ? this.game.getReader() : null;

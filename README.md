@@ -24,3 +24,31 @@ Fire up your local environment Powershell by run the serverChess.ps1 file by Pow
 * **Fairy-Stockfish:** Integrated directly for deep variant analysis.
 * **PV Loading:** Support for loading the engine's Principal Variations (PV) in engine matches and Lichess analysis.
 * **Opening Trainer:** Open Beta release for the new interactive opening trainer.
+* **Graph View:** Release for full view of studies and variations.
+
+## Licenses & Third-Party Attributions
+
+This project is open-source and licensed under the **GNU General Public License v3.0** (GPL-3.0). Any derivative work or modified version of this software must also be open-sourced under the same license.
+
+### Third-Party Libraries Used:
+
+- **chess.js** (Custom Variant Version)
+  - *License:* BSD 2-Clause License
+  - *Copyright:* (c) Jeff Hlywa
+  - *Note:* Core chess logic modified to support custom variants while inherits the legacy structure (Spell Chess, Duck Chess, Alice Chess, etc.).
+
+- **Chart.js v4.5.1** (`Chart.js`)
+  - *License:* MIT License
+  - *Copyright:* (c) 2025 Chart.js Contributors
+  - *Purpose:* Used for rendering statistics and evaluation graphs.
+
+- **gif.js & gif.worker.js** (`gif.js`, `gif.worker.js`)
+  - *License:* MIT License
+  - *Copyright:* (c) Johan Nordberg
+  - *Purpose:* Used for compiling and exporting match animations into shareable GIF files.
+
+- **PDF.js v2.16.105** (`pdf.js`, `pdf.worker.js`)
+  - *License:* Apache License 2.0
+  - *Copyright:* (c) 2022 Mozilla Foundation
+  - *Purpose:* Used for loading and parsing PDF chess lessons/books directly into the UI.
+

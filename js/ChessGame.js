@@ -1,3 +1,19 @@
+/**
+ * Copyright (c) 2026 Ngvida2108
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://gnu.org>.
+ */
 import {INITIAL_FEN,FILES, RANKS, ICON_BOOK_SVG, SETTINGS_ICON_IMG, VARIANT_STARTING_FENS, nnueMap,ISO_TO_COUNTRY_NAME,NAG_MAP } from './constants.js';
 import { MoveNode } from './MoveNode.js';
 export const EV_UPDATE_BOARD = 1;
@@ -169,14 +185,13 @@ getReader() {
         let engineDuck = (this.#engine && typeof this.#engine.get_duck_sq === 'function') ? this.#engine.get_duck_sq() : -1;
         let uiDuckSq = -1;
         if (engineDuck !== -1 && engineDuck !== undefined && engineDuck !== null) {
-            let algStr = this.#engineIndexToSquare(engineDuck); // Get String (e.g. "e3")
-            uiDuckSq = this.#squareToIndex(algStr);             // Safely convert to UI Index
+            let algStr = this.#engineIndexToSquare(engineDuck); 
+            uiDuckSq = this.#squareToIndex(algStr);             
         }
         const frozenSquares = new Array(64).fill(false);
         let jumpSquare = -1;
 
         if (this.gameMode === 'spell' && this.#engine) {
-            
             if (typeof this.#engine.frozen === 'function') {
                 const f = this.#engine.frozen();
                 if (f && (f.lo !== 0 || f.hi !== 0)) {
@@ -190,7 +205,6 @@ getReader() {
                         if (isFrozen) {
                             let algStr = this.#engineIndexToSquare(i); 
                             let uiIdx = this.#squareToIndex(algStr);
-                            
                             if (uiIdx !== -1 && uiIdx !== undefined) {
                                 frozenSquares[uiIdx] = true;
                             }
@@ -198,7 +212,6 @@ getReader() {
                     }
                 }
             }
-            
             if (typeof this.#engine.jump_sq === 'function') {
                 let js = this.#engine.jump_sq();
                 if (js !== -1) {
@@ -221,7 +234,7 @@ getReader() {
             currentFen: this.currentNode ? this.currentNode.fen : '',
             startingFen: this.rootNode ? this.rootNode.fen : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
             activeNodeId: this.currentNode ? this.currentNode.id : null,
-            lastMove: this.currentNode ? this.currentNode.lastMove : null,
+            lastMove: this._transientOverrideMove || (this.currentNode ? this.currentNode.lastMove : null),
             headers: this.pgnHeaders,
             whiteTime: this.whiteTime,
             blackTime: this.blackTime,
@@ -4027,9 +4040,8 @@ stepBack(animate = true) {
             this.#reconcileBoardIdsReverse(this.currentNode.fen, undoneNode.lastMove);
         }
         
-        let reverseMove = null;
         if (undoneNode.lastMove && undoneNode.lastMove.from !== '@') {
-            reverseMove = {
+            this._transientOverrideMove = {
                 from: undoneNode.lastMove.to,
                 to: undoneNode.lastMove.from,
                 color: undoneNode.lastMove.color,
@@ -4038,7 +4050,9 @@ stepBack(animate = true) {
             };
         }
 
-        this.#emit('boardUpdated', { animate: animate, overrideMove: reverseMove });
+        this.#emit('boardUpdated', { animate: animate });
+        this._transientOverrideMove = null;
+        
         if (animate) {
             if (this._audioDebounce) clearTimeout(this._audioDebounce);
             this._audioDebounce = setTimeout(() => {
@@ -4140,6 +4154,9 @@ goToNodeId(id, animate = true) {
         if (this.rootNode) search(this.rootNode);
         
         if (target) {
+            let isStepBack = (this.currentNode && this.currentNode.parent && this.currentNode.parent.id === target.id);
+            let undoneNode = this.currentNode;
+            
             this.currentNode = target;
             
             let resetNode = target;
@@ -4151,7 +4168,9 @@ goToNodeId(id, animate = true) {
             this.#engine.load(this.currentNode.fen);
             this.turn = this.#engine.turn();
             
-            if (typeof this.#reconcileBoardIds === 'function') {
+            if (isStepBack && typeof this.#reconcileBoardIdsReverse === 'function') {
+                this.#reconcileBoardIdsReverse(this.currentNode.fen, undoneNode.lastMove);
+            } else if (typeof this.#reconcileBoardIds === 'function') {
                 this.#reconcileBoardIds(this.currentNode.fen, null);
             } else {
                 this.loadFEN(this.currentNode.fen, this.gameMode, true);
@@ -4164,10 +4183,21 @@ goToNodeId(id, animate = true) {
                 curr = curr.parent;
             }
             
+            if (isStepBack && undoneNode.lastMove && undoneNode.lastMove.from !== '@') {
+                this._transientOverrideMove = {
+                    from: undoneNode.lastMove.to,
+                    to: undoneNode.lastMove.from,
+                    color: undoneNode.lastMove.color,
+                    flags: undoneNode.lastMove.flags,
+                    isReverse: true
+                };
+            }
+
             this.#emit('boardUpdated', { animate: animate });
+            this._transientOverrideMove = null;
             
             if (animate) {
-                if (this.currentNode.lastMove) this.triggerMoveSound(this.currentNode.lastMove);
+                if (this.currentNode.lastMove && !isStepBack) this.triggerMoveSound(this.currentNode.lastMove);
                 else {
                     if (this._audioDebounce) clearTimeout(this._audioDebounce);
                     this._audioDebounce = setTimeout(() => {

@@ -1,3 +1,19 @@
+/**
+ * Copyright (c) 2026 Ngvida2108
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://gnu.org>.
+ */
 import { FILES, RANKS, ICON_BOOK_SVG, ICON_BOOK_SVG_IMG_BLUE, INITIAL_FEN, ICON_SETTING_SVG, VARIANT_STARTING_FENS,ISO_TO_COUNTRY_NAME,NAG_MAP } from './constants.js';
 import { MoveNode } from './MoveNode.js';
 import { PIECE_SETS } from './piece.js';
@@ -3481,8 +3497,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     }
                     return val;
                 };
-                const fromGridSq = isCastlingMove ? p._castleStartIdx : (isMovedPiece ? getSafeIndex(targetMove.from) : p.idx);
-                
+                const fromGridSq = isCastlingMove ? p._castleStartIdx : ((isMovedPiece && !isNew) ? getSafeIndex(targetMove.from) : p.idx);                
                 startR = fromGridSq >> 3; 
                 startC = fromGridSq & 7;
                 if (this.flipped) { startR = 7 - startR; startC = 7 - startC; }
@@ -3515,8 +3530,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                         el.style.transform = targetTransform; 
 
                         const sqEl = this.squaresLayer.querySelector(`[data-index="${p.idx}"]`);
-                        
-                        if (isMovedPiece && sqEl && !isReverseMove) {
+                        if (isMovedPiece && !isNew && sqEl && !isReverseMove) {
                             let wave = document.createElement('div');
                             wave.className = 'shockwave'; 
                             let waveColor = p.color === 'w' ? 'rgba(56, 189, 248, 0.6)' : 'rgba(250, 65, 45, 0.6)';
@@ -3542,8 +3556,13 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 el.style.transition = 'none';
                 el.style.transform = targetTransform;
             }
-            if (showMangaTail && (isMovedPiece || isCastlingMove) && targetMove && targetMove.from !== '@' && !isReverseMove) {
-                const dx = (c - startC); const dy = (r - startR);
+            if (showMangaTail && (isMovedPiece || isCastlingMove) && !isNew && targetMove && targetMove.from !== '@') {                let dx = (c - startC); 
+                let dy = (r - startR);
+                if (isReverseMove) {
+                    dx = -dx;
+                    dy = -dy;
+                }
+                
                 const dist = Math.sqrt(dx*dx + dy*dy);
                 
                 if (dist > 0.5) {

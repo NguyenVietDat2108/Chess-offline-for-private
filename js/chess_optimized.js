@@ -1,3 +1,24 @@
+/**
+ * Part of this file is derived from chess.js (https://github.com)
+ * Copyright (c) Jeff Hlywa
+ * Released under the BSD 2-Clause License.
+ * 
+ * Modifications and variant support extensions:
+ * Copyright (c) 2026 [Tên hoặc Biệt danh của bạn]
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://gnu.org>.
+ */
 //This file is a customized chess.js file that respect the ES5 architecture but optimized for normal chess and support multiple variants such as:
 //'chess960','3check','antichess','atomic','bughouse','chaturanga','crazyhouse','duck','horde','kingofthehill','racingkings','alice'
 //history[] is left null since it is handled in chessgame.js which also handle engine games pv lines when Load_pgn, thus putting at here seems unreasonable.
