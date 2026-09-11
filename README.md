@@ -15,7 +15,8 @@ To keep this code repository lightning-fast to download, the massive puzzle data
 🔗 **[Download Here](https://github.com/NguyenVietDat2108/Chess-offline-for-private/releases)**
 
 ### Start the Server!
-Fire up your local environment Powershell by run the serverChess.ps1 file by Powershell and you're ready to play.
+Extract the lichess puzzles database and put it in the main folder.
+Fire up your local environment by run the serverChess.ps1 file by Powershell and you're ready to play.
 
 ---
 
