@@ -41,37 +41,13 @@ constructor() {
         this.#_isBooting = true;
         this.gameMode = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_last_variant') : 'classical') || 'classical';
         
-        // Establish a strict default engine context on boot
         this.mode = 'analysis'; 
         
-        // Ensure the engine is set to the correct variant ruleset immediately
         if (this.#engine && typeof this.#engine.setGameMode === 'function') {
             this.#engine.setGameMode(this.gameMode);
         }
         
         let startingFen = this.#getStartingFen(this.gameMode);
-
-        if (typeof localStorage !== 'undefined') {
-            // Explicitly load the isolated analysis bucket on startup.
-            const savedPgn = localStorage.getItem(`chess_analysis_variant_pgn_${this.gameMode}`);
-            
-            if (savedPgn && savedPgn.trim() !== '') {
-                const fenMatch = savedPgn.match(/\[FEN\s+"([^"]+)"\]/i);
-                if (fenMatch && fenMatch[1]) {
-                    startingFen = fenMatch[1];
-                }
-                
-                // Securely load the saved PGN without triggering cascading auto-saves during boot
-                const wasBooting = this._isRestoring;
-                this._isRestoring = true;
-                setTimeout(() => {
-                    if (typeof this.loadPGN === 'function') {
-                        this.loadPGN(savedPgn, false, true);
-                    }
-                }, 50);
-                this._isRestoring = wasBooting;
-            }
-        }
 
         this.rootNode = new MoveNode(startingFen, null);
         this.currentNode = this.rootNode;
@@ -811,7 +787,7 @@ getReader() {
                 this.#safeSetOption('Hash', '32');
             } else {            
                 this.#safeSetOption('Threads', threads);
-                this.#safeSetOption('Hash', '1024');
+                this.#safeSetOption('Hash', '512');
             }
             this.#safeSetOption('MultiPV', '3');
             this.#safeSetOption('Move Overhead', '10');
@@ -1139,6 +1115,7 @@ getReader() {
         const delay = Math.max(0, expectedThinkTime - elapsed);
 
         setTimeout(() => {
+            if (this.mode !== 'bot' || !this.isPlayingLiveGame) return;
             let moveObj = {};
             let promo = undefined;
             let cleanUci = uciMove.trim();
@@ -1224,12 +1201,31 @@ break;
 }
 return possibleMoves;
 }
+#rebuildNodeMap(root) {
+        if (!this.nodeMap) this.nodeMap = new Map();
+        this.nodeMap.clear();
+        
+        const traverse = (node, parent) => {
+            if (!parent) {
+                let hash = 0; let str = node.fen || "root";
+                for(let i=0; i<str.length; i++) hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
+                node.id = 'root_' + Math.abs(hash).toString(36);
+            } else {
+                let str = parent.id + "_" + node.moveSan + "_" + (node.isPV ? "pv" : "m");
+                let hash = 0; 
+                for(let i=0; i<str.length; i++) hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
+                node.id = 'n_' + Math.abs(hash).toString(36);
+            }
+            this.nodeMap.set(node.id, node);
+            if (node.children) {
+                node.children.forEach(c => traverse(c, node));
+            }
+        };
+        if (root) traverse(root, null);
+    }
 #findNodeById(startNode, targetId) {
-        if (!startNode) return null;
-        if (startNode.id === targetId) return startNode;
-        for (let child of startNode.children) {
-            let found = this.#findNodeById(child, targetId);
-            if (found) return found;
+        if (this.nodeMap && this.nodeMap.has(targetId)) {
+            return this.nodeMap.get(targetId);
         }
         return null;
     }
@@ -1289,8 +1285,8 @@ return move.san;
             headers: this.pgnHeaders ? { ...this.pgnHeaders } : {},
             history: this.history ? Array.from(this.history, val => val.toString()) : [],
             moveList: this.moveList ? [...this.moveList] : [],
-            
             activeNodeId: this.currentNode ? this.currentNode.id : null,
+            
             wTime: this.whiteTime,
             bTime: this.blackTime,
             botColor: this.botColor,
@@ -1307,6 +1303,10 @@ return move.san;
             puzzleSolved: this.puzzleSolved || false,
             puzzleQueue: this.puzzleQueue ? [...this.puzzleQueue] : [],
             puzzleIndex: this.puzzleIndex || 0,
+            sessionMinRating: this.sessionMinRating || 600,
+            sessionMaxRating: this.sessionMaxRating || 3000,
+            targetRushRating: this.targetRushRating || 400,
+
             currentSessionId: this.currentSessionId || null,
             activeChapterIndex: this.activeChapterIndex,
             currentStudyId: this.currentStudyId
@@ -1373,6 +1373,7 @@ return move.san;
                 else if (typeof this.loadFEN === 'function') this.loadFEN(state.fen, this.gameMode, true);
                 
                 this.rootNode = new MoveNode(state.fen, null);
+                this.#rebuildNodeMap(this.rootNode);
                 this.currentNode = this.rootNode;
             }
 
@@ -1397,12 +1398,22 @@ return move.san;
             this.puzzleSolution = state.puzzleSolution ? [...state.puzzleSolution] : [];
             this.puzzleScore = state.puzzleScore || 0;
             this.puzzleStrikes = state.puzzleStrikes || 0;
-            
+            this.currentPuzzle = state.currentPuzzle || null;
+            this.initialPuzzleFEN = state.initialPuzzleFEN || null;
+            this.puzzleActive = state.puzzleActive || false;
+            this.puzzleMode = state.puzzleMode || 'rush';
+            this.puzzleSolved = state.puzzleSolved || false;
+            this.puzzleQueue = state.puzzleQueue ? [...state.puzzleQueue] : [];
+            this.puzzleIndex = state.puzzleIndex || 0;
+            this.sessionMinRating = state.sessionMinRating || 600;
+            this.sessionMaxRating = state.sessionMaxRating || 3000;
+            this.targetRushRating = state.targetRushRating || 400;
+
             if (state.activeChapterIndex !== undefined) this.activeChapterIndex = state.activeChapterIndex;
             if (state.currentStudyId !== undefined) this.currentStudyId = state.currentStudyId;
             
             if (state.activeNodeId && typeof this.goToNodeId === 'function') {
-                let success = this.goToNodeId(state.activeNodeId);
+                let success = this.goToNodeId(state.activeNodeId, false);
                 if (!success && state.fen) {
                     let target = null;
                     const searchFen = (node) => {
@@ -1410,7 +1421,7 @@ return move.san;
                         for (let c of node.children) searchFen(c);
                     };
                     if (this.rootNode) searchFen(this.rootNode);
-                    if (target) this.goToNodeId(target.id);
+                    if (target) this.goToNodeId(target.id, false);
                 }
             }
 
@@ -1426,6 +1437,7 @@ return move.san;
             this.#engine.setGameMode(this.gameMode);
         }
         this.rootNode = new MoveNode(startFen, null);
+        this.#rebuildNodeMap(this.rootNode);
         this.currentNode = this.rootNode;
         this.history = new BigUint64Array(1000);
         this.moveList = [];
@@ -1711,7 +1723,12 @@ return move.san;
                         moveObj = null;
                     }
                     console.error = originalError;
-                    
+                    if (!moveObj) {
+                        if (moveText.includes(':') || moveText.includes('/') || moveText.length > 8) {
+                            index++;
+                            continue;
+                        }
+                    }
                     let isIllegal = !moveObj;
                     if (isIllegal) moveObj = { san: moveText, from: -1, to: -1, flags: '', color: this.#engine.turn(), piece: '' };
 
@@ -1855,8 +1872,12 @@ return move.san;
             newNode.lastMove = moveData;
             newNode.isPV = isPVMove;
             
-            // has been completely nuked! makeMove() already handles the clock perfectly 
-            // with the correct color and increment math!
+            if (!this.nodeMap) this.nodeMap = new Map();
+            let str = this.currentNode.id + "_" + moveSan + "_" + (isPVMove ? "pv" : "m");
+            let hash = 0; 
+            for (let i = 0; i < str.length; i++) hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
+            newNode.id = 'n_' + Math.abs(hash).toString(36);
+            this.nodeMap.set(newNode.id, newNode);
 
             this.currentNode.children.push(newNode);
             const newIdx = this.currentNode.children.indexOf(newNode);
@@ -1866,22 +1887,20 @@ return move.san;
             this.currentNode = newNode;
         }
 
-        if (!isPVMove) {
-            if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
-        }
+        if (this.isLoadingPGN || isPVMove) return;
+
+        if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
 
         // TAB AUTOSAVE LOGIC
-        if (this.mode === 'analysis' && !this._isParsingPV) {
+        if (this.mode === 'analysis') {
             this.#saveState('analysis');
-        } else if (this.mode === 'study' && !this._isParsingPV) {
+        } else if (this.mode === 'study') {
             if (typeof this.saveActiveChapter === 'function') this.saveActiveChapter();
-        } else if ((this.mode === 'local' || this.mode === 'bot') && !this._isParsingPV) {
+        } else if (this.mode === 'local' || this.mode === 'bot') {
             this.#saveState('play');
-        } else if (this.mode === 'puzzle' && !this._isParsingPV) {
+        } else if (this.mode === 'puzzle') {
             this.#saveState('puzzle');
         }
-        
-        if (this.isLoadingPGN || isPVMove) return; 
         
         try {
             if (typeof this.#ui !== 'undefined') {
@@ -4146,69 +4165,76 @@ goToEnd(animate = true) {
         return true;
     }
 goToNodeId(id, animate = true) {
-        let target = null;
-        const search = (node) => {
-            if (node.id === id) { target = node; return; }
-            for (let c of node.children) search(c);
-        };
-        if (this.rootNode) search(this.rootNode);
+    let target = null;
+    const search = (node) => {
+        if (node.id === id) { target = node; return; }
+        for (let c of node.children) search(c);
+    };
+    if (this.rootNode) search(this.rootNode);
+    
+    if (target) {
+        const isStepBack = (this.currentNode && this.currentNode.parent && this.currentNode.parent.id === target.id);
+        const isStepForward = (this.currentNode && this.currentNode.children && this.currentNode.children.some(c => c.id === target.id));
+        const undoneNode = this.currentNode;
         
-        if (target) {
-            let isStepBack = (this.currentNode && this.currentNode.parent && this.currentNode.parent.id === target.id);
-            let undoneNode = this.currentNode;
-            
-            this.currentNode = target;
-            
-            let resetNode = target;
-            while (resetNode) {
-                resetNode.selectedChildIndex = 0;
-                resetNode = resetNode.children && resetNode.children.length > 0 ? resetNode.children[0] : null;
-            }
-            
-            this.#engine.load(this.currentNode.fen);
-            this.turn = this.#engine.turn();
-            
-            if (isStepBack && typeof this.#reconcileBoardIdsReverse === 'function') {
-                this.#reconcileBoardIdsReverse(this.currentNode.fen, undoneNode.lastMove);
-            } else if (typeof this.#reconcileBoardIds === 'function') {
-                this.#reconcileBoardIds(this.currentNode.fen, null);
-            } else {
-                this.loadFEN(this.currentNode.fen, this.gameMode, true);
-            }
-            
-            let curr = target;
-            while (curr.parent) {
-                const idx = curr.parent.children.indexOf(curr);
-                if (idx !== -1) curr.parent.selectedChildIndex = idx;
-                curr = curr.parent;
-            }
-            
-            if (isStepBack && undoneNode.lastMove && undoneNode.lastMove.from !== '@') {
-                this._transientOverrideMove = {
-                    from: undoneNode.lastMove.to,
-                    to: undoneNode.lastMove.from,
-                    color: undoneNode.lastMove.color,
-                    flags: undoneNode.lastMove.flags,
-                    isReverse: true
-                };
-            }
-
-            this.#emit('boardUpdated', { animate: animate });
-            this._transientOverrideMove = null;
-            
-            if (animate) {
-                if (this.currentNode.lastMove && !isStepBack) this.triggerMoveSound(this.currentNode.lastMove);
-                else {
-                    if (this._audioDebounce) clearTimeout(this._audioDebounce);
-                    this._audioDebounce = setTimeout(() => {
-                        this.#emit('soundTriggered', { type: 'move-self' });
-                    }, 25);
-                }
-            }
-            return true;
+        this.currentNode = target;
+        
+        let resetNode = target;
+        while (resetNode) {
+            resetNode.selectedChildIndex = 0;
+            resetNode = resetNode.children && resetNode.children.length > 0 ? resetNode.children[0] : null;
         }
-        return false;
+        
+        this.#engine.load(this.currentNode.fen);
+        this.turn = this.#engine.turn();
+        
+        if (isStepBack && typeof this.#reconcileBoardIdsReverse === 'function') {
+            this.#reconcileBoardIdsReverse(this.currentNode.fen, undoneNode.lastMove);
+        } else if (isStepForward && typeof this.#reconcileBoardIds === 'function') {
+            this.#reconcileBoardIds(this.currentNode.fen, target.lastMove);
+        } else if (typeof this.#reconcileBoardIds === 'function') {
+            this.#reconcileBoardIds(this.currentNode.fen, null);
+        }
+        
+        let curr = target;
+        while (curr.parent) {
+            const idx = curr.parent.children.indexOf(curr);
+            if (idx !== -1) curr.parent.selectedChildIndex = idx;
+            curr = curr.parent;
+        }
+        
+        if (isStepBack && undoneNode.lastMove && undoneNode.lastMove.from !== '@') {
+            this._transientOverrideMove = {
+                from: undoneNode.lastMove.to,
+                to: undoneNode.lastMove.from,
+                color: undoneNode.lastMove.color,
+                flags: undoneNode.lastMove.flags,
+                isReverse: true
+            };
+        } else if (isStepForward && target.lastMove) {
+            this._transientOverrideMove = target.lastMove;
+        }
+
+        const shouldAnimate = animate && (isStepBack || isStepForward);
+        this.#emit('boardUpdated', { 
+            animate: shouldAnimate, 
+            overrideMove: this._transientOverrideMove 
+        });
+        this._transientOverrideMove = null;
+        
+        if (shouldAnimate) {
+            if (this.currentNode.lastMove && !isStepBack) this.triggerMoveSound(this.currentNode.lastMove);
+            else {
+                if (this._audioDebounce) clearTimeout(this._audioDebounce);
+                this._audioDebounce = setTimeout(() => {
+                    this.#emit('soundTriggered', { type: 'move-self' });
+                }, 25);
+            }
+        }
+        return true;
     }
+    return false;
+}
 updateSettingsTime() {
         const bh = parseInt(document.getElementById('bTimeH').value) || 0;
         const bm = parseInt(document.getElementById('bTimeM').value) || 0;
@@ -4973,7 +4999,9 @@ parseArrowsAndCircles(node, comment) {
         }
     }
 loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
-        if (typeof pgn === 'string' && !isInternalLoad) {
+        if (this.isLoadingPGN) return false;
+
+        if (typeof pgn === 'string') {
             let detectedMode = 'classical';
             const variantMatch = pgn.match(/\[Variant\s+"([^"]+)"\]/i);
             const ruleVariantMatch = pgn.match(/\[RuleVariants\s+"([^"]+)"\]/i);
@@ -5001,11 +5029,12 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             }
             
             if (this.gameMode !== detectedMode) {
-                this.setGameMode(detectedMode, false, true); 
-                if (typeof document !== 'undefined') {
-                    const variantSelect = document.getElementById('analysisVariantSelect');
-                    if (variantSelect) variantSelect.value = detectedMode;
-                }
+                this.setGameMode(detectedMode, false, true);
+            }
+
+            if (typeof document !== 'undefined') {
+                const variantSelect = document.getElementById('analysisVariantSelect');
+                if (variantSelect) variantSelect.value = this.gameMode;
             }
         }
 
@@ -5023,7 +5052,7 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             }
         };
         if (this.#ui) {
-            ['updateHistory', 'renderBoard', 'renderArrows', 'renderHeaders', 'highlightLastMove', 'updateClocks', 'updateStatus', 'scrollToActiveMove', 'showNotification', 'updatePuzzleStats', 'updatePlayerNames', 'displayMetadata','renderCharts'].forEach(m => silence(this.#ui, m, backups.ui));
+            ['updateHistory', 'renderBoard', 'renderArrows', 'renderHeaders', 'highlightLastMove', 'updateClocks', 'updateStatus', 'scrollToActiveMove', 'showNotification', 'updatePuzzleStats', 'updatePlayerNames', 'displayMetadata', 'renderCharts'].forEach(m => silence(this.#ui, m, backups.ui));
         }
         ['updateStockfish', 'triggerMoveSound', 'checkGameState', 'onMove', 'attemptPremove', 'saveToLocalStorage'].forEach(m => silence(this, m, backups.game));
         ['log', 'info', 'warn', 'debug'].forEach(m => silence(console, m, backups.console));
@@ -5045,119 +5074,118 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 this.pgnHeaders[match[1]] = match[2];
             }
 
-            // Do this BEFORE the headers get sanitized/deleted below.
-            let isFFA = false;
-            if (this.pgnHeaders['Variant'] === 'FFA' || this.pgnHeaders['StartFen4']) {
-                isFFA = true;
-            }
+            let isFFA = Boolean(
+                this.pgnHeaders['Variant'] === 'FFA' || 
+                this.pgnHeaders['StartFen4'] || 
+                (this.pgnHeaders['Site'] && this.pgnHeaders['Site'].includes('4-player-chess'))
+            );
 
             if (this.pgnHeaders['StartFen4']) {
-            if (this.pgnHeaders['StartFen4'] !== '2PC') {
-                let rawStartFen = this.pgnHeaders['StartFen4'];
-                let boardStr = rawStartFen;
-                
-                let braceIdx = rawStartFen.lastIndexOf('}');
-                if (braceIdx !== -1) {
-                    let dashAfterBrace = rawStartFen.indexOf('-', braceIdx);
-                    if (dashAfterBrace !== -1) {
-                        boardStr = rawStartFen.substring(dashAfterBrace + 1);
-                    }
-                } else {
-                    let chunks = rawStartFen.split('-');
-                    boardStr = chunks.find(c => c.includes('/')) || chunks[chunks.length - 1];
-                }
-
-                let rows = boardStr.split('/');
-                let fenRows = [];
-                for (let r of rows) {
-                    let cells = r.trim().split(',');
-                    if (cells.every(c => c === 'x')) continue;
-                    let validCells = cells.filter(c => c !== 'x');
-                    if (validCells.length === 0) continue;
+                if (this.pgnHeaders['StartFen4'] !== '2PC') {
+                    let rawStartFen = this.pgnHeaders['StartFen4'];
+                    let boardStr = rawStartFen;
                     
-                    let fenRow = '';
-                    let emptyCount = 0;
-                    for (let c of validCells) {
-                        if (!isNaN(c)) {
-                            emptyCount += parseInt(c, 10);
-                        } else if (c.length === 2) {
-                            if (emptyCount > 0) { fenRow += emptyCount; emptyCount = 0; }
-                            let color = c[0]; 
-                            let piece = c[1]; 
-                            fenRow += color === 'y' ? piece.toLowerCase() : piece.toUpperCase();
-                        } else {
-                            if (emptyCount > 0) { fenRow += emptyCount; emptyCount = 0; }
-                            fenRow += c; 
+                    let braceIdx = rawStartFen.lastIndexOf('}');
+                    if (braceIdx !== -1) {
+                        let dashAfterBrace = rawStartFen.indexOf('-', braceIdx);
+                        if (dashAfterBrace !== -1) {
+                            boardStr = rawStartFen.substring(dashAfterBrace + 1);
                         }
+                    } else {
+                        let chunks = rawStartFen.split('-');
+                        boardStr = chunks.find(c => c.includes('/')) || chunks[chunks.length - 1];
                     }
-                    if (emptyCount > 0) { fenRow += emptyCount; }
-                    fenRows.push(fenRow);
+
+                    let rows = boardStr.split('/');
+                    let fenRows = [];
+                    for (let r of rows) {
+                        let cells = r.trim().split(',');
+                        if (cells.every(c => c === 'x')) continue;
+                        let validCells = cells.filter(c => c !== 'x');
+                        if (validCells.length === 0) continue;
+                        
+                        let fenRow = '';
+                        let emptyCount = 0;
+                        for (let c of validCells) {
+                            if (!isNaN(c)) {
+                                emptyCount += parseInt(c, 10);
+                            } else if (c.length === 2) {
+                                if (emptyCount > 0) { fenRow += emptyCount; emptyCount = 0; }
+                                let color = c[0]; 
+                                let piece = c[1]; 
+                                fenRow += color === 'y' ? piece.toLowerCase() : piece.toUpperCase();
+                            } else {
+                                if (emptyCount > 0) { fenRow += emptyCount; emptyCount = 0; }
+                                fenRow += c; 
+                            }
+                        }
+                        if (emptyCount > 0) { fenRow += emptyCount; }
+                        fenRows.push(fenRow);
+                    }
+                    
+                    if (!this.pgnHeaders['FEN']) {
+                        let newFen = fenRows.join('/') + " w KQkq - 0 1";
+                        if (this.gameMode === 'spell') {
+                            newFen += " [S:0,0,0,0,5,2,5,2,-1,0,-1,0,-1,0,-1,0]";
+                        }
+                        this.pgnHeaders['FEN'] = newFen;
+                    }
                 }
                 
-                // Do NOT overwrite the FEN if the PGN already provided one with spell charges
-                if (!this.pgnHeaders['FEN']) {
-                    let newFen = fenRows.join('/') + " w KQkq - 0 1";
-                    if (this.gameMode === 'spell') {
-                        newFen += " [S:0,0,0,0,5,2,5,2,-1,0,-1,0,-1,0,-1,0]";
-                    }
-                    this.pgnHeaders['FEN'] = newFen;
+                delete this.pgnHeaders['StartFen4'];
+                if (this.pgnHeaders['Variant'] === 'FFA') {
+                    let formattedMode = this.gameMode === 'chess960' ? 'Chess960' : this.gameMode.charAt(0).toUpperCase() + this.gameMode.slice(1);
+                    this.pgnHeaders['Variant'] = formattedMode;
                 }
             }
-            
-            delete this.pgnHeaders['StartFen4'];
-            if (this.pgnHeaders['Variant'] === 'FFA') {
-                let formattedMode = this.gameMode === 'chess960' ? 'Chess960' : this.gameMode.charAt(0).toUpperCase() + this.gameMode.slice(1);
-                this.pgnHeaders['Variant'] = formattedMode;
-            }
-        }
 
             if (isInternalLoad) {
                 this.pgnHeaders['Variant'] = this.gameMode === 'classical' ? 'Standard' : this.gameMode;
             }
 
-            let moveTextRaw = pgn.replace(/\[[A-Za-z0-9_]+\s+"[^"]*"\]/g, '').trim();
+            let moveTextRaw = pgn
+                .replace(/\[[^\]]*\]/g, '')
+                .replace(/^(from|site|date|event|link|url):\s*\S+/gim, '')
+                .replace(/https?:\/\/\S+/gi, '')
+                .trim();
 
-            // 🚀 VARIANT NORMALIZATION BRIDGE
             if (!isFFA) {
-                const cleanTextForFFA = typeof moveTextRaw === 'string' ? moveTextRaw.replace(/\{[^}]*\}/g, '') : '';
-                
-                // Matches coordinates that strictly DO NOT EXIST on a standard 8x8 board:
-                // 1. Files i, j, k, l, m, n (e.g., "i4", "Nj11", "Rk8")
-                const has14x14Files = /\b[KQRBN]?[i-n]([1-9]|1[0-4])\b/.test(cleanTextForFFA);
-                // 2. Ranks 9, 10, 11, 12, 13, 14 (e.g., "h10", "Bg10", "f10")
-                const has14x14Ranks = /\b[KQRBN]?[a-n](9|10|11|12|13|14)\b/.test(cleanTextForFFA);
-                // 3. Chess.com Variant specific markers
-                const hasChessComDuck = /&Θ/.test(cleanTextForFFA);
-                const hasSpellDrop = /(freeze|jump)@/.test(cleanTextForFFA);
+                const sampleText = moveTextRaw.slice(0, 2000).replace(/\{[^}]*\}/g, '');
+                const has14x14Files = /\b[KQRBN]?[i-n]([1-9]|1[0-4])\b/.test(sampleText);
+                const has14x14Ranks = /\b[KQRBN]?[a-n](9|10|11|12|13|14)\b/.test(sampleText);
+                const hasChessComDuck = /&Θ/.test(sampleText);
+                const hasSpellDrop = /(freeze|jump)@/.test(sampleText);
                 
                 if (has14x14Files || has14x14Ranks || hasChessComDuck || hasSpellDrop) {
                     isFFA = true;
                 }
             }
 
-            let tokensArray = moveTextRaw.split(/\s+/);
-            let newTokensArray = [];
+            if (isFFA || (this.gameMode !== 'classical' && this.gameMode !== 'chess960')) {
+                let tokensArray = moveTextRaw.split(/\s+/);
+                let newTokensArray = [];
 
-            for (let t of tokensArray) {
-                if (t.includes('.') || t === '..' || t.match(/^(1-0|0-1|1\/2-1\/2|\*)$/)) {
-                    newTokensArray.push(t); 
-                    continue;
+                for (let t of tokensArray) {
+                    if (t.includes('.') || t === '..' || t.match(/^(1-0|0-1|1\/2-1\/2|\*)$/)) {
+                        newTokensArray.push(t); 
+                        continue;
+                    }
+
+                    let moveData = this.#normalizeVariantToken(t, isFFA);
+                    let moveStr = moveData.cleaned;
+
+                    if (moveData.spell) {
+                        const spellPrefix = moveData.spell.type === 'freeze' ? 'Fz' : 'Jp';
+                        moveStr = `${spellPrefix}@${moveData.spell.square}_${moveData.cleaned}`;
+                    } else if (moveData.duck) {
+                        moveStr = `${moveData.cleaned}@${moveData.duck.square}`;
+                    }
+
+                    newTokensArray.push(moveStr);
                 }
-
-                let moveData = this.#normalizeVariantToken(t, isFFA);
-                let moveStr = moveData.cleaned;
-
-                if (moveData.spell) {
-                    const spellPrefix = moveData.spell.type === 'freeze' ? 'Fz' : 'Jp';
-                    moveStr = `${spellPrefix}@${moveData.spell.square}_${moveData.cleaned}`;
-                } else if (moveData.duck) {
-                    moveStr = `${moveData.cleaned}@${moveData.duck.square}`;
-                }
-
-                newTokensArray.push(moveStr);
+                moveTextRaw = newTokensArray.join(' ');
+                moveTextRaw = moveTextRaw.replace(/([A-Za-z]+@[a-h][1-8])\s+([A-Za-z0-9+#=O\-]+)/g, "$1_$2");
             }
-            moveTextRaw = newTokensArray.join(' ');
-            moveTextRaw = moveTextRaw.replace(/([A-Za-z]+@[a-h][1-8])\s+([A-Za-z0-9+#=O\-]+)/g, "$1_$2");
 
             let initialTime = 600;
             this.timeIncrement = 0;
@@ -5177,7 +5205,7 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             let startFen = this.pgnHeaders['FEN'];
             if (!startFen) {
                 startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode]) 
-                    ? VARIANT_STARTING_FENS[this.gameMode] 
+                    ? VARIANT_STARTING_FENS[this.gameMode]  
                     : INITIAL_FEN;
                 if (this.gameMode === 'chess960' && typeof this.generateChess960FEN === 'function') {
                     startFen = this.generateChess960FEN();
@@ -5192,14 +5220,13 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             const wName = (this.pgnHeaders['White'] || "").toLowerCase();
             const bName = (this.pgnHeaders['Black'] || "").toLowerCase();
             const event = (this.pgnHeaders['Event'] || "").toLowerCase();
-            const keywords = ['stockfish', 'torch', 'leela', 'lc0', 'komodo', 'houdini', 'rybka', 'akimbo', 'minic', 'berserk', 'ethereal', 'koivisto', 'seer', 'slowchess', 'computer', 'engine', 'bot', 'ai', 'ccc', 'tcec', 'tcc'];
-            let isEng = keywords.some(k => (wName.includes(k) && bName.includes(k)) || event.includes(k));
+            
+            const ENGINE_TEST = /\b(stockfish|torch|leela|lc0|komodo|houdini|rybka|akimbo|minic|berserk|ethereal|koivisto|seer|slowchess|computer|engine|bot|crafty|hiarcs|shredder|dragon)\b/i;
+            const isWhiteEng = ENGINE_TEST.test(wName);
+            const isBlackEng = ENGINE_TEST.test(bName);
+            const isTournament = /\b(tcec|ccc|computer chess championship)\b/i.test(event);
 
-            if (!isEng) {
-                const pvMatch = moveTextRaw.match(/pv\s*=|pv\s+[a-h][1-8]/i);
-                if (pvMatch) isEng = true;
-            }
-            this.isEngineMatch = isEng;
+            this.isEngineMatch = (isWhiteEng && isBlackEng) || isTournament;
 
             let tokens = [];
             let len = moveTextRaw.length;
@@ -5208,12 +5235,15 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             while (i < len) {
                 code = moveTextRaw.charCodeAt(i);
                 if (code <= 32) { i++; continue; }
-                if (code === 123) { 
-                    start = i; while (i < len && moveTextRaw.charCodeAt(i) !== 125) i++;
-                    tokens.push(moveTextRaw.substring(start, i + 1)); i++; continue;
+                if (code === 123) { // '{'
+                    start = i; 
+                    while (i < len && moveTextRaw.charCodeAt(i) !== 125) i++;
+                    tokens.push(moveTextRaw.substring(start, i + 1)); 
+                    i++; 
+                    continue;
                 }
                 
-                if (code === 36) { 
+                if (code === 36) { // '$'
                     start = i; 
                     while (i < len) {
                         let c = moveTextRaw.charCodeAt(i);
@@ -5224,9 +5254,12 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                     continue;
                 }
                 
-                if (code === 40 || code === 41) { 
-                    tokens.push(moveTextRaw.charAt(i)); i++; continue;
+                if (code === 40 || code === 41) { // '(' or ')'
+                    tokens.push(moveTextRaw.charAt(i)); 
+                    i++; 
+                    continue;
                 }
+                
                 start = i;
                 while (i < len) {
                     let c = moveTextRaw.charCodeAt(i);
@@ -5246,7 +5279,7 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                         let dotIndex = word.indexOf('.');
                         if (dotIndex !== -1 && dotIndex < word.length - 1) {
                             tokens.push(word.substring(0, dotIndex + 1));
-                            tokens.push(word.substring(dotIndex + 1));
+                            if (word.substring(dotIndex + 1)) tokens.push(word.substring(dotIndex + 1));
                         } else tokens.push(word);
                     }
                 } else i++;
@@ -5254,7 +5287,6 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
 
             const originalMakeMove = this.makeMove.bind(this);
             this.makeMove = (move, promo, batchMode, pgnText, muteEngine, isAutoReply) => {
-                
                 if (typeof move === 'string') {
                     move = move.replace(/([A-Za-z]+@[a-h][1-8])_([A-Za-z0-9+#=O\-]+)/, "$1 $2");
                 }
@@ -5270,18 +5302,17 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 return result; 
             };
 
-            // Run the heavy parser
             if (typeof this.#parsePGNTokens === 'function') this.#parsePGNTokens(tokens, 0);
 
             this.makeMove = originalMakeMove;
             
         } catch (e) {
-            backups.console.error("PGN Parsing Error:", e);
-        }
-        finally {
+            console.error("PGN Parsing Error:", e);
+        } finally {
             this.isLoadingPGN = false;
+            this.#rebuildNodeMap(this.rootNode);
             this.clearPremoves();
-            this.premoveQueue = []; 
+            this.premoveQueue = [];  
             
             if (!isInternalLoad) {
                 if (this.mode !== 'study' && this.mode !== 'puzzle') {
@@ -5290,8 +5321,9 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                     
                     if (this.#ui && typeof this.#ui.switchTab === 'function') {
                         this.#ui.switchTab('analysis');
+                    } else if (typeof this.#saveState === 'function') {
+                        this.#saveState('analysis');
                     }
-                    else if (typeof this.#saveState === 'function') this.#saveState('analysis');
                 }
             }
             
@@ -5303,20 +5335,24 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             Object.keys(backups.console).forEach(m => console[m] = backups.console[m]);
             Object.keys(backups.game).forEach(m => this[m] = backups.game[m]);
 
-            if (typeof this.syncMoveHistory === 'function') {this.syncMoveHistory();} 
-            else if (typeof this.#syncMoveHistory === 'function') {this.#syncMoveHistory();}
+            if (typeof this.syncMoveHistory === 'function') this.syncMoveHistory(); 
+            else if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
+
             if (this.#ui) {
                 Object.keys(backups.ui).forEach(m => this.#ui[m] = backups.ui[m]);
                 try {
                     if (this.currentNode) {
-                        if (typeof this.reconcileBoardIds === 'function') this.reconcileBoardIds(this.currentNode.fen, this.currentNode.lastMove);
-                        else this.#reconcileBoardIds(this.currentNode.fen, this.currentNode.lastMove);
+                        this.currentNode = this.rootNode;
+                        this.#engine.load(this.rootNode.fen);
+                        this.turn = this.#engine.turn();
+                        if (typeof this.reconcileBoardIds === 'function') this.reconcileBoardIds(this.rootNode.fen, null);
+                        else this.#reconcileBoardIds(this.rootNode.fen, null);
                         
-                        if (this.currentNode.clock) {
-                            this.whiteTime = this.currentNode.clock.w;
-                            this.blackTime = this.currentNode.clock.b;
-                            this.currentWTime = this.currentNode.clock.w;
-                            this.currentBTime = this.currentNode.clock.b;
+                        if (this.rootNode.clock) {
+                            this.whiteTime = this.rootNode.clock.w;
+                            this.blackTime = this.rootNode.clock.b;
+                            this.currentWTime = this.rootNode.clock.w;
+                            this.currentBTime = this.rootNode.clock.b;
                         }
                         
                         if (this.#ui.moveListContainer) this.#ui.moveListContainer.innerHTML = '';
@@ -5352,17 +5388,14 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                         if (!this.#ui.playerInfo['b'].country && this.pgnHeaders['BlackCountry']) {
                             fetchMissingFlag(this.pgnHeaders['Black'], 'b');
                         }
+                        
                         this.#ui.updateHistory(true);
-                        this.currentNode = this.rootNode;
-                        
-                        this.loadFEN(this.rootNode.fen);
-                        
-                        this.#ui.updateHistory();
-                        this.#ui.renderBoard(true);
+                        this.#ui.renderBoard(false);
                         this.#ui.renderArrows();
                         this.#ui.renderHeaders();
                         this.#emit('boardUpdated', { animate: false, skipEngine: true });
-                        requestAnimationFrame(() => {this.#ui.renderCharts();});
+                        
+                        requestAnimationFrame(() => { this.#ui.renderCharts(); });
                         requestAnimationFrame(() => {
                             requestAnimationFrame(() => {
                                 const graphTab = document.getElementById('tabContent-Graph');
@@ -5379,6 +5412,7 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             }
             console.timeEnd(timerId);
         }
+        return true;
     }
 getNagInfo(nag) {
         if (!nag) return null;
@@ -5706,7 +5740,6 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             if (!result) return null;
             
             const newFen = this.#engine.fen();
-            if (typeof this.#reconcileBoardIds === 'function') this.#reconcileBoardIds(newFen, move);
             
             let finalSan = pgnText || result.san;
 
@@ -6998,7 +7031,6 @@ loadChapter(index, skipSave = false, force = false) {
         }
         
         this.activeChapterIndex = index;
-        
         if (typeof localStorage !== 'undefined') {
             localStorage.setItem('chess_active_chapter_idx', index);
         }
@@ -7006,30 +7038,50 @@ loadChapter(index, skipSave = false, force = false) {
         this.mode = wasTrainer ? 'trainer' : 'study';
         this.gameOver = true;
         
-        let pgn = this.chapters[index].pgn;
+        const currentChapter = this.chapters[index];
+        let pgn = currentChapter.pgn;
         if (!pgn || pgn.trim() === '') pgn = '[FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]\n\n*';
         
         this.loadPGN(pgn, false, true); 
+
+        if (!this.pgnHeaders['Event']) this.pgnHeaders['Event'] = `${this.studyTitle} - ${currentChapter.title}`;
+        if (!this.pgnHeaders['ChapterName']) this.pgnHeaders['ChapterName'] = currentChapter.title;
+
         if (typeof this.#saveState === 'function') {
             this.#saveState(this.mode);
         }
         
         if (this.#ui) {
+            const variantSelect = document.getElementById('analysisVariantSelect');
+            if (variantSelect) variantSelect.value = this.gameMode;
+
+            const studyTitleEl = document.getElementById('studyTitleDisplay');
+            if (studyTitleEl) studyTitleEl.innerText = `${this.studyTitle} • ${currentChapter.title}`;
+
             if (this.mode === 'trainer') {
                 const colorSel = document.getElementById('trainerColorSelect');
                 const wantFlipped = colorSel ? (colorSel.value === 'b') : false;
                 if (this.#ui.flipped !== wantFlipped) this.#ui.flipBoard();
             } else {
-                const orient = this.chapters[index].orientation || 'w';
+                const orient = currentChapter.orientation || 'w';
                 if ((orient === 'w' && this.#ui.flipped) || (orient === 'b' && !this.#ui.flipped)) {
                     this.#ui.flipBoard();
                 }
             }
 
+            const wLabel = (this.pgnHeaders['White'] || 'White') + (this.pgnHeaders['WhiteElo'] ? ` (${this.pgnHeaders['WhiteElo']})` : '');
+            const bLabel = (this.pgnHeaders['Black'] || 'Black') + (this.pgnHeaders['BlackElo'] ? ` (${this.pgnHeaders['BlackElo']})` : '');
+            
+            this.#ui.updatePgnAvatars(this.pgnHeaders['White'], this.pgnHeaders['Black'], this.isEngineMatch, true);
+            if (this.#ui.flipped) this.#ui.updatePlayerNames(wLabel, bLabel);
+            else this.#ui.updatePlayerNames(bLabel, wLabel);
+
+            this.#ui.displayMetadata(this.pgnHeaders);
+            this.#ui.renderHeaders();
             if (typeof this.#ui.renderChapters === 'function') this.#ui.renderChapters();
 
             if (typeof this.#ui.toggleHideNextMoves === 'function') {
-                const shouldHide = (this.chapters[index].analysisMode === 'hidden');
+                const shouldHide = (currentChapter.analysisMode === 'hidden');
                 this.#ui.toggleHideNextMoves(shouldHide);
             }
         }

@@ -26,7 +26,7 @@ export class UI {
     #callbacks;
 constructor() {
         this.#game = null;
-        this.#callbacks = {}; // Initialize event emitter
+        this.#callbacks = {}; 
 
         this.boardEl = document.getElementById('chessBoard');
         this.boardWrapper = document.getElementById('board-wrapper');
@@ -59,38 +59,15 @@ constructor() {
 
         this.boardWrapper?.addEventListener('contextmenu', e => e.preventDefault());
         this.isPeeking = false;
-        this.DEFAULT_SETTINGS_OPEN = true;
+        this.DEFAULT_SETTINGS_OPEN = false;
         this.errorNavState = {};
         this.isAnalysisHidden = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_hide_analysis') : 'false') === 'true';
-        setTimeout(() => {
-            if (typeof this.resizeApp === 'function') this.resizeApp();
-
-            if (this.#game && typeof this.#game.restoreAnalysisState === 'function') {
-                const hasSavedGame = this.#game.restoreAnalysisState();
-                if (hasSavedGame) {
-                    this.renderBoard(false);
-                    this.updateHistory();
-                    this.renderArrows();
-                    if (typeof this.updateClocks === 'function') this.updateClocks();
-                }
-            }
-        }, 50);
+        
         setTimeout(() => {
             this.injectVariantRuleButtons();
         }, 1000);
     }
-on(eventName, callback) {
-        this.#callbacks[eventName] = callback;
-    }
-#emit(eventName, data) {
-        if (this.#callbacks[eventName]) {
-            this.#callbacks[eventName](data);
-        }
-    }
-setGame(gameInstance) {
-        this.#game = gameInstance;
-    }
-init() {
+    init() {
         this.populatePieceSets();
         this.loadUISettings(); 
         this.#bindDOMEvents(); 
@@ -99,12 +76,22 @@ init() {
         this.initEditorBars();
         this.initSoundSettings();
         this.initVolume();
+        
+        const savedBoardSize = (typeof localStorage !== 'undefined' && localStorage.getItem('chessBoardSize'))
+            ? parseInt(localStorage.getItem('chessBoardSize'), 10)
+            : 600;
+
+        this.boardWrapper = document.getElementById('board-wrapper');
+        if (this.boardWrapper) {
+            this.boardWrapper.style.width = `${savedBoardSize}px`;
+            this.boardWrapper.style.minWidth = `${savedBoardSize}px`;
+            this.boardWrapper.style.maxWidth = `${savedBoardSize}px`;
+        }
+
         this.initResizer();
         this.initSidebarResizers();
         this.initThemeButtons();
         this.startClockRenderLoop();
-        this.boardWrapper = document.getElementById('board-wrapper');
-        if (this.boardWrapper) this.boardWrapper.style.width = '632px';
         
         const animCheckbox = document.getElementById('enableAnimations');
         this.animationsEnabled = animCheckbox ? animCheckbox.checked : true;
@@ -131,20 +118,27 @@ init() {
         if (drawBtn) drawBtn.style.display = 'none';
         
         requestAnimationFrame(() => {
-            if (typeof this.resizeApp === 'function') this.resizeApp();
-            
             let lastTab = 'play';
             if (typeof localStorage !== 'undefined') {
                 lastTab = localStorage.getItem('chess_last_tab') || 'play';
             }
             this.switchTab(lastTab);
-
-            if (this.#game) {
-                this.updateHistory(true); 
-                this.renderArrows();
-                if (typeof this.updateClocks === 'function') this.updateClocks();
+            
+            if (typeof this.resizeApp === 'function') {
+                setTimeout(() => this.resizeApp(), 50);
             }
         });
+    }
+on(eventName, callback) {
+        this.#callbacks[eventName] = callback;
+    }
+#emit(eventName, data) {
+        if (this.#callbacks[eventName]) {
+            this.#callbacks[eventName](data);
+        }
+    }
+setGame(gameInstance) {
+        this.#game = gameInstance;
     }
 #bindDOMEvents() {
         const settingIds = ['premoveMode', 'moveMethod', 'pgnStyle', 'pgnFormatSelect', 'assetType', 'assetExt', 'soundSetSelect', 'coordPosition', 'autoQueen', 'pgnIgnoreMove', 'enableAnimations', 'engineDepth', 'wTimeH', 'wTimeM', 'wTimeS', 'wInc', 'bTimeH', 'bTimeM', 'bTimeS', 'bInc', 'assetEngineFolder'];
@@ -444,6 +438,11 @@ init() {
         if (resignBtn) resignBtn.style.display = (isLive && stateMode === 'play') ? 'block' : 'none';
         if (drawBtn) drawBtn.style.display = (isLive && stateMode === 'play') ? 'block' : 'none';
 
+        const toggleLeftBtn = document.getElementById('toggleLeftPanelBtn');
+        if (toggleLeftBtn) {
+            toggleLeftBtn.style.display = (stateMode === 'analysis') ? 'flex' : 'none';
+        }
+
         document.querySelectorAll('.puzzle-hint-pulse, .hint-dot, .hint-circle').forEach(el => el.remove());
         document.querySelectorAll('.square, .piece-img').forEach(el => {
             el.classList.remove('selected', 'highlight', 'active', 'valid-move', 'selected-w', 'selected-b', 'border-w', 'border-b', 'last-move', 'highlight-w', 'highlight-b');
@@ -458,15 +457,16 @@ init() {
         const analysisPanel = document.getElementById('analysisPanel');
         const studySidebar = document.getElementById('study-sidebar');
         const mainContainer = document.querySelector('.main-container');
+        const boardSection = document.querySelector('.board-section');
+        const mainSidebar = document.getElementById('mainSidebar');
+        const pocketContainer = document.getElementById('pocket-container');
 
         if (stateMode === 'analysis') {
             if (analysisPanel) analysisPanel.style.display = 'flex';
             if (studySidebar) studySidebar.style.display = 'none';
             if (mainContainer) mainContainer.style.justifyContent = 'flex-start';
             const variantSelect = document.getElementById('analysisVariantSelect');
-            if (variantSelect && this.#game && this.#game.gameMode) {
-                variantSelect.value = this.#game.gameMode;
-            }
+            if (variantSelect && this.#game && this.#game.gameMode) variantSelect.value = this.#game.gameMode;
         } else if (stateMode === 'study') {
             if (analysisPanel) analysisPanel.style.display = 'none';
             if (studySidebar) studySidebar.style.display = 'flex';
@@ -495,35 +495,86 @@ init() {
         if (activeBtn) {
             activeBtn.classList.add('active'); activeBtn.style.background = '#2872b5'; activeBtn.style.color = '#fff';
         }
+        if (!this.graphNodeStyle && typeof localStorage !== 'undefined') {
+            this.graphNodeStyle = localStorage.getItem('chess_graph_node_style') || 'tiny';
+        }
+        const isTiny = (this.graphNodeStyle === 'tiny');
+        const modeSelect = document.getElementById('graphModeSelect') || document.querySelector('select[name="graphMode"]');
+        const modeGroup = modeSelect?.closest('.control-group') || modeSelect?.parentElement;
 
-        const boardSection = document.querySelector('.board-section');
-        const mainSidebar = document.getElementById('mainSidebar');
-        const pocketContainer = document.getElementById('pocket-container');
+        if (modeGroup) {
+            modeGroup.style.display = isTiny ? 'none' : 'flex';
+        }
+        if (isTiny && modeSelect) {
+            modeSelect.value = 'full';
+            this.graphMode = 'full';
+        }
         
+        const pgnWidth = (typeof localStorage !== 'undefined' ? localStorage.getItem('sidebarWidth_pgn') : null) || '520px';
+        const graphWidth = (typeof localStorage !== 'undefined' ? localStorage.getItem('sidebarWidth_graph') : null) || '800px';
+
+        if (mainSidebar) {
+            if (lowerTab === 'graph' && isTiny) {
+                mainSidebar.style.width = graphWidth;
+                mainSidebar.style.minWidth = graphWidth;
+                mainSidebar.style.maxWidth = graphWidth;
+            } else {
+                mainSidebar.style.width = pgnWidth;
+                mainSidebar.style.minWidth = pgnWidth;
+                mainSidebar.style.maxWidth = pgnWidth;
+            }
+        }
+
         if (lowerTab === 'graph') {
-            if (boardSection) boardSection.style.display = 'none';
-            if (mainSidebar) mainSidebar.style.display = 'none';
-            if (studySidebar) studySidebar.style.display = 'none';
-            if (pocketContainer) pocketContainer.style.display = 'none';
-            
-            if (targetTab) {
-                if (targetTab.parentElement !== document.body) {
-                    document.body.appendChild(targetTab); 
+            if (isTiny) {
+                if (boardSection) boardSection.style.display = '';
+                if (mainSidebar) mainSidebar.style.display = 'flex';
+                if (studySidebar) studySidebar.style.display = 'none';
+                if (pocketContainer) pocketContainer.style.display = 'none';
+                
+                if (targetTab) {
+                    if (targetTab.parentElement !== mainSidebar && mainSidebar) mainSidebar.appendChild(targetTab); 
+                    
+                    targetTab.style.display = 'flex';
+                    targetTab.style.flexDirection = 'column';
+                    targetTab.style.position = 'relative';
+                    targetTab.style.width = '100%';
+                    targetTab.style.height = '100%';
+                    targetTab.style.flex = '1 1 0%';
+                    targetTab.style.top = 'auto';
+                    targetTab.style.left = 'auto';
+                    targetTab.style.zIndex = '1';
+                    targetTab.style.background = 'transparent';
+                    targetTab.style.overflow = 'hidden';
+                    targetTab.style.boxSizing = 'border-box';
                 }
-                targetTab.style.display = 'block';
-                targetTab.style.position = 'fixed';
-                targetTab.style.width = '100vw';
-                targetTab.style.height = '100vh';
-                targetTab.style.top = '0';
-                targetTab.style.left = '0';
-                targetTab.style.zIndex = '50';
-                targetTab.style.background = 'radial-gradient(circle at center, #1e293b 0%, #0f172a 100%)';
+            } else {
+                if (boardSection) boardSection.style.display = 'none';
+                if (mainSidebar) mainSidebar.style.display = 'none';
+                if (studySidebar) studySidebar.style.display = 'none';
+                if (pocketContainer) pocketContainer.style.display = 'none';
+                
+                if (targetTab) {
+                    if (targetTab.parentElement !== document.body) document.body.appendChild(targetTab); 
+                    
+                    targetTab.style.display = 'block';
+                    targetTab.style.position = '';
+                    targetTab.style.width = '';
+                    targetTab.style.height = '';
+                    targetTab.style.flex = '';
+                    targetTab.style.top = '';
+                    targetTab.style.left = '';
+                    targetTab.style.zIndex = '';
+                    targetTab.style.background = '';
+                }
             }
         } else {
             if (boardSection) boardSection.style.display = '';
-            if (mainSidebar) mainSidebar.style.display = '';
+            if (mainSidebar) mainSidebar.style.display = 'flex';
             const graphTab = document.getElementById('tabContent-Graph');
-            if (graphTab) graphTab.style.display = 'none';
+            if (graphTab) {
+                graphTab.style.display = 'none';
+            }
         }
 
         if (stateMode === 'editor') {
@@ -540,11 +591,11 @@ init() {
         const isEditor = (stateMode === 'editor');
         const isPuzzle = (stateMode === 'puzzle' || stateMode === 'puzzles');
         const isTrainer = (stateMode === 'trainer' || lowerTab === 'trainer');
-        const isGraph = (lowerTab === 'graph');
+        const isFullscreenGraph = (lowerTab === 'graph' && !isTiny); 
 
-        document.querySelectorAll('.player-header').forEach(el => el.style.display = (isEditor || isPuzzle || isTrainer || isGraph) ? 'none' : '');
+        document.querySelectorAll('.player-header').forEach(el => el.style.display = (isEditor || isPuzzle || isTrainer || isFullscreenGraph) ? 'none' : '');
         const commentaryBox = document.getElementById('commentaryBox');
-        if (commentaryBox) commentaryBox.style.display = (isEditor || isPuzzle || isTrainer || isGraph) ? 'none' : '';
+        if (commentaryBox) commentaryBox.style.display = (isEditor || isPuzzle || isTrainer || isFullscreenGraph) ? 'none' : '';
         
         if (isPuzzle && this.#game && this.#game.currentPuzzle) {
             if (typeof this.updatePuzzleUI === 'function') this.updatePuzzleUI("active", this.#game.currentPuzzle);
@@ -553,7 +604,7 @@ init() {
 
         const engineBtn = document.querySelector('.engine-toggle-btn');
         if (engineBtn) {
-            engineBtn.style.display = (isEditor || isTrainer || isGraph) ? 'none' : '';
+            engineBtn.style.display = (isEditor || isTrainer || isFullscreenGraph) ? 'none' : '';
             let isUnfinishedPuzzle = false;
             if (isPuzzle && this.#game && !this.#game.gameOver && !this.#game.puzzleSolved) isUnfinishedPuzzle = true;
             if (isUnfinishedPuzzle) { engineBtn.style.opacity = '0.5'; engineBtn.style.cursor = 'not-allowed'; } 
@@ -561,7 +612,41 @@ init() {
         }
         
         const enginePanel = document.getElementById('enginePanel');
-        if (enginePanel) enginePanel.style.display = (isEditor || isTrainer || isGraph) ? 'none' : '';
+        if (enginePanel) enginePanel.style.display = (isEditor || isTrainer || isFullscreenGraph) ? 'none' : '';
+    }
+renderArrows() {
+        if (!this.arrowLayer) return;
+        this.arrowLayer.innerHTML = '';
+        const state = this.#game ? this.#game.getReader() : null;
+        if (!state) return;
+
+        let arrowsToDraw = [...(state.arrows || [])];
+        let circlesToDraw = [...(state.circles || [])];
+        if (this.dragData && this.dragData.type === 'arrow') arrowsToDraw.push({ from: this.dragData.from, to: this.dragData.to, color: this.dragData.color });
+        
+        if (this.#game.mode === 'graph' && this.#game.currentNode && this.#game.currentNode.children) {
+            this.#game.currentNode.children.forEach(child => {
+                if (child.lastMove && child.lastMove.from !== '@' && child.lastMove.from !== -1 && child.lastMove.to !== -1) {
+                    arrowsToDraw.push({ from: child.lastMove.from, to: child.lastMove.to, color: 'theme' });
+                }
+            });
+        }
+
+        const getSqIdx = (val) => {
+            if (typeof val === 'number') return val;
+            if (typeof val === 'string' && val.length === 2) { let f = val.charCodeAt(0) - 97; let r = 8 - parseInt(val[1], 10); return r * 8 + f; }
+            return -1;
+        };
+
+        circlesToDraw.forEach(circle => {
+            let sqIdx = getSqIdx(circle.index !== undefined ? circle.index : (circle.sq !== undefined ? circle.sq : circle.square));
+            if (sqIdx >= 0 && sqIdx <= 63) this.drawCircle(this.arrowLayer, sqIdx, circle.color);
+        });
+
+        arrowsToDraw.forEach(arrow => {
+            let fromIdx = getSqIdx(arrow.from); let toIdx = getSqIdx(arrow.to);
+            if (fromIdx >= 0 && fromIdx <= 63 && toIdx >= 0 && toIdx <= 63) this.drawArrow(this.arrowLayer, fromIdx, toIdx, arrow.color, 0.6);
+        });
     }
 showVariantRules(variantMode) {
         const mode = variantMode || (this.#game ? this.#game.gameMode : 'classical');
@@ -774,19 +859,27 @@ switchTab(tabName) {
 
         // B. Capture the exact state BEFORE modifying variables to prevent PGN theft
         const leavingGraph = (this.#game && this.#game.mode === 'graph' && lowerTab !== 'graph');
-        const graphSourceBeforeLeaving = this._previousTabBeforeGraph || 'study';
+        let graphSourceBeforeLeaving = this._previousTabBeforeGraph || 'study';
+        if (graphSourceBeforeLeaving !== 'study' && graphSourceBeforeLeaving !== 'analysis') {
+            graphSourceBeforeLeaving = 'study';
+        }
 
         // C. Track previous tab for Graph contextual return
         if (lowerTab !== 'graph') {
-            this._previousTabBeforeGraph = lowerTab;
-            if (typeof localStorage !== 'undefined') localStorage.setItem('chess_graph_source', lowerTab);
+            if (lowerTab === 'study' || lowerTab === 'analysis' || lowerTab === 'trainer') {
+                const safeSource = lowerTab === 'trainer' ? 'study' : lowerTab;
+                this._previousTabBeforeGraph = safeSource;
+                if (typeof localStorage !== 'undefined') localStorage.setItem('chess_graph_source', safeSource);
+            }
             
             if (!this._tabFlipStates) this._tabFlipStates = { play: false, analysis: false, study: false, editor: false, puzzle: false, trainer: false };
             const currentTabContext = (this.#game && (this.#game.mode === 'local' || this.#game.mode === 'bot' || this.#game.mode === 'play')) ? 'play' : (this.#game ? this.#game.mode : 'analysis');
             this._tabFlipStates[currentTabContext] = this.flipped;
         } else {
             if (!this._previousTabBeforeGraph) {
-                this._previousTabBeforeGraph = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_graph_source') : null) || 'study';
+                let savedSource = typeof localStorage !== 'undefined' ? localStorage.getItem('chess_graph_source') : null;
+                if (savedSource !== 'study' && savedSource !== 'analysis') savedSource = 'study';
+                this._previousTabBeforeGraph = savedSource;
             }
         }
 
@@ -805,35 +898,48 @@ switchTab(tabName) {
             }
 
             if (leavingGraph) {
-                if (graphSourceBeforeLeaving === 'analysis' && typeof this.#game.saveState === 'function') {
-                    this.#game.saveState('analysis');
-                } else if ((graphSourceBeforeLeaving === 'study' || graphSourceBeforeLeaving === 'trainer') && typeof this.#game.saveActiveChapter === 'function') {
-                    this.#game.saveActiveChapter();
-                }
+                this.cleanupGraph();
+                const actualSource = this._lastGraphSource || graphSourceBeforeLeaving;
+                    if (actualSource === 'analysis' && this.#game.mode === 'analysis') {
+                        if (typeof this.#game.saveState === 'function') this.#game.saveState('analysis');
+                    } else if ((actualSource === 'study' || actualSource === 'trainer') && typeof this.#game.saveActiveChapter === 'function') {
+                        this.#game.saveActiveChapter();
+                    }
             }
 
             if (lowerTab === 'graph') {
                 const source = this._previousTabBeforeGraph || 'study';
-                const currentFlip = this.flipped; // Activate Flip Shield
+                const currentTabContext = (this.#game.mode === 'local' || this.#game.mode === 'bot' || this.#game.mode === 'play') ? 'play' : (this.#game.mode || 'analysis');
+                const currentFlip = this.flipped; 
 
-                // Load correct PGN into the engine
-                if (source === 'study' || source === 'trainer') {
-                    let savedChap = parseInt(localStorage.getItem('chess_active_chapter_idx'), 10);
-                    if (isNaN(savedChap)) savedChap = this.#game.activeChapterIndex || 0;
-                    if (typeof this.#game.loadChapter === 'function') this.#game.loadChapter(savedChap, true, true);
-                } else {
-                    if (typeof this.#game.restoreState === 'function') this.#game.restoreState(source);
+                if (currentTabContext !== source && currentTabContext !== 'graph') {
+                    if (source === 'study' || source === 'trainer') {
+                        let savedChap = parseInt(localStorage.getItem('chess_active_chapter_idx'), 10);
+                        if (isNaN(savedChap)) savedChap = this.#game.activeChapterIndex || 0;
+                        if (typeof this.#game.loadChapter === 'function') this.#game.loadChapter(savedChap, true, true);
+                    } else {
+                        if (typeof this.#game.restoreState === 'function') this.#game.restoreState(source);
+                    }
+                } else if (currentTabContext === 'graph' && this._lastGraphSource !== source) {
+                    if (source === 'study' || source === 'trainer') {
+                        let savedChap = parseInt(localStorage.getItem('chess_active_chapter_idx'), 10);
+                        if (isNaN(savedChap)) savedChap = this.#game.activeChapterIndex || 0;
+                        if (typeof this.#game.loadChapter === 'function') this.#game.loadChapter(savedChap, true, true);
+                    } else {
+                        if (typeof this.#game.restoreState === 'function') this.#game.restoreState(source);
+                    }
                 }
+                
+                this._lastGraphSource = source;
 
-                // Restore flip state if loadChapter tampered with it
                 if (this.flipped !== currentFlip) {
                     this.flipped = currentFlip;
                     if (typeof localStorage !== 'undefined') localStorage.setItem('chess_graph_flip', currentFlip ? 'b' : 'w');
                 }
 
-                // Lock mode to graph
                 this.#game.mode = 'graph';
             } else {
+                this._lastGraphSource = null;
                 if (typeof this.#game.handleTabSwitch === 'function') this.#game.handleTabSwitch(lowerTab);
                 else if (typeof this.#game.switchMode === 'function') this.#game.switchMode(lowerTab);
             }
@@ -857,6 +963,18 @@ switchTab(tabName) {
         const state = this.#game ? this.#game.getReader() : { mode: lowerTab, isLive: false };
         this.#applyTabVisuals(state.mode, lowerTab);
 
+        const variantSelect = document.getElementById('analysisVariantSelect');
+        if (variantSelect && this.#game && this.#game.gameMode) {
+            variantSelect.value = this.#game.gameMode;
+        }
+
+        if (lowerTab === 'study' && this.#game && this.#game.chapters && this.#game.chapters[this.#game.activeChapterIndex]) {
+            const studyTitleEl = document.getElementById('studyTitleDisplay');
+            if (studyTitleEl) {
+                studyTitleEl.innerText = `${this.#game.studyTitle} • ${this.#game.chapters[this.#game.activeChapterIndex].title}`;
+            }
+        }
+        
         if (state.headers) {
             this.displayMetadata(state.headers);
             const wLabel = (state.headers['White'] || 'White') + (state.headers['WhiteElo'] ? ` (${state.headers['WhiteElo']})` : '');
@@ -1185,13 +1303,13 @@ resizeApp() {
             console.warn("Caught early read error in resizeApp:", err);
         }
 
-        if (isWideMode) {
-            if (mainLayout) mainLayout.style.justifyContent = 'flex-start';
-            if (mainContainer) mainContainer.style.justifyContent = 'flex-start';
-        } else {
-            if (mainLayout) mainLayout.style.justifyContent = 'center';
-            if (mainContainer) mainContainer.style.justifyContent = 'center';
+        const centerRight = document.querySelector('.center-right-wrapper') || mainContainer;
+        if (centerRight) centerRight.style.alignItems = 'flex-start';
+        if (mainContainer) {
+            mainContainer.style.alignItems = 'flex-start';
+            mainContainer.style.justifyContent = isWideMode ? 'flex-start' : 'center';
         }
+        if (mainLayout) mainLayout.style.justifyContent = isWideMode ? 'flex-start' : 'center';
 
         const boardRow = document.querySelector('.board-row');
         const enginePanel = document.getElementById('enginePanel');
@@ -1199,50 +1317,53 @@ resizeApp() {
         
         if (isPocketMode) {
             if (pocketContainer) pocketContainer.style.display = 'flex';
-            if (boardRow) boardRow.style.cssText = 'display: flex; flex-shrink: 0; gap: 0px;';
-            if (mainSidebar) mainSidebar.style.setProperty('margin-left', '60px', 'important');
-            if (boardContainerRow) boardContainerRow.style.setProperty('gap', '80px', 'important');
+            if (boardRow) boardRow.style.cssText = 'display: flex; flex-shrink: 0; gap: 40px;';
+            if (mainSidebar) mainSidebar.style.marginLeft = '60px';
+            if (boardContainerRow) boardContainerRow.style.gap = '80px';
         } else {
             if (pocketContainer) pocketContainer.style.display = 'none';
-            if (boardRow) boardRow.style.cssText = 'display: flex; flex-shrink: 0; gap: 40px;';
-            if (enginePanel) enginePanel.style.setProperty('margin-left', '0px', 'important');
-            if (mainSidebar) mainSidebar.style.setProperty('margin-left', '20px', 'important');
-            if (boardContainerRow) boardContainerRow.style.setProperty('gap', '8px', 'important');
+            if (boardRow) boardRow.style.cssText = 'display: flex; flex-shrink: 0;';
+            if (enginePanel) enginePanel.style.marginLeft = '0px';
+            if (mainSidebar) mainSidebar.style.marginLeft = '20px';
+            if (boardContainerRow) boardContainerRow.style.gap = '8px';
         }
 
-        [mainSidebar, studySidebar, analysisPanel].forEach(el => {
-            if (el) {
-                el.style.height = '0px';
-                el.style.minHeight = '0px';
-                el.style.maxHeight = '0px';
-                el.style.overflow = 'hidden'; 
-            }
-        });
         if (bottomPanel) bottomPanel.style.display = 'none';
 
         if (boardSection) {
             boardSection.style.marginTop = '0px';
             boardSection.style.marginBottom = '0px';
-            boardSection.style.marginLeft = '400px';
+            boardSection.style.marginLeft = isDuckMode ? '40px' : '0px';
+            boardSection.style.alignSelf = 'flex-start';
         }
 
-        void document.body.offsetHeight;
-
-        const boardSecHeight = boardSection ? boardSection.offsetHeight : 600;
-        const safeSidebarHeight = Math.max(300, boardSecHeight); 
+        const boardSecHeight = boardSection ? Math.round(boardSection.offsetHeight) : 700;
+        const safeSidebarHeight = Math.max(550, boardSecHeight); 
         let targetHeight = safeSidebarHeight + 50; 
+
+        const isGraphActive = document.getElementById('tabContent-Graph')?.classList.contains('active');
+        const nodeStyle = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_graph_node_style') : 'tiny') || 'tiny';
+        this.graphNodeStyle = nodeStyle;
+        const isTinyGraph = (nodeStyle === 'tiny');
 
         [mainSidebar, studySidebar, analysisPanel].forEach(el => {
             if (el) {
-                el.style.height = safeSidebarHeight + 'px';
-                el.style.maxHeight = safeSidebarHeight + 'px';
-                el.style.minHeight = '0px';
+                let h = (el.id === 'mainSidebar' && isGraphActive && isTinyGraph) ? boardSecHeight : safeSidebarHeight;
+
+                el.style.marginTop = '0px';
+                el.style.height = h + 'px';
+                el.style.minHeight = h + 'px';
+                el.style.maxHeight = h + 'px';
+                el.style.boxSizing = 'border-box';
+                el.style.alignSelf = 'flex-start';
                 
-                if (el.id === 'analysisPanel' || el.id === 'study-sidebar') {
+                if (el.id === 'mainSidebar' && isGraphActive) {
+                    el.style.overflow = 'hidden';
+                } else if (el.id === 'analysisPanel' || el.id === 'study-sidebar' || el.id === 'mainSidebar') {
                     el.style.overflowY = 'auto';
                     el.style.overflowX = 'hidden';
                 } else {
-                    el.style.overflow = '';
+                    el.style.overflow = 'hidden';
                 }
                 
                 if (el.id === 'analysisPanel') {
@@ -1250,29 +1371,51 @@ resizeApp() {
                 } else if (el.id === 'study-sidebar') {
                     el.style.display = isStudy ? 'flex' : 'none';
                 } else {
-                    el.style.display = 'flex';
+                    const isFullscreenGraph = isGraphActive && !isTinyGraph;
+                    el.style.display = isFullscreenGraph ? 'none' : 'flex';
                 }
                 
                 el.style.flexDirection = 'column';
             }
         });
 
-        document.querySelectorAll('.tabs-content, .tab-pane').forEach(el => {
+        document.querySelectorAll('.tab-content').forEach(el => {
             if (el) {
-                el.style.display = 'flex';
+                el.style.display = el.classList.contains('active') ? 'flex' : 'none';
                 el.style.flexDirection = 'column';
-                el.style.minHeight = '0'; 
+                el.style.flex = '1 1 0%';
+                el.style.minHeight = '0px'; 
+                el.style.boxSizing = 'border-box';
             }
         });
 
-        ['moveHistory', 'studyPgnContainer'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.style.flex = '1 1 0%';
-                el.style.minHeight = '0';
-                el.style.overflowY = 'auto';
+        const moveHist = document.getElementById('moveHistory');
+        if (moveHist) {
+            moveHist.style.flex = '1 1 0%';
+            moveHist.style.minHeight = '150px';
+            moveHist.style.overflowY = 'auto';
+        }
+
+        const evalSizer = document.getElementById('evalSizer');
+        const timeSizer = document.getElementById('timeSizer');
+        if (evalSizer) evalSizer.style.height = '220px';
+        if (timeSizer) timeSizer.style.height = '220px';
+
+        if (isGraphActive && isTinyGraph) {
+            const graphTab = document.getElementById('tabContent-Graph');
+            if (graphTab) {
+                graphTab.style.height = '100%';
+                graphTab.style.minHeight = '100%';
+                graphTab.style.display = 'flex';
+                graphTab.style.flexDirection = 'column';
+                graphTab.style.flex = '1 1 0%';
             }
-        });
+            const treeCont = document.getElementById('treeGraphContainer');
+            if (treeCont) {
+                treeCont.style.height = '100%';
+                treeCont.style.minHeight = '100%';
+            }
+        }
 
         let targetWidth = 0;
         const getW = (el) => {
@@ -1282,17 +1425,11 @@ resizeApp() {
         };
 
         const leftW = isStudy ? getW(studySidebar) : (isAnalysis ? getW(analysisPanel) : 0);
-        const boardW = boardSection ? boardSection.offsetWidth : 650;
+        const boardW = boardSection ? boardSection.offsetWidth : 600;
         const rightW = getW(mainSidebar);
 
         if (leftW > 0) targetWidth += leftW + 40;   
-        
-        if (isDuckMode) {
-            targetWidth += 40;
-            if (boardSection) boardSection.style.marginLeft = '40px';
-        } else {
-            if (boardSection) boardSection.style.marginLeft = '0px';
-        }
+        if (isDuckMode) targetWidth += 40;
 
         let evalW = 0;
         if (enginePanel && enginePanel.style.display !== 'none') {
@@ -1303,7 +1440,6 @@ resizeApp() {
         
         targetWidth += boardW;                      
         if (rightW > 0) targetWidth += rightW + 40; 
-        
         targetWidth += 40; 
         
         scaler.style.width = targetWidth + 'px';
@@ -1312,18 +1448,16 @@ resizeApp() {
         scaler.style.left = '0';
         scaler.style.top = '0';
 
-       if (bottomPanel) {
+        if (bottomPanel) {
             if (bottomPanel.parentNode !== scaler) scaler.appendChild(bottomPanel); 
             
             if (isStudy) { 
                 const lW = getW(studySidebar);
                 const pW = getW(mainSidebar);
-                
                 const safePocketW = isPocketMode ? getW(document.getElementById('pocket-container')) : 0;
                 const safeEvalW = getW(document.getElementById('enginePanel'));
                 
                 let exactWidth = lW + boardW + pW + safePocketW + safeEvalW;
-                
                 if (lW > 0) exactWidth += 40; 
                 if (pW > 0) exactWidth += 40; 
                 if (isPocketMode) exactWidth += 80; 
@@ -1370,21 +1504,13 @@ resizeApp() {
         document.body.style.minHeight = (totalContentHeight + offsetY + 50) + 'px'; 
         document.body.style.overflowY = 'auto';
         document.body.style.overflowX = 'hidden'; 
-    
-        const logicalWidth = availableWidth / scale;
-        const logicalHeight = availableHeight / scale;
-        const logicalLeft = -offsetX / scale;
-        const logicalTop = -offsetY / scale;
-        let totalLogicalHeight = isStudy ? (targetHeight + 500 + 50) : targetHeight;
-        totalLogicalHeight = Math.max(totalLogicalHeight, logicalHeight);
-        let totalLogicalWidth = isStudy ? (targetWidth + 300 + 50) : targetWidth;
-        totalLogicalWidth = Math.max(totalLogicalWidth, logicalWidth);
-        
+
+        // Modals toàn màn hình
         const fullScreenModals = [
             'botMenuModal', 'continueSetupModal', 'gameOverModal', 
             'notificationModal', 'chapterModal', 'quickImportModal', 
             'chapterManagerModal', 'studyManagerModal', 'customConfirmModal', 
-            'crop-modal', 'scannerModal','exportEmbededModal', 'embedImporterModal'
+            'crop-modal', 'scannerModal', 'exportEmbededModal', 'embedImporterModal'
         ];
 
         fullScreenModals.forEach(id => {
@@ -1402,44 +1528,16 @@ resizeApp() {
                 
                 const modalBox = popup.querySelector('.scale-wrapper') || popup.querySelector('.modal-content') || popup.firstElementChild;
                 if (modalBox) {
-                    if (id === 'notificationModal'||id==='gameOverModal') {
-                        modalBox.style.setProperty('width', '280px', 'important');
+                    if (id === 'notificationModal' || id === 'gameOverModal') {
+                        modalBox.style.width = '280px';
                     } else {
-                        modalBox.style.setProperty('width', '480px', 'important');
+                        modalBox.style.width = '480px';
                     }
-                    modalBox.style.setProperty('transform', `scale(${scale})`, 'important');
+                    modalBox.style.transform = `scale(${scale})`;
                     modalBox.style.transformOrigin = 'center center';
                 }
             }
         });
-
-        const sideMenu = document.getElementById('sideMenuPanel');
-        if (sideMenu) {
-            sideMenu.style.position = 'absolute';
-            sideMenu.style.height = (totalLogicalHeight + Math.abs(logicalTop) +100)+ 'px'; 
-            sideMenu.style.top = logicalTop + 'px';
-            sideMenu.style.marginLeft = logicalLeft + 'px'; 
-            sideMenu.style.transform = 'none';
-        }
-        
-        const sideMenuOverlay = document.getElementById('sideMenuOverlay');
-        if (sideMenuOverlay) {
-            sideMenuOverlay.style.position = 'absolute';
-            sideMenuOverlay.style.width = (totalLogicalWidth + Math.abs(logicalLeft)) + 'px';
-            sideMenuOverlay.style.height = (totalLogicalHeight + Math.abs(logicalTop)+100) + 'px';
-            sideMenuOverlay.style.left = logicalLeft + 'px';
-            sideMenuOverlay.style.top = logicalTop + 'px';
-            sideMenuOverlay.style.transform = 'none';
-            sideMenuOverlay.style.zIndex = '999';
-        }
-
-        const menuBtn = document.querySelector('button[onclick*="toggleSideMenu"]');
-        if (menuBtn) {
-            menuBtn.style.position = 'absolute';
-            menuBtn.style.left = (logicalLeft + 15) + 'px';
-            menuBtn.style.top = (logicalTop + 15) + 'px';
-            menuBtn.style.transform = 'none';
-        }
 
         ['settingsPanel', 'annotationPopup', 'previewPopup'].forEach(id => {
             const popup = document.getElementById(id);
@@ -1450,6 +1548,7 @@ resizeApp() {
             }
         });
 
+        // Duck Bank
         let duckBank = document.getElementById('duckBank');
         if (duckBank) {
             duckBank.style.transition = 'all 0.3s ease';
@@ -1608,6 +1707,23 @@ toggleEngine(forceOff = false) {
             if (panel) { panel.classList.remove('visible'); panel.style.display = 'none'; }
             if (stats) { stats.classList.remove('visible'); stats.style.display = 'none'; }
         }
+        requestAnimationFrame(() => {
+            const boardWrapper = document.getElementById('board-wrapper');
+            const boardW = boardWrapper ? boardWrapper.offsetWidth : 600;
+            const engineReservedSpace = window.engineAnalysing ? 32 : 0;
+            const rowW = boardW + engineReservedSpace;
+            ['.board-container-row', '.board-section', '.bottom-bar', '.board-header-container', '#commentaryBox'].forEach(selector => {
+                const el = selector.startsWith('#') ? document.getElementById(selector.substring(1)) : document.querySelector(selector);
+                if (el) {
+                    el.style.width = `${rowW}px`;
+                    if (selector === '.board-container-row' || selector === '.board-section') {
+                        el.style.minWidth = `${rowW}px`;
+                        el.style.maxWidth = `${rowW}px`;
+                    }
+                }
+            });
+            window.dispatchEvent(new Event('resize'));
+        });
 
         if (this.#game && typeof this.#game.updateStockfish === 'function') {
             this.#game.updateStockfish();
@@ -1939,18 +2055,30 @@ toggleReviewButton(show) {
         if (btn) btn.style.display = show ? 'block' : 'none';
         if (results && show) results.style.display = 'none';
     }
+#initSideMenuDOM() {
+        const sideMenu = document.getElementById('sideMenuPanel');
+        const sideMenuOverlay = document.getElementById('sideMenuOverlay');
+        const menuBtn = document.querySelector('button[onclick*="toggleSideMenu"]') || document.getElementById('mainMenuBtn');
+
+        if (sideMenu && sideMenu.parentNode !== document.body) document.body.appendChild(sideMenu);
+        if (sideMenuOverlay && sideMenuOverlay.parentNode !== document.body) document.body.appendChild(sideMenuOverlay);
+        if (menuBtn && menuBtn.parentNode !== document.body) document.body.appendChild(menuBtn);
+    }
 toggleSideMenu(forceOpen = null) {
         const panel = document.getElementById('sideMenuPanel');
         const overlay = document.getElementById('sideMenuOverlay');
         if (!panel || !overlay) return;
         if (typeof forceOpen !== 'boolean') forceOpen = null;
 
+        if (panel.parentNode !== document.body) document.body.appendChild(panel);
+        if (overlay.parentNode !== document.body) document.body.appendChild(overlay);
+
         const isOpen = panel.style.left === '0px';
         const shouldOpen = forceOpen !== null ? forceOpen : !isOpen;
 
         if (shouldOpen) {
             overlay.style.display = 'block';
-            setTimeout(() => { panel.style.left = '0px'; }, 10);
+            requestAnimationFrame(() => { panel.style.left = '0px'; });
         } else {
             panel.style.left = '-360px';
             setTimeout(() => { overlay.style.display = 'none'; }, 300); 
@@ -2039,19 +2167,6 @@ showPuzzleHint() {
             // Fallback auto-remove after 2.4 seconds
             setTimeout(() => { clearHint(); }, 2400);
         }
-    }
-getSquareFromCoords(x, y) {
-        const rect = this.squaresLayer.getBoundingClientRect();
-        if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return -1;
-        
-        const size = rect.width / 8;
-        let c = Math.floor((x - rect.left) / size);
-        let r = Math.floor((y - rect.top) / size);
-        c = Math.max(0, Math.min(7, c));
-        r = Math.max(0, Math.min(7, r));
-        
-        if (this.flipped) { c = 7 - c; r = 7 - r; }
-        return r * 8 + c;
     }
 promoteVar() {
         const state = this.#game ? this.#game.getReader() : null;
@@ -2448,15 +2563,19 @@ finishDrag(e) {
         const state = this.#game ? this.#game.getReader() : null;
         if (!state) return;
         if (this.dragData && this.dragData.source === '@') return;
+        
         const rect = this.squaresLayer.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         let dropIdx = -1;
 
-        if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
-            const size = rect.width / 8;
-            let col = Math.floor(x / size);
-            let row = Math.floor(y / size);
+        const buffer = 20;
+        if (x >= -buffer && x <= rect.width + buffer && y >= -buffer && y <= rect.height + buffer) {
+            const sizeX = rect.width / 8;
+            const sizeY = rect.height / 8;
+            
+            let col = Math.floor(x / sizeX);
+            let row = Math.floor(y / sizeY);
             
             col = Math.max(0, Math.min(7, col));
             row = Math.max(0, Math.min(7, row));
@@ -2464,6 +2583,7 @@ finishDrag(e) {
             if (this.flipped) { col = 7 - col; row = 7 - row; }
             dropIdx = row * 8 + col;
         }
+
         if (window.app && window.app.trainer && window.app.trainer.isActive) {
             if (dropIdx !== -1 && !this.dragData.isSpare) {
                 const intercepted = window.app.trainer.handleUserMoveAttempt(this.dragData.fromIdx, dropIdx);
@@ -2473,6 +2593,7 @@ finishDrag(e) {
                 }
             }
         }
+
         let moveMade = false;
         if (this.dragData && this.dragData.isDuck && this.duckPlacementMoves) {
             if (dropIdx !== -1) {
@@ -2557,6 +2678,21 @@ finishDrag(e) {
         if (state.mode === 'editor' && moveMade) this.renderBoard(false);
         this.cleanupDrag(!moveMade);
         if (state.mode === 'editor' && typeof this.updateEditorInputs === 'function') this.updateEditorInputs();
+    }
+getSquareFromCoords(x, y) {
+        const rect = this.squaresLayer.getBoundingClientRect();
+        const buffer = 20;
+        if (x < rect.left - buffer || x > rect.right + buffer || y < rect.top - buffer || y > rect.bottom + buffer) return -1;
+        
+        const sizeX = rect.width / 8;
+        const sizeY = rect.height / 8;
+        let c = Math.floor((x - rect.left) / sizeX);
+        let r = Math.floor((y - rect.top) / sizeY);
+        c = Math.max(0, Math.min(7, c));
+        r = Math.max(0, Math.min(7, r));
+        
+        if (this.flipped) { c = 7 - c; r = 7 - r; }
+        return r * 8 + c;
     }
 syncEditorHTMLWithGame() {
         if (!this.#game) return;
@@ -2804,8 +2940,8 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             const delta = now - (this.lastAnimTime || 0);
             this.lastAnimTime = now;
             if (delta > 0 && delta < 300) { 
-                moveDuration = Math.max(20, delta * 0.95); 
-                castleDuration = Math.max(20, delta * 0.95); 
+                moveDuration = Math.max(160, delta * 0.95);
+                castleDuration = Math.max(160, delta * 0.95); 
             }
         }
 
@@ -3874,32 +4010,9 @@ scrollToActiveMove() {
     }
 getNagInfo(nag) {
         if (!nag) return null;
-        let nags = nag.toString().split(',').map(n => n.trim().replace('$', ''));
-        let v = nags.find(n => parseInt(n) >= 1 && parseInt(n) <= 19) || nags[0]; 
-        
-        switch(v) {
-            // Move Qualities
-            case'1':case'!': return { symbol:'!', cls:'ind-1', color:'#5c8bb0', borderColor:'#28a2e7', type:'good', textColor:'#ffffff'};
-            case'2':case'?': return { symbol:'?', cls:'ind-2', color:'#ffa700', borderColor:'#af5205', type:'mistake', textColor:'#ffffff'};
-            case'3':case'!!': return { symbol:'!!', cls:'ind-3', color:'#26c2a3', borderColor:'#09e9ed', type:'brilliant', textColor:'#ffffff'};
-            case'4':case'??': return { symbol:'??', cls:'ind-4', color:'#fa412d', borderColor:'#892c12', type:'blunder', textColor:'#ffffff'};
-            case'5':case'!?': return { symbol:'!?', cls:'ind-5', color:'#b369f2', borderColor:'#bd09ed', type:'interesting', textColor:'#ffffff'};
-            case'6':case'?!': return { symbol:'?!', cls:'ind-6', color:'#f7c045', borderColor:'#f5d91d', type:'inaccuracy', textColor:'#ffffff'};
-            case'7': return { symbol:'!', cls:'ind-1', color:'#96bc4b', borderColor:'#6c8a32', type:'excellent', textColor:'#ffffff'};
-            case'8': return { symbol:'!', cls:'ind-1', color:'#5c8bb0', borderColor:'#3a6280', type:'great', textColor:'#ffffff'};
-            case'9': return { symbol:'X', cls:'ind-2', color:'#ff7769', borderColor:'#c75446', type:'miss', textColor:'#ffffff'};
-            
-            // Evaluations: White advantage receives black text (#000000), Black advantage receives white text (#ffffff)
-            case'10':case'=': return { symbol:'=', color:'#e2e8f0', borderColor:'#cbd5e1', type:'eval_eq', textColor:'#000000'}; 
-            case'13':case'∞': return { symbol:'∞', color:'#e2e8f0', borderColor:'#cbd5e1', type:'eval_eq', textColor:'#000000'}; 
-            case'14':case'⩲':case'+=': return { symbol:'⩲', color:'#ffffff', borderColor:'#cbd5e1', type:'eval_w', textColor:'#000000'}; 
-            case'15':case'⩱':case'=+': return { symbol:'⩱', color:'#1e293b', borderColor:'#0f172a', type:'eval_b', textColor:'#ffffff'}; 
-            case'16':case'±':case'+/-': return { symbol:'±', color:'#ffffff', borderColor:'#cbd5e1', type:'eval_w', textColor:'#000000'}; 
-            case'17':case'∓':case'-/+': return { symbol:'∓', color:'#1e293b', borderColor:'#0f172a', type:'eval_b', textColor:'#ffffff'}; 
-            case'18':case'+-': return { symbol:'+-', color:'#ffffff', borderColor:'#cbd5e1', type:'eval_w', textColor:'#000000'}; 
-            case'19':case'-+': return { symbol:'-+', color:'#1e293b', borderColor:'#0f172a', type:'eval_b', textColor:'#ffffff'}; 
-            default: return null;
-        }
+        const nags = nag.toString().split(',').map(n => n.trim().replace(/^\$/, ''));
+        const v = nags.find(n => NAG_MAP[n]) || nags[0];
+        return NAG_MAP[v] || null;
     }
 updateEditorState() {
         if (!this.#game || this.#game.mode !== 'editor') return;
@@ -4046,7 +4159,11 @@ createMoveSpanSafe(node) {
             icon.style.cssText = "display:inline-flex; align-items:center; margin-left:4px;"; icon.style.color = iconColor;
             icon.innerHTML = typeof ICON_BOOK_SVG !== 'undefined' ? ICON_BOOK_SVG : 'B';
             let svg = icon.querySelector('svg');
-            if (svg) { svg.style.fill = iconColor; svg.style.width = '14px'; svg.style.height = '14px'; }
+            if (svg) { 
+                svg.style.fill = iconColor; 
+                svg.style.width = '25px';
+                svg.style.height = '25px';
+            }
             span.appendChild(icon);
         }
 
@@ -5098,7 +5215,10 @@ renderAnalysisLine(index, type, val, moves, startFen) {
             if (sqStr && sqStr.length >= 2) targetGridIndex = (8 - parseInt(sqStr[1], 10)) * 8 + (sqStr.charCodeAt(0) - 97);
         }
         
-        const parts = fen.split(' '); const rows = parts[0].split('/');
+        const parts = fen.split(' '); 
+        let boardStr = parts[0];
+        if (boardStr.includes('[')) boardStr = boardStr.split('[')[0];
+        const rows = boardStr.split('/');
         
         for (let r = 0; r < 8; r++) { 
             let rankStr = rows[r]; let fileIdx = 0; 
@@ -5484,6 +5604,9 @@ closeEmbedImporter() {
     }
 renderCharts(force = false) {
         if (typeof Chart === 'undefined') return;
+        if (this.#game && this.#game.mode === 'graph') return;
+        const wrapper = document.getElementById('chartsCollapsibleWrapper');
+        if (wrapper && wrapper.style.display === 'none') return;
         if (this.evalChart || this.timeChart) this.updateChartActiveLine();
 
         let lastNode = this.#game.rootNode;
@@ -5513,8 +5636,20 @@ initSidebarResizers() {
         const handleW = document.getElementById('resizeSidebarW');
         if (!sidebar) return;
 
-        const savedWidth = localStorage.getItem('sidebarWidth') || '520px';
-        sidebar.style.width = savedWidth; sidebar.style.minWidth = savedWidth; sidebar.style.maxWidth = savedWidth; sidebar.style.marginLeft = '-16px'; 
+        const lastTab = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_last_tab') : 'play') || 'play';
+        const isGraphActive = (lastTab === 'graph') || document.getElementById('tabContent-Graph')?.classList.contains('active');
+        const nodeStyle = this.graphNodeStyle || (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_graph_node_style') : 'tiny') || 'tiny';
+        this.graphNodeStyle = nodeStyle;
+        const isTinyGraph = (nodeStyle === 'tiny');
+
+        const activeKey = (isGraphActive && isTinyGraph) ? 'sidebarWidth_graph' : 'sidebarWidth_pgn';
+        const defaultW = (isGraphActive && isTinyGraph) ? '800px' : '520px';
+        const savedWidth = localStorage.getItem(activeKey) || defaultW;
+        
+        sidebar.style.width = savedWidth; 
+        sidebar.style.minWidth = savedWidth; 
+        sidebar.style.maxWidth = savedWidth; 
+        sidebar.style.marginLeft = '16px'; 
 
         if (handleW) {
             let startX, startPgnW;
@@ -5543,13 +5678,22 @@ initSidebarResizers() {
                 if (newPgnW > maxPgnW) newPgnW = maxPgnW;
                 if (newPgnW < 300) newPgnW = 300;
                 
-                sidebar.style.width = `${newPgnW}px`; sidebar.style.minWidth = `${newPgnW}px`; sidebar.style.maxWidth = `${newPgnW}px`;
+                sidebar.style.width = `${newPgnW}px`; 
+                sidebar.style.minWidth = `${newPgnW}px`; 
+                sidebar.style.maxWidth = `${newPgnW}px`;
             };
 
             const stopDragW = () => {
                 handleW.classList.remove('active'); document.body.style.userSelect = '';
-                document.removeEventListener('mousemove', doDragW); document.removeEventListener('mouseup', stopDragW);
-                localStorage.setItem('sidebarWidth', sidebar.style.width);
+                document.removeEventListener('mousemove', doDragW); 
+                document.removeEventListener('mouseup', stopDragW);
+                
+                const curTab = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_last_tab') : 'play') || 'play';
+                const isGraph = (curTab === 'graph') || document.getElementById('tabContent-Graph')?.classList.contains('active');
+                const isTiny = (this.graphNodeStyle === 'tiny');
+                const keyToSave = (isGraph && isTiny) ? 'sidebarWidth_graph' : 'sidebarWidth_pgn';
+                localStorage.setItem(keyToSave, sidebar.style.width);
+                
                 window.dispatchEvent(new Event('resize')); 
             };
 
@@ -5567,11 +5711,23 @@ initResizer() {
         const validateAndApplyLayout = (boardW) => {
             const leftPanel = document.querySelector('.left-panel');
             const leftW = (leftPanel && leftPanel.style.display !== 'none') ? leftPanel.offsetWidth : 0;
-            const rightSidebar = document.getElementById('mainSidebar');
-            const pgnW = rightSidebar ? rightSidebar.offsetWidth : 300;
+            
+            const centerRight = document.querySelector('.center-right-wrapper') || document.querySelector('.main-container');
+            if (centerRight) {
+                centerRight.style.alignItems = 'flex-start';
+            }
+
             const container = document.querySelector('.main-container');
-            if (container) container.style.padding = '30px 20px 20px 20px'; 
-            const engineReservedSpace = 32; 
+            if (container) {
+                container.style.padding = '30px 20px 20px 20px';
+                container.style.alignItems = 'flex-start';
+            }
+            
+            const enginePanel = document.getElementById('enginePanel');
+            let engineReservedSpace = 0;
+            if (enginePanel && window.getComputedStyle(enginePanel).display !== 'none') {
+                engineReservedSpace = 32;
+            }
             
             if (boardW < 300) boardW = 300;
             boardW = Math.floor(boardW / 8) * 8; 
@@ -5579,11 +5735,15 @@ initResizer() {
             if (leftPanel && leftPanel.style.display !== 'none') {
                 leftPanel.style.width = `${leftW}px`; leftPanel.style.minWidth = `${leftW}px`; leftPanel.style.maxWidth = `${leftW}px`; leftPanel.style.flex = 'none';
             }
-            if (rightSidebar) {
-                rightSidebar.style.width = `${pgnW}px`; rightSidebar.style.minWidth = `${pgnW}px`; rightSidebar.style.maxWidth = `${pgnW}px`; rightSidebar.style.flex = 'none'; rightSidebar.style.marginLeft = '16px'; 
-            }
+
             if (this.boardWrapper) {
-                this.boardWrapper.style.width = `${boardW}px`; this.boardWrapper.style.minWidth = `${boardW}px`; this.boardWrapper.style.maxWidth = `${boardW}px`; this.boardWrapper.style.flex = 'none'; 
+                this.boardWrapper.style.width = `${boardW}px`;
+                this.boardWrapper.style.minWidth = `${boardW}px`;
+                this.boardWrapper.style.maxWidth = `${boardW}px`;
+                this.boardWrapper.style.height = 'auto';
+                this.boardWrapper.style.minHeight = 'auto';
+                this.boardWrapper.style.maxHeight = 'none';
+                this.boardWrapper.style.flex = 'none'; 
             }
 
             const rowW = boardW + engineReservedSpace;
@@ -5593,7 +5753,12 @@ initResizer() {
             }
             const boardSection = document.querySelector('.board-section');
             if (boardSection) {
-                boardSection.style.width = `${rowW}px`; boardSection.style.minWidth = `${rowW}px`; boardSection.style.maxWidth = `${rowW}px`; boardSection.style.flex = 'none';
+                boardSection.style.width = `${rowW}px`; 
+                boardSection.style.minWidth = `${rowW}px`; 
+                boardSection.style.maxWidth = `${rowW}px`; 
+                boardSection.style.flex = 'none';
+                boardSection.style.alignSelf = 'flex-start';
+                boardSection.style.height = 'auto';
             }
             const bottomBar = document.querySelector('.bottom-bar');
             if (bottomBar) bottomBar.style.width = `${rowW}px`;
@@ -5632,7 +5797,7 @@ initResizer() {
             });
         }
         setTimeout(() => {
-            const savedBoard = localStorage.getItem('chessBoardSize') ? parseInt(localStorage.getItem('chessBoardSize')) : 600;
+            const savedBoard = localStorage.getItem('chessBoardSize') ? parseInt(localStorage.getItem('chessBoardSize'), 10) : 600;
             validateAndApplyLayout(savedBoard); window.dispatchEvent(new Event('resize'));
         }, 50);
     }
@@ -6528,16 +6693,26 @@ confirmBotStart() {
         }
     }
 updatePgnAvatars(whiteName, blackName, isEngineGame = false, skipRender = false) {
-        const isEngineName = (name) => {
+        const ENGINE_REGEX = /\b(stockfish|torch|leela|lc0|komodo|houdini|rybka|akimbo|minic|berserk|ethereal|koivisto|seer|slowchess|computer|engine|bot|crafty|hiarcs|shredder|alphazero|dragon)\b/i;
+        
+        const isEngine = (name) => {
             if (!name) return false;
-            const n = name.toLowerCase();
-            const keywords = ['stockfish', 'engine', 'bot', 'komodo', 'leela', 'lc0', 'torch', 'alphazero', 'computer', 'ai', 'gnufish', 'dragon', 'wasp'];
-            return keywords.some(k => n.includes(k));
+            const n = name.trim().toLowerCase();
+            if (n === 'white' || n === 'black' || n === 'player white' || n === 'player black' || n === 'you') return false;
+            return ENGINE_REGEX.test(n);
         };
+
         const humanImg = `<img src="assets/tabs-icon/face.webp" alt="Human" style="width:100%; height:100%; object-fit:cover; border-radius:4px;">`;
         const engineImg = `<img src="assets/tabs-icon/engine.webp" alt="Engine" style="width:100%; height:100%; object-fit:contain; border-radius:4px;">`;
-        this.avatars['w'] = (isEngineGame || isEngineName(whiteName)) ? engineImg : humanImg;
-        this.avatars['b'] = (isEngineGame || isEngineName(blackName)) ? engineImg : humanImg;
+        const wIsEng = isEngine(whiteName);
+        const bIsEng = isEngine(blackName);
+        this.avatars['w'] = (wIsEng || (isEngineGame && wIsEng)) ? engineImg : humanImg;
+        this.avatars['b'] = (bIsEng || (isEngineGame && bIsEng)) ? engineImg : humanImg;
+        if (isEngineGame && (wIsEng || bIsEng)) {
+            if (wIsEng) this.avatars['w'] = engineImg;
+            if (bIsEng) this.avatars['b'] = engineImg;
+        }
+
         if (!skipRender && typeof this.renderHeaders === 'function') this.renderHeaders(); 
     }
 togglePgnEditing(enable) {
@@ -7085,52 +7260,28 @@ loadPgnAndAnalyze() {
         const fileInput = document.getElementById('pgnInput');
         const editorInput = document.getElementById('editorPgnInput');
 
-        // 📂 CASE 1: A file was just selected via the file picker
+        const processAndSave = (pgnText) => {
+            if (this.#game) {
+                if (!this.#game.tabMemory) this.#game.tabMemory = {};
+                if (!this.#game.tabMemory['analysis']) this.#game.tabMemory['analysis'] = {};
+                this.#game.tabMemory['analysis'].pgn = pgnText;
+                this.switchTab('analysis');
+            }
+        };
+
         if (fileInput && fileInput.files && fileInput.files.length > 0) {
             const file = fileInput.files[0];
             const reader = new FileReader();
-
-            // This runs asynchronously once the file is fully read
             reader.onload = (e) => {
                 const pgnText = e.target.result;
-
-                // 1. Paste the file's contents into the editor box
                 if (editorInput) editorInput.value = pgnText;
-
-                // 2. Switch the tab and load the game
-                if (this.#game) {
-                    this.switchTab('analysis');
-                    
-                    if (typeof this.#game.loadPGN === 'function') {
-                        // loadPGN(text, isLiveGame, forceOverwrite)
-                        this.#game.loadPGN(pgnText, false, true); 
-                    }
-                    
-                    // 3. Force the sandbox to save this new file into the Analysis bucket
-                    if (typeof this.#game.saveVariantState === 'function') {
-                        this.#game.saveVariantState(this.#game.gameMode || 'classical');
-                    }
-                }
-
-                // 4. Clear the file input so you can upload the exact same file again later if needed
+                processAndSave(pgnText);
                 fileInput.value = '';
             };
-
-            // Command the reader to extract the text
             reader.readAsText(file);
-        } 
-        // 📝 CASE 2: No file was picked, fallback to reading whatever is already typed in the text box
-        else {
+        } else {
             let val = editorInput ? editorInput.value : '';
-            if (val && this.#game) {
-                this.switchTab('analysis');
-                if (typeof this.#game.loadPGN === 'function') {
-                    this.#game.loadPGN(val, false, true);
-                }
-                if (typeof this.#game.saveVariantState === 'function') {
-                    this.#game.saveVariantState(this.#game.gameMode || 'classical');
-                }
-            }
+            if (val) processAndSave(val);
         }
     }
 updatePlayerInfo() {
@@ -7401,37 +7552,131 @@ castSpell(spellType, targetSq) {
             }
         }
     }
+    injectGraphCSS() {
+        const oldStyle = document.getElementById('graph-tab-styles');
+        if (oldStyle) oldStyle.remove();
+
+        const style = document.createElement('style');
+        style.id = 'graph-tab-styles';
+
+        style.innerHTML = `
+            #tabContent-Graph.active[data-node="board"] {
+                display: block !important; position: fixed !important;
+                top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important;
+                z-index: 9999 !important; background: #0f172a !important; 
+                overflow: auto !important; scrollbar-width: none; cursor: grab;
+            }
+
+            #tabContent-Graph.active[data-node="tiny"] { cursor: grab; padding-bottom: 70px !important; }
+            #tabContent-Graph.active::-webkit-scrollbar { display: none; }
+            #tabContent-Graph.active.dragging { cursor: grabbing; }
+            
+            .pgn-graph-fullscreen {
+                position: relative; display: inline-block; width: max-content; height: max-content;
+                min-width: 100vw; min-height: 100vh; padding: 3000px !important; box-sizing: content-box;
+            }
+            #graphZoomWrapper { transform-origin: 0 0 !important; }
+            .graph-svg-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; overflow: visible !important; }
+            
+            .g-node-wrapper { display: flex; flex-direction: row; align-items: center; flex-shrink: 0; }
+            .g-children { display: flex; flex-direction: column; justify-content: center; padding-left: 120px; gap: 30px; flex-shrink: 0; }
+            
+            .tiny-wrapper { 
+                flex-direction: column !important; 
+                align-items: center !important; 
+            }
+            .tiny-children { 
+                flex-direction: row !important; 
+                padding-left: 0 !important; 
+                padding-top: 14px !important; 
+                gap: 6px !important; 
+                align-items: flex-start !important; 
+                justify-content: center !important;
+            }
+
+            .g-node-circle {
+                min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; border: 1px solid #555;
+                font-size: 11px; font-weight: 700; font-family: 'Inter', 'Segoe UI', sans-serif;
+                cursor: pointer; transition: all 0.15s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+                display: flex; justify-content: center; align-items: center; flex-shrink: 0; position: relative; z-index: 2;
+                box-sizing: border-box;
+            }
+            
+            .g-node-circle.turn-w { background: #ffffff !important; color: #111111 !important; border-color: #cccccc !important; }
+            .g-node-circle.turn-b { background: #222222 !important; color: #f0f0f0 !important; border-color: #111111 !important; }
+            .g-node-circle.turn-root { background: #4b5563 !important; color: #ffffff !important; border-color: #374151 !important; }
+
+            .g-node-circle:hover { border-color: #38bdf8 !important; transform: scale(1.15); z-index: 5; filter: none !important; opacity: 1 !important; box-shadow: 0 0 10px rgba(56,189,248,0.5) !important; }
+            .g-node-circle.active { border-color: #26c2a3 !important; box-shadow: 0 0 15px rgba(38, 194, 163, 0.8) !important; transform: scale(1.2); z-index: 10; filter: none !important; opacity: 1 !important; }
+
+            .g-node-content {
+                transform: translateZ(0); position: relative; z-index: 2; 
+                background: #1e1e1e !important; 
+                border: 4px solid #444; border-radius: 12px; padding: 10px; cursor: pointer; box-shadow: 0 10px 25px rgba(0,0,0,0.7); transition: all 0.15s ease;
+                display: flex; flex-direction: column; align-items: center; gap: 10px; width: 220px; flex-shrink: 0; 
+            }
+            .g-node-content:hover { border-color: #facc15 !important; transform: scale(1.03); z-index: 5; filter: none !important; opacity: 1 !important; }
+            .g-node-content.active { border-color: #26c2a3 !important; box-shadow: 0 0 30px rgba(38, 194, 163, 0.8) !important; transform: scale(1.04) translateZ(0); z-index: 10; filter: none !important; opacity: 1 !important; }
+            
+            .g-move-text { font-weight: 800; color: #fff; font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 18px; text-align: center; white-space: nowrap; background: #2a2a2a; padding: 4px 12px; border-radius: 6px; border: 1px solid #444; flex-shrink: 0; }
+            
+            .g-mini-board { position: relative; display: block; width: 200px; height: 200px; flex-shrink: 0; background-color: var(--board-light, #f0d9b5); background-image: conic-gradient(var(--board-dark, #b58863) 90deg, transparent 90deg 180deg, var(--board-dark, #b58863) 180deg 270deg, transparent 270deg); background-size: 25% 25%; background-position: 0 0; border: 2px solid #000; border-radius: 4px; overflow: hidden; }
+            
+            .g-blur-past { filter: blur(3px) grayscale(50%); opacity: 0.4; }
+            .g-focus { filter: none; opacity: 1; }
+            .g-blur-future { filter: blur(3px) grayscale(70%); opacity: 0.25; }
+
+            .graph-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 18px; box-sizing: border-box; transition: all 0.2s; cursor: default; }
+            #tabContent-Graph[data-node="board"] .graph-toolbar { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10001; background: rgba(15, 23, 42, 0.98); padding: 16px 28px; border-radius: 50px; border: 2px solid #38bdf8; box-shadow: 0 10px 40px rgba(0,0,0,0.9); backdrop-filter: blur(12px); width: max-content; max-width: 95vw; }
+            #tabContent-Graph[data-node="tiny"] .graph-toolbar { position: absolute; bottom: 0; left: 0; width: 100%; z-index: 100; background: #161512; padding: 12px; border-top: 1px solid #333; border-radius: 0; box-shadow: none; justify-content: center; gap: 10px; transform: none; backdrop-filter: none; border-left: none; border-right: none; border-bottom: none; }
+
+            .g-tool-group { display: flex; align-items: center; gap: 8px; }
+            .g-tool-group label { color: #bababa; font-size: 13px; font-weight: bold; }
+            .g-tool-group select { background: #111; color: #bababa; border: 1px solid #555; padding: 6px 12px; border-radius: 6px; font-weight: bold; outline: none; cursor: pointer; font-size: 13px; }
+            .btn-close-graph { background: #b33430; color: #fff; border: 1px solid #fa412d; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+            .btn-close-graph:hover { background: #8f2a26; }
+            #tabContent-Graph[data-node="board"] .btn-close-graph { position: fixed; top: 20px; left: 20px; z-index: 10001; padding: 8px 20px; font-size: 14px; border-radius: 12px; text-transform: uppercase; }
+            #tabContent-Graph[data-node="tiny"] .btn-close-graph { position: static; padding: 6px 12px; font-size: 13px; display: block; margin-top: auto; }
+            
+            #tabContent-Graph[data-source="study"] .source-analysis-only { display: none !important; }
+            #tabContent-Graph[data-source="analysis"] .source-study-only { display: none !important; }
+            #tabContent-Graph[data-node="tiny"] .node-board-only { display: none !important; }
+        `;
+        document.head.appendChild(style);
+    }
     initGraphEvents() {
         if (this._graphEventsBound) return;
         this._graphEventsBound = true;
 
-        this.injectGraphCSS();
+        if (typeof this.injectGraphCSS === 'function') this.injectGraphCSS();
 
-        const tab = document.getElementById('tabContent-Graph');
-        if (!tab) return;
+        const viewport = document.getElementById('treeGraphContainer');
+        if (!viewport) return;
 
         let isDown = false;
         let startX, startY, scrollLeft, scrollTop;
 
-        tab.addEventListener('mousedown', (e) => {
-            if (e.target.closest('.g-node-content') || e.target.closest('button') || e.target.closest('select') || e.target.closest('input') || e.target.closest('label')) return;
+        viewport.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.g-node-content') || e.target.closest('.g-node-circle') || e.target.closest('button') || e.target.closest('select') || e.target.closest('input') || e.target.closest('label')) return;
 
-            const bottomPanel = tab.querySelector('div[style*="z-index: 10001"]');
-            if (bottomPanel && bottomPanel.contains(e.target)) return;
+            if (this._lerpAnim) {
+                cancelAnimationFrame(this._lerpAnim);
+                this._lerpAnim = null;
+            }
 
             isDown = true;
-            tab.classList.add('dragging');
+            viewport.classList.add('dragging');
             
             const scale = window.appScale || 1;
             startX = e.pageX / scale;
             startY = e.pageY / scale;
-            scrollLeft = tab.scrollLeft;
-            scrollTop = tab.scrollTop;
+            scrollLeft = viewport.scrollLeft;
+            scrollTop = viewport.scrollTop;
         });
 
         window.addEventListener('mouseup', () => { 
             isDown = false; 
-            if (tab) tab.classList.remove('dragging'); 
+            viewport.classList.remove('dragging'); 
         });
 
         window.addEventListener('mousemove', (e) => {
@@ -7441,242 +7686,182 @@ castSpell(spellType, targetSq) {
             const scale = window.appScale || 1;
             const x = e.pageX / scale;
             const y = e.pageY / scale;
-            
-            tab.scrollLeft = scrollLeft - (x - startX);
-            tab.scrollTop = scrollTop - (y - startY);
+            viewport.scrollLeft = scrollLeft - (x - startX);
+            viewport.scrollTop = scrollTop - (y - startY);
         });
+
         window.addEventListener('resize', () => {
-            if (tab.classList.contains('active')) {
-                const zoomWrapper = document.getElementById('graphZoomWrapper');
-                const svgLayer = zoomWrapper?.querySelector('.graph-svg-layer');
-                
-                if (zoomWrapper && svgLayer) {
-                    clearTimeout(this._resizeDrawTimeout);
-                    this._resizeDrawTimeout = setTimeout(() => {
-                        this.drawGraphLines(zoomWrapper, svgLayer);
-                    }, 50);
+            if (this._resizeCameraTimeout) clearTimeout(this._resizeCameraTimeout);
+            this._resizeCameraTimeout = setTimeout(() => {
+                const tab = document.getElementById('tabContent-Graph');
+                if (tab && tab.classList.contains('active') && !isDown) {
+                    this.scrollToActiveGraphNode('instant');
                 }
-            }
+            }, 150);
         });
-    }
-    injectGraphCSS() {
-        if (document.getElementById('graph-tab-styles')) return;
-        const style = document.createElement('style');
-        style.id = 'graph-tab-styles';
-        style.innerHTML = `
-            #tabContent-Graph.active {
-                display: block !important; position: fixed !important;
-                top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important;
-                z-index: 9999 !important; background: #0f172a !important; 
-                overflow: auto !important; 
-                scrollbar-width: none; 
-                cursor: grab;
-            }
-            #tabContent-Graph.active::-webkit-scrollbar { display: none; }
-            #tabContent-Graph.active.dragging { cursor: grabbing; }
-            
-            .pgn-graph-fullscreen {
-                position: relative; display: inline-block; 
-                width: max-content; height: max-content;
-                min-width: 100vw; min-height: 100vh;
-                padding: 3000px; 
-                box-sizing: content-box;
-            }
-            .graph-svg-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; overflow: visible !important; }
-            
-            .g-node-wrapper { display: flex; flex-direction: row; align-items: center; flex-shrink: 0; }
-            .g-children { display: flex; flex-direction: column; justify-content: center; padding-left: 150px; gap: 40px; flex-shrink: 0; }
-            
-            .g-node-content {
-                transform: translateZ(0);
-                position: relative; z-index: 2; background: #1e1e1e; border: 4px solid #444;
-                border-radius: 12px; padding: 10px; cursor: pointer;
-                box-shadow: 0 10px 25px rgba(0,0,0,0.7); transition: all 0.15s ease;
-                display: flex; flex-direction: column; align-items: center; gap: 10px; 
-                width: 220px; flex-shrink: 0; 
-            }
-            
-            .g-move-text {
-                font-weight: 800; color: #fff; font-family: 'Segoe UI', Tahoma, sans-serif;
-                font-size: 18px; text-align: center; white-space: nowrap;
-                background: #0f172a; padding: 4px 12px; border-radius: 6px;
-                border: 1px solid #334155; flex-shrink: 0;
-            }
-            
-            .g-mini-board {
-                position: relative; display: block; 
-                width: 200px; height: 200px; flex-shrink: 0;
-                background-color: var(--board-light, #f0d9b5);
-                background-image: conic-gradient(var(--board-dark, #b58863) 90deg, transparent 90deg 180deg, var(--board-dark, #b58863) 180deg 270deg, transparent 270deg);
-                background-size: 25% 25%; background-position: 0 0;
-                
-                border: 2px solid #000; border-radius: 4px; overflow: hidden;
-            }
-            
-            .g-mini-piece { 
-                position: absolute; width: 12.5%; height: 12.5%; pointer-events: none; 
-                margin: 0 !important; padding: 0 !important;
-                display: flex; justify-content: center; align-items: center;
-            }
-            .g-mini-piece img, .g-mini-piece svg {
-                width: 90% !important; height: 90% !important; object-fit: contain;
-                margin: 0 !important; padding: 0 !important; display: block;
-            }
-            .g-blur-past { filter: blur(3px) grayscale(50%); opacity: 0.4; }
-            .g-focus { filter: none; opacity: 1; }
-            .g-blur-future { filter: blur(3px) grayscale(70%); opacity: 0.25; }
-            .g-node-content:hover { 
-                border-color: #38bdf8; transform: scale(1.03); z-index: 5; 
-                filter: none !important; opacity: 1 !important;
-            }
 
-            .g-node-content.active { 
-                border-color: #26c2a3; 
-                box-shadow: 0 0 30px rgba(38, 194, 163, 0.8); 
-                transform: scale(1.04) translateZ(0);
-                z-index: 10; 
-                filter: none !important; 
-                opacity: 1 !important;
-            }            
-            #tabContent-Graph > div[style*="z-index: 10001"] { cursor: default !important; }
-            #tabContent-Graph > div[style*="z-index: 10001"] input[type="range"] { cursor: pointer !important; }
-        `;
-        document.head.appendChild(style);
-    }
-    changeGraphMode(mode) {
-        this.graphMode = mode;
-        if (typeof localStorage !== 'undefined') {
-            localStorage.setItem('chess_graph_mode', mode);
-        }
-        this.renderFullGraph(); 
-    }
-    changeGraphZoom(val) {
-        this.graphZoom = parseFloat(val);
-        const label = document.getElementById('graphZoomLabel');
-        if (label) label.innerText = Math.round(this.graphZoom * 100) + '%';
-        if (typeof localStorage !== 'undefined') {
-            localStorage.setItem('chess_graph_zoom', this.graphZoom);
-        }
-        
-        const wrapper = document.getElementById('graphZoomWrapper');
-        const treeRoot = document.getElementById('graphTreeRoot');
-        
-        if (wrapper && treeRoot) {
-            wrapper.style.transform = `scale(${this.graphZoom})`;
-            
-            const w = treeRoot.offsetWidth;
-            const h = treeRoot.offsetHeight;
-            wrapper.style.width = w + 'px';
-            wrapper.style.height = h + 'px';
-            wrapper.style.marginRight = (w * this.graphZoom - w) + 'px';
-            wrapper.style.marginBottom = (h * this.graphZoom - h) + 'px';
-
-            this.scrollToActiveGraphNode('auto');
+        if (!this._graphResizeObserver && typeof ResizeObserver !== 'undefined') {
+            this._graphResizeObserver = new ResizeObserver(() => {
+                if (this._resizeObserverTimeout) clearTimeout(this._resizeObserverTimeout);
+                this._resizeObserverTimeout = setTimeout(() => {
+                    const tab = document.getElementById('tabContent-Graph');
+                    if (tab && tab.classList.contains('active') && !isDown) {
+                        this.scrollToActiveGraphNode('instant');
+                    }
+                }, 50);
+            });
+            this._graphResizeObserver.observe(viewport);
         }
     }
     changeGraphSource(source) {
-        if (!this.#game) return;
-        
-        // Force save current graph state before switching source to prevent data loss
-        if (this._previousTabBeforeGraph === 'analysis' && typeof this.#game.saveState === 'function') {
-            this.#game.saveState('analysis');
-        } else if ((this._previousTabBeforeGraph === 'study' || this._previousTabBeforeGraph === 'trainer') && typeof this.#game.saveActiveChapter === 'function') {
-            this.#game.saveActiveChapter();
-        }
-
-        this._previousTabBeforeGraph = source; 
+        this._previousTabBeforeGraph = source;
         if (typeof localStorage !== 'undefined') localStorage.setItem('chess_graph_source', source);
-        
-        const currentFlip = this.flipped; // Activate Flip Shield
-
-        // Force game engine to load the memory of the new source
-        if (source === 'study' || source === 'trainer') {
-            let savedChap = parseInt(localStorage.getItem('chess_active_chapter_idx'), 10);
-            if (isNaN(savedChap)) savedChap = this.#game.activeChapterIndex || 0;
-            if (typeof this.#game.loadChapter === 'function') this.#game.loadChapter(savedChap, true, true);
-        } else {
-            if (typeof this.#game.restoreState === 'function') this.#game.restoreState(source);
+        this.switchTab('graph');
+    }
+    changeGraphChapter(idx) {
+        if (!this.#game) return;
+        const chapterIdx = parseInt(idx, 10);
+        if (typeof localStorage !== 'undefined') localStorage.setItem('chess_active_chapter_idx', chapterIdx);
+        if (typeof this.#game.loadChapter === 'function') {
+            this.#game.loadChapter(chapterIdx, true, true);
         }
-        
-        // Restore flip state if the core engine maliciously changed it
-        if (this.flipped !== currentFlip) {
-            this.flipped = currentFlip;
-            if (typeof localStorage !== 'undefined') localStorage.setItem('chess_graph_flip', currentFlip ? 'b' : 'w');
-        }
-        
-        this.#game.mode = 'graph';
+    }
+    changeGraphMode(mode) {
+        this.graphMode = mode;
+        if (typeof localStorage !== 'undefined') localStorage.setItem('chess_graph_mode', mode);
         this._lastTreeSize = -1;
         this.renderFullGraph();
     }
-    changeGraphChapter(indexStr) {
-        if (!this.#game) return;
-        const idx = parseInt(indexStr, 10);
-        if (!isNaN(idx) && typeof this.#game.loadChapter === 'function') {
-            const currentFlip = this.flipped;
-            
-            this.#game.loadChapter(idx);
-            
-            if (this.flipped !== currentFlip) {
-                this.flipped = currentFlip;
-                if (typeof localStorage !== 'undefined') localStorage.setItem('chess_graph_flip', currentFlip ? 'b' : 'w');
-            }
-            
-            if (typeof localStorage !== 'undefined') localStorage.setItem('chess_active_chapter_idx', idx); 
-            
-            this.#game.mode = 'graph';
-            this._lastTreeSize = -1;
-            this.renderFullGraph();
+    changeGraphNodeStyle(style) {
+        this.graphNodeStyle = style;
+        if (typeof localStorage !== 'undefined') localStorage.setItem('chess_graph_node_style', style);
+        
+        if (style === 'tiny') {
+            this.graphMode = 'full';
+            if (typeof localStorage !== 'undefined') localStorage.setItem('chess_graph_mode', 'full');
+        }
+        
+        this._lastTreeSize = -1;
+        this.switchTab('graph'); 
+        this.renderFullGraph();
+    }
+    changeGraphZoom(zoomLevel) {
+        this.graphZoom = parseFloat(zoomLevel);
+        if (typeof localStorage !== 'undefined') localStorage.setItem('chess_graph_zoom', this.graphZoom);
+        
+        const label = document.getElementById('graphZoomLabel');
+        if (label) label.innerText = Math.round(this.graphZoom * 100) + '%';
+        
+        const zoomWrapper = document.getElementById('graphZoomWrapper');
+        const treeRoot = document.getElementById('graphTreeRoot');
+        if (zoomWrapper && treeRoot) {
+            zoomWrapper.style.transform = `scale(${this.graphZoom})`;
+            const w = treeRoot.offsetWidth;
+            const h = treeRoot.offsetHeight;
+            zoomWrapper.style.marginRight = (w * this.graphZoom - w) + 'px';
+            zoomWrapper.style.marginBottom = (h * this.graphZoom - h) + 'px';
+            this.scrollToActiveGraphNode('instant');
         }
     }
-    scrollToActiveGraphNode(behavior = 'smooth', targetId = null) {
-        const tab = document.getElementById('tabContent-Graph');
-        const activeEl = targetId ? document.querySelector(`.g-node-content[data-id="${targetId}"]`) : document.querySelector('.g-node-content.active');
-        if (!tab || !activeEl) return;
+    scrollToActiveGraphNode(behavior = 'lerp', nodeId = null) {
+        if (!['auto', 'smooth', 'instant', 'lerp'].includes(behavior)) behavior = 'lerp';
+        
+        const viewport = document.getElementById('treeGraphContainer');
+        const zoomWrapper = document.getElementById('graphZoomWrapper') || document.getElementById('treeGraphContainer');
+        if (!viewport || !zoomWrapper) return;
+        
+        let activeEl = null;
+        if (nodeId) activeEl = zoomWrapper.querySelector(`[data-id="${nodeId}"]`);
+        else activeEl = zoomWrapper.querySelector('.active');
+        
+        if (!activeEl) return;
 
-        void tab.offsetHeight;
-
-        const tabRect = tab.getBoundingClientRect();
-        const elRect = activeEl.getBoundingClientRect();
-
-        const targetX = tab.scrollLeft + (elRect.left - tabRect.left) - (tab.clientWidth / 2) + (elRect.width / 2);
-        const targetY = tab.scrollTop + (elRect.top - tabRect.top) - (tab.clientHeight / 2) + (elRect.height / 2);
-
-        if (behavior === 'lerp') {
-            if (!this._cameraTarget) {
-                this._cameraTarget = { x: tab.scrollLeft, y: tab.scrollTop };
-                this._cameraCurrent = { x: tab.scrollLeft, y: tab.scrollTop };
-                this._isCameraAnimating = false;
-            }
+        requestAnimationFrame(() => {
+            let nodeX = 0;
+            let nodeY = 0;
+            let curr = activeEl;
             
-            this._cameraTarget.x = Math.max(0, targetX);
-            this._cameraTarget.y = Math.max(0, targetY);
-            
-            if (!this._isCameraAnimating) {
-                this._cameraCurrent.x = tab.scrollLeft;
-                this._cameraCurrent.y = tab.scrollTop;
-                this._isCameraAnimating = true;
-                this._animateCamera();
+            while (curr && curr.id !== 'graphZoomWrapper' && !curr.classList.contains('pgn-graph-fullscreen') && curr !== document.body) {
+                nodeX += curr.offsetLeft;
+                nodeY += curr.offsetTop;
+                curr = curr.offsetParent;
             }
-        } else {
-            tab.scrollTo({ left: Math.max(0, targetX), top: Math.max(0, targetY), behavior: behavior });
-        }
+
+            const currentZoom = this.graphZoom || 1;
+            const scaledCenterX = (nodeX + (activeEl.offsetWidth / 2)) * currentZoom;
+            const scaledCenterY = (nodeY + (activeEl.offsetHeight / 2)) * currentZoom;
+
+            let canvasOffsetX = 3000;
+            let canvasOffsetY = 3000;
+            if (zoomWrapper.parentElement) {
+                const pStyles = window.getComputedStyle(zoomWrapper.parentElement);
+                const padL = parseFloat(pStyles.paddingLeft);
+                const padT = parseFloat(pStyles.paddingTop);
+                if (!isNaN(padL) && padL > 0) canvasOffsetX = padL;
+                if (!isNaN(padT) && padT > 0) canvasOffsetY = padT;
+            }
+
+            const absoluteCenterX = canvasOffsetX + scaledCenterX;
+            const absoluteCenterY = canvasOffsetY + scaledCenterY;
+
+            const viewportW = viewport.clientWidth;
+            let viewportH = viewport.clientHeight;
+            if (this.graphNodeStyle !== 'tiny') {
+                viewportH -= 80; 
+            }
+
+            this._graphTargetX = Math.max(0, absoluteCenterX - (viewportW / 2));
+            this._graphTargetY = Math.max(0, absoluteCenterY - (viewportH / 2));
+
+            if (behavior === 'instant' || behavior === 'auto') {
+                if (this._lerpAnim) {
+                    cancelAnimationFrame(this._lerpAnim);
+                    this._lerpAnim = null;
+                }
+                viewport.scrollLeft = this._graphTargetX;
+                viewport.scrollTop = this._graphTargetY;
+                return;
+            }
+
+            if (!this._lerpAnim) {
+                const lerpScroll = () => {
+                    const currentX = viewport.scrollLeft;
+                    const currentY = viewport.scrollTop;
+                    const stepX = (this._graphTargetX - currentX) * 0.18;
+                    const stepY = (this._graphTargetY - currentY) * 0.18;
+
+                    if (Math.abs(stepX) < 1 && Math.abs(stepY) < 1) {
+                        viewport.scrollLeft = this._graphTargetX;
+                        viewport.scrollTop = this._graphTargetY;
+                        this._lerpAnim = null;
+                        return;
+                    }
+
+                    viewport.scrollLeft = currentX + stepX;
+                    viewport.scrollTop = currentY + stepY;
+
+                    this._lerpAnim = requestAnimationFrame(lerpScroll);
+                };
+                this._lerpAnim = requestAnimationFrame(lerpScroll);
+            }
+        });
     }
     _animateCamera() {
         if (!this._isCameraAnimating) return;
-        const tab = document.getElementById('tabContent-Graph');
-        if (!tab) { this._isCameraAnimating = false; return; }
+        const viewport = document.getElementById('treeGraphContainer') || document.getElementById('tabContent-Graph');
+        if (!viewport) { this._isCameraAnimating = false; return; }
 
         const lerpFactor = 0.25; 
         this._cameraCurrent.x += (this._cameraTarget.x - this._cameraCurrent.x) * lerpFactor;
         this._cameraCurrent.y += (this._cameraTarget.y - this._cameraCurrent.y) * lerpFactor;
 
-        tab.scrollLeft = this._cameraCurrent.x;
-        tab.scrollTop = this._cameraCurrent.y;
+        viewport.scrollLeft = this._cameraCurrent.x;
+        viewport.scrollTop = this._cameraCurrent.y;
 
         if (Math.abs(this._cameraTarget.x - this._cameraCurrent.x) < 1 && 
             Math.abs(this._cameraTarget.y - this._cameraCurrent.y) < 1) {
-            tab.scrollLeft = this._cameraTarget.x;
-            tab.scrollTop = this._cameraTarget.y;
+            viewport.scrollLeft = this._cameraTarget.x;
+            viewport.scrollTop = this._cameraTarget.y;
             this._isCameraAnimating = false;
             return;
         }
@@ -7684,78 +7869,150 @@ castSpell(spellType, targetSq) {
         requestAnimationFrame(() => this._animateCamera());
     }
     drawGraphLines(listContainer, svgLayer) {
-        const svgNS = "http://www.w3.org/2000/svg";
-        svgLayer.innerHTML = ''; 
-        
-        svgLayer.setAttribute('width', '100%');
-        svgLayer.setAttribute('height', '100%');
-        
-        const getUnscaledPos = (el) => {
-            const elRect = el.getBoundingClientRect();
-            const containerRect = listContainer.getBoundingClientRect();
-            const zoom = this.graphZoom || 1;
-            return {
-                left: (elRect.left - containerRect.left) / zoom,
-                top: (elRect.top - containerRect.top) / zoom,
-                width: elRect.width / zoom,
-                height: elRect.height / zoom
-            };
-        };
+    if (!listContainer || !svgLayer) return;
 
-        const wrappers = listContainer.querySelectorAll('.g-node-wrapper');
-        
-        // GOM CHUỖI SIÊU TỐC V8
-        let normalPathStr = "";
-        let blurredPathStr = "";
-        
-        wrappers.forEach(wrapper => {
-            const parentNode = wrapper.querySelector('.g-node-content');
-            const childrenContainer = wrapper.querySelector('.g-children');
-            if (!parentNode || !childrenContainer) return;
+    const svgNS = "http://www.w3.org/2000/svg";
+    svgLayer.innerHTML = ''; 
 
-            const pPos = getUnscaledPos(parentNode);
-            const startX = pPos.left + pPos.width;
-            const startY = pPos.top + (pPos.height / 2);
+    const zoomWrapper = document.getElementById('graphZoomWrapper') || listContainer;
+    const treeRoot = document.getElementById('graphTreeRoot') || listContainer;
+    const tab = document.getElementById('tabContent-Graph');
+    const isTiny = tab ? (tab.dataset.node === 'tiny') : (this.graphNodeStyle === 'tiny');
 
-            const childWrappers = childrenContainer.children;
-            for (let i = 0; i < childWrappers.length; i++) {
-                if (!childWrappers[i].classList.contains('g-node-wrapper')) continue;
-                
-                const childEl = childWrappers[i].querySelector('.g-node-content');
-                if (!childEl) continue;
+    const totalW = Math.max(treeRoot.offsetWidth || 0, zoomWrapper.offsetWidth || 0);
+    const totalH = Math.max(treeRoot.offsetHeight || 0, zoomWrapper.offsetHeight || 0);
+    svgLayer.setAttribute('width', totalW);
+    svgLayer.setAttribute('height', totalH);
+    svgLayer.style.width = totalW + 'px';
+    svgLayer.style.height = totalH + 'px';
 
-                const cPos = getUnscaledPos(childEl);
-                const endX = cPos.left;
-                const endY = cPos.top + (cPos.height / 2);
+    let normalPathStr = "";
+    let blurredPathStr = "";
 
-                const cpX = (startX + endX) / 2; 
-                
-                const curveD = `M ${startX} ${startY} C ${cpX} ${startY}, ${cpX} ${endY}, ${endX} ${endY} `;
-                const isBlurred = childEl.classList.contains('g-blur-future') || parentNode.classList.contains('g-blur-past');
-                
+    if (isTiny && this.#game?.rootNode) {
+        const drawTinyLines = (node) => {
+            if (!node.children || node.children.length === 0) return;
+            const startX = node.x;
+            const startY = node.y;
+
+            node.children.forEach(child => {
+                const endX = child.x;
+                const endY = child.y;
+                let curveD = "";
+
+                if (node.children.length === 1 && Math.abs(startX - endX) < 2) {
+                    curveD = `M ${startX} ${startY} L ${endX} ${endY} `;
+                } else {
+                    const cpY = (startY + endY) / 2;
+                    curveD = `M ${startX} ${startY} C ${startX} ${cpY}, ${endX} ${cpY}, ${endX} ${endY} `;
+                }
+
+                const childEl = listContainer.querySelector(`[data-id="${child.id}"]`);
+                const parentEl = listContainer.querySelector(`[data-id="${node.id}"]`);
+                const isBlurred = childEl?.classList.contains('g-blur-future') || parentEl?.classList.contains('g-blur-past');
+
                 if (isBlurred) blurredPathStr += curveD;
                 else normalPathStr += curveD;
-            }
-        });
 
-        // CHỈ RENDER ĐÚNG 2 THẺ DOM VÀO TRÌNH DUYỆT
+                drawTinyLines(child);
+            });
+        };
+
+        drawTinyLines(this.#game.rootNode);
+
         if (blurredPathStr) {
             const blurPath = document.createElementNS(svgNS, 'path');
             blurPath.setAttribute('d', blurredPathStr);
             blurPath.setAttribute('fill', 'transparent');
-            blurPath.setAttribute('stroke', 'rgba(56, 189, 248, 0.25)');
-            blurPath.setAttribute('stroke-width', '2');
+            blurPath.setAttribute('stroke', 'rgba(56, 189, 248, 0.3)');
+            blurPath.setAttribute('stroke-width', '1.0');
             svgLayer.appendChild(blurPath);
         }
-
         if (normalPathStr) {
             const normalPath = document.createElementNS(svgNS, 'path');
             normalPath.setAttribute('d', normalPathStr);
             normalPath.setAttribute('fill', 'transparent');
             normalPath.setAttribute('stroke', '#38bdf8');
-            normalPath.setAttribute('stroke-width', '3');
+            normalPath.setAttribute('stroke-width', '1.2');
             svgLayer.appendChild(normalPath);
         }
+        return;
+    }
+
+    const drawTask = () => {
+        const getRelativePos = (el) => {
+            let x = 0, y = 0;
+            let w = el.offsetWidth, h = el.offsetHeight;
+            let curr = el;
+            while (curr && curr.id !== 'graphZoomWrapper' && curr !== document.body) {
+                x += curr.offsetLeft;
+                y += curr.offsetTop;
+                curr = curr.offsetParent;
+            }
+            return { left: x, top: y, width: w, height: h };
+        };
+
+        const wrappers = listContainer.querySelectorAll('.g-node-wrapper');
+        wrappers.forEach(wrapper => {
+            const parentNode = wrapper.querySelector('.g-node-content');
+            const childrenContainer = wrapper.querySelector('.g-children');
+            if (!parentNode || !childrenContainer) return;
+
+            const pPos = getRelativePos(parentNode);
+            // Dây xuất phát từ mép phải chính giữa card cha
+            const startX = pPos.left + pPos.width;
+            const startY = pPos.top + (pPos.height / 2);
+
+            const childWrappers = childrenContainer.children;
+            let validChildrenCount = 0;
+            for (let i = 0; i < childWrappers.length; i++) {
+                if (childWrappers[i].classList.contains('g-node-wrapper')) validChildrenCount++;
+            }
+
+            for (let i = 0; i < childWrappers.length; i++) {
+                if (!childWrappers[i].classList.contains('g-node-wrapper')) continue;
+                const childEl = childWrappers[i].querySelector('.g-node-content');
+                if (!childEl) continue;
+
+                const cPos = getRelativePos(childEl);
+                // Dây chạm vào mép trái chính giữa card con
+                const endX = cPos.left;
+                const endY = cPos.top + (cPos.height / 2);
+
+                let curveD = "";
+                if (validChildrenCount === 1) {
+                    curveD = `M ${startX} ${startY} L ${endX} ${endY} `;
+                } else {
+                    const cpX = (startX + endX) / 2;
+                    curveD = `M ${startX} ${startY} C ${cpX} ${startY}, ${cpX} ${endY}, ${endX} ${endY} `;
+                }
+
+                const isBlurred = childEl.classList.contains('g-blur-future') || parentNode.classList.contains('g-blur-past');
+                if (isBlurred) blurredPathStr += curveD;
+                else normalPathStr += curveD;
+            }
+        });
+
+        if (blurredPathStr) {
+            const blurPath = document.createElementNS(svgNS, 'path');
+            blurPath.setAttribute('d', blurredPathStr);
+            blurPath.setAttribute('fill', 'transparent');
+            blurPath.setAttribute('stroke', 'rgba(56, 189, 248, 0.3)');
+            blurPath.setAttribute('stroke-width', '1.0');
+            svgLayer.appendChild(blurPath);
+        }
+        if (normalPathStr) {
+            const normalPath = document.createElementNS(svgNS, 'path');
+            normalPath.setAttribute('d', normalPathStr);
+            normalPath.setAttribute('fill', 'transparent');
+            normalPath.setAttribute('stroke', '#38bdf8');
+            normalPath.setAttribute('stroke-width', '1.5');
+            svgLayer.appendChild(normalPath);
+        }
+    };
+
+    if ('requestIdleCallback' in window) requestIdleCallback(drawTask, { timeout: 200 });
+    else setTimeout(drawTask, 0);
     }
     renderHistoryImmediate() {
         const list = document.getElementById('moveHistory');
@@ -7839,43 +8096,48 @@ castSpell(spellType, targetSq) {
         if (!activeNode) return;
         
         const activeDepth = this.getPly(activeNode);
-        
         const activePathIds = new Set();
         let curr = activeNode;
         while (curr) { activePathIds.add(curr.id); curr = curr.parent; }
 
-        const classMap = new Map();
-        
+        const zoomWrapper = document.getElementById('graphZoomWrapper');
+        if (!zoomWrapper) return;
+
+        const allNodeElements = zoomWrapper.querySelectorAll('[data-id]');
+        const nodeMap = new Map();
+        for (let i = 0; i < allNodeElements.length; i++) {
+            nodeMap.set(allNodeElements[i].dataset.id, allNodeElements[i]);
+        }
+
         const traverse = (n) => {
-            let myDepth = this.getPly(n);
-            let isOnPath = activePathIds.has(n.id);
-            let isPast = isOnPath && myDepth < activeDepth;
-            let classes = ['g-node-content'];
-            
-            if (n === activeNode) {
-                classes.push('g-focus', 'active');
-            } else if (n.parent === activeNode) {
-                classes.push('g-focus');
-            } else if (isOnPath && isPast) {
-                if (activeDepth - myDepth >= 2) classes.push('g-blur-past');
-                else classes.push('g-focus');
-            } else {
-                classes.push('g-blur-future');
+            const el = nodeMap.get(n.id);
+            if (el) {
+                let myDepth = this.getPly(n);
+                let isOnPath = activePathIds.has(n.id);
+                let isPast = isOnPath && myDepth < activeDepth;
+                
+                el.classList.remove('g-focus', 'active', 'path-next', 'g-blur-past', 'g-blur-future');
+                
+                if (n === activeNode) el.classList.add('g-focus', 'active');
+                else if (n.parent === activeNode && isOnPath) el.classList.add('g-focus', 'path-next');
+                else if (n.parent === activeNode) el.classList.add('g-focus');
+                else if (isOnPath && isPast) {
+                    if (activeDepth - myDepth >= 2) el.classList.add('g-blur-past');
+                    else el.classList.add('g-focus');
+                } else {
+                    el.classList.add('g-blur-future');
+                }
             }
-            classMap.set(n.id, classes.join(' '));
             n.children.forEach(c => traverse(c));
         };
         traverse(this.#game.rootNode);
 
-        const domNodes = document.querySelectorAll('.g-node-content');
-        domNodes.forEach(el => {
-            const id = el.dataset.id;
-            if (classMap.has(id)) el.className = classMap.get(id);
-        });
-        const zoomWrapper = document.getElementById('graphZoomWrapper');
         const svgLayer = document.querySelector('.graph-svg-layer');
-        if (zoomWrapper && svgLayer) {
-            this.drawGraphLines(zoomWrapper, svgLayer);
+        if (svgLayer && typeof this.drawGraphLines === 'function') {
+            if (this._fastDrawTimeout) clearTimeout(this._fastDrawTimeout);
+            this._fastDrawTimeout = setTimeout(() => {
+                this.drawGraphLines(zoomWrapper, svgLayer);
+            }, 30);
         }
     }
     parseFenToGridLocal(fen) {
@@ -7963,197 +8225,159 @@ castSpell(spellType, targetSq) {
         ctx.clearRect(0, 0, size, size);
         
         if (!this._imgCache || !fen) return;
-        const rows = fen.split(' ')[0].split('/');
+        
+        let boardStr = fen.split(' ')[0];
+        if (boardStr.includes('[')) boardStr = boardStr.split('[')[0];
+        
+        const rows = boardStr.split('/');
+        
         for (let r = 0; r < 8; r++) {
             let c = 0;
-            for (let char of rows[r]) {
-                if (/\d/.test(char)) c += parseInt(char, 10);
-                else if (char !== '~' && char !== '*') {
+            let rowStr = rows[r];
+            
+            for (let i = 0; i < rowStr.length; i++) {
+                let char = rowStr[i];
+                let charCode = char.charCodeAt(0);
+                
+                if (charCode >= 48 && charCode <= 57) {
+                    c += charCode - 48;
+                } else if (char === '*') {
+                    const img = this._imgCache['duck'];
+                    if (img && img.complete && img.naturalWidth !== 0) {
+                        const drawR = this.flipped ? 7 - r : r;
+                        const drawC = this.flipped ? 7 - c : c;
+                        ctx.drawImage(img, drawC * sqSize, drawR * sqSize, sqSize, sqSize);
+                    }
+                    c++;
+                } else if (char !== '~') {
                     const color = char === char.toUpperCase() ? 'w' : 'b';
                     const type = char.toUpperCase();
                     const img = this._imgCache[color + type];
-                    if (img) {
+                    let isAliceB = (i + 1 < rowStr.length && rowStr[i+1] === '~');
+
+                    if (img && img.complete && img.naturalWidth !== 0) {
                         const padding = sqSize * 0.05;
-                        const drawFn = () => {
-                            ctx.drawImage(img, c * sqSize + padding, r * sqSize + padding, sqSize * 0.9, sqSize * 0.9);
-                        };
-                        if (img.complete && img.naturalWidth !== 0) drawFn();
-                        else img.addEventListener('load', drawFn, { once: true });
+                        const drawR = this.flipped ? 7 - r : r;
+                        const drawC = this.flipped ? 7 - c : c;
+                        
+                        const drawX = drawC * sqSize + padding;
+                        const drawY = drawR * sqSize + padding;
+                        const drawS = sqSize * 0.9;
+                        
+                        if (isAliceB) {
+                            ctx.save();
+                            ctx.filter = 'hue-rotate(180deg) drop-shadow(0 0 5px cyan)';
+                            ctx.globalAlpha = 0.6;
+                            ctx.translate(drawX + drawS/2, drawY + drawS/2);
+                            ctx.scale(0.8, 0.8);
+                            ctx.drawImage(img, -drawS/2, -drawS/2, drawS, drawS);
+                            ctx.restore();
+                        } else {
+                            ctx.drawImage(img, drawX, drawY, drawS, drawS);
+                        }
                     }
                     c++;
-                } else if (char === '*') c++;
-            }
-        }
-    }
-    renderGraphNode(node, container, activeNode, depth, activePathIds, activeDepth) {
-        if (!node) return;
-        if (!node.id) node.id = 'n_' + Math.random().toString(36).substr(2, 9);
-
-        const mode = this.graphMode || 'focused';
-        const isFullMode = (mode === 'full');
-
-        let myDepth = this.getPly(node);
-        let isOnActivePath = activePathIds.has(node.id);
-        let isPast = isOnActivePath && myDepth < activeDepth;
-
-        if (!isFullMode && !isOnActivePath && myDepth > activeDepth + 2) return;
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'g-node-wrapper';
-
-        const content = document.createElement('div');
-        content.className = 'g-node-content';
-        content.dataset.id = node.id;
-        
-        if (node === activeNode) {
-            content.classList.add('g-focus', 'active');
-        } 
-        else if (node.parent === activeNode && isOnActivePath) { 
-            content.classList.add('g-focus', 'path-next');
-        }
-        else if (node.parent === activeNode) {
-            content.classList.add('g-focus');
-        } 
-        else if (isOnActivePath && isPast) {
-            if (activeDepth - myDepth >= 2) content.classList.add('g-blur-past');
-            else content.classList.add('g-focus');
-        } 
-        else {
-            content.classList.add('g-blur-future');
-        }
-
-        const boardDiv = document.createElement('div');
-        boardDiv.className = 'g-mini-board';
-        boardDiv.innerHTML = `<canvas id="gcanv-${node.id}" width="200" height="200" style="display: block; width:100%; height:100%;"></canvas>`;
-
-        const moveTxt = document.createElement('div');
-        moveTxt.className = 'g-move-text';
-        let nagStr = "";
-        if (node.nag) {
-            node.nag.toString().split(',').forEach(n => {
-                const info = this.getNagInfo(n.trim());
-                if(info) nagStr += `<span style="display:inline-block; font-size:12px; font-weight:bold; color:#fff; background:${info.color}; border:2px solid ${info.borderColor}; border-radius:50%; width:18px; height:18px; text-align:center; line-height:14px; margin-left:4px; box-shadow:0 1px 3px rgba(0,0,0,0.5);">${info.symbol}</span>`;
-            });
-        }
-        
-        let sanText = node.moveSan || "Start";
-        if (node === this.#game.rootNode) sanText = "Start";
-        else if (sanText.includes('from:')) sanText = "...";
-
-        moveTxt.innerHTML = sanText + nagStr;
-
-        content.appendChild(boardDiv);
-        content.appendChild(moveTxt);
-
-        if (node.comment) {
-            let cleanComment = node.comment.replace(/\[%(eval|clk|cal|csl|emt)[^\]]*\]/g, "").trim();
-            cleanComment = cleanComment.replace(/\bbook\b/ig, "").trim();
-            if (cleanComment.length > 0) {
-                const commentDiv = document.createElement('div');
-                commentDiv.style.cssText = 'color: #aaa; font-size: 13px; font-style: italic; background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 4px; width: 100%; box-sizing: border-box; text-align: center; white-space: normal; word-break: break-word; overflow: hidden; max-height: 80px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; margin-top: 4px; border-top: 1px solid #444;';
-                commentDiv.innerText = cleanComment;
-                content.appendChild(commentDiv);
-            }
-        }
-
-        content.onclick = (e) => {
-            e.stopPropagation();
-
-            this._virtualNode = node;
-            this._isKeyboardNavigating = false;
-
-            if (typeof this.fastUpdateGraphVisuals === 'function') {
-                this.fastUpdateGraphVisuals(node);
-                this.scrollToActiveGraphNode('smooth', node.id); 
-            }
-
-            setTimeout(() => {
-                if (this.#game.goToNodeId(node.id)) {
-                    const freshState = this.#game.getReader();
-                    this.renderBoard(false);
-                    this.updateHistory(true);
-                    this.renderArrows();
-                    
-                    if (freshState.mode !== 'play' && this.#game.updateStockfish) {
-                        this.#game.updateStockfish();
-                    }
                 }
-            }, 10);
-        };
-
-        wrapper.appendChild(content);
-
-        if (node.children && node.children.length > 0) {
-            const childrenContainer = document.createElement('div');
-            childrenContainer.className = 'g-children';
-            let childrenToRender = [];
-            
-            if (isFullMode) {
-                childrenToRender = node.children;
-            } else {
-                if (isPast) childrenToRender = node.children.filter(c => activePathIds.has(c.id));
-                else if (myDepth === activeDepth || myDepth === activeDepth + 1) childrenToRender = node.children;
-            }
-
-            if (childrenToRender.length > 0) {
-                childrenToRender.forEach(child => {
-                    this.renderGraphNode(child, childrenContainer, activeNode, depth + 1, activePathIds, activeDepth);
-                });
-                wrapper.appendChild(childrenContainer);
             }
         }
-        container.appendChild(wrapper);
     }
     renderFullGraph(skipCamera = false) {
-        if (typeof this.initGraphEvents === 'function') this.initGraphEvents();
-        if (!this.graphMode && typeof localStorage !== 'undefined') {
-            this.graphMode = localStorage.getItem('chess_graph_mode') || 'focused';
-        }
-        const container = document.getElementById('treeGraphContainer');
-        const tab = document.getElementById('tabContent-Graph');
-        if (!container || !this.#game || !this.#game.rootNode) return;
-        const selSource = document.getElementById('graphSourceSelect');
-        const chapWrapper = document.getElementById('graphChapterWrapper');
-        const chapSelect = document.getElementById('graphChapterSelect');
-        const flipSelect = document.getElementById('graphFlipSelect');
+    if (typeof this.initGraphEvents === 'function') this.initGraphEvents();
+    
+    if (typeof localStorage !== 'undefined') {
+        this.graphMode = localStorage.getItem('chess_graph_mode') || 'focused';
+        this.graphNodeStyle = localStorage.getItem('chess_graph_node_style') || 'tiny';
+        let savedSource = localStorage.getItem('chess_graph_source');
+        if (savedSource !== 'study' && savedSource !== 'analysis') savedSource = 'study';
+        this._previousTabBeforeGraph = savedSource;
+    }
+    
+    const isTiny = (this.graphNodeStyle === 'tiny');
+    if (isTiny) this.graphMode = 'full';
 
-        if (flipSelect) flipSelect.value = this.flipped ? 'b' : 'w';
+    const container = document.getElementById('treeGraphContainer');
+    if (!container || !this.#game || !this.#game.rootNode) return;
+    
+    const isStudy = (this._previousTabBeforeGraph === 'study' || this._previousTabBeforeGraph === 'trainer');
+    const tab = document.getElementById('tabContent-Graph');
+    if (tab) {
+        tab.dataset.source = isStudy ? 'study' : 'analysis';
+        tab.dataset.node = this.graphNodeStyle;
+    }
 
-        if (selSource) {
-            const isStudy = (this._previousTabBeforeGraph === 'study' || this._previousTabBeforeGraph === 'trainer');
-            selSource.value = isStudy ? 'study' : 'analysis';
+    const selSource = document.getElementById('graphSourceSelect');
+    const styleSelect = document.getElementById('graphNodeStyleSelect');
+    const modeSelect = document.getElementById('graphModeSelect');
+    const zoomSlider = document.getElementById('graphZoomSlider');
+    const zoomLabel = document.getElementById('graphZoomLabel');
+    const varSelect = document.getElementById('graphVariantSelect');
+    const chapSelect = document.getElementById('graphChapterSelect');
+    const flipSelect = document.getElementById('graphFlipSelect');
+    const chapWrapper = document.getElementById('graphChapterWrapper');
+    const varWrapper = document.getElementById('graphVariantWrapper');
 
-            if (isStudy && chapWrapper && chapSelect && this.#game.chapters) {
-                chapWrapper.style.display = 'flex';
-                chapSelect.innerHTML = '';
-                this.#game.chapters.forEach((ch, idx) => {
-                    const opt = document.createElement('option');
-                    opt.value = idx;
-                    opt.text = `${idx + 1}. ${ch.title}`;
-                    if (idx === this.#game.activeChapterIndex) opt.selected = true;
-                    chapSelect.appendChild(opt);
-                });
-            } else if (chapWrapper) {
-                chapWrapper.style.display = 'none';
-            }
-        }
-        if (!this._imgCache) this.preloadPieceImages();
+    const modeWrapper = document.getElementById('graphModeWrapper') || modeSelect?.closest('.control-group') || modeSelect?.parentElement;
+    if (modeWrapper) {
+        modeWrapper.style.setProperty('display', isTiny ? 'none' : 'flex', 'important');
+    }
 
+    if (chapWrapper) chapWrapper.style.setProperty('display', isStudy ? 'flex' : 'none', 'important');
+    if (varWrapper) varWrapper.style.setProperty('display', isStudy ? 'none' : 'flex', 'important');
+
+    if (selSource) selSource.value = isStudy ? 'study' : 'analysis';
+    if (styleSelect) styleSelect.value = this.graphNodeStyle;
+    if (modeSelect) modeSelect.value = this.graphMode;
+    if (flipSelect) flipSelect.value = this.flipped ? 'b' : 'w';
+    
+    if (zoomSlider) {
+        zoomSlider.value = this.graphZoom || 1;
+        if (zoomLabel) zoomLabel.innerText = Math.round((this.graphZoom || 1) * 100) + '%';
+    }
+
+    if (isStudy && chapSelect && this.#game.chapters) {
+        chapSelect.innerHTML = '';
+        this.#game.chapters.forEach((ch, idx) => {
+            const opt = document.createElement('option');
+            opt.value = idx; opt.text = `${idx + 1}. ${ch.title}`;
+            if (idx === this.#game.activeChapterIndex) opt.selected = true;
+            chapSelect.appendChild(opt);
+        });
+    } else if (!isStudy) {
+        if (varSelect) varSelect.value = this.#game.gameMode || 'classical';
+    }
+
+    if (!this._imgCache) this.preloadPieceImages();
+
+    let compactDim = null;
+    if (isTiny) {
+        compactDim = this.computeCompactGraphLayout(this.#game.rootNode);
+    }
+
+    requestAnimationFrame(() => {
         container.innerHTML = '';
         const svgNS = "http://www.w3.org/2000/svg";
+        
+        const fullscreenWrapper = document.createElement('div');
+        fullscreenWrapper.className = 'pgn-graph-fullscreen';
         
         const zoomWrapper = document.createElement('div');
         zoomWrapper.id = 'graphZoomWrapper';
         const currentZoom = this.graphZoom || 1;
-        zoomWrapper.style.cssText = `position: relative; display: inline-block; transform: scale(${currentZoom}); transform-origin: top left; transition: transform 0.1s ease;`;
-
-        const svgLayer = document.createElementNS(svgNS, "svg");
-        svgLayer.setAttribute("class", "graph-svg-layer");
-        zoomWrapper.appendChild(svgLayer);
+        // Triệt tiêu padding: 20px để không làm lệch hệ tọa độ
+        zoomWrapper.style.cssText = `position: relative; display: inline-block; transform: scale(${currentZoom}); transform-origin: top left; transition: transform 0.1s ease; padding: 0;`;
 
         const treeRoot = document.createElement('div');
         treeRoot.id = 'graphTreeRoot';
-        treeRoot.style.cssText = "display: inline-block; width: max-content; height: max-content;";
+        
+        if (isTiny && compactDim) {
+            treeRoot.style.cssText = `position: relative; width: ${compactDim.width}px; height: ${compactDim.height}px;`;
+        } else {
+            treeRoot.style.cssText = "display: flex; flex-direction: column; align-items: flex-start; width: max-content; height: max-content;";
+        }
+
+        const svgLayer = document.createElementNS(svgNS, "svg");
+        svgLayer.setAttribute("class", "graph-svg-layer");
+        treeRoot.appendChild(svgLayer);
         
         let activePathIds = new Set();
         let curr = this.#game.currentNode;
@@ -8161,39 +8385,252 @@ castSpell(spellType, targetSq) {
 
         this.renderGraphNode(this.#game.rootNode, treeRoot, this.#game.currentNode, 0, activePathIds, this.getPly(this.#game.currentNode));
         zoomWrapper.appendChild(treeRoot);
-        container.appendChild(zoomWrapper); 
+        
+        fullscreenWrapper.appendChild(zoomWrapper);
+        container.appendChild(fullscreenWrapper);
 
-        const canvases = treeRoot.querySelectorAll('canvas[id^="gcanv-"]');
-        canvases.forEach(canvas => {
-            const nodeId = canvas.id.replace('gcanv-', '');
-            const findNodeHelper = (currNode, id) => {
-                if (currNode.id === id) return currNode;
-                for(let c of currNode.children) { let res = findNodeHelper(c, id); if (res) return res; }
-                return null;
-            };
-            const node = findNodeHelper(this.#game.rootNode, nodeId);
-            if (node) this.drawMiniBoardToCanvas(node.fen, canvas);
-        });
+        if (this.graphNodeStyle === 'board') {
+            const canvases = treeRoot.querySelectorAll('canvas[id^="gcanv-"]');
+            canvases.forEach(canvas => {
+                const nodeId = canvas.id.replace('gcanv-', '');
+                const findNodeHelper = (currNode, id) => {
+                    if (currNode.id === id) return currNode;
+                    for(let c of currNode.children) { let res = findNodeHelper(c, id); if (res) return res; }
+                    return null;
+                };
+                const node = findNodeHelper(this.#game.rootNode, nodeId);
+                if (node) this.drawMiniBoardToCanvas(node.fen, canvas);
+            });
+        }
 
         requestAnimationFrame(() => {
-            const w = treeRoot.offsetWidth;
-            const h = treeRoot.offsetHeight;
+            const w = isTiny && compactDim ? compactDim.width : treeRoot.offsetWidth;
+            const h = isTiny && compactDim ? compactDim.height : treeRoot.offsetHeight;
             zoomWrapper.style.width = w + 'px';
             zoomWrapper.style.height = h + 'px';
             zoomWrapper.style.marginRight = (w * currentZoom - w) + 'px';
             zoomWrapper.style.marginBottom = (h * currentZoom - h) + 'px';
             
-            this.drawGraphLines(zoomWrapper, svgLayer);
-
-            const modeSelect = document.getElementById('graphModeSelect');
-            if (modeSelect) modeSelect.value = this.graphMode || 'focused';
-            const zoomSlider = document.getElementById('graphZoomSlider');
-            if (zoomSlider) zoomSlider.value = this.graphZoom || 1;
-            
-            if (!skipCamera) {
-                this.scrollToActiveGraphNode('auto');
-            }
+            if (typeof this.drawGraphLines === 'function') this.drawGraphLines(treeRoot, svgLayer);
+            if (!skipCamera) this.scrollToActiveGraphNode('lerp');
         });
+    });
+    }
+    renderGraphNode(rootNode, rootContainer, activeNode, initialDepth, activePathIds, activeDepth) {
+    if (!rootNode) return;
+    
+    const isTiny = (this.graphNodeStyle === 'tiny');
+    const isFullMode = isTiny || (this.graphMode === 'full');
+
+    if (isTiny) {
+        const stack = [{ node: rootNode, depth: initialDepth }];
+        while (stack.length > 0) {
+            const { node, depth } = stack.pop();
+            if (!node.id) node.id = 'n_' + Math.random().toString(36).substr(2, 9);
+
+            let myDepth = this.getPly(node);
+            let isOnActivePath = activePathIds.has(node.id);
+            let isPast = isOnActivePath && myDepth < activeDepth;
+            let isActiveNode = (node === activeNode);
+
+            const content = document.createElement('div');
+            content.dataset.id = node.id;
+            
+            let classes = ['g-node-circle'];
+
+            let primaryNagInfo = null;
+            let nagTinyStr = "";
+
+            if (node.nag) {
+                const rawNags = node.nag.toString().split(',');
+                for (let n of rawNags) {
+                    const info = typeof this.getNagInfo === 'function' ? this.getNagInfo(n.trim()) : null;
+                    if (info) {
+                        if (!primaryNagInfo && ['brilliant', 'good', 'great', 'excellent', 'interesting', 'inaccuracy', 'mistake', 'blunder', 'miss'].includes(info.type)) {
+                            primaryNagInfo = info;
+                        }
+                        nagTinyStr += `<span style="display:inline-block; font-size:11px; margin-left:2px; font-weight:900;">${info.symbol}</span>`;
+                    }
+                }
+            }
+
+            if (node === this.#game.rootNode) {
+                classes.push('turn-root');
+            } else if (!primaryNagInfo) {
+                const nextTurn = node.fen.split(' ')[1];
+                classes.push(nextTurn === 'w' ? 'turn-b' : 'turn-w');
+            } else {
+                classes.push('has-nag');
+            }
+            
+            if (isActiveNode) classes.push('g-focus', 'active');
+            else if (node.parent === activeNode && isOnActivePath) classes.push('g-focus', 'path-next');
+            else if (node.parent === activeNode) classes.push('g-focus');
+            else if (isOnActivePath && isPast) {
+                if (activeDepth - myDepth >= 2) classes.push('g-blur-past');
+                else classes.push('g-focus');
+            } else {
+                classes.push('g-blur-future');
+            }
+
+            content.className = classes.join(' ');
+            content.style.position = 'absolute';
+            content.style.left = `${node.x || 0}px`;
+            content.style.top = `${node.y || 0}px`;
+            content.style.transform = 'translate(-50%, -50%)';
+
+            if (primaryNagInfo) {
+                content.style.backgroundColor = primaryNagInfo.color;
+                content.style.borderColor = isActiveNode ? '#ffffff' : (primaryNagInfo.borderColor || primaryNagInfo.color);
+                content.style.color = (primaryNagInfo.type === 'inaccuracy') ? '#000000' : '#ffffff';
+                if (isActiveNode) {
+                    content.style.boxShadow = `0 0 12px ${primaryNagInfo.borderColor || primaryNagInfo.color}`;
+                }
+            }
+
+            let sanText = node.moveSan || "Start";
+            if (node === this.#game.rootNode) sanText = "Start";
+            else if (sanText.includes('from:')) sanText = "...";
+
+            content.innerHTML = `<span>${sanText}</span>${nagTinyStr}`;
+
+            content.onclick = (e) => {
+                e.stopPropagation();
+                this._virtualNode = node;
+                this._isKeyboardNavigating = false;
+                const containerDOM = document.getElementById('treeGraphContainer');
+                if (containerDOM) {
+                    containerDOM.querySelectorAll('.active').forEach(el => el.classList.remove('active', 'g-focus'));
+                }
+                content.classList.add('active', 'g-focus');
+                
+                if (typeof this.scrollToActiveGraphNode === 'function') {
+                    this.scrollToActiveGraphNode('lerp', node.id);
+                }
+
+                if (this.#game.goToNodeId(node.id, true)) {
+                    const freshState = this.#game.getReader();
+                    if (typeof this.updateHistory === 'function') this.updateHistory(true);
+                    if (typeof this.renderArrows === 'function') this.renderArrows();
+                    if (freshState.mode !== 'play' && this.#game.updateStockfish) this.#game.updateStockfish();
+                }
+            };
+
+            rootContainer.appendChild(content);
+
+            if (node.children && node.children.length > 0) {
+                for (let i = node.children.length - 1; i >= 0; i--) {
+                    stack.push({ node: node.children[i], depth: depth + 1 });
+                }
+            }
+        }
+        return;
+    }
+
+    const stack = [{ node: rootNode, container: rootContainer, depth: initialDepth }];
+    while (stack.length > 0) {
+        const { node, container, depth } = stack.pop();
+        if (!node.id) node.id = 'n_' + Math.random().toString(36).substr(2, 9);
+
+        let myDepth = this.getPly(node);
+        let isOnActivePath = activePathIds.has(node.id);
+        let isPast = isOnActivePath && myDepth < activeDepth;
+        let isActiveNode = (node === activeNode);
+
+        if (!isFullMode && !isOnActivePath && myDepth > activeDepth + 2) continue;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'g-node-wrapper';
+
+        const content = document.createElement('div');
+        content.dataset.id = node.id;
+        
+        let classes = ['g-node-content'];
+        if (isActiveNode) classes.push('g-focus', 'active');
+        else if (node.parent === activeNode && isOnActivePath) classes.push('g-focus', 'path-next');
+        else if (node.parent === activeNode) classes.push('g-focus');
+        else if (isOnActivePath && isPast) {
+            if (activeDepth - myDepth >= 2) classes.push('g-blur-past');
+            else classes.push('g-focus');
+        } else {
+            classes.push('g-blur-future');
+        }
+        content.className = classes.join(' ');
+
+        let sanText = node.moveSan || "Start";
+        if (node === this.#game.rootNode) sanText = "Start";
+        else if (sanText.includes('from:')) sanText = "...";
+
+        const moveTxt = document.createElement('div');
+        moveTxt.className = 'g-move-text';
+        let nagStr = "";
+        if (node.nag) {
+            node.nag.toString().split(',').forEach(n => {
+                const info = typeof this.getNagInfo === 'function' ? this.getNagInfo(n.trim()) : null;
+                if (info) {
+                    nagStr += `<span style="display:inline-block; font-size:10px; font-weight:bold; color:#fff; background:${info.color}; border:1px solid ${info.borderColor}; border-radius:50%; width:14px; height:14px; text-align:center; line-height:12px; margin-left:3px;">${info.symbol}</span>`;
+                }
+            });
+        }
+        moveTxt.innerHTML = sanText + nagStr;
+        content.appendChild(moveTxt);
+        
+        const boardDiv = document.createElement('div');
+        boardDiv.className = 'g-mini-board';
+        boardDiv.innerHTML = `<canvas id="gcanv-${node.id}" width="184" height="184" style="display: block; width:100%; height:100%;"></canvas>`;
+        content.insertBefore(boardDiv, moveTxt);
+        
+        if (node.comment) {
+            let cleanComment = node.comment.replace(/\[%(eval|clk|cal|csl|emt)[^\]]*\]/g, "").trim();
+            cleanComment = cleanComment.replace(/\bbook\b/ig, "").trim();
+            if (cleanComment.length > 0) {
+                const commentDiv = document.createElement('div');
+                commentDiv.className = 'g-node-comment';
+                commentDiv.innerText = cleanComment;
+                content.appendChild(commentDiv);
+            }
+        }
+        content.onmouseenter = () => { if (typeof this.renderGraphGiantBoard === 'function') this.renderGraphGiantBoard(node.fen); };
+        content.onmouseleave = () => { if (typeof this.hideGraphGiantBoard === 'function') this.hideGraphGiantBoard(); };
+
+        content.onclick = (e) => {
+            e.stopPropagation();
+            this._virtualNode = node;
+            this._isKeyboardNavigating = false;
+            const containerDOM = document.getElementById('treeGraphContainer');
+            if (containerDOM) {
+                containerDOM.querySelectorAll('.active').forEach(el => el.classList.remove('active', 'g-focus'));
+            }
+            content.classList.add('active', 'g-focus');
+            if (typeof this.scrollToActiveGraphNode === 'function') {
+                this.scrollToActiveGraphNode('lerp', node.id);
+            }
+            if (this.#game.goToNodeId(node.id, true)) {
+                const freshState = this.#game.getReader();
+                if (typeof this.updateHistory === 'function') this.updateHistory(true);
+                if (typeof this.renderArrows === 'function') this.renderArrows();
+                if (freshState.mode !== 'play' && this.#game.updateStockfish) this.#game.updateStockfish();
+            }
+        };
+
+        wrapper.appendChild(content);
+
+        if (node.children && node.children.length > 0) {
+            const childrenContainer = document.createElement('div');
+            childrenContainer.className = 'g-children';
+            let childrenToRender = node.children;
+            if (!isFullMode) {
+                if (isPast) childrenToRender = node.children.filter(c => activePathIds.has(c.id));
+                else if (myDepth === activeDepth || myDepth === activeDepth + 1) childrenToRender = node.children;
+            }
+
+            for (let i = childrenToRender.length - 1; i >= 0; i--) {
+                stack.push({ node: childrenToRender[i], container: childrenContainer, depth: depth + 1 });
+            }
+            wrapper.appendChild(childrenContainer);
+        }
+        container.appendChild(wrapper);
+    }
     }
     _renderGraphRecursive(node, container, activeNode, depth) {
         if (!node) return;
@@ -8256,6 +8693,38 @@ castSpell(spellType, targetSq) {
 
         container.appendChild(wrapper);
     }
+    renderGraphGiantBoard(fen) {
+        if (!this.showGraphGiantBoard) return;
+        let giantContainer = document.getElementById('graph-giant-board');
+        if (!giantContainer) {
+            giantContainer = document.createElement('div');
+            giantContainer.id = 'graph-giant-board';
+            giantContainer.style.cssText = 'position:fixed; top:80px; left:40px; width:400px; height:400px; z-index:10005; pointer-events:none; border:4px solid #38bdf8; border-radius:8px; box-shadow:0 10px 40px rgba(0,0,0,0.9); background:var(--board-light, #f0d9b5); display:none;';
+            giantContainer.innerHTML = `<canvas id="giant-board-canvas" width="400" height="400" style="display:block; width:100%; height:100%;"></canvas>`;
+            document.body.appendChild(giantContainer);
+        }
+        giantContainer.style.display = 'block';
+        const canvas = document.getElementById('giant-board-canvas');
+        if (canvas) this.drawMiniBoardToCanvas(fen, canvas);
+    }
+    hideGraphGiantBoard() {
+        const giantContainer = document.getElementById('graph-giant-board');
+        if (giantContainer) giantContainer.style.display = 'none';
+    }
+    cleanupGraph() {
+        if (this._graphResizeObserver) {
+            this._graphResizeObserver.disconnect();
+            this._graphResizeObserver = null;
+        }
+        if (this._lerpAnim) {
+            cancelAnimationFrame(this._lerpAnim);
+            this._lerpAnim = null;
+        }
+        if (this._resizeCameraTimeout) {
+            clearTimeout(this._resizeCameraTimeout);
+            this._resizeCameraTimeout = null;
+        }
+    }
     initKeyboardEvents() {
         document.addEventListener('keydown', (e) => {
             const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
@@ -8279,22 +8748,42 @@ castSpell(spellType, targetSq) {
 
             const graphTab = document.getElementById('tabContent-Graph');
             const isGraphActive = graphTab && graphTab.classList.contains('active');
+            
             if (isGraphActive && ['w','a','s','d','W','A','S','D','Tab','Enter'].includes(e.key)) {
                 e.preventDefault();
             }
 
-            const isForward = (e.key === 'ArrowRight' || (isGraphActive && (e.key === 'd' || e.key === 'D')));
-            const isBackward = (e.key === 'ArrowLeft' || (isGraphActive && (e.key === 'a' || e.key === 'A')));
-            const isStart = (e.key === 'ArrowUp');
-            const isEnd = (e.key === 'ArrowDown');
-            const isNextBranch = isGraphActive && (e.key === 's' || e.key === 'S' || e.key === 'Tab');
-            const isPrevBranch = isGraphActive && (e.key === 'w' || e.key === 'W');
+            let isForward, isBackward, isNextBranch, isPrevBranch, isStart, isEnd;
             const isEnter = isGraphActive && e.key === 'Enter';
+
+            if (isGraphActive) {
+                if (this.graphNodeStyle === 'tiny') {
+                    isForward = ['s', 'S', 'ArrowDown'].includes(e.key);
+                    isBackward = ['w', 'W', 'ArrowUp'].includes(e.key);
+                    isNextBranch = ['d', 'D', 'ArrowRight', 'Tab'].includes(e.key);
+                    isPrevBranch = ['a', 'A', 'ArrowLeft'].includes(e.key);
+                } else {
+                    isForward = ['d', 'D', 'ArrowRight'].includes(e.key);
+                    isBackward = ['a', 'A', 'ArrowLeft'].includes(e.key);
+                    isNextBranch = ['s', 'S', 'ArrowDown', 'Tab'].includes(e.key);
+                    isPrevBranch = ['w', 'W', 'ArrowUp'].includes(e.key);
+                }
+                isStart = false; 
+                isEnd = false;
+            } else {
+                isForward = (e.key === 'ArrowRight');
+                isBackward = (e.key === 'ArrowLeft');
+                isStart = (e.key === 'ArrowUp');
+                isEnd = (e.key === 'ArrowDown');
+                isNextBranch = false;
+                isPrevBranch = false;
+            }
 
             if (isEnter) {
                 this.switchTab(this._previousTabBeforeGraph || 'study');
                 return;
             }
+            
             if (!this._virtualNode) this._virtualNode = this.#game.currentNode;
             
             if (!this._isKeyboardNavigating && this._virtualNode.id !== this.#game.currentNode.id) {
@@ -8328,15 +8817,21 @@ castSpell(spellType, targetSq) {
             }
 
             if (targetNode && targetNode !== this._virtualNode) {
+                
+                if (this._lerpAnim) {
+                    cancelAnimationFrame(this._lerpAnim);
+                    this._lerpAnim = null;
+                }
+
                 this._virtualNode = targetNode;
                 this._isKeyboardNavigating = true;
 
                 if (isGraphActive) {
                     const zoomWrapper = document.getElementById('graphZoomWrapper');
-                    const targetNodeEl = zoomWrapper ? zoomWrapper.querySelector(`.g-node-content[data-id="${targetNode.id}"]`) : null;
+                    const targetNodeEl = zoomWrapper ? zoomWrapper.querySelector(`[data-id="${targetNode.id}"]`) : null;
 
                     if (targetNodeEl) {
-                        const oldActive = zoomWrapper.querySelector('.g-node-content.active');
+                        const oldActive = zoomWrapper.querySelector('.active');
                         if (oldActive) oldActive.classList.remove('active');
 
                         if (typeof this.fastUpdateGraphVisuals === 'function') {
@@ -8372,22 +8867,129 @@ castSpell(spellType, targetSq) {
                 }
             }
         });
+    }
+    computeCompactGraphLayout(rootNode) {
+    if (!rootNode) return { width: 0, height: 0 };
 
-        document.addEventListener('keyup', (e) => {
-            const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
-            if (['input', 'textarea', 'select'].includes(activeTag)) return;
+    const config = {
+        nodeRadiusX: 20,
+        nodeRadiusY: 14,
+        levelHeight: 36,
+        baseGap: 18,
+        decayRate: 0.85,
+        minGap: 10,
+        paddingX: 40,
+        paddingY: 40
+    };
 
-            if (e.code === 'Space' && this.blindfoldMode && this.isPeeking) {
-                this.isPeeking = false;
-                if (typeof this.renderBoard === 'function') this.renderBoard(false);
-            }
-            if (e.code === 'KeyX' || e.key === 'x') {
-                const graphTab = document.getElementById('tabContent-Graph');
-                if (graphTab && graphTab.classList.contains('active')) {
-                    const prevMode = this._previousTabBeforeGraph || 'analysis';
-                    this.switchTab(prevMode);
+    const getGap = (depth) => Math.max(config.minGap, config.baseGap * Math.pow(config.decayRate, depth));
+
+    // Pass 1: Bottom-up (Contour Packing)
+    const computeContours = (node, depth) => {
+        if (!node.children || node.children.length === 0) {
+            node._relX = 0;
+            return { left: [-config.nodeRadiusX], right: [config.nodeRadiusX] };
+        }
+        if (node.children.length === 1) {
+            const child = node.children[0];
+            const childContour = computeContours(child, depth + 1);
+            child._relX = 0;
+            node._relX = 0;
+            return {
+                left: [-config.nodeRadiusX, ...childContour.left],
+                right: [config.nodeRadiusX, ...childContour.right]
+            };
+        }
+
+        const placedPositions = [];
+        const mergedContour = { left: [], right: [] };
+
+        node.children.forEach((child, index) => {
+            const childContour = computeContours(child, depth + 1);
+
+            if (index === 0) {
+                placedPositions.push(0);
+                mergedContour.left = [...childContour.left];
+                mergedContour.right = [...childContour.right];
+            } else {
+                let minShift = 0;
+                const maxOverlap = Math.min(mergedContour.right.length, childContour.left.length);
+
+                for (let d = 0; d < maxOverlap; d++) {
+                    const requiredGap = getGap(depth + 1 + d);
+                    const shift = (mergedContour.right[d] + requiredGap) - childContour.left[d];
+                    if (shift > minShift) minShift = shift;
+                }
+
+                placedPositions.push(minShift);
+
+                for (let d = 0; d < childContour.right.length; d++) {
+                    const shiftedRight = childContour.right[d] + minShift;
+                    if (d < mergedContour.right.length) {
+                        mergedContour.right[d] = Math.max(mergedContour.right[d], shiftedRight);
+                    } else {
+                        mergedContour.right.push(shiftedRight);
+                    }
+                }
+
+                for (let d = mergedContour.left.length; d < childContour.left.length; d++) {
+                    mergedContour.left.push(childContour.left[d] + minShift);
                 }
             }
         });
+
+        const parentX = (placedPositions[0] + placedPositions[placedPositions.length - 1]) / 2;
+        node.children.forEach((child, index) => {
+            child._relX = placedPositions[index] - parentX;
+        });
+
+        const finalLeft = [-config.nodeRadiusX];
+        const finalRight = [config.nodeRadiusX];
+        const maxLen = Math.max(mergedContour.left.length, mergedContour.right.length);
+
+        for (let d = 0; d < maxLen; d++) {
+            finalLeft.push((d < mergedContour.left.length ? mergedContour.left[d] : mergedContour.right[d]) - parentX);
+            finalRight.push((d < mergedContour.right.length ? mergedContour.right[d] : mergedContour.left[d]) - parentX);
+        }
+
+        return { left: finalLeft, right: finalRight };
+    };
+
+    computeContours(rootNode, 0);
+
+    let minX = Infinity, maxX = -Infinity, maxY = 0;
+    const assignCoordinates = (node, currentX, currentY) => {
+        node.x = currentX;
+        node.y = currentY;
+
+        if (currentX < minX) minX = currentX;
+        if (currentX > maxX) maxX = currentX;
+        if (currentY > maxY) maxY = currentY;
+
+        if (node.children) {
+            for (let i = 0; i < node.children.length; i++) {
+                assignCoordinates(node.children[i], currentX + node.children[i]._relX, currentY + config.levelHeight);
+            }
+        }
+    };
+    assignCoordinates(rootNode, 0, 0);
+
+    const offsetX = -minX + config.paddingX;
+    const offsetY = config.paddingY;
+
+    const applyOffset = (node) => {
+        node.x += offsetX;
+        node.y += offsetY;
+        delete node._relX;
+        if (node.children) {
+            for (let i = 0; i < node.children.length; i++) applyOffset(node.children[i]);
+        }
+    };
+    applyOffset(rootNode);
+
+    return {
+        width: Math.ceil(maxX - minX + (config.nodeRadiusX * 2) + config.paddingX * 2),
+        height: Math.ceil(maxY + config.nodeRadiusY * 2 + config.paddingY * 2)
+    };
     }
 }

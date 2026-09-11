@@ -13,16 +13,28 @@
     box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
     background: #222; 
 }
-
+#board-wrapper.board-wrapper {
+    aspect-ratio: 1 / 1;
+    width: 600px;
+    max-width: 100%;
+    contain: layout paint;
+}
 #enginePanel {
     flex-shrink: 0 !important; /* CRITICAL: Never let the eval bar squish */
     margin-left: 0 !important; /* We use the 'gap' property above instead */
+}
+body.show-editor #board-wrapper,
+body.show-editor #board-wrapper.board-wrapper {
+    aspect-ratio: auto;
+    height: auto;
+    max-height: none;
 }
 #chessBoard {
     display: block;
     position: relative;
     width: 100%;
     aspect-ratio: 1 / 1;
+    flex-shrink: 0;
     border: 5px solid #222;
     background-color: solid #222;
     overflow: hidden;
