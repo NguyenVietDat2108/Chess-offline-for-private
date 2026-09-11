@@ -1543,18 +1543,22 @@ return move.san;
                             let sign = engMatch[1] === '-' ? -1 : 1;
                             let isMate = engMatch[2] === 'M';
                             let val = parseFloat(engMatch[3]);
-                            
-                            this.currentNode.eval = (engMatch[1]||"") + (engMatch[2]||"") + engMatch[3]; 
+                            let justMovedColor = this.currentNode.lastMove ? this.currentNode.lastMove.color : (this.currentNode.fen.split(' ')[1] === 'w' ? 'b' : 'w');
+                            if (this.isEngineMatch && justMovedColor === 'b') {
+                                sign *= -1;
+                            }
 
                             if (!isNaN(val)) {
-                                if (this.isEngineMatch) {
-                                    let justMovedColor = this.currentNode.fen.split(' ')[1] === 'w' ? 'b' : 'w';
-                                    if (justMovedColor === 'b') sign *= -1; 
-                                    this.currentNode.evalScore = isMate ? (sign > 0 ? 100000 - val : -100000 + val) : (sign * val * 100);
+                                if (isMate) {
+                                    let rawEval = sign > 0 ? (100000 - val) : (-100000 + val);
+                                    this.currentNode.evalScore = rawEval;
+                                    this.currentNode.eval = (sign > 0 ? "+M" : "-M") + Math.abs(val);
                                 } else {
-                                    this.currentNode.score = { unit: isMate ? 'mate' : 'pawn', value: val * sign };
-                                    this.currentNode.evalScore = isMate ? (sign > 0 ? 100000 - val : -100000 + val) : (sign * val * 100);
+                                    let rawEval = sign * val * 100;
+                                    this.currentNode.evalScore = rawEval;
+                                    this.currentNode.eval = (sign > 0 ? "+" : "") + (sign * val).toFixed(2);
                                 }
+                                this.currentNode.depth = depth;
                             }
                         }
                     }
@@ -1921,19 +1925,7 @@ return move.san;
         const scoreMatch = rawComment.match(scoreRegex);
 
         if (scoreMatch) {
-            let rawScore = scoreMatch[1]; 
-            node.depth = scoreMatch[2];
-            
-            if (this.isEngineMatch && node.lastMove && node.lastMove.color === 'b') {
-                if (rawScore.startsWith('+')) {
-                    rawScore = rawScore.replace('+', '-');
-                } else if (rawScore.startsWith('-')) {
-                    rawScore = rawScore.replace('-', '+');
-                } else if (!rawScore.startsWith('-') && !rawScore.startsWith('+')) {
-                    rawScore = '-' + rawScore;
-                }
-            }
-            node.eval = rawScore;
+            node.depth = parseInt(scoreMatch[2], 10);
         }
         
         // 2. Build the PV Variation Tree
@@ -2526,13 +2518,6 @@ return move.san;
                     }
                 } else {
                     if (!eStr.startsWith('+') && !eStr.startsWith('-')) eStr = '+' + eStr;
-                }
-                
-                // ONLY flip the evaluation for Black if this is an official CCC Engine Tournament!
-                if (this.isEngineMatch && node.lastMove && node.lastMove.color === 'b') {
-                    if (eStr.startsWith('+')) eStr = eStr.replace('+', '-');
-                    else if (eStr.startsWith('-')) eStr = eStr.replace('-', '+');
-                    else if (eStr !== '0' && eStr !== '0.00') eStr = '-' + eStr;
                 }
                 
                 let d = node.depth || 20; 
