@@ -40,9 +40,8 @@ class ChessApp {
         const isFairy = !['classical', 'chess960'].includes(lastVariant);
         
         // 1. Fetch the name from cache or default
-        let cachedName = isFairy ? "Fairy-Stockfish 14 NNUE" : (localStorage.getItem('chess_cached_engine_name') || "Stockfish 18");
+        let cachedName = isFairy ? "Fairy-Stockfish 14 NNUE" : (localStorage.getItem('chess_cached_engine_name') || "Stockfish 19");
         
-        // ✨ FIX: Force the first letter to be Capitalized (e.g. "stockfish 18" -> "Stockfish 18")
         if (cachedName && cachedName.length > 0) {
             cachedName = cachedName.charAt(0).toUpperCase() + cachedName.slice(1);
         }

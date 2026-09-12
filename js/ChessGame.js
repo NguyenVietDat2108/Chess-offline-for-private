@@ -841,11 +841,12 @@ getReader() {
                 return;
             } else {
                 this.#safeSetOption('UCI_Chess960', this.gameMode === 'chess960' ? 'true' : 'false');
-                
                 let nnueToLoad = this._defaultNnueFile || 'nn-1a298aa575a0.nnue';
                 
                 console.log("[ENGINE] Chuẩn bị tải NNUE hệ tiêu chuẩn:", nnueToLoad);
-                fetch('./engine/nnue/' + nnueToLoad)
+                const appBaseUrl = new URL('.', window.location.href).href;
+                
+                fetch(new URL('engine/nnue/' + nnueToLoad, appBaseUrl).href)
                     .then(res => {
                         if (!res.ok) throw new Error("Thiếu file NNUE: " + nnueToLoad);
                         return res.arrayBuffer();
@@ -857,7 +858,7 @@ getReader() {
                         setTimeout(() => { this.#postEngineCommand('isready'); }, 50);
                     })
                     .catch(err => {
-                        console.error("[ENGINE FATAL] Cờ sẽ bị mù (0.00 Eval) vì lỗi NNUE:", err);
+                        console.error("[ENGINE FATAL] Lỗi NNUE:", err);
                         this.#postEngineCommand('isready');
                     });
                 return;
@@ -3332,17 +3333,26 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
             window.engineReady = false; 
             window.engineBooting = true;
             this.engineSupportedOptions = new Set();
+
             if (!engineType) {
                 engineType = ['classical', 'chess960'].includes(this.gameMode) ? 'standard' : 'fairy';
             }
             this.activeEngineType = engineType;
 
+            const appBaseUrl = new URL('.', window.location.href).href;
+
             const spawnEs6Worker = (jsPath) => {
-                const absoluteUrl = new URL(jsPath, window.location.href).href;
+                const absoluteUrl = new URL(jsPath, appBaseUrl).href;
+                const wasmUrl = new URL('sf_19.wasm', absoluteUrl).href;
+
                 const workerCode = `
                     import Stockfish from "${absoluteUrl}";
                     
                     Stockfish({
+                        locateFile: function(path, prefix) {
+                            if (path.endsWith('.wasm')) return "${wasmUrl}";
+                            return (prefix || '') + path;
+                        },
                         listen: (line) => self.postMessage(line),
                         onError: (err) => console.error("Engine Error:", err)
                     }).then(engine => {
@@ -3383,38 +3393,34 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
             };
 
             // ==========================================
-            // NATIVE CUSTOM ENGINE
+            // 1. NATIVE CUSTOM ENGINE
             // ==========================================
             if (this.activeEngineType === 'custom' && customUrl) {
                 engineDisplayName = customName || "Custom Engine";
                 window.sfWorker = spawnEs6Worker(customUrl);
             } 
             // ==========================================
-            // FAIRY STOCKFISH
+            // 2. FAIRY STOCKFISH (Sửa URL để tương thích GitHub Pages)
             // ==========================================
             else if (this.activeEngineType === 'fairy') {
                 engineDisplayName = "Fairy-Stockfish 14 NNUE";
                 
-                const originStr = window.location.origin;
-                const engineDir = originStr + '/engine/fairy/';
-                const jsUrl = engineDir + 'fairy-stockfish.js';
-                const wasmUrl = engineDir + 'fairy-stockfish.wasm';
-                const workerUrl = engineDir + 'fairy-stockfish.worker.js';
-                
+                const engineDir = new URL('engine/fairy/', appBaseUrl).href;
+                const jsUrl = new URL('fairy-stockfish.js', engineDir).href;
+                const wasmUrl = new URL('fairy-stockfish.wasm', engineDir).href;
+                const workerUrl = new URL('fairy-stockfish.worker.js', engineDir).href;
+                const nnueBaseUrl = new URL('engine/nnue/', appBaseUrl).href;
+
                 const workerScript = `
-                    var originStr = '${originStr}';
+                    var appBaseUrl = '${appBaseUrl}';
                     var jsUrl = '${jsUrl}';
                     var wasmUrl = '${wasmUrl}';
                     var workerUrl = '${workerUrl}';
+                    var nnueBaseUrl = '${nnueBaseUrl}';
 
                     function sanitize(rawUrl) {
                         if (!rawUrl) return '';
                         let u = typeof rawUrl === 'string' ? rawUrl : (rawUrl.url || rawUrl.toString());
-                        let oSlash = originStr + '/';
-                        if (u.includes(oSlash + 'blob:')) u = u.substring(u.indexOf('blob:'));
-                        if (u.includes(oSlash + 'http')) u = u.substring(u.indexOf('http', oSlash.length));
-                        u = u.replace(originStr + originStr, originStr);
-                        u = u.replace(originStr + '/' + originStr, originStr);
                         return u;
                     }
 
@@ -3426,10 +3432,10 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                         if (fileName.endsWith('.worker.js')) return workerUrl;
                         if (fileName.endsWith('.wasm')) return wasmUrl;
                         if (fileName.endsWith('.js')) return jsUrl;
-                        if (fileName.endsWith('.nnue')) return originStr + '/engine/nnue/' + fileName;
+                        if (fileName.endsWith('.nnue')) return nnueBaseUrl + fileName;
                         
                         if (url.startsWith('http')) return url;
-                        return originStr + '/' + (url.startsWith('/') ? url.substring(1) : url);
+                        return new URL(url.replace(/^\\//, ''), appBaseUrl).href;
                     }
 
                     const nativeFetch = self.fetch;
@@ -3438,7 +3444,7 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                     const NativeRequest = self.Request;
                     self.Request = function(input, init) { 
                         try { return new NativeRequest(resolveUrl(input), init); }
-                        catch(e) { return new NativeRequest(originStr + '/' + input.toString().split('/').pop(), init); }
+                        catch(e) { return new NativeRequest(input, init); }
                     };
 
                     const NativeURL = self.URL;
@@ -3446,7 +3452,7 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                         try {
                             let resolved = resolveUrl(url);
                             if (resolved.startsWith('blob:') || resolved.startsWith('http')) return new NativeURL(resolved);
-                            return new NativeURL(resolved, sanitize(base));
+                            return new NativeURL(resolved, base || appBaseUrl);
                         } catch(e) { return new NativeURL(resolveUrl(url)); }
                     };
                     self.URL.createObjectURL = NativeURL.createObjectURL;
@@ -3460,27 +3466,16 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                         mainScriptUrlOrBlob: jsUrl 
                     };
 
-                    var isInitialized = false;
-                    var originalPostMessage = self.postMessage;
-                    
-                    self.postMessage = function(msg) {
-                        if (!isInitialized && typeof msg === 'string') {
-                            if (msg.includes('Stockfish') || msg.includes('Fairy') || msg.includes('id name')) {
-                                isInitialized = true;
-                                originalPostMessage('WORKER_INITIALIZED');
-                            }
-                        }
-                        originalPostMessage.apply(self, arguments);
-                    };
-
                     self.addEventListener('message', function(e) {
                         if (e.data && e.data.action === 'INJECT_NNUE') {
-                            try { 
-                                var fsObj = typeof FS !== 'undefined' ? FS : (engineInstance ? engineInstance.FS : Module.FS);
-                                fsObj.writeFile(e.data.name, new Uint8Array(e.data.buffer)); 
-                            } catch(err) {}
-                        } 
-                        else if (typeof e.data === 'string') {
+                            try {
+                                if (engineInstance && engineInstance.FS) {
+                                    engineInstance.FS.writeFile(e.data.name, new Uint8Array(e.data.buffer));
+                                }
+                            } catch(err) {
+                                console.error("Fairy NNUE inject error:", err);
+                            }
+                        } else if (typeof e.data === 'string') {
                             let cmd = e.data;
                             if (cmd.startsWith('setoption name Hash value')) cmd = 'setoption name Hash value 256'; 
                             else if (cmd.startsWith('setoption name Threads value')) {
@@ -3494,7 +3489,7 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                                 } 
                                 else if (typeof engineInstance.postMessage === 'function') engineInstance.postMessage(cmd);
                                 else if (typeof engineInstance.onCustomMessage === 'function') engineInstance.onCustomMessage(cmd);
-                            else if (typeof engineInstance === 'function') engineInstance(cmd);
+                                else if (typeof engineInstance === 'function') engineInstance(cmd);
                             } else {
                                 messageQueue.push(cmd);
                             }
@@ -3505,7 +3500,7 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                     
                     if (typeof Stockfish === 'function') {
                         Stockfish(Module).then(function(engine) {
-                            engineInstance = engine; 
+                            engineInstance = engine;
                             
                             messageQueue.forEach(function(cmd) {
                                 if (engineInstance.ccall) engineInstance.ccall('push_cmd', 'null', ['string'], [cmd]);
@@ -3523,11 +3518,8 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                             }
                             
                             setTimeout(function() {
-                                if (!isInitialized) {
-                                    isInitialized = true;
-                                    originalPostMessage('WORKER_INITIALIZED');
-                                }
-                            }, 3500);
+                                originalPostMessage('WORKER_INITIALIZED');
+                            }, 3000);
 
                         }).catch(function(e) {});
                     }
@@ -3537,29 +3529,33 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                 window.sfWorker = new Worker(URL.createObjectURL(blob));
             }
             // ==========================================
-            // STANDARD ENGINE (Stockfish 18, 19...)
+            // 3. STANDARD ENGINE (Stockfish 19 & Fallback kép)
             // ==========================================
             else {
-                let cachedName = typeof localStorage !== 'undefined' ? localStorage.getItem('chess_cached_engine_name') : "Stockfish 18";
+                let cachedName = typeof localStorage !== 'undefined' ? localStorage.getItem('chess_cached_engine_name') : "Stockfish 19";
                 if (this.#ui && typeof this.#ui.updateEngineName === 'function') {
                     this.#ui.updateEngineName(cachedName);
                 }
                 window.currentEngineShortName = cachedName;
 
+                let enginePath = 'engine/stockfish 19/sf_19.js';
+                let engineName = 'Stockfish 19';
+
                 try {
-                    const response = await fetch('/api/latest-engine');
+                    const response = await fetch(new URL('api/latest-engine', appBaseUrl).href);
                     if (response.ok) {
                         const data = await response.json();
-                        engineDisplayName = data.name; 
+                        engineDisplayName = data.name;
+                        enginePath = data.path.replace(/^\//, ''); // Bỏ / đầu để an toàn
                         if (typeof localStorage !== 'undefined') localStorage.setItem('chess_cached_engine_name', engineDisplayName);
-                        
-                        window.sfWorker = spawnEs6Worker(data.path);
+                        window.sfWorker = spawnEs6Worker(new URL(enginePath, appBaseUrl).href);
                     } else {
-                        throw new Error("Server API failed");
+                        throw new Error("No server backend (GitHub Pages)");
                     }
                 } catch(e) {
-                    engineDisplayName = cachedName || "Stockfish 18";
-                    window.sfWorker = spawnEs6Worker('/engine/stockfish 18/stockfish-18.js');
+                    console.log("[ENGINE] Chế độ GitHub Pages: Tự động tải Stockfish 19");
+                    engineDisplayName = "Stockfish 19";
+                    window.sfWorker = spawnEs6Worker(new URL('engine/stockfish 19/sf_19.js', appBaseUrl).href);
                 }
             }
 
@@ -3579,7 +3575,9 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
             if (this.activeEngineType !== 'fairy') {
                 window.sfWorker.postMessage('uci'); 
             }
-        } catch (e) {}
+        } catch (e) {
+            console.error("[ENGINE INIT ERROR]", e);
+        }
     }
 updateStockfish() {
         if (!window.engineAnalysing) {
