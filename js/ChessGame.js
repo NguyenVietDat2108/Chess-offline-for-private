@@ -3343,7 +3343,7 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
             const appBaseUrl = new URL('.', window.location.href).href;
 
             // ==========================================
-            // HÀM SPAWN CHO STOCKFISH 19 (ES6 + PTHREAD)
+            // STOCKFISH 19 (ES6 + PTHREAD)
             // ==========================================
             const spawnSf19Worker = (jsPath) => {
                 const absoluteJsUrl = new URL(jsPath, appBaseUrl).href;
