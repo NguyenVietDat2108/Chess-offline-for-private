@@ -58,7 +58,9 @@ class ChessApp {
         // Boot the game rules and workers
         requestAnimationFrame(() => {
             setTimeout(() => {
-                if (this.game) this.game.setGameMode(lastVariant, true);
+                if (this.game && this.game.gameMode !== lastVariant) {
+                    this.game.setGameMode(lastVariant, true);
+                }
             }, 200);
         });
     }
@@ -96,7 +98,7 @@ class ChessApp {
 
         // 2. Route Sounds cleanly to the SoundManager
         this.game.on('soundTriggered', (data) => {
-            if (typeof window.SoundManager !== 'undefined') {
+            if (typeof window.SoundManager !== 'undefined' && window.SoundManager.play) {
                 const volEl = document.getElementById('soundVolume');
                 const vol = volEl ? parseFloat(volEl.value) : 0.7;
                 
@@ -238,14 +240,13 @@ document.addEventListener('DOMContentLoaded', () => {
     window.app = new ChessApp();
 
     window.addEventListener('beforeunload', () => {
-        if (window.app.game) {
-            if (window.app.game.gameMode) {
-                window.app.game.saveVariantState(window.app.game.gameMode);
-            }
-            // Ask the active mode to execute its memory flush
-            if (typeof window.app.game.saveState === 'function') {
-                window.app.game.saveState(window.app.game.mode);
-            }
+    if (window.app && window.app.game) {
+        if (window.app.game.gameMode) {
+            window.app.game.saveVariantState(window.app.game.gameMode);
         }
+        if (typeof window.app.game.saveState === 'function') {
+            window.app.game.saveState(window.app.game.mode, true);
+        }
+    }
     });
 });

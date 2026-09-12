@@ -251,9 +251,10 @@ button, .btn-primary, .btn-secondary, .btn-success, .btn-danger, .btn-info, .fli
 .player-avatar { width: 45px; height: 45px; background-color: #21201d; border: 2px solid #333; border-radius: 6px; display: flex; justify-content: center; align-items: center; flex-shrink: 0; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
 .player-avatar svg { width: 34px; height: 34px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5)); display: block; }
 .player-info { display: flex; flex-direction: column; justify-content: center; line-height: 1.3; }
-.player-name { font-weight: 700; font-size: 14px; color: #e2e2e2; }
-.player-meta { font-size: 11px; color: #ffffff; font-weight: 500; }
-.clock { font-family: monospace; font-size: 18px; background: #21201d; padding: 5px 10px; border-radius: 3px; color: #bababa; font-weight: bold; border: none; }
+.player-name {font-weight: 700;font-size: 14px;color: #e2e2e2;max-width: 180px;white-space: nowrap;overflow: hidden;text-overflow: ellipsis;}
+.player-flag {width: 20px;height: 14px;border-radius: 2px;box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);object-fit: cover;flex-shrink: 0;margin-right: 6px;vertical-align: middle;}
+.player-meta {font-size: 11px;color: #ffffff;font-weight: 500;}
+.clock {font-family: monospace;font-size: 18px;background: #21201d;padding: 5px 10px;border-radius: 3px;color: #bababa;font-weight: bold;border: none;min-width: 80px;text-align: center;font-variant-numeric: tabular-nums;}
 .clock.active { background-color: var(--theme-accent); color: #fff; border-color: var(--theme-accent); transition: background-color 0.3s ease, border-color 0.3s ease; }
 
 /* --- History & PGN --- */
@@ -490,11 +491,7 @@ input[type=range] { flex-grow: 1; accent-color: #629924; }
     z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     position: relative; border-radius: 4px;
 }
-.player-flag {
-    width: 20px; height: 14px; border-radius: 2px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.3); object-fit: cover;
-    flex-shrink: 0; margin-right: 6px; vertical-align: middle;
-}
+
 .player-name-wrapper { display: flex; align-items: center; }
 
 /* Share Modal Specifics */

@@ -117,17 +117,15 @@ constructor() {
         if (resignBtn) resignBtn.style.display = 'none';
         if (drawBtn) drawBtn.style.display = 'none';
         
-        requestAnimationFrame(() => {
-            let lastTab = 'play';
-            if (typeof localStorage !== 'undefined') {
-                lastTab = localStorage.getItem('chess_last_tab') || 'play';
-            }
-            this.switchTab(lastTab);
-            
-            if (typeof this.resizeApp === 'function') {
-                setTimeout(() => this.resizeApp(), 50);
-            }
-        });
+        let lastTab = 'play';
+        if (typeof localStorage !== 'undefined') {
+            lastTab = localStorage.getItem('chess_last_tab') || 'play';
+        }
+        this.switchTab(lastTab);
+        
+        if (typeof this.resizeApp === 'function') {
+            this.resizeApp();
+        }
     }
 on(eventName, callback) {
         this.#callbacks[eventName] = callback;
@@ -894,7 +892,9 @@ switchTab(tabName) {
             if (lowerTab === 'editor') {
                 this.originalEditorFen = typeof this.#game.generateFEN === 'function' ? this.#game.generateFEN() : (this.#game.currentNode ? this.#game.currentNode.fen : "");
                 const pgnInput = document.getElementById('editorPgnInput');
-                if (pgnInput) pgnInput.value = typeof this.#game.generatePGN === 'function' ? this.#game.generatePGN() : "";
+                if (pgnInput) {
+                    pgnInput.value = this.#game._originalPgn || (typeof this.#game.generatePGN === 'function' ? this.#game.generatePGN() : "");
+                }
             }
 
             if (leavingGraph) {
@@ -974,7 +974,7 @@ switchTab(tabName) {
                 studyTitleEl.innerText = `${this.#game.studyTitle} • ${this.#game.chapters[this.#game.activeChapterIndex].title}`;
             }
         }
-        
+
         if (state.headers) {
             this.displayMetadata(state.headers);
             const wLabel = (state.headers['White'] || 'White') + (state.headers['WhiteElo'] ? ` (${state.headers['WhiteElo']})` : '');
@@ -1013,10 +1013,8 @@ switchTab(tabName) {
             }
         }
 
-        setTimeout(() => {
-            if (this.resizeApp) this.resizeApp();
-            if (this.safeResizeCharts) this.safeResizeCharts();
-        }, 10);
+        if (this.resizeApp) this.resizeApp();
+        if (this.safeResizeCharts) this.safeResizeCharts();
     }
 async loadCustomPieces() {
         if (!window.showDirectoryPicker) {
@@ -1501,10 +1499,10 @@ resizeApp() {
         scaler.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
 
         const totalContentHeight = isStudy ? (targetHeight + 450) * scale : targetHeight * scale;
-        document.body.style.minHeight = (totalContentHeight + offsetY + 50) + 'px'; 
+        const calculatedHeight = totalContentHeight + offsetY + 50;
+        document.body.style.minHeight = Math.max(window.innerHeight, calculatedHeight) + 'px'; 
         document.body.style.overflowY = 'auto';
-        document.body.style.overflowX = 'hidden'; 
-
+        document.body.style.overflowX = 'hidden';
         // Modals toàn màn hình
         const fullScreenModals = [
             'botMenuModal', 'continueSetupModal', 'gameOverModal', 
@@ -5796,10 +5794,8 @@ initResizer() {
                 document.addEventListener('mousemove', doResize); document.addEventListener('mouseup', stopResize);
             });
         }
-        setTimeout(() => {
-            const savedBoard = localStorage.getItem('chessBoardSize') ? parseInt(localStorage.getItem('chessBoardSize'), 10) : 600;
-            validateAndApplyLayout(savedBoard); window.dispatchEvent(new Event('resize'));
-        }, 50);
+        const savedBoard = localStorage.getItem('chessBoardSize') ? parseInt(localStorage.getItem('chessBoardSize'), 10) : 600;
+        validateAndApplyLayout(savedBoard);
     }
 handleMouseDown(e) {
         const state = this.#game ? this.#game.getReader() : null;
@@ -7262,9 +7258,16 @@ loadPgnAndAnalyze() {
 
         const processAndSave = (pgnText) => {
             if (this.#game) {
-                if (!this.#game.tabMemory) this.#game.tabMemory = {};
-                if (!this.#game.tabMemory['analysis']) this.#game.tabMemory['analysis'] = {};
-                this.#game.tabMemory['analysis'].pgn = pgnText;
+                // 1. Chuyển game sang chế độ analysis
+                this.#game.mode = 'analysis';
+                this.#game.gameOver = false;
+
+                // 2. Nạp trực tiếp PGN vào game engine để phân tích cú pháp, dựng cây biến thể và trích xuất header
+                if (typeof this.#game.loadPGN === 'function') {
+                    this.#game.loadPGN(pgnText, false, false);
+                }
+
+                // 3. Chuyển tab sau khi dữ liệu đã được xử lý hoàn tất
                 this.switchTab('analysis');
             }
         };
@@ -7281,7 +7284,9 @@ loadPgnAndAnalyze() {
             reader.readAsText(file);
         } else {
             let val = editorInput ? editorInput.value : '';
-            if (val) processAndSave(val);
+            if (val && val.trim() !== '') {
+                processAndSave(val);
+            }
         }
     }
 updatePlayerInfo() {

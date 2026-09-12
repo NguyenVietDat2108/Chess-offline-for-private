@@ -1276,12 +1276,13 @@ return move.san;
 }
 #flatCloneState(stateName) {
         const memSlot = (stateName === 'local' || stateName === 'bot' || stateName === 'play') ? 'play' : stateName;
-        
+        let pgnToPersist = this._originalPgn || (typeof this.generatePGN === 'function' ? this.generatePGN() : "");
+
         return {
             variant: this.gameMode || 'classical',
             mode: this.mode || stateName,
             fen: this.currentNode ? this.currentNode.fen : (typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'),
-            pgn: typeof this.generatePGN === 'function' ? this.generatePGN() : "",
+            pgn: pgnToPersist,
             headers: this.pgnHeaders ? { ...this.pgnHeaders } : {},
             history: this.history ? Array.from(this.history, val => val.toString()) : [],
             moveList: this.moveList ? [...this.moveList] : [],
@@ -1312,24 +1313,35 @@ return move.san;
             currentStudyId: this.currentStudyId
         };
     }
-#saveState(stateName) {
-        if (!stateName) return;
-        
-        if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
-        
-        const memSlot = (stateName === 'local' || stateName === 'bot' || stateName === 'play') ? 'play' : stateName;
-        
-        const stateSnapshot = this.#flatCloneState(stateName);
-        this.tabMemory[memSlot] = stateSnapshot;
-        clearTimeout(this._saveStateDebounce);
-        this._saveStateDebounce = setTimeout(() => {
-            try {
-                localStorage.setItem(`chess_tab_snapshot_${memSlot}`, JSON.stringify(stateSnapshot));
-            } catch(e) {
-                console.error("Error when record in LocalStorage:", e);
+
+
+#saveState(stateName, immediate = false) {
+    if (!stateName) return;
+    if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
+    const memSlot = (stateName === 'local' || stateName === 'bot' || stateName === 'play') ? 'play' : stateName;
+    
+    const stateSnapshot = this.#flatCloneState(stateName);
+    this.tabMemory[memSlot] = stateSnapshot;
+
+    const writeToStorage = () => {
+        try {
+            localStorage.setItem(`chess_tab_snapshot_${memSlot}`, JSON.stringify(stateSnapshot));
+            if (stateSnapshot.pgn) {
+                localStorage.setItem(`chess_${memSlot}_variant_pgn_${stateSnapshot.variant}`, stateSnapshot.pgn);
             }
-        }, 1000); 
+        } catch(e) {
+            console.error("Error writing to LocalStorage:", e);
+        }
+    };
+
+    if (immediate) {
+        clearTimeout(this._saveStateDebounce);
+        writeToStorage();
+    } else {
+        clearTimeout(this._saveStateDebounce);
+        this._saveStateDebounce = setTimeout(writeToStorage, 300);
     }
+}
 #restoreState(stateName) {
         if (!stateName) return false;
         if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
@@ -1350,20 +1362,30 @@ return move.san;
                 console.error(`Error when parsing into Memory Tab ${memSlot}`, e);
             }
         }
+
+        // Fallback đọc PGN của variant nếu snapshot rỗng
+        if ((!state || !state.pgn) && typeof localStorage !== 'undefined') {
+            const variantPgn = localStorage.getItem(`chess_${memSlot}_variant_pgn_${this.gameMode}`);
+            if (variantPgn) {
+                if (!state) state = { variant: this.gameMode, mode: memSlot };
+                state.pgn = variantPgn;
+            }
+        }
         
         this.mode = (memSlot === 'play') ? (state?.mode || 'local') : memSlot;
 
         if (state) {
             this.gameMode = state.variant || 'classical';
             
-            this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
+            this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, this.gameMode);
             if (this.#engine && typeof this.#engine.setGameMode === 'function') {
                 this.#engine.setGameMode(this.gameMode);
             }
             
             this.history = new BigUint64Array(1000);
             this.moveList = [];
-            this.pgnHeaders = {};
+            this.pgnHeaders = state.headers ? { ...state.headers } : {};
+
             if (state.pgn && state.pgn.trim() !== "") {
                 if (typeof this.loadPGN === 'function') {
                     this.loadPGN(state.pgn, false, true);
@@ -1428,9 +1450,25 @@ return move.san;
             if (this.currentNode && typeof this.loadFEN === 'function') {
                 this.loadFEN(this.currentNode.fen, this.gameMode, true);
             }
+
+            // 2. Ép UI xoá cache để vẽ lại khung metadata và tên kỳ thủ ngay lập tức khi F5 xong
+            if (this.#ui) {
+                this.#ui._lastMetadataCache = null;
+                this.#ui._lastHeadersCache = null;
+                if (typeof this.#ui.displayMetadata === 'function') {
+                    this.#ui.displayMetadata(this.pgnHeaders);
+                }
+                if (typeof this.#ui.renderHeaders === 'function') {
+                    this.#ui.renderHeaders();
+                }
+            }
+
             return true;
         }
-        let startFen = typeof this.#getStartingFen === 'function' ? this.#getStartingFen(this.gameMode) : (typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+
+        let startFen = typeof this.#getStartingFen === 'function' 
+            ? this.#getStartingFen(this.gameMode) 
+            : (typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
             
         this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
         if (this.#engine && typeof this.#engine.setGameMode === 'function') {
@@ -1460,14 +1498,13 @@ return move.san;
             }
         }
     }
-#parsePGNTokens(tokens, index) {
-        const tlRegex = /tl\s*=\s*(\d+(\.\d+)?)/;
-        const lichessEvalRegex = /\[%eval\s+([#]?[+-]?[\d\.]+)\]/; 
-        const lichessClkRegex = /\[%clk\s+([0-9:\.]+)\]/; 
-        const cccEvalRegex = /([+-]?(?:M)?\d+(?:\.\d+)?)\/(\d+)/; 
-        
-        const lichessCalRegex = /\[%cal\s+([^\]]+)\]/;
-        const lichessCslRegex = /\[%csl\s+([^\]]+)\]/;
+#parsePGNTokens(tokens, index = 0) {
+        const tlRegex = /tl\s*=\s*(-?\d+(\.\d+)?)/i;
+        const lichessEvalRegex = /\[%eval\s+([#]?[+-]?[\d\.]+)\]/i; 
+        const lichessClkRegex = /\[%clk\s+([0-9:\.]+)\]/i; 
+        const cccEvalRegex = /([+-]?(?:M)?\d+(?:\.\d+)?)\/(\d+)/i; 
+        const lichessCalRegex = /\[%cal\s+([^\]]+)\]/i;
+        const lichessCslRegex = /\[%csl\s+([^\]]+)\]/i;
 
         const decodeLichessColor = (c) => {
             if (c === 'R') return 'red';
@@ -1476,40 +1513,111 @@ return move.san;
             return 'green'; 
         };
 
-        while (index < tokens.length) {
-            let token = tokens[index].trim();
-            if (!token) { index++; continue; }
+        // Ngăn xếp (Stack) thay thế hoàn toàn đệ quy để chống tràn bộ nhớ và dứt điểm lỗi cú pháp private
+        const nodeStack = [];
+        let i = index || 0;
 
+        while (i < tokens.length) {
+            let token = tokens[i].trim();
+            if (!token) { i++; continue; }
+
+            // 1. MỞ NGOẶC NHÁNH BIẾN THỂ '(' -> PUSH VÀO STACK
             if (token === '(') {
-                let savedNode = this.currentNode;
-                let savedW = this.currentWTime;
-                let savedB = this.currentBTime;
-                let savedFen = this.#engine.fen();
+                nodeStack.push({
+                    savedNode: this.currentNode,
+                    savedW: this.currentWTime,
+                    savedB: this.currentBTime,
+                    savedFen: this.#engine.fen()
+                });
 
-                if (this.currentNode.parent) {
+                if (this.currentNode && this.currentNode.parent) {
                     this.currentNode = this.currentNode.parent;
-                    if (this.currentNode.fen) try { this.#engine.load(this.currentNode.fen); } catch(e) {}
+                    if (this.currentNode.fen) {
+                        try { this.#engine.load(this.currentNode.fen); } catch(e) {}
+                    }
                 }
-                index = this.#parsePGNTokens(tokens, index + 1);
-                this.currentNode = savedNode;
-                this.currentWTime = savedW;
-                this.currentBTime = savedB;
-                try { this.#engine.load(savedFen); } catch(e) {}
+                i++;
+                continue;
             }
-            else if (token === ')') {
-                return index;
+
+            // 2. ĐÓNG NGOẶC BIẾN THỂ ')' -> POP RA KHÔI PHỤC
+            if (token === ')') {
+                if (nodeStack.length > 0) {
+                    const frame = nodeStack.pop();
+                    this.currentNode = frame.savedNode;
+                    this.currentWTime = frame.savedW;
+                    this.currentBTime = frame.savedB;
+                    try { this.#engine.load(frame.savedFen); } catch(e) {}
+                }
+                i++;
+                continue;
             }
-            else if (token.startsWith('$') || /^[!?]+$/.test(token)) {
+
+            // 3. KÝ HIỆU ĐÁNH GIÁ (NAGs)
+            if (token.startsWith('$') || /^[!?]+$/.test(token)) {
                 if (this.currentNode) {
                     this.currentNode.nag = (this.currentNode.nag ? this.currentNode.nag + "," : "") + token;
                 }
+                i++;
+                continue;
             }
-            else if (token.startsWith('{')) {
-                let rawComment = token.replace(/^\{|\}$/g, '').trim();
-                
-                if (/\bbook\b/i.test(rawComment)) this.currentNode.isBook = true;
 
-                // 1. PARSE LICHESS EVAL
+            // 4. BÌNH LUẬN & TELEMETRY ENGINE {...}
+            if (token.startsWith('{')) {
+                let rawComment = token.replace(/^\{|\}$/g, '').trim();
+
+                // Nhãn {book} độc lập của engine
+                if (/^\s*book\s*$/i.test(rawComment)) {
+                    this.currentNode.isBook = true;
+                    this.currentNode.engineDetails = "book";
+                    this.currentNode.comment = null;
+                    i++;
+                    continue;
+                }
+
+                // Tách các thẻ Lichess: [%eval ...], [%clk ...], [%cal ...], [%csl ...]
+                let lichessTags = [];
+                let nonLichess = rawComment.replace(/\[%[^\]]+\]/g, (m) => {
+                    lichessTags.push(m);
+                    return '';
+                }).trim();
+
+                // Khối nhận diện telemetry CCC/TCEC khép kín hợp lệ
+                const cccTelemetryRegex = /([+-]?(?:M)?\d+(?:\.\d+)?\/\d+[\s\S]*?tl=[\d\.\-]+s?[\s\S]*?pv=(?:\\*["'])?[^"}\\]*(?:\\*["'])?)|([+-]?(?:M)?\d+(?:\.\d+)?\/\d+[\s\S]*?(?:tl=[\d\.\-]+s?|nps=\d+|pv=[\s\S]*?))|(tl=[\d\.\-]+s?[\s\S]*?nps=\d+)/i;
+                
+                let enginePart = "";
+                let humanPart = nonLichess;
+
+                let cccMatch = nonLichess.match(cccTelemetryRegex);
+                if (cccMatch) {
+                    enginePart = cccMatch[0].trim();
+                    humanPart = nonLichess.replace(enginePart, '')
+                                          .replace(/^,\s*|,\s*$/g, '')
+                                          .replace(/\s{2,}/g, ' ')
+                                          .trim();
+                } else {
+                    const shortEngineRegex = /^[+-]?(?:M)?\d+(?:\.\d+)?\/\d+(\s+\d+(\.\d+)?s)?/i;
+                    let shortMatch = nonLichess.match(shortEngineRegex);
+                    if (shortMatch) {
+                        enginePart = shortMatch[0].trim();
+                        humanPart = nonLichess.replace(enginePart, '')
+                                              .replace(/^,\s*|,\s*$/g, '')
+                                              .trim();
+                    }
+                }
+
+                if (/\bbook\b/i.test(enginePart)) {
+                    this.currentNode.isBook = true;
+                }
+
+                this.currentNode.comment = (humanPart && humanPart !== '-' && humanPart !== ',-') ? humanPart : null;
+                
+                let totalEngineDetails = [];
+                if (enginePart) totalEngineDetails.push(enginePart);
+                if (lichessTags.length > 0) totalEngineDetails.push(lichessTags.join(' '));
+                this.currentNode.engineDetails = totalEngineDetails.length > 0 ? totalEngineDetails.join(' ') : null;
+
+                // A. Parse Lichess Eval
                 let evMatch = rawComment.match(lichessEvalRegex);
                 if (evMatch) {
                     const rawVal = evMatch[1];
@@ -1534,16 +1642,19 @@ return move.san;
                     }
                 }
 
-                // 2. PARSE CCC EVAL
+                // B. Parse CCC Eval
                 if (!this.currentNode.eval) {
-                    let engMatch = rawComment.match(/([+-])?(M)?(\d+(\.\d+)?)\/(\d+)/);
+                    let engMatch = rawComment.match(/([+-])?(M)?(\d+(\.\d+)?)\/(\d+)/i);
                     if (engMatch) {
                         let depth = parseInt(engMatch[5], 10);
                         if (depth > 0) { 
                             let sign = engMatch[1] === '-' ? -1 : 1;
                             let isMate = engMatch[2] === 'M';
                             let val = parseFloat(engMatch[3]);
-                            let justMovedColor = this.currentNode.lastMove ? this.currentNode.lastMove.color : (this.currentNode.fen.split(' ')[1] === 'w' ? 'b' : 'w');
+                            let justMovedColor = this.currentNode.lastMove 
+                                ? this.currentNode.lastMove.color 
+                                : (this.currentNode.fen.split(' ')[1] === 'w' ? 'b' : 'w');
+
                             if (this.isEngineMatch && justMovedColor === 'b') {
                                 sign *= -1;
                             }
@@ -1564,11 +1675,11 @@ return move.san;
                     }
                 }
 
-                // 3. PARSE CLOCKS
+                // C. Parse Clocks & Telemetry
                 const clkMatch = rawComment.match(lichessClkRegex);
-                const tlMatch = rawComment.match(/tl=([\d\.]+)s?/);
-                const npsMatch = rawComment.match(/nps=(\d+)/);
-                const latencyMatch = rawComment.match(/latency=([\d\.]+)s?/);
+                const tlMatch = rawComment.match(tlRegex);
+                const npsMatch = rawComment.match(/nps=(\d+)/i);
+                const latencyMatch = rawComment.match(/latency=([\d\.]+)s?/i);
                 
                 let timeLeft = null;
 
@@ -1583,8 +1694,11 @@ return move.san;
                 if (npsMatch) this.currentNode.nps = npsMatch[1];
                 if (latencyMatch) this.currentNode.latency = latencyMatch[1];
 
-                const pvMatch = rawComment.match(/pv=(?:\\*["'])?([^"}\\]+)/);
-                if (pvMatch) this.currentNode.pv = pvMatch[1].trim();
+                // Bắt chính xác chuỗi PV ngay cả khi có dấu nháy thoát pv=\"...\"
+                const pvMatch = rawComment.match(/pv\s*=\s*\\*["']?([^"}\\]+)/i);
+                if (pvMatch && pvMatch[1]) {
+                    this.currentNode.pv = pvMatch[1].trim();
+                }
 
                 if (timeLeft !== null && !isNaN(timeLeft)) {
                     let justMovedColor = this.#engine.turn() === 'b' ? 'w' : 'b';
@@ -1609,7 +1723,7 @@ return move.san;
                     }
                 }
                 
-                // 4. PARSE ARROWS / CIRCLES
+                // D. Parse Shapes
                 let calMatch = rawComment.match(lichessCalRegex);
                 if (calMatch) {
                     this.currentNode.arrows = [];
@@ -1632,45 +1746,7 @@ return move.san;
                         this.currentNode.circles.push({ square: sq, color: decodeLichessColor(colorCode) });
                     });
                 }
-                
-                let cleanComment = rawComment.replace(/\[%(eval|clk|cal|csl)[^\]]*\]/g, '').trim();
-                
-                let humanTest = cleanComment.replace(/,?\s*tl=[^,\s]+/ig, "")
-                                            .replace(/,?\s*nps=[^,\s]+/ig, "")
-                                            .replace(/,?\s*latency=[^,\s]+/ig, "")
-                                            .replace(/,?\s*pv=(?:\\*["'])?[^"}\\]*(?:\\*["'])?/ig, "")
-                                            .replace(/,?\s*[-+]?(?:M)?\d+(?:\.\d+)?\/\d+/g, "")
-                                            .replace(/,?\s*\b\d+(?:\.\d+)?s\b/g, "")
-                                            .replace(/DEPTH:\s*\d+\s*/gi, "")
-                                            .replace(/,?\s*-\s*$/, "")
-                                            .replace(/\bbook\b/ig, "") // 👉 FIX 2: Strip book so it doesn't trigger as a human comment
-                                            .replace(/^,?\s*/, "").replace(/,?\s*$/, "").trim();
 
-                if (humanTest === '' || humanTest === '-' || humanTest === ',-') {
-                    cleanComment = ""; 
-                } else {
-                    cleanComment = cleanComment.replace(/,?\s*tl=[^,\s]+/ig, "")
-                                               .replace(/,?\s*nps=[^,\s]+/ig, "")
-                                               .replace(/,?\s*latency=[^,\s]+/ig, "")
-                                               .replace(/,?\s*pv=(?:\\*["'])?[^"}\\]*(?:\\*["'])?/ig, "")
-                                               .replace(/,?\s*-\s*$/, "").trim();
-                    
-                    if (!this.isEngineMatch) {
-                        cleanComment = cleanComment.replace(/,?\s*[-+]?(?:M)?\d+(?:\.\d+)?\/\d+/g, ""); 
-                        cleanComment = cleanComment.replace(/,?\s*\b\d+(?:\.\d+)?s\b/g, ""); 
-                        cleanComment = cleanComment.replace(/DEPTH:\s*\d+\s*/gi, ""); 
-                    }
-
-                    // Strip "book" out of the visible user comment
-                    cleanComment = cleanComment.replace(/(^|,\s*)\bbook\b(\s*,|$)/ig, "").trim();
-                    cleanComment = cleanComment.replace(/^,?\s*/, "").replace(/,?\s*$/, "").trim();
-                    cleanComment = cleanComment.replace(/\s{2,}/g, ' ');
-                }
-
-                if (cleanComment && cleanComment !== 'book') {
-                    this.currentNode.comment = (this.currentNode.comment ? this.currentNode.comment + " " : "") + cleanComment;
-                }
-                
                 const isEngineLog = rawComment.includes('pv=') || 
                                     rawComment.includes('nps=') ||
                                     cccEvalRegex.test(rawComment);
@@ -1678,15 +1754,19 @@ return move.san;
                 if (isEngineLog && typeof this.#processEngineComment === 'function') {
                     this.#processEngineComment(this.currentNode, rawComment);
                 }
+
+                i++;
+                continue;
             }
             else {
+                // 5. NƯỚC ĐI (MOVES)
                 if (!['*', '1-0', '0-1', '1/2-1/2'].includes(token) && !token.endsWith('.')) {
                     
                     if (['+-', '-+', '=', '+=', '=+', '±', '∓', '∞', '⩲', '⩱'].includes(token)) {
                         if (this.currentNode) {
                             this.currentNode.nag = (this.currentNode.nag ? this.currentNode.nag + "," : "") + token;
                         }
-                        index++;
+                        i++;
                         continue;
                     }
 
@@ -1715,28 +1795,41 @@ return move.san;
                     }
 
                     const uciMatch = (typeof engineInput === 'string') ? engineInput.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i) : null;
-                    if (uciMatch) engineInput = { from: uciMatch[1], to: uciMatch[2], promotion: uciMatch[3] };
+                    if (uciMatch) engineInput = { from: uciMatch[1], to: uciMatch[2], promotion: uciMatch[3] ? uciMatch[3].toLowerCase() : undefined };
 
                     let moveObj = null;
                     const originalError = console.error;
                     console.error = () => {}; 
                     
                     try {
-                        moveObj = this.#engine.move(engineInput);
+                        moveObj = this.#engine.move(engineInput, { sloppy: true });
                     } catch(e) {
                         moveObj = null;
                     }
                     console.error = originalError;
+
                     if (!moveObj) {
                         if (moveText.includes(':') || moveText.includes('/') || moveText.length > 8) {
-                            index++;
+                            i++;
                             continue;
                         }
                     }
+                    
                     let isIllegal = !moveObj;
-                    if (isIllegal) moveObj = { san: moveText, from: -1, to: -1, flags: '', color: this.#engine.turn(), piece: '' };
+                    if (isIllegal) {
+                        moveObj = { san: moveText, from: -1, to: -1, flags: '', color: this.#engine.turn(), piece: '' };
+                    }
 
+                    // 👉 FIX TRIỆT ĐỂ MẤT DẤU '+': Khôi phục lại toàn bộ dấu '+' và '#' từ moveText gốc hoặc kiểm tra in_check()
                     let finalSanToSave = moveObj.san;
+                    if (moveText.includes('+') && !finalSanToSave.includes('+') && !finalSanToSave.includes('#')) {
+                        finalSanToSave += '+';
+                    } else if (moveText.includes('#') && !finalSanToSave.includes('#')) {
+                        finalSanToSave += '#';
+                    } else if (!isIllegal && this.#engine.in_check() && !finalSanToSave.includes('+') && !finalSanToSave.includes('#')) {
+                        finalSanToSave += '+';
+                    }
+
                     if (!isIllegal && typeof moveText === 'string') {
                         let spaceIdx = moveText.indexOf(' ');
                         if (spaceIdx !== -1) {
@@ -1753,7 +1846,9 @@ return move.san;
                     newNode.lastMove = {
                         from: isIllegal ? -1 : this.#squareToIndex(moveObj.from),
                         to: isIllegal ? -1 : this.#squareToIndex(moveObj.to),
-                        flags: moveObj.flags, piece: moveObj.piece, color: moveObj.color
+                        flags: moveObj.flags, 
+                        piece: moveObj.piece, 
+                        color: moveObj.color
                     };
                     
                     if (attachedNag) {
@@ -1773,13 +1868,12 @@ return move.san;
                         });
                     }
                     this.currentNode = newNode;
-                    
                     this.currentNode.clock = { w: this.currentWTime, b: this.currentBTime };
                 }
+                i++;
             }
-            index++;
         }
-        return index;
+        return i;
     }
 #addPVToNode(node, pvString) {
         if (!pvString || !node) return;
@@ -1790,69 +1884,85 @@ return move.san;
         let moves = pvString.trim().split(/\s+/);
         if (moves.length === 0) return;
 
-        let startNode = node;
-        let loadFen = node.fen;
+        let startNode = node.parent || node;
+        let loadFen = (node.parent && node.parent.fen) ? node.parent.fen : node.fen;
+        let pvMovesToPlay = moves;
 
         if (node.parent) {
             try {
-                this.#engine.load(node.parent.fen);
-                let firstMoveText = moves[0].replace(/[?!]+$/, '');
-                let uciMatch = firstMoveText.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
-                let testInput = firstMoveText;
-                if (uciMatch) {
-                    testInput = { from: uciMatch[1], to: uciMatch[2] };
-                    if (uciMatch[3]) testInput.promotion = uciMatch[3].toLowerCase();
-                }
+                // Kiểm tra xem moves[0] là nước đi từ node.parent (ví dụ c1e3) hay từ node (ví dụ f8e7)
+                this.#engine.load(node.fen);
+                let firstMoveText = moves[0].replace(/[?!+#]+$/, '');
+                let uM = firstMoveText.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
+                let testInput = uM 
+                    ? { from: uM[1], to: uM[2], promotion: uM[3] ? uM[3].toLowerCase() : undefined }
+                    : firstMoveText;
                 
-                let moveObj = null;
-                const originalError = console.error;
-                console.error = () => {};
-                try { moveObj = this.#engine.move(testInput); } catch(e) {}
-                console.error = originalError;
+                let testMove = null;
+                const origErr = console.error; console.error = () => {};
+                try { testMove = this.#engine.move(testInput, { sloppy: true }); } catch(e) {}
+                console.error = origErr;
 
-                if (moveObj) {
+                if (testMove) {
+                    // moves[0] đi được từ node -> PV bắt đầu từ sau nước đi hiện tại
+                    startNode = node;
+                    loadFen = node.fen;
+                    pvMovesToPlay = moves;
+                } else {
+                    // moves[0] là nước đi từ node.parent (ví dụ c1e3 là nước 9. Be3 sau 8... g6)
                     startNode = node.parent;
                     loadFen = node.parent.fen;
-                    this.#engine.undo(); 
-                } else {
-                    this.#engine.load(loadFen); 
+                    pvMovesToPlay = moves;
                 }
-            } catch(e) {}
+            } catch(e) {
+                startNode = node.parent;
+                loadFen = node.parent.fen;
+                pvMovesToPlay = moves;
+            }
         }
 
-        this.currentNode = startNode;
-        try { this.#engine.load(loadFen); } catch(e) { return; }
+        if (pvMovesToPlay.length === 0) return;
 
-        for (let i = 0; i < moves.length; i++) {
-            let moveText = moves[i].replace(/[?!]+$/, '');
+        this.currentNode = startNode;
+        try { 
+            this.#engine.load(loadFen); 
+        } catch(e) { 
+            this.currentNode = savedNode;
+            return; 
+        }
+
+        for (let i = 0; i < pvMovesToPlay.length; i++) {
+            let moveText = pvMovesToPlay[i].replace(/[?!+#]+$/, '');
             if (!moveText) continue;
 
             let uM = moveText.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
-            let eInput = moveText;
-            if (uM) {
-                eInput = { from: uM[1], to: uM[2] };
-                if (uM[3]) eInput.promotion = uM[3].toLowerCase();
-            }
+            let eInput = uM 
+                ? { from: uM[1], to: uM[2], promotion: uM[3] ? uM[3].toLowerCase() : undefined }
+                : moveText;
 
             let moveObj = null;
-            const originalError = console.error;
-            console.error = () => {};
-            try { moveObj = this.#engine.move(eInput); } catch(e) {}
-            console.error = originalError;
+            const origErr = console.error; console.error = () => {};
+            try { moveObj = this.#engine.move(eInput, { sloppy: true }); } catch(e) {}
+            if (!moveObj) {
+                try { moveObj = this.#engine.move(moveText, { sloppy: true }); } catch(e) {}
+            }
+            console.error = origErr;
 
             if (!moveObj) break;
 
             let moveData = {
                 from: typeof this.#squareToIndex === 'function' ? this.#squareToIndex(moveObj.from) : -1,
                 to: typeof this.#squareToIndex === 'function' ? this.#squareToIndex(moveObj.to) : -1,
-                flags: moveObj.flags, piece: moveObj.piece, color: moveObj.color
+                flags: moveObj.flags, 
+                piece: moveObj.piece, 
+                color: moveObj.color
             };
 
             this.#addMoveToTree(this.#engine.fen(), moveObj.san, moveData.to, moveData);
         }
 
         this.currentNode = savedNode;
-        try { this.#engine.load(savedFen); } catch(e) {}
+        try { this.#engine.load(savedFen); } catch(e) {}  
     }
 #addMoveToTree(fen, moveSan, toSq, moveData) {
         let isPVMove = !!this._isParsingPV;
@@ -1929,14 +2039,13 @@ return move.san;
         }
         
         // 2. Build the PV Variation Tree
-        const pvRegex = /pv\s*=\s*\\?["']([^"'\\]+)\\?["']?/;
-        const pvMatch = rawComment.match(pvRegex);
+        const pvMatch = rawComment.match(/pv\s*=\s*\\*["']?([^"}\\]+)/i);
         if (pvMatch && pvMatch[1]) {
             this._isParsingPV = true;
             if (typeof this.#addPVToNode === 'function') {
                 this.#addPVToNode(node, pvMatch[1].trim());
             }
-            this._isParsingPV = false; // Reset flag immediately
+            this._isParsingPV = false;
         }
     }
 #endGame(resultStr, statusMsg) {
@@ -2616,19 +2725,10 @@ return move.san;
             for (let i = 0; i < node.children.length; i++) {
                 if (i === activeIdx) continue;
                 let varChild = node.children[i];
+                
+                // Nhánh PV đã nằm trong comment { ... pv="..." }, không in ra ngoặc đơn để tránh nhân bản khi load lại
                 if (varChild.isPV) {
-                    let shouldExportTree = false;
-                    if (!this.isEngineMatch && mainChild.nag) {
-                        const nags = mainChild.nag.toString().split(',');
-                        for (let n of nags) {
-                            let cleanN = n.trim().replace('$', '');
-                            if (['2', '4', '6', '?', '??', '?!'].includes(cleanN)) {
-                                shouldExportTree = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (!shouldExportTree) continue; 
+                    continue; 
                 }
                 hadVariations = true;
                 
@@ -2764,7 +2864,9 @@ return move.san;
     }
     
 //Public API calling
-saveState(stateName) { this.#saveState(stateName); }
+saveState(stateName, immediate = false) {
+    this.#saveState(stateName, immediate);
+}
 restoreState(stateName) { return this.#restoreState(stateName); }
 squareToIndex(sq) { return this.#squareToIndex(sq); }
 indexToSquare(idx) { return this.#indexToSquare(idx); }
@@ -2976,38 +3078,13 @@ restoreAnalysisState() {
         return restored;
     }
 saveVariantState(modeToSave) {
-        if (!modeToSave) return;
-        
-        //console.group(`💾 [SAVE REQUEST] Triggered for variant: ${modeToSave}`);
-        //console.log(`Current active this.mode: '${this.mode}'`);
-        //console.trace("🔍 CALL STACK FOR SAVE:"); // THIS WILL REVEAL THE ROGUE CALLER!
-
-        //if (this.isVariantSuspended && this.isVariantSuspended(modeToSave)) {
-            //console.warn(`[Sandbox] ${modeToSave} is suspended. Aborted.`);
-            //console.groupEnd();
-            //return;
-        //}
-
-        let pgnToSave = '';
-        if (typeof this.generatePGN === 'function') {
-            pgnToSave = this.generatePGN();
-        } else if (this.#engine && typeof this.#engine.pgn === 'function') {
-            pgnToSave = this.#engine.pgn();
-        }
-
-        if (pgnToSave && pgnToSave.trim() !== '') {
-            const tabContext = (this.mode === 'local' || this.mode === 'bot' || this.mode === 'play') ? 'play' : (this.mode || 'analysis');
-            const targetKey = `chess_${tabContext}_variant_pgn_${modeToSave}`;
-            
-            //console.log(`🔑 WRITING TO STORAGE KEY: => ${targetKey}`);
-            //console.log(`📄 PGN SNAPSHOT (First 100 chars): ${pgnToSave.substring(0, 100).replace(/\n/g, ' ')}...`);
-            
-            localStorage.setItem(targetKey, pgnToSave);
-        } else {
-            console.warn(`[Save Aborted] PGN was empty.`);
-        }
-        console.groupEnd();
+    if (!modeToSave) return;
+    let pgnToSave = this._originalPgn || (typeof this.generatePGN === 'function' ? this.generatePGN() : "");
+    if (pgnToSave && pgnToSave.trim() !== '') {
+        const tabContext = (this.mode === 'local' || this.mode === 'bot' || this.mode === 'play') ? 'play' : (this.mode || 'analysis');
+        localStorage.setItem(`chess_${tabContext}_variant_pgn_${modeToSave}`, pgnToSave);
     }
+}
 setGameMode(mode, isInitialLoad = false, skipStorage = false) {
         if (!mode) return;
         if (!isInitialLoad && this.gameMode === mode) return;
@@ -4057,11 +4134,9 @@ stepBack(animate = true) {
         this.#emit('boardUpdated', { animate: animate });
         this._transientOverrideMove = null;
         
-        if (animate) {
-            if (this._audioDebounce) clearTimeout(this._audioDebounce);
-            this._audioDebounce = setTimeout(() => {
-                this.#emit('soundTriggered', { type: 'move-self' });
-            }, 25);
+        // 👉 Gọi thẳng triggerMoveSound giống hệt stepForward để kích hoạt nhịp throttle 45ms
+        if (undoneNode.lastMove) {
+            this.triggerMoveSound(undoneNode.lastMove);
         }
         return true;
     }
@@ -4082,7 +4157,8 @@ stepForward(animate = true) {
         
         this.#emit('boardUpdated', { animate: animate, overrideMove: nextNode.lastMove });
         
-        if (nextNode.lastMove && animate) {
+        // 👉 Luôn kích hoạt âm thanh độc lập với cờ animate
+        if (nextNode.lastMove) {
             this.triggerMoveSound(nextNode.lastMove);
         }
         return true;
@@ -4208,12 +4284,9 @@ goToNodeId(id, animate = true) {
         this._transientOverrideMove = null;
         
         if (shouldAnimate) {
-            if (this.currentNode.lastMove && !isStepBack) this.triggerMoveSound(this.currentNode.lastMove);
-            else {
-                if (this._audioDebounce) clearTimeout(this._audioDebounce);
-                this._audioDebounce = setTimeout(() => {
-                    this.#emit('soundTriggered', { type: 'move-self' });
-                }, 25);
+            const moveForSound = isStepBack ? (undoneNode.lastMove || this.currentNode.lastMove) : this.currentNode.lastMove;
+            if (moveForSound) {
+                this.triggerMoveSound(moveForSound);
             }
         }
         return true;
@@ -4986,13 +5059,37 @@ parseArrowsAndCircles(node, comment) {
 loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
         if (this.isLoadingPGN) return false;
 
+        // 1. LUÔN BẢO TOÀN NGUYÊN BẢN CHUỖI PGN GỐC (KỂ CẢ KHI RESTORE F5)
+        if (typeof pgn === 'string' && pgn.trim() !== '') {
+            this._originalPgn = pgn;
+        }
+
+        // 2. TRÍCH XUẤT TOÀN BỘ HEADER VÀ ÉP UI XÓA CACHE VẼ LẠI NGAY
         if (typeof pgn === 'string') {
+            this.pgnHeaders = {};
+            const headerRegex = /\[([A-Za-z0-9_]+)\s+"([^"]*)"\]/g;
+            let match;
+            while ((match = headerRegex.exec(pgn)) !== null) {
+                this.pgnHeaders[match[1]] = match[2];
+            }
+            if (this.#ui) {
+                this.#ui._lastMetadataCache = null;
+                this.#ui._lastHeadersCache = null;
+                if (typeof this.#ui.displayMetadata === 'function') {
+                    this.#ui.displayMetadata(this.pgnHeaders);
+                }
+            }
+        }
+
+        if (typeof pgn === 'string' && !isInternalLoad) {
             let detectedMode = 'classical';
             const variantMatch = pgn.match(/\[Variant\s+"([^"]+)"\]/i);
             const ruleVariantMatch = pgn.match(/\[RuleVariants\s+"([^"]+)"\]/i);
             
-            if (variantMatch && variantMatch[1]) {
-                const rawVariant = variantMatch[1].toLowerCase().replace(/[-_ ]/g, ''); 
+            let activeVariant = this.pgnHeaders['Variant'] || (variantMatch ? variantMatch[1] : null);
+            
+            if (activeVariant) {
+                const rawVariant = activeVariant.toLowerCase().replace(/[-_ ]/g, ''); 
                 const modeMap = {
                     'standard': 'classical', 'classical': 'classical',
                     'chess960': 'chess960', 'fischerandom': 'chess960',
@@ -5024,7 +5121,7 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
         }
 
         this.isLoadingPGN = true;
-        const timerId = `PGN_Load_${Date.now()}`;
+        const timerId = `PGN_Load_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
         console.time(timerId);
 
         if (window.sfWorker) window.sfWorker.postMessage('stop');
@@ -5046,18 +5143,12 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             this.moveList = [];
             this.history = [];
             this.fens = [];
-            this.pgnHeaders = {};
+            
             this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, this.gameMode);
             if (this.#engine && typeof this.#engine.setGameMode === 'function') {
                 this.#engine.setGameMode(this.gameMode);
             }
             this.#board = Array(64).fill(null);
-
-            const headerRegex = /\[([A-Za-z0-9_]+)\s+"([^"]*)"\]/g;
-            let match;
-            while ((match = headerRegex.exec(pgn)) !== null) {
-                this.pgnHeaders[match[1]] = match[2];
-            }
 
             let isFFA = Boolean(
                 this.pgnHeaders['Variant'] === 'FFA' || 
@@ -5202,16 +5293,18 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             this.currentNode = this.rootNode;
             this.loadFEN(this.rootNode.fen, this.gameMode, true);
 
+            // 3. NHẬN DIỆN ENGINE MATCH ĐỂ BẢO VỆ TOÀN VẸN CÂY BIẾN THỂ PV & COMMENT
             const wName = (this.pgnHeaders['White'] || "").toLowerCase();
             const bName = (this.pgnHeaders['Black'] || "").toLowerCase();
             const event = (this.pgnHeaders['Event'] || "").toLowerCase();
+            const site = (this.pgnHeaders['Site'] || "").toLowerCase();
             
             const ENGINE_TEST = /\b(stockfish|torch|leela|lc0|komodo|houdini|rybka|akimbo|minic|berserk|ethereal|koivisto|seer|slowchess|computer|engine|bot|crafty|hiarcs|shredder|dragon)\b/i;
             const isWhiteEng = ENGINE_TEST.test(wName);
             const isBlackEng = ENGINE_TEST.test(bName);
-            const isTournament = /\b(tcec|ccc|computer chess championship)\b/i.test(event);
+            const isTournament = /\b(tcec|ccc|computer chess championship)\b/i.test(event) || site.includes('computer-chess');
 
-            this.isEngineMatch = (isWhiteEng && isBlackEng) || isTournament;
+            this.isEngineMatch = (isWhiteEng && isBlackEng) || isTournament || isWhiteEng || isBlackEng;
 
             let tokens = [];
             let len = moveTextRaw.length;
@@ -5299,15 +5392,17 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             this.clearPremoves();
             this.premoveQueue = [];  
             
+            // 4. LƯU BỘ NHỚ ĐỒNG BỘ - TUYỆT ĐỐI KHÔNG GỌI switchTab Ở ĐÂY ĐỂ TRÁNH ĐỆ QUY VÔ HẠN
             if (!isInternalLoad) {
                 if (this.mode !== 'study' && this.mode !== 'puzzle') {
                     this.mode = 'analysis';
                     this.gameOver = false;
                     
-                    if (this.#ui && typeof this.#ui.switchTab === 'function') {
-                        this.#ui.switchTab('analysis');
-                    } else if (typeof this.#saveState === 'function') {
-                        this.#saveState('analysis');
+                    if (typeof this.#saveState === 'function') {
+                        this.#saveState('analysis', true);
+                    }
+                    if (typeof this.saveVariantState === 'function') {
+                        this.saveVariantState(this.gameMode);
                     }
                 }
             }
@@ -5350,6 +5445,8 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                         if (this.#ui.flipped) this.#ui.updatePlayerNames(wLabel, bLabel);
                         else this.#ui.updatePlayerNames(bLabel, wLabel);
 
+                        this.#ui._lastMetadataCache = null;
+                        this.#ui._lastHeadersCache = null;
                         this.#ui.displayMetadata(this.pgnHeaders);
                         this.#ui.playerInfo = this.#ui.playerInfo || { w: {}, b: {} };
                         
@@ -5406,22 +5503,21 @@ getNagInfo(nag) {
         return NAG_MAP[v] || null;
     }
 generatePGN(format = 'both') {
-        let pgn = "";
-        
-        for (let key in this.pgnHeaders) {
-            if (key.toLowerCase() === 'from') continue; 
-            pgn += `[${key} "${this.pgnHeaders[key]}"]\n`;
-        }
-        pgn += "\n";
+    let pgn = "";
+    for (let key in this.pgnHeaders) {
+        if (key.toLowerCase() === 'from') continue; 
+        pgn += `[${key} "${this.pgnHeaders[key]}"]\n`;
+    }
+    pgn += "\n";
 
-        // Route EVERYTHING through the recursive function
-        pgn += this.#generatePGNRecursive(this.rootNode, 1, false, format, null);
-        
-        pgn = pgn.trim().replace(/\s+/g, ' ');
-        let result = this.pgnHeaders['Result'] || '*';
-        if (!pgn.endsWith(result)) pgn += " " + result;
+    let movesText = this.#generatePGNRecursive(this.rootNode, 1, false, format, null);
+    movesText = movesText.trim().replace(/[ \t]+/g, ' ');
+    pgn += movesText;
 
-        return pgn;
+    let result = this.pgnHeaders['Result'] || '*';
+    if (!pgn.trim().endsWith(result)) pgn += " " + result;
+
+    return pgn;
     }
 exportPGN() {
         const formatMenu = document.getElementById('pgnFormatSelect');
@@ -7305,46 +7401,34 @@ triggerMoveSound(move) {
         const flags = move.flags || '';
         let type = 'move-self';
 
-        //  1. PUZZLE GRADING (Only for Player Moves)
+        // 1. PUZZLE GRADING
         if (this.mode === 'puzzle' && move.color === this.playerColor) {
             const pStatus = move.puzzleStatus || move.status;
-            
             if (pStatus === 'wrong' || move.isWrong) type = 'wrong';
             else if (pStatus === 'solved' || pStatus === 'best' || move.isSolved) type = 'best';
             else if (pStatus === 'correct' || move.isCorrect) type = 'correct';
             
             if (['wrong', 'best', 'correct'].includes(type)) {
-                if (this._audioDebounce) clearTimeout(this._audioDebounce);
-                this._audioDebounce = setTimeout(() => {
-                    this.#emit('soundTriggered', { type, destSquare: move.to });
-                }, 25);
+                this.#emit('soundTriggered', { type, destSquare: move.to });
                 return;
             }
         }
 
-        //  2. GAME OVER
+        // 2. GAME OVER
         if (this.#engine.game_over()) {
             if (this.#engine.in_draw() || this.#engine.in_stalemate() || (typeof this.#engine.in_threefold_repetition === 'function' && this.#engine.in_threefold_repetition())) {
                 type = 'draw';
             } else if (this.#engine.in_checkmate()) {
                 const matedColor = this.#engine.turn(); 
-                if (this.mode === 'bot') {
-                    type = (matedColor === this.botColor) ? 'win-long' : 'lose-long';
-                } else {
-                    type = 'win-long'; 
-                }
+                type = (this.mode === 'bot') ? (matedColor === this.botColor ? 'win-long' : 'lose-long') : 'win-long';
             } else {
                 type = 'win'; 
             }
-            
-            if (this._audioDebounce) clearTimeout(this._audioDebounce);
-            this._audioDebounce = setTimeout(() => {
-                this.#emit('soundTriggered', { type, destSquare: move.to });
-            }, 25);
+            this.#emit('soundTriggered', { type, destSquare: move.to });
             return;
         }
 
-        // 3. ACTION SOUNDS (Captures, Checks, etc.)
+        // 3. ACTION SOUNDS
         if (this.#engine.in_check()) {
             type = 'check';
         } else if (flags.includes('p')) {
@@ -7354,7 +7438,6 @@ triggerMoveSound(move) {
         } else if (flags.includes('k') || flags.includes('q')) {
             type = 'castle';
         } else {
-            //  4. STANDARD MOVES
             if (this.mode === 'bot' && move.color === this.botColor) {
                 type = 'move-opponent';
             } else if (this.mode === 'puzzle' && move.color !== this.playerColor) {
@@ -7364,12 +7447,11 @@ triggerMoveSound(move) {
             }
         }
 
-        // Debounce the audio queue to prevent lag explosions!
-        // This tiny 25ms delay allows the browser to clear out backed-up DOM processing
-        // and instantly destroys previously queued sounds so they don't stack up.
-        if (this._audioDebounce) clearTimeout(this._audioDebounce);
-        this._audioDebounce = setTimeout(() => {
+        // 👉 PHÁT ÂM THANH THEO NHỊP (Throttle ~45ms kiểu Lichess, không dùng clearTimeout để tránh nuốt tiếng)
+        const now = performance.now();
+        if (!this._lastSoundTime || (now - this._lastSoundTime >= 45)) {
+            this._lastSoundTime = now;
             this.#emit('soundTriggered', { type, destSquare: move.to });
-        }, 25);
+        }
     }
 }

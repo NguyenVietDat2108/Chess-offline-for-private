@@ -464,12 +464,115 @@ const SOUND_SETS = {
 };
 const SoundManager = {
     currentSet: 'chesscom_sounds',
+    _ctx: null,
+    _audioBuffers: {},     // Bộ nhớ đệm RAM: src -> AudioBuffer đã giải mã
+    _loadingPromises: {},  // Tránh giải mã trùng lặp
+
+    // 1. Khởi tạo Web Audio Context (chuẩn Lichess)
+    _getAudioContext() {
+        if (!this._ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) {
+                this._ctx = new AudioCtx();
+            }
+        }
+        if (this._ctx && this._ctx.state === 'suspended') {
+            this._ctx.resume();
+        }
+        return this._ctx;
+    },
+
+    // 2. Giải mã âm thanh (hỗ trợ cả Data URI Base64 và URL thường) thành AudioBuffer lưu vĩnh viễn trên RAM
+    async _loadAudioBuffer(src) {
+        if (!src) return null;
+        if (this._audioBuffers[src]) return this._audioBuffers[src];
+        if (this._loadingPromises[src]) return this._loadingPromises[src];
+
+        const ctx = this._getAudioContext();
+        if (!ctx) return null;
+
+        this._loadingPromises[src] = (async () => {
+            try {
+                let arrayBuffer;
+                if (src.startsWith('data:')) {
+                    // Chuyển trực tiếp Base64 sang ArrayBuffer (cực nhanh, không tốn I/O mạng)
+                    const base64Idx = src.indexOf(';base64,');
+                    if (base64Idx !== -1) {
+                        const base64 = src.substring(base64Idx + 8);
+                        const binary = atob(base64);
+                        const len = binary.length;
+                        const bytes = new Uint8Array(len);
+                        for (let i = 0; i < len; i++) {
+                            bytes[i] = binary.charCodeAt(i);
+                        }
+                        arrayBuffer = bytes.buffer;
+                    } else {
+                        const res = await fetch(src);
+                        arrayBuffer = await res.arrayBuffer();
+                    }
+                } else {
+                    const res = await fetch(src);
+                    arrayBuffer = await res.arrayBuffer();
+                }
+
+                // Giải mã dữ liệu PCM đưa vào RAM
+                const audioBuffer = await new Promise((resolve, reject) => {
+                    ctx.decodeAudioData(arrayBuffer.slice(0), resolve, reject);
+                });
+
+                this._audioBuffers[src] = audioBuffer;
+                return audioBuffer;
+            } catch (err) {
+                console.warn('[Sound] Lỗi decode AudioBuffer:', err);
+                return null;
+            } finally {
+                delete this._loadingPromises[src];
+            }
+        })();
+
+        return this._loadingPromises[src];
+    },
+
+    // 3. Phát AudioBuffer qua Node mixer: 0ms độ trễ, không tạo thẻ DOM, không bao giờ nghẽn trình duyệt
+    _playBuffer(buffer, volume) {
+        const ctx = this._getAudioContext();
+        if (!ctx || !buffer) return;
+
+        try {
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+
+            const gainNode = ctx.createGain();
+            gainNode.gain.value = Math.max(0, Math.min(1, volume));
+
+            source.connect(gainNode);
+            gainNode.connect(ctx.destination);
+
+            source.start(0);
+        } catch (err) {
+            console.error('[Sound] Lỗi Web Audio playback:', err);
+        }
+    },
+
+    // 4. Nạp trước tất cả âm thanh của bộ theme vào RAM khi khởi động
+    preloadTheme(setName) {
+        const cleanName = setName.toLowerCase();
+        const set = SOUND_SETS[cleanName] || Object.values(SOUND_SETS)[0];
+        if (set && set.sounds) {
+            Object.values(set.sounds).forEach(src => {
+                if (typeof src === 'string' && src.length > 0) {
+                    this._loadAudioBuffer(src);
+                }
+            });
+        }
+    },
 
     setTheme(setName) {
         const cleanName = setName.toLowerCase();
         if (SOUND_SETS[cleanName]) {
             this.currentSet = cleanName;
             console.log('[Sound] Theme changed to:', cleanName);
+            this.preloadTheme(cleanName);
             this.play('move', 0.5, 'e4');
         } else {
             console.warn('[Sound] Theme not found:', cleanName);
@@ -477,32 +580,25 @@ const SoundManager = {
     },
 
     getInstrumentNote(square) {
-        if (!square || square.length < 2)
-            return 'c006';
+        if (!square || square.length < 2) return 'c006';
         const files = 'abcdefgh';
         const file = files.indexOf(square[0]);
         const rank = parseInt(square[1]) - 1;
-        if (file === -1 || isNaN(rank))
-            return 'c006';
+        if (file === -1 || isNaN(rank)) return 'c006';
         let index = 1 + file + (rank * 3);
-        if (index > 27)
-            index = 27;
-        if (index < 1)
-            index = 1;
+        if (index > 27) index = 27;
+        if (index < 1) index = 1;
         return 'c' + index.toString().padStart(3, '0');
     },
 
-    play(type, volume=0.7, square=null) {
-        if (!type)
-            return;
+    play(type, volume = 0.7, square = null) {
+        if (!type) return;
         const cleanType = type.toLowerCase().trim();
         const setKey = this.currentSet;
         const set = SOUND_SETS[setKey] || Object.values(SOUND_SETS)[0];
 
-        if (!set || !set.sounds)
-            return;
+        if (!set || !set.sounds) return;
 
-       // ✨ THE FIX: Complete Dictionary including puzzle, UI, and event sounds
         const aliases = {
             'move-self': ['move-self', 'move'],
             'move-opponent': ['move-opponent', 'move'],
@@ -564,20 +660,28 @@ const SoundManager = {
             else if (['defeat', 'lose-long', 'wrong', 'error', 'illegal', 'decline'].includes(cleanType)) src = set.sounds['c001'] || src;
         }
 
-        // --- PLAY ---
-        if (src) {
-            try {
-                const audio = new Audio(src);
-                audio.volume = volume;
-                audio.play().catch( (e) => console.warn('[Sound] Play blocked by browser:', e));
-            } catch (err) {
-                console.error('[Sound] Error:', err);
-            }
+        if (!src) return;
+
+        // --- PHÁT TỨC THÌ TỪ RAM ---
+        const cachedBuffer = this._audioBuffers[src];
+        if (cachedBuffer) {
+            this._playBuffer(cachedBuffer, volume);
         } else {
-            console.warn(`[Sound] No audio source found for event: ${cleanType}`);
+            this._loadAudioBuffer(src).then(buf => {
+                if (buf) this._playBuffer(buf, volume);
+            });
         }
     }
 };
+
+// Tự động preload theme mặc định khi load file
+if (typeof SOUND_SETS !== 'undefined') {
+    setTimeout(() => {
+        if (SoundManager.preloadTheme) {
+            SoundManager.preloadTheme(SoundManager.currentSet);
+        }
+    }, 200);
+}
 
 // ✨ THE FIX: Expose globally so main.js can ALWAYS see it!
 window.SoundManager = SoundManager;
