@@ -908,13 +908,7 @@ switchTab(tabName) {
             }
 
             if (lowerTab === 'graph') {
-                let source = localStorage.getItem('chess_graph_source');
-                if (!source || (source !== 'analysis' && source !== 'study')) {
-                    source = this._previousTabBeforeGraph || 'analysis';
-                }
-                this._previousTabBeforeGraph = source;
-                localStorage.setItem('chess_graph_source', source);
-
+                const source = this._previousTabBeforeGraph || 'study';
                 const currentTabContext = (this.#game.mode === 'local' || this.#game.mode === 'bot' || this.#game.mode === 'play') ? 'play' : (this.#game.mode || 'analysis');
                 const currentFlip = this.flipped; 
 
@@ -923,8 +917,6 @@ switchTab(tabName) {
                         let savedChap = parseInt(localStorage.getItem('chess_active_chapter_idx'), 10);
                         if (isNaN(savedChap)) savedChap = this.#game.activeChapterIndex || 0;
                         if (typeof this.#game.loadChapter === 'function') this.#game.loadChapter(savedChap, true, true);
-                    } else if (source === 'analysis') {
-                        if (typeof this.#game.restoreState === 'function') this.#game.restoreState('analysis');
                     } else {
                         if (typeof this.#game.restoreState === 'function') this.#game.restoreState(source);
                     }
@@ -933,8 +925,6 @@ switchTab(tabName) {
                         let savedChap = parseInt(localStorage.getItem('chess_active_chapter_idx'), 10);
                         if (isNaN(savedChap)) savedChap = this.#game.activeChapterIndex || 0;
                         if (typeof this.#game.loadChapter === 'function') this.#game.loadChapter(savedChap, true, true);
-                    } else if (source === 'analysis') {
-                        if (typeof this.#game.restoreState === 'function') this.#game.restoreState('analysis');
                     } else {
                         if (typeof this.#game.restoreState === 'function') this.#game.restoreState(source);
                     }
@@ -3663,7 +3653,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 } else {
                     el.style.transition = 'none'; 
                     el.style.transform = startTransform;
-                    if (animate && shouldAnimate) {void el.offsetWidth;}
+                    void el.offsetWidth; 
                     
                     requestAnimationFrame(() => {
                         el.style.transition = ''; 
@@ -3715,6 +3705,8 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     el.style.setProperty('--tail-length-scale', dist);
                     el.style.setProperty('--move-angle', `${Math.atan2(dy, dx)}rad`);
                     el.style.setProperty('--anim-duration', `${activeDuration}ms`);
+                    
+                    el.getBoundingClientRect();
                     el.classList.add('manga-tail'); 
                     
                     el.dataset.tailTimeout = setTimeout(() => {
@@ -8298,14 +8290,12 @@ castSpell(spellType, targetSq) {
     if (typeof this.initGraphEvents === 'function') this.initGraphEvents();
     
     if (typeof localStorage !== 'undefined') {
-            this.graphMode = localStorage.getItem('chess_graph_mode') || 'focused';
-            this.graphNodeStyle = localStorage.getItem('chess_graph_node_style') || 'tiny';
-            let savedSource = localStorage.getItem('chess_graph_source');
-            if (savedSource !== 'study' && savedSource !== 'analysis') {
-                savedSource = 'analysis';
-            }
-            this._previousTabBeforeGraph = savedSource;
-        }
+        this.graphMode = localStorage.getItem('chess_graph_mode') || 'focused';
+        this.graphNodeStyle = localStorage.getItem('chess_graph_node_style') || 'tiny';
+        let savedSource = localStorage.getItem('chess_graph_source');
+        if (savedSource !== 'study' && savedSource !== 'analysis') savedSource = 'study';
+        this._previousTabBeforeGraph = savedSource;
+    }
     
     const isTiny = (this.graphNodeStyle === 'tiny');
     if (isTiny) this.graphMode = 'full';
