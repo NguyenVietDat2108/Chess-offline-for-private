@@ -3585,12 +3585,17 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                         if (typeof localStorage !== 'undefined') localStorage.setItem('chess_cached_engine_name', engineDisplayName);
                     }
                 } catch(e) {
-                    console.log("[ENGINE] Chạy trên GitHub Pages -> Mặc định Stockfish 19");
-                    engineDisplayName = "Stockfish 19";
-                    enginePath = 'engine/stockfish 19/sf_19.js';
+                    console.log("[ENGINE] Chạy chế độ GitHub Pages");
                 }
-
-                window.sfWorker = spawnSf19Worker(enginePath);
+                if (!window.crossOriginIsolated && typeof SharedArrayBuffer === 'undefined') {
+                    console.warn("⚠️ Trình duyệt chưa mở SharedArrayBuffer, chuyển sang Stockfish 18 để tránh crash.");
+                    engineDisplayName = "Stockfish 18";
+                    enginePath = 'engine/stockfish 18/stockfish-18.js';
+                    // Stockfish 18 là worker cổ điển
+                    window.sfWorker = new Worker(new URL(enginePath, appBaseUrl).href);
+                } else {
+                    window.sfWorker = spawnSf19Worker(enginePath);
+                }
             }
 
             if (this.#ui && typeof this.#ui.updateEngineName === 'function') {
