@@ -1,4 +1,4 @@
-/*! coi-serviceworker - Safe Anti-Loop Edition */
+/*! coi-serviceworker v0.1.7 - MIT License */
 let coepCredentialless = false;
 
 if (typeof window === 'undefined') {
@@ -30,38 +30,26 @@ if (typeof window === 'undefined') {
     });
 } else {
     (() => {
-        // Nếu đã có isolation (hoặc đang chạy serverChess.ps1) thì dừng, KHÔNG reload
         if (window.crossOriginIsolated) {
-            console.log("[COI] crossOriginIsolated: TRUE");
-            sessionStorage.removeItem("coi_reload_count");
+            console.log("✅ [COI] SharedArrayBuffer đã được bật thành công!");
             return;
         }
 
-        // CHỐT CHỐNG RELOAD LIÊN TỤC: Chỉ cho phép reload tối đa 1 lần!
-        const reloadCount = parseInt(sessionStorage.getItem("coi_reload_count") || "0", 10);
-        if (reloadCount >= 1) {
-            console.warn("[COI] Đã reload 1 lần, dừng lại để tránh loop.");
-            return;
-        }
-
-        const currentScript = document.currentScript;
-        const scriptUrl = currentScript ? currentScript.src : "js/coi-serviceworker.js";
+        const scriptUrl = new URL("coi-serviceworker.js", window.location.href).href;
 
         if ("serviceWorker" in navigator) {
-            navigator.serviceWorker.register(scriptUrl).then(
+            navigator.serviceWorker.register(scriptUrl, { scope: "./" }).then(
                 (registration) => {
                     registration.addEventListener("updatefound", () => {
-                        sessionStorage.setItem("coi_reload_count", "1");
                         window.location.reload();
                     });
 
                     if (registration.active && !navigator.serviceWorker.controller) {
-                        sessionStorage.setItem("coi_reload_count", "1");
                         window.location.reload();
                     }
                 },
                 (err) => {
-                    console.error("[COI] SW error:", err);
+                    console.error("[COI] Lỗi đăng ký Service Worker:", err);
                 }
             );
         }
