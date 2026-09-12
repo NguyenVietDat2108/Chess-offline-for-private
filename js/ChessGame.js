@@ -3326,6 +3326,10 @@ async loadEngineFromFolder() {
     }
 async initEngine(engineType = null, customUrl = null, customName = null) {
         try {
+            if (customName && ['standard', 'fairy', 'custom'].includes(customName)) {
+                engineType = customName;
+            }
+
             let engineDisplayName = "Stockfish"; 
             window.engineReady = false; 
             window.engineBooting = true;
@@ -3335,18 +3339,21 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                 engineType = ['classical', 'chess960'].includes(this.gameMode) ? 'standard' : 'fairy';
             }
             this.activeEngineType = engineType;
+
             const appBaseUrl = new URL('.', window.location.href).href;
 
             // ==========================================
-            // HÀM TẠO WORKER CHO STOCKFISH 19 (ES6 Module + Pthread)
+            // HÀM SPAWN CHO STOCKFISH 19 (ES6 + PTHREAD)
             // ==========================================
             const spawnSf19Worker = (jsPath) => {
                 const absoluteJsUrl = new URL(jsPath, appBaseUrl).href;
                 const wasmUrl = new URL('sf_19.wasm', absoluteJsUrl).href;
 
-                // Code worker chạy bên trong
                 const workerCode = `
                     import Sf_19_Web from "${absoluteJsUrl}";
+
+                    var messageQueue = [];
+                    var engineInstance = null;
 
                     var Module = {
                         mainScriptUrlOrBlob: "${absoluteJsUrl}",
@@ -3355,35 +3362,62 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                             return (prefix || '') + path;
                         },
                         listen: function(line) {
-                            self.postMessage(line);
+                            if (line) self.postMessage(line);
                         },
-                        onError: function(err) {
+                        print: function(line) {
+                            if (line) self.postMessage(line);
+                        },
+                        printErr: function(err) {
                             console.error("[SF19 Internal Error]:", err);
                         }
                     };
 
-                    Sf_19_Web(Module).then(function(engine) {
-                        self.onmessage = function(e) {
-                            if (e.data && e.data.action === 'INJECT_NNUE') {
-                                try {
-                                    if (typeof engine.setNnueBuffer === 'function') {
-                                        engine.setNnueBuffer(new Uint8Array(e.data.buffer));
-                                    } else if (engine.FS) {
-                                        engine.FS.writeFile(e.data.name, new Uint8Array(e.data.buffer));
-                                    }
-                                } catch(err) {
-                                    console.error("[SF19] NNUE Inject Error:", err);
-                                }
-                            } else if (typeof e.data === 'string') {
-                                if (typeof engine.uci === 'function') {
-                                    engine.uci(e.data);
-                                } else if (engine.ccall) {
-                                    engine.ccall('push_cmd', 'null', ['string'], [e.data]);
-                                } else if (typeof engine.postMessage === 'function') {
-                                    engine.postMessage(e.data);
-                                }
+                    function sendCommand(cmd) {
+                        if (!cmd) return;
+                        var fullCmd = cmd.endsWith('\\n') ? cmd : (cmd + '\\n');
+                        if (engineInstance) {
+                            if (typeof engineInstance.uci === 'function') {
+                                engineInstance.uci(fullCmd);
+                            } else if (engineInstance.ccall) {
+                                engineInstance.ccall('push_cmd', 'null', ['string'], [fullCmd]);
+                            } else if (typeof engineInstance.postMessage === 'function') {
+                                engineInstance.postMessage(fullCmd);
                             }
-                        };
+                        } else {
+                            messageQueue.push(fullCmd);
+                        }
+                    }
+
+                    self.onmessage = function(e) {
+                        if (e.data && e.data.action === 'INJECT_NNUE') {
+                            try {
+                                if (engineInstance) {
+                                    if (typeof engineInstance.setNnueBuffer === 'function') {
+                                        engineInstance.setNnueBuffer(new Uint8Array(e.data.buffer));
+                                    } else if (engineInstance.FS) {
+                                        engineInstance.FS.writeFile(e.data.name, new Uint8Array(e.data.buffer));
+                                    }
+                                }
+                            } catch(err) {
+                                console.error("[SF19] NNUE Inject Error:", err);
+                            }
+                        } else if (typeof e.data === 'string') {
+                            sendCommand(e.data);
+                        }
+                    };
+
+                    Sf_19_Web(Module).then(function(engine) {
+                        engineInstance = engine;
+
+                        // Xử lý tất cả các lệnh đã gửi trước khi WASM tải xong
+                        while (messageQueue.length > 0) {
+                            var queued = messageQueue.shift();
+                            if (typeof engine.uci === 'function') {
+                                engine.uci(queued);
+                            } else if (engine.ccall) {
+                                engine.ccall('push_cmd', 'null', ['string'], [queued]);
+                            }
+                        }
 
                         self.postMessage('WORKER_INITIALIZED');
                     }).catch(function(err) {
@@ -3396,7 +3430,7 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
             };
 
             // ==========================================
-            // 1. NATIVE CUSTOM ENGINE
+            // 1. CUSTOM ENGINE
             // ==========================================
             if (this.activeEngineType === 'custom' && customUrl) {
                 engineDisplayName = customName || "Custom Engine";
@@ -3519,10 +3553,7 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                                 engine.printErr = function(line) { self.postMessage(line); };
                             }
                             
-                            setTimeout(function() {
-                                self.postMessage('WORKER_INITIALIZED');
-                            }, 1000);
-
+                            self.postMessage('WORKER_INITIALIZED');
                         }).catch(function(e) {
                             console.error("[FAIRY Boot Error]:", e);
                         });
@@ -3533,7 +3564,7 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                 window.sfWorker = new Worker(URL.createObjectURL(blob));
             }
             // ==========================================
-            // 3. STANDARD ENGINE (Stockfish 19)
+            // 3. STANDARD ENGINE (Stockfish 19 & serverChess fallback)
             // ==========================================
             else {
                 let cachedName = typeof localStorage !== 'undefined' ? localStorage.getItem('chess_cached_engine_name') : "Stockfish 19";
@@ -3573,7 +3604,7 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                 originalPost(msg);
             };
             window.sfWorker.onerror = function(e) { 
-                console.error("[ENGINE WORKER ERROR EVENT]:", e.message || e); 
+                console.error("[ENGINE WORKER ERROR]:", e.message || e); 
             };
             window.sfWorker.onmessage = (event) => this.#handleEngineMessage(event);
 
