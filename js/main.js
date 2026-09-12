@@ -68,6 +68,8 @@ class ChessApp {
 
     bindEvents() {
         // 1. Core Board Synchronization
+        this._scrubDebounceTimer = null;
+
         this.game.on('boardUpdated', (data) => { 
             const shouldAnimate = data && data.animate === true;
             const overrideMove = data && data.overrideMove ? data.overrideMove : null;
@@ -81,12 +83,15 @@ class ChessApp {
                     this.ui.renderBoard(shouldAnimate, true, overrideMove);
                 }
             }
-            requestAnimationFrame(() => {
-                if (typeof this.ui.updateHistory === 'function') this.ui.updateHistory(true);
-                if (typeof this.ui.updateClocks === 'function') this.ui.updateClocks();
-                if (typeof this.ui.renderArrows === 'function') this.ui.renderArrows();
-                if (typeof this.ui.displayMetadata === 'function') this.ui.displayMetadata(this.game.pgnHeaders);
-            });
+            clearTimeout(this._scrubDebounceTimer);
+            this._scrubDebounceTimer = setTimeout(() => {
+                requestAnimationFrame(() => {
+                    if (typeof this.ui.updateHistory === 'function') this.ui.updateHistory(true);
+                    if (typeof this.ui.updateClocks === 'function') this.ui.updateClocks();
+                    if (typeof this.ui.renderArrows === 'function') this.ui.renderArrows();
+                    if (typeof this.ui.displayMetadata === 'function') this.ui.displayMetadata(this.game.pgnHeaders);
+                });
+            }, 100);
             
             if (!data?.skipEngine && window.engineAnalysing && typeof this.game.updateStockfish === 'function') {
                 const state = typeof this.game.getReader === 'function' ? this.game.getReader() : null;
@@ -94,7 +99,7 @@ class ChessApp {
                     this.game.updateStockfish();
                 }
             }
-        })
+        });
 
         // 2. Route Sounds cleanly to the SoundManager
         this.game.on('soundTriggered', (data) => {

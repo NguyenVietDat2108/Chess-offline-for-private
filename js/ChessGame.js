@@ -4226,73 +4226,85 @@ goToEnd(animate = true) {
         return true;
     }
 goToNodeId(id, animate = true) {
-    let target = null;
-    const search = (node) => {
-        if (node.id === id) { target = node; return; }
-        for (let c of node.children) search(c);
-    };
-    if (this.rootNode) search(this.rootNode);
-    
-    if (target) {
-        const isStepBack = (this.currentNode && this.currentNode.parent && this.currentNode.parent.id === target.id);
-        const isStepForward = (this.currentNode && this.currentNode.children && this.currentNode.children.some(c => c.id === target.id));
-        const undoneNode = this.currentNode;
-        
-        this.currentNode = target;
-        
-        let resetNode = target;
-        while (resetNode) {
-            resetNode.selectedChildIndex = 0;
-            resetNode = resetNode.children && resetNode.children.length > 0 ? resetNode.children[0] : null;
-        }
-        
-        this.#engine.load(this.currentNode.fen);
-        this.turn = this.#engine.turn();
-        
-        if (isStepBack && typeof this.#reconcileBoardIdsReverse === 'function') {
-            this.#reconcileBoardIdsReverse(this.currentNode.fen, undoneNode.lastMove);
-        } else if (isStepForward && typeof this.#reconcileBoardIds === 'function') {
-            this.#reconcileBoardIds(this.currentNode.fen, target.lastMove);
-        } else if (typeof this.#reconcileBoardIds === 'function') {
-            this.#reconcileBoardIds(this.currentNode.fen, null);
-        }
-        
-        let curr = target;
-        while (curr.parent) {
-            const idx = curr.parent.children.indexOf(curr);
-            if (idx !== -1) curr.parent.selectedChildIndex = idx;
-            curr = curr.parent;
-        }
-        
-        if (isStepBack && undoneNode.lastMove && undoneNode.lastMove.from !== '@') {
-            this._transientOverrideMove = {
-                from: undoneNode.lastMove.to,
-                to: undoneNode.lastMove.from,
-                color: undoneNode.lastMove.color,
-                flags: undoneNode.lastMove.flags,
-                isReverse: true
+        // 👉 TỐI ƯU O(1): Lấy trực tiếp từ Map, không đệ quy vét cạn hàng nghìn node
+        let target = (this.nodeMap && this.nodeMap.get(id)) || null;
+        if (!target) {
+            const search = (node) => {
+                if (node.id === id) { target = node; return; }
+                for (let c of node.children) {
+                    if (target) return;
+                    search(c);
+                }
             };
-        } else if (isStepForward && target.lastMove) {
-            this._transientOverrideMove = target.lastMove;
+            if (this.rootNode) search(this.rootNode);
         }
-
-        const shouldAnimate = animate && (isStepBack || isStepForward);
-        this.#emit('boardUpdated', { 
-            animate: shouldAnimate, 
-            overrideMove: this._transientOverrideMove 
-        });
-        this._transientOverrideMove = null;
         
-        if (shouldAnimate) {
-            const moveForSound = isStepBack ? (undoneNode.lastMove || this.currentNode.lastMove) : this.currentNode.lastMove;
+        if (target) {
+            if (this.currentNode && this.currentNode.id === target.id) return false;
+
+            const isStepBack = (this.currentNode && this.currentNode.parent && this.currentNode.parent.id === target.id);
+            const isStepForward = (this.currentNode && this.currentNode.children && this.currentNode.children.some(c => c.id === target.id));
+            const undoneNode = this.currentNode;
+            
+            this.currentNode = target;
+            
+            // Chỉ đồng bộ selectedChildIndex lên chuỗi cha trực tiếp
+            let curr = target;
+            while (curr.parent) {
+                const idx = curr.parent.children.indexOf(curr);
+                if (idx !== -1) curr.parent.selectedChildIndex = idx;
+                curr = curr.parent;
+            }
+            
+            this.#engine.load(this.currentNode.fen);
+            this.turn = this.#engine.turn();
+            
+            if (isStepBack && typeof this.#reconcileBoardIdsReverse === 'function') {
+                this.#reconcileBoardIdsReverse(this.currentNode.fen, undoneNode.lastMove);
+            } else if (isStepForward && typeof this.#reconcileBoardIds === 'function') {
+                this.#reconcileBoardIds(this.currentNode.fen, target.lastMove);
+            } else if (typeof this.#reconcileBoardIds === 'function') {
+                this.#reconcileBoardIds(this.currentNode.fen, null);
+            }
+            
+            if (isStepBack && undoneNode.lastMove && undoneNode.lastMove.from !== '@') {
+                this._transientOverrideMove = {
+                    from: undoneNode.lastMove.to,
+                    to: undoneNode.lastMove.from,
+                    color: undoneNode.lastMove.color,
+                    flags: undoneNode.lastMove.flags,
+                    isReverse: true
+                };
+            } else if (isStepForward && target.lastMove) {
+                this._transientOverrideMove = target.lastMove;
+            }
+
+            // Khi duyệt cây nhanh hoặc gọi từ Graph, tắt animate để đạt tốc độ tối đa
+            const shouldAnimate = animate && (isStepBack || isStepForward);
+            this.#emit('boardUpdated', { 
+                animate: shouldAnimate, 
+                overrideMove: this._transientOverrideMove,
+                skipEngine: true // Không kích hoạt Stockfish phân tích lại vị trí cũ khi đang lướt
+            });
+            this._transientOverrideMove = null;
+            
+            const moveForSound = isStepBack 
+                ? (undoneNode?.lastMove || this.currentNode.lastMove) 
+                : (this.currentNode.lastMove || undoneNode?.lastMove);
+
             if (moveForSound) {
                 this.triggerMoveSound(moveForSound);
+            } else {
+                const now = performance.now();
+                if (!this._lastSoundTime || (now - this._lastSoundTime >= 45)) {
+                    this._lastSoundTime = now;
+                    this.#emit('soundTriggered', { type: 'move-self' });
+                }
             }
+            return true;
         }
-        return true;
+        return false;
     }
-    return false;
-}
 updateSettingsTime() {
         const bh = parseInt(document.getElementById('bTimeH').value) || 0;
         const bm = parseInt(document.getElementById('bTimeM').value) || 0;
@@ -4760,7 +4772,6 @@ resetGame(clear = false, startFen = null) {
         }
     }
 startAnalysisMode(transferGame = false) {
-        // 1. Stop active game timers and engines
         this.gameOver = true;
         if (this.#timerInterval) clearInterval(this.#timerInterval);
         if (typeof window.sfWorker !== 'undefined' && window.sfWorker) {
@@ -4772,65 +4783,34 @@ startAnalysisMode(transferGame = false) {
         const previousMode = this.mode;
         const currentVariant = this.gameMode;
 
-        // If we are already in analysis, just update visuals.
-        if (previousMode === 'analysis') {
-            if (this.#ui && typeof this.#ui.switchTab === 'function') {
-                this.#ui.switchTab('analysis');
-            }
-            return;
-        }
-
         let pgnToTransfer = null;
-        if (transferGame && (previousMode === 'local' || previousMode === 'bot' || previousMode === 'puzzle')) {
+        if (transferGame && (previousMode === 'local' || previousMode === 'bot' || previousMode === 'puzzle' || previousMode === 'play')) {
             pgnToTransfer = typeof this.generatePGN === 'function' ? this.generatePGN() : "";
         }
-        
-        if (previousMode === 'puzzle') {
-            this.setGameMode('classical', false, true);
-            
-            if (typeof localStorage !== 'undefined') {
-                localStorage.setItem('chess_last_variant', 'classical');
-            }
-            if (typeof document !== 'undefined') {
-                const variantSelect = document.getElementById('analysisVariantSelect');
-                if (variantSelect) variantSelect.value = 'classical';
-            }
-        }
 
-        const savedHeaders = { ...this.pgnHeaders };
+        this.mode = 'analysis';
+        this.gameOver = false;
 
-        // 3. Delegate the safe memory swap to UI & handleTabSwitch
         if (this.#ui && typeof this.#ui.switchTab === 'function') {
             this.#ui.switchTab('analysis');
-        } else {
-            this.handleTabSwitch('analysis'); // Failsafe fallback
         }
-
-        // 4. Paste the completed game over the analysis board ONLY if requested by the button
         if (pgnToTransfer) {
-            if (previousMode !== 'puzzle' && this.gameMode !== currentVariant) {
+            if (this.gameMode !== currentVariant) {
                 this.setGameMode(currentVariant, false, true);
-                if (typeof document !== 'undefined') {
-                    const variantSelect = document.getElementById('analysisVariantSelect');
-                    if (variantSelect) variantSelect.value = currentVariant;
-                }
             }
-
             this.loadPGN(pgnToTransfer, false, true);
-            this.pgnHeaders = savedHeaders;
             
-            // Save this newly pasted game into the Analysis slot permanently
-            if (typeof this.#saveState === 'function') this.#saveState('analysis');
+            if (typeof this.#saveState === 'function') this.#saveState('analysis', true);
             if (typeof this.saveVariantState === 'function') this.saveVariantState(this.gameMode);
         }
 
-        // 5. Clean up UI popups and update visuals
         if (this.#ui) {
             const modal = document.getElementById('gameOverModal');
             if (modal) modal.style.display = 'none';
             
             if (typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory(true);
-            if (typeof this.#ui.renderBoard === 'function') this.#ui.renderBoard(true);
+            if (typeof this.#ui.renderBoard === 'function') this.#ui.renderBoard(false);
+            if (typeof this.#ui.toggleReviewButton === 'function') this.#ui.toggleReviewButton(true);
         }
     }
 loadPGNFile(input) {
