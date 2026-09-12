@@ -841,24 +841,26 @@ getReader() {
                 return;
             } else {
                 this.#safeSetOption('UCI_Chess960', this.gameMode === 'chess960' ? 'true' : 'false');
+                
                 let nnueToLoad = this._defaultNnueFile || 'nn-1a298aa575a0.nnue';
                 
-                console.log("[ENGINE] Chuẩn bị tải NNUE hệ tiêu chuẩn:", nnueToLoad);
+                console.log("[ENGINE] Chuẩn bị tải NNUE cho Stockfish 19:", nnueToLoad);
                 const appBaseUrl = new URL('.', window.location.href).href;
-                
-                fetch(new URL('engine/nnue/' + nnueToLoad, appBaseUrl).href)
+                const nnueUrl = new URL('engine/nnue/' + nnueToLoad, appBaseUrl).href;
+
+                fetch(nnueUrl)
                     .then(res => {
-                        if (!res.ok) throw new Error("Thiếu file NNUE: " + nnueToLoad);
+                        if (!res.ok) throw new Error("Không thể tải file NNUE từ: " + nnueUrl);
                         return res.arrayBuffer();
                     })
                     .then(buffer => {
-                        console.log("[ENGINE] Tải xong NNUE, đang nạp vào bộ nhớ...");
+                        console.log("[ENGINE] Đã tải xong NNUE (" + (buffer.byteLength / 1024 / 1024).toFixed(2) + " MB), đang inject vào engine...");
                         window.sfWorker.postMessage({ action: 'INJECT_NNUE', name: nnueToLoad, buffer: buffer }, [buffer]);
                         this.#safeSetOption('EvalFile', nnueToLoad);
-                        setTimeout(() => { this.#postEngineCommand('isready'); }, 50);
+                        setTimeout(() => { this.#postEngineCommand('isready'); }, 80);
                     })
                     .catch(err => {
-                        console.error("[ENGINE FATAL] Lỗi NNUE:", err);
+                        console.error("[ENGINE FATAL] Lỗi nạp NNUE:", err);
                         this.#postEngineCommand('isready');
                     });
                 return;
@@ -3322,12 +3324,7 @@ async loadEngineFromFolder() {
         };
         input.click();
     }
-async initEngine(customUrl = null, customName = null, engineType = null) {
-        if (window.sfWorker) {
-            window.sfWorker.terminate();
-            window.sfWorker = null;
-        }
-
+async initEngine(engineType = null, customUrl = null, customName = null) {
         try {
             let engineDisplayName = "Stockfish"; 
             window.engineReady = false; 
@@ -3338,39 +3335,44 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                 engineType = ['classical', 'chess960'].includes(this.gameMode) ? 'standard' : 'fairy';
             }
             this.activeEngineType = engineType;
-
             const appBaseUrl = new URL('.', window.location.href).href;
 
-            const spawnEs6Worker = (jsPath) => {
-                const absoluteUrl = new URL(jsPath, appBaseUrl).href;
-                const wasmUrl = new URL('sf_19.wasm', absoluteUrl).href;
+            // ==========================================
+            // HÀM TẠO WORKER CHO STOCKFISH 19 (ES6 Module + Pthread)
+            // ==========================================
+            const spawnSf19Worker = (jsPath) => {
+                const absoluteJsUrl = new URL(jsPath, appBaseUrl).href;
+                const wasmUrl = new URL('sf_19.wasm', absoluteJsUrl).href;
 
+                // Code worker chạy bên trong
                 const workerCode = `
-                    import Stockfish from "${absoluteUrl}";
-                    
-                    Stockfish({
+                    import Sf_19_Web from "${absoluteJsUrl}";
+
+                    var Module = {
+                        mainScriptUrlOrBlob: "${absoluteJsUrl}",
                         locateFile: function(path, prefix) {
                             if (path.endsWith('.wasm')) return "${wasmUrl}";
                             return (prefix || '') + path;
                         },
-                        listen: (line) => self.postMessage(line),
-                        onError: (err) => console.error("Engine Error:", err)
-                    }).then(engine => {
-                        if (typeof engine.addMessageListener === 'function') {
-                            engine.addMessageListener(line => self.postMessage(line));
+                        listen: function(line) {
+                            self.postMessage(line);
+                        },
+                        onError: function(err) {
+                            console.error("[SF19 Internal Error]:", err);
                         }
-                        
-                        self.onmessage = (e) => {
+                    };
+
+                    Sf_19_Web(Module).then(function(engine) {
+                        self.onmessage = function(e) {
                             if (e.data && e.data.action === 'INJECT_NNUE') {
                                 try {
                                     if (typeof engine.setNnueBuffer === 'function') {
                                         engine.setNnueBuffer(new Uint8Array(e.data.buffer));
-                                    } else {
-                                        let fsObj = engine.FS || (typeof FS !== 'undefined' ? FS : null);
-                                        if (fsObj) fsObj.writeFile(e.data.name, new Uint8Array(e.data.buffer));
+                                    } else if (engine.FS) {
+                                        engine.FS.writeFile(e.data.name, new Uint8Array(e.data.buffer));
                                     }
                                 } catch(err) {
-                                    console.error("NNUE Inject Error:", err);
+                                    console.error("[SF19] NNUE Inject Error:", err);
                                 }
                             } else if (typeof e.data === 'string') {
                                 if (typeof engine.uci === 'function') {
@@ -3382,12 +3384,13 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                                 }
                             }
                         };
-                        
+
                         self.postMessage('WORKER_INITIALIZED');
-                    }).catch(err => {
-                        console.error("WASM Boot Error:", err);
+                    }).catch(function(err) {
+                        console.error("[SF19 Boot Error]:", err);
                     });
                 `;
+
                 const blob = new Blob([workerCode], { type: 'application/javascript' });
                 return new Worker(URL.createObjectURL(blob), { type: 'module' });
             };
@@ -3397,10 +3400,10 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
             // ==========================================
             if (this.activeEngineType === 'custom' && customUrl) {
                 engineDisplayName = customName || "Custom Engine";
-                window.sfWorker = spawnEs6Worker(customUrl);
+                window.sfWorker = spawnSf19Worker(customUrl);
             } 
             // ==========================================
-            // 2. FAIRY STOCKFISH (Sửa URL để tương thích GitHub Pages)
+            // 2. FAIRY STOCKFISH
             // ==========================================
             else if (this.activeEngineType === 'fairy') {
                 engineDisplayName = "Fairy-Stockfish 14 NNUE";
@@ -3420,14 +3423,13 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
 
                     function sanitize(rawUrl) {
                         if (!rawUrl) return '';
-                        let u = typeof rawUrl === 'string' ? rawUrl : (rawUrl.url || rawUrl.toString());
-                        return u;
+                        return typeof rawUrl === 'string' ? rawUrl : (rawUrl.url || rawUrl.toString());
                     }
 
                     function resolveUrl(rawUrl) {
-                        let url = sanitize(rawUrl);
+                        var url = sanitize(rawUrl);
                         if (url.startsWith('blob:') || url.startsWith('data:')) return url;
-                        let fileName = decodeURIComponent(url.split('/').pop().split('?')[0].split('#')[0]);
+                        var fileName = decodeURIComponent(url.split('/').pop().split('?')[0].split('#')[0]);
                         
                         if (fileName.endsWith('.worker.js')) return workerUrl;
                         if (fileName.endsWith('.wasm')) return wasmUrl;
@@ -3438,19 +3440,19 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                         return new URL(url.replace(/^\\//, ''), appBaseUrl).href;
                     }
 
-                    const nativeFetch = self.fetch;
+                    var nativeFetch = self.fetch;
                     self.fetch = function(req, opts) { return nativeFetch(resolveUrl(req), opts); };
                     
-                    const NativeRequest = self.Request;
+                    var NativeRequest = self.Request;
                     self.Request = function(input, init) { 
                         try { return new NativeRequest(resolveUrl(input), init); }
                         catch(e) { return new NativeRequest(input, init); }
                     };
 
-                    const NativeURL = self.URL;
+                    var NativeURL = self.URL;
                     self.URL = function(url, base) {
                         try {
-                            let resolved = resolveUrl(url);
+                            var resolved = resolveUrl(url);
                             if (resolved.startsWith('blob:') || resolved.startsWith('http')) return new NativeURL(resolved);
                             return new NativeURL(resolved, base || appBaseUrl);
                         } catch(e) { return new NativeURL(resolveUrl(url)); }
@@ -3473,13 +3475,13 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                                     engineInstance.FS.writeFile(e.data.name, new Uint8Array(e.data.buffer));
                                 }
                             } catch(err) {
-                                console.error("Fairy NNUE inject error:", err);
+                                console.error("[FAIRY] NNUE inject error:", err);
                             }
                         } else if (typeof e.data === 'string') {
-                            let cmd = e.data;
+                            var cmd = e.data;
                             if (cmd.startsWith('setoption name Hash value')) cmd = 'setoption name Hash value 256'; 
                             else if (cmd.startsWith('setoption name Threads value')) {
-                                let requestedThreads = parseInt(cmd.split('value ')[1]);
+                                var requestedThreads = parseInt(cmd.split('value ')[1]);
                                 if (requestedThreads > 4) cmd = 'setoption name Threads value 4'; 
                             }
 
@@ -3518,10 +3520,12 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                             }
                             
                             setTimeout(function() {
-                                originalPostMessage('WORKER_INITIALIZED');
-                            }, 3000);
+                                self.postMessage('WORKER_INITIALIZED');
+                            }, 1000);
 
-                        }).catch(function(e) {});
+                        }).catch(function(e) {
+                            console.error("[FAIRY Boot Error]:", e);
+                        });
                     }
                 `;
                 
@@ -3529,7 +3533,7 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                 window.sfWorker = new Worker(URL.createObjectURL(blob));
             }
             // ==========================================
-            // 3. STANDARD ENGINE (Stockfish 19 & Fallback kép)
+            // 3. STANDARD ENGINE (Stockfish 19)
             // ==========================================
             else {
                 let cachedName = typeof localStorage !== 'undefined' ? localStorage.getItem('chess_cached_engine_name') : "Stockfish 19";
@@ -3539,24 +3543,23 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                 window.currentEngineShortName = cachedName;
 
                 let enginePath = 'engine/stockfish 19/sf_19.js';
-                let engineName = 'Stockfish 19';
+                engineDisplayName = "Stockfish 19";
 
                 try {
                     const response = await fetch(new URL('api/latest-engine', appBaseUrl).href);
                     if (response.ok) {
                         const data = await response.json();
                         engineDisplayName = data.name;
-                        enginePath = data.path.replace(/^\//, ''); // Bỏ / đầu để an toàn
+                        enginePath = data.path.replace(/^\//, '');
                         if (typeof localStorage !== 'undefined') localStorage.setItem('chess_cached_engine_name', engineDisplayName);
-                        window.sfWorker = spawnEs6Worker(new URL(enginePath, appBaseUrl).href);
-                    } else {
-                        throw new Error("No server backend (GitHub Pages)");
                     }
                 } catch(e) {
-                    console.log("[ENGINE] Chế độ GitHub Pages: Tự động tải Stockfish 19");
+                    console.log("[ENGINE] Chạy trên GitHub Pages -> Mặc định Stockfish 19");
                     engineDisplayName = "Stockfish 19";
-                    window.sfWorker = spawnEs6Worker(new URL('engine/stockfish 19/sf_19.js', appBaseUrl).href);
+                    enginePath = 'engine/stockfish 19/sf_19.js';
                 }
+
+                window.sfWorker = spawnSf19Worker(enginePath);
             }
 
             if (this.#ui && typeof this.#ui.updateEngineName === 'function') {
@@ -3569,14 +3572,16 @@ async initEngine(customUrl = null, customName = null, engineType = null) {
                 if (typeof msg === 'string') console.log("%c➡️ [APP SAYS]: " + msg, "color: #38bdf8");
                 originalPost(msg);
             };
-            window.sfWorker.onerror = function(e) { console.error("[ENGINE ERROR]", e); };
+            window.sfWorker.onerror = function(e) { 
+                console.error("[ENGINE WORKER ERROR EVENT]:", e.message || e); 
+            };
             window.sfWorker.onmessage = (event) => this.#handleEngineMessage(event);
 
             if (this.activeEngineType !== 'fairy') {
                 window.sfWorker.postMessage('uci'); 
             }
         } catch (e) {
-            console.error("[ENGINE INIT ERROR]", e);
+            console.error("[ENGINE INIT FATAL ERROR]:", e);
         }
     }
 updateStockfish() {

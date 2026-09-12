@@ -12,10 +12,7 @@ if (typeof window === 'undefined') {
         event.respondWith(
             fetch(event.request)
                 .then((response) => {
-                    if (response.status === 0) {
-                        return response;
-                    }
-
+                    if (response.status === 0) return response;
                     const newHeaders = new Headers(response.headers);
                     newHeaders.set("Cross-Origin-Embedder-Policy", coepCredentialless ? "credentialless" : "require-corp");
                     newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
@@ -31,12 +28,9 @@ if (typeof window === 'undefined') {
     });
 } else {
     (() => {
-        const reloadedBySelf = window.sessionStorage.getItem("coiReloadedBySelf");
-        window.sessionStorage.removeItem("coiReloadedBySelf");
-        const coepDegrade = (reloadedBySelf == "true");
-
-        // Nếu đã có header (như khi chạy qua serverChess.ps1) thì không can thiệp
-        if (window.crossOriginIsolated || coepDegrade) {
+        // Nếu đã có header (chạy qua serverChess.ps1 hoặc sau khi SW reload)
+        if (window.crossOriginIsolated) {
+            console.log("[COI] Cross-Origin Isolation is active (SharedArrayBuffer enabled).");
             return;
         }
 
@@ -47,17 +41,14 @@ if (typeof window === 'undefined') {
             navigator.serviceWorker.register(scriptUrl).then(
                 (registration) => {
                     registration.addEventListener("updatefound", () => {
-                        window.sessionStorage.setItem("coiReloadedBySelf", "true");
                         window.location.reload();
                     });
-
                     if (registration.active && !navigator.serviceWorker.controller) {
-                        window.sessionStorage.setItem("coiReloadedBySelf", "true");
                         window.location.reload();
                     }
                 },
                 (err) => {
-                    console.error("COOP/COEP Service Worker error:", err);
+                    console.error("[COI] Service Worker registration failed:", err);
                 }
             );
         }
