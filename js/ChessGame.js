@@ -3354,6 +3354,27 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
 
                     var messageQueue = [];
                     var engineInstance = null;
+                    var isReady = false;
+
+                    function sendCommand(cmd) {
+                        if (!cmd) return;
+                        var cleanCmd = cmd.trim();
+                        if (engineInstance && isReady) {
+                            try {
+                                if (typeof engineInstance.uci === 'function') {
+                                    engineInstance.uci(cleanCmd);
+                                } else if (engineInstance.ccall) {
+                                    engineInstance.ccall('push_cmd', null, ['string'], [cleanCmd]);
+                                } else if (typeof engineInstance.postMessage === 'function') {
+                                    engineInstance.postMessage(cleanCmd);
+                                }
+                            } catch(err) {
+                                console.error("[SF19 CMD ERROR]:", err);
+                            }
+                        } else {
+                            messageQueue.push(cleanCmd);
+                        }
+                    }
 
                     var Module = {
                         mainScriptUrlOrBlob: "${absoluteJsUrl}",
@@ -3362,31 +3383,22 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                             return (prefix || '') + path;
                         },
                         listen: function(line) {
-                            if (line) self.postMessage(line);
+                            if (line && typeof line === 'string') {
+                                self.postMessage(line);
+                            }
                         },
                         print: function(line) {
-                            if (line) self.postMessage(line);
+                            if (line && typeof line === 'string') {
+                                self.postMessage(line);
+                            }
                         },
                         printErr: function(err) {
-                            console.error("[SF19 Internal Error]:", err);
+                            // Bỏ qua các log không ảnh hưởng
+                            if (err && !err.includes("Blocking on the main thread")) {
+                                console.warn("[SF19 System Log]:", err);
+                            }
                         }
                     };
-
-                    function sendCommand(cmd) {
-                        if (!cmd) return;
-                        var fullCmd = cmd.endsWith('\\n') ? cmd : (cmd + '\\n');
-                        if (engineInstance) {
-                            if (typeof engineInstance.uci === 'function') {
-                                engineInstance.uci(fullCmd);
-                            } else if (engineInstance.ccall) {
-                                engineInstance.ccall('push_cmd', 'null', ['string'], [fullCmd]);
-                            } else if (typeof engineInstance.postMessage === 'function') {
-                                engineInstance.postMessage(fullCmd);
-                            }
-                        } else {
-                            messageQueue.push(fullCmd);
-                        }
-                    }
 
                     self.onmessage = function(e) {
                         if (e.data && e.data.action === 'INJECT_NNUE') {
@@ -3399,7 +3411,7 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                                     }
                                 }
                             } catch(err) {
-                                console.error("[SF19] NNUE Inject Error:", err);
+                                console.error("[SF19 NNUE Inject Error]:", err);
                             }
                         } else if (typeof e.data === 'string') {
                             sendCommand(e.data);
@@ -3408,18 +3420,14 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
 
                     Sf_19_Web(Module).then(function(engine) {
                         engineInstance = engine;
-
-                        // Xử lý tất cả các lệnh đã gửi trước khi WASM tải xong
-                        while (messageQueue.length > 0) {
-                            var queued = messageQueue.shift();
-                            if (typeof engine.uci === 'function') {
-                                engine.uci(queued);
-                            } else if (engine.ccall) {
-                                engine.ccall('push_cmd', 'null', ['string'], [queued]);
-                            }
-                        }
+                        isReady = true;
 
                         self.postMessage('WORKER_INITIALIZED');
+
+                        while (messageQueue.length > 0) {
+                            var queued = messageQueue.shift();
+                            sendCommand(queued);
+                        }
                     }).catch(function(err) {
                         console.error("[SF19 Boot Error]:", err);
                     });
