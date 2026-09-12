@@ -908,10 +908,9 @@ switchTab(tabName) {
             }
 
             if (lowerTab === 'graph') {
-                // Ưu tiên đọc nguồn đã lưu, nếu không có mới xét tab trước đó
                 let source = localStorage.getItem('chess_graph_source');
                 if (!source || (source !== 'analysis' && source !== 'study')) {
-                    source = this._previousTabBeforeGraph || 'analysis'; // 👉 Đổi fallback ưu tiên analysis thay vì study
+                    source = this._previousTabBeforeGraph || 'analysis';
                 }
                 this._previousTabBeforeGraph = source;
                 localStorage.setItem('chess_graph_source', source);
@@ -919,16 +918,25 @@ switchTab(tabName) {
                 const currentTabContext = (this.#game.mode === 'local' || this.#game.mode === 'bot' || this.#game.mode === 'play') ? 'play' : (this.#game.mode || 'analysis');
                 const currentFlip = this.flipped; 
 
-                // 👉 Khôi phục chính xác trạng thái của Analysis vào cây trước khi render Graph
-                if (source === 'analysis') {
-                    if (typeof this.#game.restoreState === 'function') {
-                        this.#game.restoreState('analysis');
+                if (currentTabContext !== source && currentTabContext !== 'graph') {
+                    if (source === 'study' || source === 'trainer') {
+                        let savedChap = parseInt(localStorage.getItem('chess_active_chapter_idx'), 10);
+                        if (isNaN(savedChap)) savedChap = this.#game.activeChapterIndex || 0;
+                        if (typeof this.#game.loadChapter === 'function') this.#game.loadChapter(savedChap, true, true);
+                    } else if (source === 'analysis') {
+                        if (typeof this.#game.restoreState === 'function') this.#game.restoreState('analysis');
+                    } else {
+                        if (typeof this.#game.restoreState === 'function') this.#game.restoreState(source);
                     }
-                } else if (source === 'study' || source === 'trainer') {
-                    let savedChap = parseInt(localStorage.getItem('chess_active_chapter_idx'), 10);
-                    if (isNaN(savedChap)) savedChap = this.#game.activeChapterIndex || 0;
-                    if (typeof this.#game.loadChapter === 'function') {
-                        this.#game.loadChapter(savedChap, true, true);
+                } else if (currentTabContext === 'graph' && this._lastGraphSource !== source) {
+                    if (source === 'study' || source === 'trainer') {
+                        let savedChap = parseInt(localStorage.getItem('chess_active_chapter_idx'), 10);
+                        if (isNaN(savedChap)) savedChap = this.#game.activeChapterIndex || 0;
+                        if (typeof this.#game.loadChapter === 'function') this.#game.loadChapter(savedChap, true, true);
+                    } else if (source === 'analysis') {
+                        if (typeof this.#game.restoreState === 'function') this.#game.restoreState('analysis');
+                    } else {
+                        if (typeof this.#game.restoreState === 'function') this.#game.restoreState(source);
                     }
                 }
                 
@@ -3655,7 +3663,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 } else {
                     el.style.transition = 'none'; 
                     el.style.transform = startTransform;
-                    void el.offsetWidth; 
+                    if (animate) { void el.offsetWidth; }
                     
                     requestAnimationFrame(() => {
                         el.style.transition = ''; 
