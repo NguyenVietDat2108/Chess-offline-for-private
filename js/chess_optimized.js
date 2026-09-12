@@ -1165,9 +1165,10 @@
         }
         return final_moves;
     }
-    function generate_antichess_moves(state, options) { 
-        var moves = generate_standard_moves(state, options);
+    function generate_antichess_moves(state, options) {
+        var moves = generate_standard_moves(state, { legal: false });
         var captures = [];
+
         for (var i = 0; i < moves.length; i++) {
             var m = moves[i];
             var flags = (m >>> 12) & 0x7F;
@@ -1175,8 +1176,19 @@
                 captures.push(m);
             }
         }
-        if (captures.length > 0) return captures;
-        return moves; 
+        var pool = (captures.length > 0) ? captures : moves;
+        if (options) {
+            var filterFrom = -1;
+            if (typeof options.from === 'number') filterFrom = options.from;
+            else if (typeof options.from === 'string') filterFrom = str_to_sq(options.from);
+            else if (typeof options.square === 'string') filterFrom = str_to_sq(options.square);
+            else if (typeof options.square === 'number') filterFrom = options.square;
+
+            if (filterFrom !== -1) {
+                return pool.filter(function(m) { return (m & 0x3F) === filterFrom; });
+            }
+        }
+        return pool;
     }
     function generate_racingkings_moves(state, options) { 
         var moves = generate_standard_moves(state, options);
@@ -1924,10 +1936,10 @@
         else if (flags & BITS.CAPTURE) f = "c";
         else if (flags & BITS.EP_CAPTURE) f = "e";
         else if (flags & BITS.BIG_PAWN) f = "b";
-        else if (flags & BITS.DROP) f = "d";
+        else if ((flags & BITS.DROP) && !(flags & BITS.PROMOTION)) f = "d";
 
         // Handle Drops Object Formatting
-        if (flags & BITS.DROP) {
+        if ((flags & BITS.DROP) && !(flags & BITS.PROMOTION)) {
             var pType = m & 0x3F; 
             var obj = { 
                 color: state.turn===WHITE?'w':'b', from: '@', to: sq_str(to), 
@@ -1956,7 +1968,7 @@
     function get_san(state, m) {
         var flags = (m >>> 12) & 0xFF;
         
-        if (flags & BITS.DROP) {
+        if ((flags & BITS.DROP) && !(flags & BITS.PROMOTION)) {
             var pType = m & 0x3F;
             var to = (m >>> 6) & 0x3F;
             var s = (PIECE_TO_CHAR[pType] ? PIECE_TO_CHAR[pType].toUpperCase() : '') + '@' + (SQ_STR[to] || '');
@@ -2477,7 +2489,7 @@ return {
                 var from = m & 0x3F;
                 if (filterFrom !== -1 && from !== filterFrom) {
                     var flags = (m >>> 12) & 0xFF;
-                    if (!(flags & BITS.DROP && filterFrom === 64)) continue;
+                    if (!(((flags & BITS.DROP) && !(flags & BITS.PROMOTION)) && filterFrom === 64)) continue;
                 }
 
                 res.push(isVerbose ? to_obj(currentState, m) : get_san(currentState, m));
