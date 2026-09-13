@@ -122,7 +122,15 @@ constructor() {
             lastTab = localStorage.getItem('chess_last_tab') || 'analysis';
         }
         this.switchTab(lastTab);
-        
+        window.addEventListener('beforeunload', () => {
+            if (this.#game && typeof this.#game.saveState === 'function') {
+                const currentTab = (this.#game.mode === 'local' || this.#game.mode === 'bot' || this.#game.mode === 'play') ? 'play' : (this.#game.mode || 'analysis');
+                this.#game.saveState(currentTab, true);
+                if (this.#game.gameMode) {
+                    this.#game.saveVariantState(this.#game.gameMode);
+                }
+            }
+        });
         if (typeof this.resizeApp === 'function') {
             this.resizeApp();
         }

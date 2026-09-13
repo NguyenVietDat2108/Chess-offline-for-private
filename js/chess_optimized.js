@@ -2077,7 +2077,7 @@
     function parse_nag(san) {
         var nag = "";
         var clean = san.replace(/([?!]+)/, function(m, p1) { nag = p1; return ""; });
-        clean = clean.replace(/[+#=]/g, "").trim();
+        clean = clean.replace(/[+#]/g, "").replace(/=(?![qrbnkQRBNK])/g, "").trim();
         return { clean: clean, nag: nag };
     }
     function check_variant_win(state) {

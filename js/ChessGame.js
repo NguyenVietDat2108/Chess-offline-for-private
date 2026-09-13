@@ -1279,7 +1279,16 @@ return move.san;
 }
 #flatCloneState(stateName) {
         const memSlot = (stateName === 'local' || stateName === 'bot' || stateName === 'play') ? 'play' : stateName;
-        let pgnToPersist = this._originalPgn || (typeof this.generatePGN === 'function' ? this.generatePGN() : "");
+        
+        let pgnToPersist = "";
+        if (this.rootNode && this.rootNode.children && this.rootNode.children.length > 0) {
+            pgnToPersist = typeof this.generatePGN === 'function' ? this.generatePGN() : (this._originalPgn || "");
+        } else {
+            pgnToPersist = this._originalPgn || (typeof this.generatePGN === 'function' ? this.generatePGN() : "");
+        }
+        if (this.gameMode && this.gameMode !== 'classical' && this.pgnHeaders) {
+            this.pgnHeaders['Variant'] = this.gameMode;
+        }
 
         return {
             variant: this.gameMode || 'classical',
@@ -1351,6 +1360,13 @@ return move.san;
         
         const memSlot = (stateName === 'local' || stateName === 'bot' || stateName === 'play') ? 'play' : stateName;
         
+        let targetVariant = 'classical';
+        if (typeof localStorage !== 'undefined') {
+            targetVariant = localStorage.getItem('chess_last_variant') || this.gameMode || 'classical';
+        } else {
+            targetVariant = this.gameMode || 'classical';
+        }
+
         let state = null;
         if (this.tabMemory[memSlot]) {
             state = { ...this.tabMemory[memSlot] };
@@ -1366,18 +1382,38 @@ return move.san;
             }
         }
 
-        if ((!state || !state.pgn) && typeof localStorage !== 'undefined') {
-            const variantPgn = localStorage.getItem(`chess_${memSlot}_variant_pgn_${this.gameMode}`);
-            if (variantPgn) {
-                if (!state) state = { variant: this.gameMode, mode: memSlot };
-                state.pgn = variantPgn;
+        if (memSlot === 'analysis') {
+            const variantPgn = typeof localStorage !== 'undefined' ? localStorage.getItem(`chess_analysis_variant_pgn_${targetVariant}`) : null;
+            if (!state) {
+                state = { variant: targetVariant, mode: 'analysis', pgn: variantPgn || "" };
+            } else {
+                state.variant = targetVariant;
+                if (variantPgn && variantPgn.trim() !== "" && variantPgn.trim() !== "*") {
+                    state.pgn = variantPgn;
+                } else if (state.variant !== targetVariant) {
+                    state.pgn = "";
+                    state.fen = "";
+                    state.activeNodeId = null;
+                }
+            }
+        } else {
+            if ((!state || !state.pgn) && typeof localStorage !== 'undefined') {
+                const variantPgn = localStorage.getItem(`chess_${memSlot}_variant_pgn_${targetVariant}`);
+                if (variantPgn) {
+                    if (!state) state = { variant: targetVariant, mode: memSlot };
+                    state.pgn = variantPgn;
+                }
             }
         }
         
         this.mode = (memSlot === 'play') ? (state?.mode || 'local') : memSlot;
 
         if (state) {
-            this.gameMode = state.variant || 'classical';
+            this.gameMode = state.variant || targetVariant || 'classical';
+            this._originalPgn = null;
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('chess_last_variant', this.gameMode);
+            }
             
             this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, this.gameMode);
             if (this.#engine && typeof this.#engine.setGameMode === 'function') {
@@ -1387,16 +1423,33 @@ return move.san;
             this.history = new BigUint64Array(1000);
             this.moveList = [];
             this.pgnHeaders = state.headers ? { ...state.headers } : {};
+            if (this.gameMode !== 'classical') {
+                this.pgnHeaders['Variant'] = this.gameMode;
+            }
 
-            if (state.pgn && state.pgn.trim() !== "") {
+            if (state.pgn && state.pgn.trim() !== "" && state.pgn.trim() !== "*") {
                 if (typeof this.loadPGN === 'function') {
                     this.loadPGN(state.pgn, false, true);
+                    this._originalPgn = state.pgn;
                 }
             } else if (state.fen) {
                 if (typeof this.loadNewPosition === 'function') this.loadNewPosition(state.fen);
                 else if (typeof this.loadFEN === 'function') this.loadFEN(state.fen, this.gameMode, true);
                 
                 this.rootNode = new MoveNode(state.fen, null);
+                this.#rebuildNodeMap(this.rootNode);
+                this.currentNode = this.rootNode;
+            } else {
+                let startFen = typeof this.#getStartingFen === 'function' 
+                    ? this.#getStartingFen(this.gameMode) 
+                    : (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode] ? VARIANT_STARTING_FENS[this.gameMode] : INITIAL_FEN);
+                
+                if (this.gameMode === 'chess960' && typeof this.generateChess960FEN === 'function') {
+                    startFen = this.generateChess960FEN();
+                }
+
+                if (typeof this.loadFEN === 'function') this.loadFEN(startFen, this.gameMode, true);
+                this.rootNode = new MoveNode(startFen, null);
                 this.#rebuildNodeMap(this.rootNode);
                 this.currentNode = this.rootNode;
             }
@@ -1453,6 +1506,19 @@ return move.san;
                 this.loadFEN(this.currentNode.fen, this.gameMode, true);
             }
 
+            if (typeof this.#checkAndSwitchEngine === 'function') {
+                this.#checkAndSwitchEngine();
+            }
+
+            if (typeof document !== 'undefined') {
+                const aSel = document.getElementById('analysisVariantSelect');
+                if (aSel) aSel.value = this.gameMode;
+                const gSel = document.getElementById('graphVariantSelect');
+                if (gSel) gSel.value = this.gameMode;
+                const pSel = document.getElementById('gameVariantSelect');
+                if (pSel) pSel.value = this.gameMode;
+            }
+
             if (this.#ui) {
                 this.#ui._lastMetadataCache = null;
                 this.#ui._lastHeadersCache = null;
@@ -1485,6 +1551,16 @@ return move.san;
         if (typeof this.loadFEN === 'function') {
             this.loadFEN(startFen, this.gameMode, true);
         }
+
+        if (typeof document !== 'undefined') {
+            const aSel = document.getElementById('analysisVariantSelect');
+            if (aSel) aSel.value = this.gameMode;
+            const gSel = document.getElementById('graphVariantSelect');
+            if (gSel) gSel.value = this.gameMode;
+            const pSel = document.getElementById('gameVariantSelect');
+            if (pSel) pSel.value = this.gameMode;
+        }
+
         return false;
     }
 #prepareNewGameSetup() {
@@ -1704,7 +1780,7 @@ return move.san;
                     else this.currentBTime = timeLeft;
                     
                     this.currentNode.clock = { w: this.currentWTime, b: this.currentBTime };
-                    
+                    this.currentNode.hasClock = true;
                     if (prevTime !== null) {
                         let isFirstMove = (this.currentNode.parent === this.rootNode || (this.currentNode.parent && this.currentNode.parent.parent === this.rootNode));
                         let inc = isFirstMove ? 0 : this.timeIncrement;
@@ -1858,7 +1934,10 @@ return move.san;
                         });
                     }
                     this.currentNode = newNode;
-                    this.currentNode.clock = { w: this.currentWTime, b: this.currentBTime };
+                    if (this.currentNode.parent && this.currentNode.parent.hasClock) {
+                        this.currentNode.clock = { w: this.currentWTime, b: this.currentBTime };
+                        this.currentNode.hasClock = true;
+                    }
                 }
                 i++;
             }
@@ -2493,7 +2572,6 @@ return move.san;
         let chessComMetadata = [];
         let evalVal = node.localEval !== undefined ? node.localEval : node.eval;
 
-        // 1. Preserve existing clock matches before regex stripping
         let rawClkMatch = node.comment ? node.comment.match(/\[%clk\s+([0-9:\.]+)\]/) : null;
         let rawTlMatch = node.comment ? node.comment.match(/tl=([\d\.]+)s?/) : null;
         let origTimeSpentMatch = node.comment ? node.comment.match(/(?:^|\s|\{)\s*([\d\.]+)\s*s\b(?!.*tl=)/) : null;
@@ -2515,51 +2593,40 @@ return move.san;
 
         if (format === 'clean') return rawComment ? `{ ${rawComment} }` : "";
 
-        // 2. Mathematically rebuild time remaining (NOW SUPPORTS DECIMALS!)
+        let hasRealClock = !!(rawClkMatch || rawTlMatch || node.clk || node.hasClock || (this.isPlayingLiveGame && node.clock));
         let secondsLeft = null;
         let clkStr = null;
 
-        if (node.timeLeft !== undefined && !isNaN(node.timeLeft)) {
-            secondsLeft = node.timeLeft / 1000;
-        } else if (node.cccTimeLeft !== undefined && !isNaN(node.cccTimeLeft)) {
-            secondsLeft = parseFloat(node.cccTimeLeft);
-        } else if (node.clock && node.lastMove) {
-            secondsLeft = node.clock[node.lastMove.color];
-        } else if (node.clock) {
-            let turnNext = node.fen.split(' ')[1];
-            let colorJustMoved = turnNext === 'w' ? 'b' : 'w';
-            secondsLeft = node.clock[colorJustMoved];
-        } else if (rawTlMatch) {
-            secondsLeft = parseFloat(rawTlMatch[1]);
+        if (hasRealClock) {
+            if (node.timeLeft !== undefined && !isNaN(node.timeLeft)) {
+                secondsLeft = node.timeLeft / 1000;
+            } else if (node.cccTimeLeft !== undefined && !isNaN(node.cccTimeLeft)) {
+                secondsLeft = parseFloat(node.cccTimeLeft);
+            } else if (rawTlMatch) {
+                secondsLeft = parseFloat(rawTlMatch[1]);
+            } else if (node.clock && node.lastMove) {
+                secondsLeft = node.clock[node.lastMove.color];
+            }
+
+            if (node.clk) {
+                clkStr = node.clk;
+            } else if (rawClkMatch) {
+                clkStr = rawClkMatch[1];
+            }
+
+            if (secondsLeft !== null && !isNaN(secondsLeft) && !clkStr) {
+                let t = Math.max(0, secondsLeft);
+                let h = Math.floor(t / 3600);
+                let m = Math.floor((t % 3600) / 60);
+                let sNum = t % 60;
+                let sStr = sNum % 1 === 0 ? sNum.toString().padStart(2, '0') : (sNum < 10 ? '0' + sNum.toFixed(1) : sNum.toFixed(1));
+                clkStr = `${h}:${m.toString().padStart(2, '0')}:${sStr}`;
+            }
         }
 
-        if (node.clk) {
-            clkStr = node.clk;
-        } else if (rawClkMatch) {
-            clkStr = rawClkMatch[1];
-        }
-
-        if (secondsLeft !== null && !isNaN(secondsLeft) && !clkStr) {
-            let t = Math.max(0, secondsLeft);
-            let h = Math.floor(t / 3600);
-            let m = Math.floor((t % 3600) / 60);
-            let sNum = t % 60;
-            // Support fractional seconds for Bullet/Blitz
-            let sStr = sNum % 1 === 0 ? sNum.toString().padStart(2, '0') : (sNum < 10 ? '0' + sNum.toFixed(1) : sNum.toFixed(1));
-            clkStr = `${h}:${m.toString().padStart(2, '0')}:${sStr}`;
-        }
-
-        if (secondsLeft === null && clkStr) {
-            const cParts = clkStr.split(':');
-            if (cParts.length === 3) secondsLeft = (+cParts[0]) * 3600 + (+cParts[1]) * 60 + parseFloat(cParts[2]);
-            else if (cParts.length === 2) secondsLeft = (+cParts[0]) * 60 + parseFloat(cParts[1]);
-        }
-
-        // 3. Compile Lichess format
         if (format === 'lichess' || format === 'both') {
             if (evalVal !== undefined && evalVal !== null) {
                 let eStr = evalVal.toString();
-                // Map to Lichess syntax: [%eval 2.50] or [%eval #3]
                 if (eStr.includes('M')) {
                     eStr = eStr.replace('+M', '#').replace('-M', '#-').replace('M', '#');
                 } else {
@@ -2569,7 +2636,7 @@ return move.san;
                 parts.push(`[%eval ${eStr}]`);
             }
 
-            if (clkStr) parts.push(`[%clk ${clkStr}]`);
+            if (clkStr && hasRealClock) parts.push(`[%clk ${clkStr}]`);
 
             const getLichessColor = (color) => {
                 if (!color) return 'G';
@@ -2598,14 +2665,11 @@ return move.san;
             }
         }
 
-        // 4. Compile Chess.com format
         if (rawComment) chessComMetadata.push(rawComment);
 
         if (format === 'chesscom' || format === 'both') {
             if (evalVal !== undefined && evalVal !== null) {
                 let eStr = evalVal.toString();
-                
-                // Standardize the string
                 if (!eStr.includes('M')) {
                     let f = parseFloat(eStr);
                     if (!isNaN(f)) {
@@ -2615,23 +2679,22 @@ return move.san;
                 } else {
                     if (!eStr.startsWith('+') && !eStr.startsWith('-')) eStr = '+' + eStr;
                 }
-                
                 let d = node.depth || 20; 
                 chessComMetadata.push(`${eStr}/${d}`);
             }
             
-            let finalTimeSpent = null;
-            if (node.timeSpent !== undefined && !isNaN(node.timeSpent)) {
-                finalTimeSpent = node.timeSpent.toFixed(3);
-            } else if (node.moveTime !== undefined && !isNaN(node.moveTime)) {
-                finalTimeSpent = (node.moveTime / 1000).toFixed(3);
-            } else if (origTimeSpentMatch) {
-                finalTimeSpent = origTimeSpentMatch[1];
-            }
+            if (hasRealClock) {
+                let finalTimeSpent = null;
+                if (node.timeSpent !== undefined && !isNaN(node.timeSpent) && this.isPlayingLiveGame) {
+                    finalTimeSpent = node.timeSpent.toFixed(3);
+                } else if (origTimeSpentMatch) {
+                    finalTimeSpent = origTimeSpentMatch[1];
+                }
 
-            if (finalTimeSpent !== null) chessComMetadata.push(`${finalTimeSpent}s`);
-            if (secondsLeft !== null && secondsLeft !== undefined && !isNaN(secondsLeft)) {
-                chessComMetadata.push(`tl=${secondsLeft.toFixed(3)}s`);
+                if (finalTimeSpent !== null) chessComMetadata.push(`${finalTimeSpent}s`);
+                if (secondsLeft !== null && secondsLeft !== undefined && !isNaN(secondsLeft)) {
+                    chessComMetadata.push(`tl=${secondsLeft.toFixed(3)}s`);
+                }
             }
             
             if (node.latency) chessComMetadata.push(`latency=${node.latency}s`);
@@ -3064,13 +3127,19 @@ restoreAnalysisState() {
         return restored;
     }
 saveVariantState(modeToSave) {
-    if (!modeToSave) return;
-    let pgnToSave = this._originalPgn || (typeof this.generatePGN === 'function' ? this.generatePGN() : "");
-    if (pgnToSave && pgnToSave.trim() !== '') {
+        if (!modeToSave) return;
+        let pgnToSave = "";
+        if (this.rootNode && this.rootNode.children && this.rootNode.children.length > 0) {
+            pgnToSave = typeof this.generatePGN === 'function' ? this.generatePGN() : (this._originalPgn || "");
+        } else {
+            pgnToSave = this._originalPgn || (typeof this.generatePGN === 'function' ? this.generatePGN() : "");
+        }
+        
         const tabContext = (this.mode === 'local' || this.mode === 'bot' || this.mode === 'play') ? 'play' : (this.mode || 'analysis');
-        localStorage.setItem(`chess_${tabContext}_variant_pgn_${modeToSave}`, pgnToSave);
+        if (pgnToSave && pgnToSave.trim() !== '' && pgnToSave.trim() !== '*') {
+            localStorage.setItem(`chess_${tabContext}_variant_pgn_${modeToSave}`, pgnToSave);
+        }
     }
-}
 setGameMode(mode, isInitialLoad = false, skipStorage = false) {
         if (!mode) return;
         if (!isInitialLoad && this.gameMode === mode) return;
@@ -3078,6 +3147,7 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
         const oldMode = this.gameMode;
         const isSuspended = this.isVariantSuspended(mode);
         const oldIsSuspended = this.isVariantSuspended(oldMode);
+        
         if (!isInitialLoad && !skipStorage && oldIsSuspended && this.currentNode && this.currentNode !== this.rootNode) {
             const confirmReset = confirm(`You are leaving a Suspended Variant (${oldMode.toUpperCase()}).\nBecause it runs in isolated memory, your current board will be permanently lost.\n\nContinue?`);
             
@@ -3085,6 +3155,8 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
                 if (typeof document !== 'undefined') {
                     const select = document.getElementById('analysisVariantSelect');
                     if (select) select.value = oldMode;
+                    const gSelect = document.getElementById('graphVariantSelect');
+                    if (gSelect) gSelect.value = oldMode;
                 }
                 return; 
             }
@@ -3113,7 +3185,7 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
                 mode: 'analysis',
                 fen: savedPgn ? "" : startFen,
                 pgn: savedPgn || "",
-                headers: {},
+                headers: { "Variant": mode === 'classical' ? "Standard" : mode },
                 history: [],
                 moveList: []
             };
@@ -3121,10 +3193,20 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             if (typeof localStorage !== 'undefined') {
                 localStorage.setItem('chess_tab_snapshot_analysis', JSON.stringify(this.tabMemory['analysis']));
             }
+
+            if (typeof document !== 'undefined') {
+                const aSel = document.getElementById('analysisVariantSelect');
+                if (aSel) aSel.value = mode;
+                const gSel = document.getElementById('graphVariantSelect');
+                if (gSel) gSel.value = mode;
+                const pSel = document.getElementById('gameVariantSelect');
+                if (pSel) pSel.value = mode;
+            }
             return;
         }
 
         this.gameMode = mode;
+        this._originalPgn = null;
         
         if (!skipStorage && !isSuspended) {
             if (typeof localStorage !== 'undefined') localStorage.setItem('chess_last_variant', mode); 
@@ -3132,6 +3214,9 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
         
         try {
             this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, this.gameMode);
+            if (this.#engine && typeof this.#engine.setGameMode === 'function') {
+                this.#engine.setGameMode(this.gameMode);
+            }
             
             if (isSuspended) {
                 console.warn(`[Sandbox] Booted ${mode} in isolated memory mode.`);
@@ -3143,8 +3228,9 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
                 const tabContext = (this.mode === 'local' || this.mode === 'bot' || this.mode === 'play') ? 'play' : (this.mode || 'analysis');
                 const savedPgn = typeof localStorage !== 'undefined' ? localStorage.getItem(`chess_${tabContext}_variant_pgn_${mode}`) : null;
                 
-                if (savedPgn) {
+                if (savedPgn && savedPgn.trim() !== "" && savedPgn.trim() !== "*") {
                     this.loadPGN(savedPgn, false, true);
+                    this._originalPgn = savedPgn;
                     
                     if (typeof document !== 'undefined') {
                         const fenBox = document.getElementById('fenInput');
@@ -3157,21 +3243,26 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
                         startFen = this.generateChess960FEN();
                     }
                     
-                    this.history = [];
+                    this.history = new BigUint64Array(1000);
                     this.moveList = [];
-                    this.pgnHeaders = {};
+                    this.pgnHeaders = { "Variant": mode === 'classical' ? "Standard" : mode };
                     this.rootNode = new MoveNode(startFen, null);
+                    this.#rebuildNodeMap(this.rootNode);
                     this.currentNode = this.rootNode;
                     
                     if (typeof this.loadFEN === 'function') this.loadFEN(startFen, mode, true);
                 }
+                if (this.mode === 'analysis' && typeof this.#saveState === 'function') {
+                    this.#saveState('analysis', true);
+                }
             } else if (isSuspended) {
                 let startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[mode]) ? VARIANT_STARTING_FENS[mode] : INITIAL_FEN;
                 
-                this.history = [];
+                this.history = new BigUint64Array(1000);
                 this.moveList = [];
-                this.pgnHeaders = {};
+                this.pgnHeaders = { "Variant": mode };
                 this.rootNode = new MoveNode(startFen, null);
+                this.#rebuildNodeMap(this.rootNode);
                 this.currentNode = this.rootNode;
                 if (typeof this.loadFEN === 'function') this.loadFEN(startFen, mode, true);
             }
@@ -3185,6 +3276,15 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
                     this.#safeSetOption('UCI_Chess960', (mode === 'chess960' ? 'true' : 'false'));
                 }
             }
+
+            if (typeof document !== 'undefined') {
+                const aSel = document.getElementById('analysisVariantSelect');
+                if (aSel) aSel.value = mode;
+                const gSel = document.getElementById('graphVariantSelect');
+                if (gSel) gSel.value = mode;
+                const pSel = document.getElementById('gameVariantSelect');
+                if (pSel) pSel.value = mode;
+            }
             
         } catch (error) {
             console.error(`[Sandbox] Engine crash detected in ${mode}! Falling back to classical.`, error);
@@ -3192,10 +3292,11 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             this.gameMode = 'classical';
             this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, 'classical');
             
-            this.history = [];
+            this.history = new BigUint64Array(1000);
             this.moveList = [];
             this.pgnHeaders = {};
             this.rootNode = new MoveNode(INITIAL_FEN, null);
+            this.#rebuildNodeMap(this.rootNode);
             this.currentNode = this.rootNode;
             if (typeof this.loadFEN === 'function') this.loadFEN(INITIAL_FEN, 'classical', true);
             
@@ -3206,6 +3307,8 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             if (typeof document !== 'undefined') {
                 const select = document.getElementById('analysisVariantSelect');
                 if (select) select.value = 'classical';
+                const gSelect = document.getElementById('graphVariantSelect');
+                if (gSelect) gSelect.value = 'classical';
             }
         }
     }
@@ -5945,7 +6048,6 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         const now = Date.now();
         const timeSpent = Math.max(0, (now - (this.lastMoveTime || now)) / 1000);
         this.lastMoveTime = now;
-
         if (typeof this.#reconcileBoardIds === 'function') this.#reconcileBoardIds(newFen, move);
 
         const moveData = { 
@@ -5969,7 +6071,9 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         console.log(`🌳 [TREE APPEND] Current mode: '${this.mode}', Appending Move: ${finalSan}`);
         if (typeof this.#addMoveToTree === 'function') this.#addMoveToTree(newFen, finalSan, moveData.to, moveData, true);
         
-        if (this.currentNode) this.currentNode.timeSpent = timeSpent;
+        if (this.isPlayingLiveGame && this.currentNode) {
+            this.currentNode.timeSpent = timeSpent;
+        }
 
         if (this.isPlayingLiveGame && !result.isSpell) {
             if (nextTurn === 'b') this.whiteTime += this.whiteIncrement;
