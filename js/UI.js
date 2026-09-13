@@ -117,9 +117,9 @@ constructor() {
         if (resignBtn) resignBtn.style.display = 'none';
         if (drawBtn) drawBtn.style.display = 'none';
         
-        let lastTab = 'play';
+        let lastTab = 'analysis';
         if (typeof localStorage !== 'undefined') {
-            lastTab = localStorage.getItem('chess_last_tab') || 'play';
+            lastTab = localStorage.getItem('chess_last_tab') || 'analysis';
         }
         this.switchTab(lastTab);
         
