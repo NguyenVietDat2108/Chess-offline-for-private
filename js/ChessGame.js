@@ -202,6 +202,7 @@ getReader() {
             mode: this.mode,
             isGameOver: this.gameOver,
             isLive: this.isPlayingLiveGame,
+            hasClockData: !!(this.hasClockData || (this.pgnHeaders && this.pgnHeaders['TimeControl'])),
             isPaused: this.isPaused,
             isCheck: this.#engine ? this.#engine.in_check() : false,
             gameMode: this.gameMode,
@@ -5362,13 +5363,17 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 moveTextRaw = moveTextRaw.replace(/([A-Za-z]+@[a-h][1-8])\s+([A-Za-z0-9+#=O\-]+)/g, "$1_$2");
             }
 
-            let initialTime = 600;
+            let initialTime = null;
             this.timeIncrement = 0;
+            this.hasClockData = false;
             
             if (this.pgnHeaders['TimeControl']) {
                 const parts = this.pgnHeaders['TimeControl'].split('+');
                 const parsed = parseFloat(parts[0]);
-                if (!isNaN(parsed)) initialTime = parsed;
+                if (!isNaN(parsed)) {
+                    initialTime = parsed;
+                    this.hasClockData = true;
+                }
                 if (parts.length > 1) {
                     const inc = parseFloat(parts[1]);
                     if (!isNaN(inc)) this.timeIncrement = inc;
@@ -5388,7 +5393,13 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             }
 
             this.rootNode = new MoveNode(startFen, null);
-            this.rootNode.clock = { w: initialTime, b: initialTime };
+            if (initialTime !== null) {
+                this.rootNode.clock = { w: initialTime, b: initialTime };
+                this.rootNode.hasClock = true;
+            } else {
+                this.rootNode.clock = null;
+                this.rootNode.hasClock = false;
+            }
             this.currentNode = this.rootNode;
             this.loadFEN(this.rootNode.fen, this.gameMode, true);
 
@@ -5530,6 +5541,11 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                             this.blackTime = this.rootNode.clock.b;
                             this.currentWTime = this.rootNode.clock.w;
                             this.currentBTime = this.rootNode.clock.b;
+                        } else {
+                            this.whiteTime = null;
+                            this.blackTime = null;
+                            this.currentWTime = null;
+                            this.currentBTime = null;
                         }
                         
                         if (this.#ui.moveListContainer) this.#ui.moveListContainer.innerHTML = '';

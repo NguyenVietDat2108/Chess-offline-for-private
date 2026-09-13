@@ -7403,36 +7403,50 @@ updateClocks() {
         const bClockEl = document.getElementById('timer-black');
         if (!wClockEl || !bClockEl) return;
 
-        let wTime = 600;
-        let bTime = 600;
         const state = this.#game ? this.#game.getReader() : null;
+        const isLive = state && state.isLive;
+        
+        const hasHeaderTimeControl = !!(state && state.headers && state.headers['TimeControl']);
+        const hasNodeClock = !!(this.#game && this.#game.currentNode && this.#game.currentNode.hasClock && this.#game.currentNode.clock);
+        const hasGameClock = !!(this.#game && this.#game.hasClockData);
 
-        // 1: Always prioritize the LIVE ticking time over history snapshots!
-        if (state && state.isLive) {
+        const shouldShowClock = isLive || hasHeaderTimeControl || hasNodeClock || hasGameClock;
+
+        if (!shouldShowClock) {
+            wClockEl.style.display = 'none';
+            bClockEl.style.display = 'none';
+            wClockEl.innerText = '';
+            bClockEl.innerText = '';
+            return;
+        }
+
+        wClockEl.style.display = '';
+        bClockEl.style.display = '';
+
+        let wTime = null;
+        let bTime = null;
+
+        if (isLive) {
             wTime = state.whiteTime; 
             bTime = state.blackTime;
         } else if (this.#game && this.#game.currentNode && this.#game.currentNode.clock) {
-            // Only use snapshot times if we are in Analysis/Puzzle mode
             wTime = this.#game.currentNode.clock.w;
             bTime = this.#game.currentNode.clock.b;
-        } else {
-            // Default fallbacks from PGN Headers
-            if (state && state.headers && state.headers['TimeControl']) {
-                const parts = state.headers['TimeControl'].split('+');
-                const val = parseFloat(parts[0]);
-                wTime = val;
-                bTime = val;
-            } else if (this.#game && this.#game.timeControl) {
-                const parts = this.#game.timeControl.split('+');
-                const val = parseFloat(parts[0]);
-                wTime = val * 60; 
-                bTime = val * 60;
-            }
+        } else if (hasHeaderTimeControl) {
+            const parts = state.headers['TimeControl'].split('+');
+            const val = parseFloat(parts[0]);
+            wTime = val;
+            bTime = val;
+        }
+
+        if (wTime === null || bTime === null) {
+            wClockEl.style.display = 'none';
+            bClockEl.style.display = 'none';
+            return;
         }
 
         const format = (seconds) => {
             if (typeof seconds !== 'number' || isNaN(seconds) || seconds < 0) seconds = 0;
-            
             const h = Math.floor(seconds / 3600);
             const m = Math.floor((seconds % 3600) / 60);
             const s = Math.floor(seconds % 60);
@@ -7449,24 +7463,9 @@ updateClocks() {
         wClockEl.classList.remove('active', 'running');
         bClockEl.classList.remove('active', 'running');
 
-        // 2: Lock the indicator to the TRUE live turn, ignoring PGN travel!
-        if (state && state.isLive) {
-            const activeTurn = state.turn;
-            
-            if (activeTurn === 'w') {
-                wClockEl.classList.add('active', 'running');
-            } else {
-                bClockEl.classList.add('active', 'running');
-            }
-        } else if (this.#game && this.#game.currentNode) {
-            const isStepping = (this.#game.currentNode !== this.#game.rootNode);
-            if (isStepping) {
-                const parts = this.#game.currentNode.fen.split(' ');
-                const turn = parts[1] || 'w';
-
-                if (turn === 'w') wClockEl.classList.add('active', 'running');
-                else bClockEl.classList.add('active', 'running');
-            }
+        if (isLive) {
+            if (state.turn === 'w') wClockEl.classList.add('active', 'running');
+            else bClockEl.classList.add('active', 'running');
         }
     }
 renderAnalysisResult(stats) {
