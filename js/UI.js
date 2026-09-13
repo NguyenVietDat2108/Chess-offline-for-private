@@ -160,10 +160,15 @@ setGame(gameInstance) {
             this.boardWrapper.addEventListener('mousemove', (e) => this.processTrashAction(e), true);
         }
 
-        window.addEventListener('resize', () => {
+        const handleViewportResize = () => {
             this.resizeApp();
             if (typeof this.safeResizeCharts === 'function') this.safeResizeCharts();
-        });
+        };
+        window.addEventListener('resize', handleViewportResize);
+        window.addEventListener('orientationchange', () => setTimeout(handleViewportResize, 100));
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', handleViewportResize);
+        }
 
         this.initGlobalDragEvents();
 
@@ -1476,14 +1481,16 @@ resizeApp() {
             }
         }
 
-        const availableWidth = window.innerWidth; 
-        const availableHeight = window.innerHeight;
+        const availableWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth; 
+        const availableHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
         
         let scaleX = availableWidth / targetWidth;
         let scaleY = availableHeight / targetHeight;
         
+        // Dynamic scaling: Cho phép scale xuống thấp hơn (0.15) cho màn hình điện thoại dọc
         let scale = Math.min(scaleX, scaleY);
-        scale = Math.max(0.3, scale); 
+        let minScale = availableWidth < 600 ? 0.15 : 0.25;
+        scale = Math.max(minScale, scale); 
         scale = Math.min(1.2, scale);
 
         window.appScale = scale; 

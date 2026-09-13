@@ -1,7 +1,7 @@
-/*! coi-serviceworker v0.1.7 - MIT License */
+/*! coi-serviceworker v0.1.7 - MIT License (with Safari & Mobile Safe Reload) */
 let coepCredentialless = false;
 
-if (typeof window === 'undefined') {
+if (typeof window === "undefined") {
     self.addEventListener("install", () => self.skipWaiting());
     self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
@@ -15,6 +15,7 @@ if (typeof window === 'undefined') {
             fetch(req)
                 .then((response) => {
                     if (response.status === 0) return response;
+
                     const newHeaders = new Headers(response.headers);
                     newHeaders.set("Cross-Origin-Embedder-Policy", coepCredentialless ? "credentialless" : "require-corp");
                     newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
@@ -32,6 +33,7 @@ if (typeof window === 'undefined') {
     (() => {
         if (window.crossOriginIsolated) {
             console.log("✅ [COI] SharedArrayBuffer đã được bật thành công!");
+            try { sessionStorage.removeItem("coiReloaded"); } catch(e){}
             return;
         }
 
@@ -40,12 +42,23 @@ if (typeof window === 'undefined') {
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.register(scriptUrl, { scope: "./" }).then(
                 (registration) => {
-                    registration.addEventListener("updatefound", () => {
+                    const doReload = () => {
+                        try {
+                            if (sessionStorage.getItem("coiReloaded")) {
+                                console.warn("[COI] Tránh reload lặp lại trên trình duyệt không hỗ trợ COOP/COEP.");
+                                return;
+                            }
+                            sessionStorage.setItem("coiReloaded", "1");
+                        } catch(e){}
                         window.location.reload();
+                    };
+
+                    registration.addEventListener("updatefound", () => {
+                        doReload();
                     });
 
                     if (registration.active && !navigator.serviceWorker.controller) {
-                        window.location.reload();
+                        doReload();
                     }
                 },
                 (err) => {

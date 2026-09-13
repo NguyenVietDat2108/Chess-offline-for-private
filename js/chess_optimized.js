@@ -527,8 +527,8 @@
         if (prevState.gameMode === '3check') {
             if (is_standard_checked(nextState, nextState.turn)) {
                 let us = prevState.turn; 
-                if (us === WHITE) nextState.checks.w++;
-                else nextState.checks.b++;
+                if (us === WHITE) nextState.checks_w++;
+                else nextState.checks_b++;
             }
         }
         if (prevState.gameMode !== 'classical' && prevState.gameMode !== 'chess960' && prevState.gameMode !== 'horde') {
@@ -538,7 +538,7 @@
     }
     function is_standard_legal_fast(state, m) {
         var us = state.turn, them = us ^ 1;
-        var from = m & 0x3F, to = (m >>> 6) & 0x3F, flags = (m >>> 12) & 0xFF, promo = (m >>> 19) & 0x7;
+        var from = m & 0x3F, to = (m >>> 6) & 0x3F, flags = (m >>> 12) & 0x7F, promoInt = (m >>> 19) & 0x7;
         
         if (flags & 128) return !is_checked(apply_move(state, m), us);
 
@@ -798,6 +798,8 @@
             else next.pocket_b -= (1 << (p_type * 5));
             
             if (to < 32) next.bb_lo[us*6+p_type] |= (1<<to); else next.bb_hi[us*6+p_type] |= (1<<(to-32));
+            next.board[to] = (us << 3) | p_type;
+            next.zobrist ^= ZOBRIST.pieces[(us * 6 + p_type) * 64 + to];
             
             next.turn ^= 1;
             next.ep_square = -1;
@@ -883,34 +885,36 @@
         return next;
     }
     function apply_chaturanga_move(prevState, m) {
-        var next = clone_state(prevState);
-        var us = next.turn, them = us ^ 1;
-        var from = m & 0x3F, to = (m >>> 6) & 0x3F;
-        var flags = (m >>> 12) & 0x7F, promo = (m >>> 19) & 0x7;
-        var p_type = get_piece_at(prevState, from) & 7; 
+    var next = clone_state(prevState);
+    var us = next.turn, them = us ^ 1;
+    var from = m & 0x3F, to = (m >>> 6) & 0x3F;
+    var flags = (m >>> 12) & 0x7F, promo = (m >>> 19) & 0x7;
+    var p_type = get_piece_at(prevState, from) & 7; 
 
-        // 1. Pick up the piece
-        if (from < 32) next.bb_lo[us*6+p_type] &= ~(1<<from); else next.bb_hi[us*6+p_type] &= ~(1<<(from-32));
+    if (from < 32) next.bb_lo[us*6+p_type] &= ~(1<<from); else next.bb_hi[us*6+p_type] &= ~(1<<(from-32));
+    next.board[from] = -1;
+    next.zobrist ^= ZOBRIST.pieces[(us * 6 + p_type) * 64 + from];
 
-        // 2. Handle Capture (No En Passant in Chaturanga!)
-        if (flags & BITS.CAPTURE) {
-            var cap = get_piece_at(prevState, to) & 7;
-            if (cap !== -1) {
-                if (to < 32) next.bb_lo[them*6+cap] &= ~(1<<to); else next.bb_hi[them*6+cap] &= ~(1<<(to-32));
-            }
-        } 
+    if (flags & BITS.CAPTURE) {
+        var cap = get_piece_at(prevState, to) & 7;
+        if (cap !== -1) {
+            if (to < 32) next.bb_lo[them*6+cap] &= ~(1<<to); else next.bb_hi[them*6+cap] &= ~(1<<(to-32));
+            next.zobrist ^= ZOBRIST.pieces[(them * 6 + cap) * 64 + to];
+        }
+    } 
 
-        // 3. Drop the piece (or the promoted Mantri/Queen)
-        var placed = (flags & BITS.PROMOTION) ? promo : p_type;
-        if (to < 32) next.bb_lo[us*6+placed] |= (1<<to); else next.bb_hi[us*6+placed] |= (1<<(to-32));
+    var placed = (flags & BITS.PROMOTION) ? promo : p_type;
+    if (to < 32) next.bb_lo[us*6+placed] |= (1<<to); else next.bb_hi[us*6+placed] |= (1<<(to-32));
+    next.board[to] = (us << 3) | placed;
+    next.zobrist ^= ZOBRIST.pieces[(us * 6 + placed) * 64 + to];
 
-        // 4. Update Board State
-        next.turn ^= 1;
-        next.ep_square = -1;
-        if (p_type === PAWN || (flags & BITS.CAPTURE)) next.half_moves = 0; else next.half_moves++;
-        if (us === BLACK) next.move_number++;
-        return next;
-    }
+    next.turn ^= 1;
+    next.ep_square = -1;
+    next.zobrist ^= ZOBRIST.side;
+    if (p_type === PAWN || (flags & BITS.CAPTURE)) next.half_moves = 0; else next.half_moves++;
+    if (us === BLACK) next.move_number++;
+    return next;
+}
     function apply_spell(state, spellType, targetSq) {
         let next = clone_state(state);
         let us = next.turn;
@@ -1025,6 +1029,18 @@
         let occThemH = bb_hi[tBase] | bb_hi[tBase+1] | bb_hi[tBase+2] | bb_hi[tBase+3] | bb_hi[tBase+4] | bb_hi[tBase+5];
         let occAllL = occUsL | occThemL;
         let occAllH = occUsH | occThemH;
+        if (state.gameMode === 'duck' && state.duck_sq !== -1) {
+            let dSq = state.duck_sq;
+            if (dSq < 32) {
+                let mask = (1 << dSq) >>> 0;
+                occAllL |= mask;
+                occUsL |= mask;
+            } else {
+                let mask = (1 << (dSq - 32)) >>> 0;
+                occAllH |= mask;
+                occUsH |= mask;
+            }
+        }
 
         let pieceFilterType = filterSq !== -1 ? (state.board[filterSq] & 7) : -1;
 
@@ -1927,7 +1943,7 @@
         return null;
     }
     function to_obj(state, m, nag, known_san) {
-        var from = m & 0x3F, to = (m >>> 6) & 0x3F, flags = (m >>> 12) & 0xFF, promoInt = (m >>> 19) & 0x7;
+        var from = m & 0x3F, to = (m >>> 6) & 0x3F, flags = (m >>> 12) & 0x7F, promo = (m >>> 19) & 0x7;
         var f = "n";
         if (flags & BITS.KSIDE_CASTLE) f = "k";
         else if (flags & BITS.QSIDE_CASTLE) f = "q";
@@ -1966,7 +1982,7 @@
         return obj;
     }
     function get_san(state, m) {
-        var flags = (m >>> 12) & 0xFF;
+        var flags = (m >>> 12) & 0x7F;
         
         if ((flags & BITS.DROP) && !(flags & BITS.PROMOTION)) {
             var pType = m & 0x3F;
@@ -2070,8 +2086,8 @@
     function check_variant_win(state) {
         switch (state.gameMode) {
             case '3check':
-                if (state.checks.w >= 3) return WHITE; 
-                if (state.checks.b >= 3) return BLACK; 
+                if (state.checks_w >= 3) return WHITE; 
+                if (state.checks_b >= 3) return BLACK; 
                 return null;
             case 'horde':
                 let wPieces = 0;
@@ -2172,10 +2188,10 @@
     var tokens = fen.trim().split(/\s+/);
     var boardToken = tokens[0];
 
-    if ((setGameMode === 'crazyhouse' || setGameMode === 'bughouse' || setGameMode === 'placement') && boardToken.indexOf('[') !== -1) {
-        var pIdx = boardToken.indexOf('[');
-        var pocketStr = boardToken.substring(pIdx + 1, boardToken.indexOf(']'));
-        boardToken = boardToken.substring(0, pIdx);
+    var pocketMatch = fen.match(/\[([a-zA-Z]*)\]/);
+    if ((setGameMode === 'crazyhouse' || setGameMode === 'bughouse' || setGameMode === 'placement') && pocketMatch) {
+        var pocketStr = pocketMatch[1];
+        if (boardToken.indexOf('[') !== -1) boardToken = boardToken.substring(0, boardToken.indexOf('['));
         for (var i = 0; i < pocketStr.length; i++) {
             var c = pocketStr.charCodeAt(i);
             var col = (c < 97) ? WHITE : BLACK;
@@ -2488,7 +2504,7 @@ return {
                 var m = ms[i];
                 var from = m & 0x3F;
                 if (filterFrom !== -1 && from !== filterFrom) {
-                    var flags = (m >>> 12) & 0xFF;
+                    var flags = (m >>> 12) & 0x7F;
                     if (!(((flags & BITS.DROP) && !(flags & BITS.PROMOTION)) && filterFrom === 64)) continue;
                 }
 
@@ -2783,7 +2799,7 @@ return {
 
             if (currentState.gameMode === 'chaturanga') {
                 if (!is_checked(currentState, currentState.turn) && generate_chaturanga_moves(currentState, {legal:true}).length === 0) {
-                    return currentState.turn === WHITE ? 'b' : 'w';
+                    return currentState.turn === WHITE ? 'w' : 'b';
                 }
             }
             return null;
@@ -2933,7 +2949,7 @@ return {
             return { w: wArr, b: bArr }; 
         },
         checks: function() { 
-            return currentState.checks ? { w: currentState.checks.w, b: currentState.checks.b } : { w: 0, b: 0 }; 
+            return { w: currentState.checks_w || 0, b: currentState.checks_b || 0 }; 
         },
         alice_b: function() { 
             return currentState.alice_b ? { lo: currentState.alice_b.lo, hi: currentState.alice_b.hi } : { lo: 0, hi: 0 }; 
