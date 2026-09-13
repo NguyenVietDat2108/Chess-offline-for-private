@@ -2320,19 +2320,23 @@ return move.san;
         this.puzzleSolution = (typeof p.moves === 'string') ? p.moves.trim().split(' ') : p.moves;
         this.puzzleCursor = 0;
         
-        setTimeout(() => {
+        if (this.puzzleSetupTimeout) {
+            clearTimeout(this.puzzleSetupTimeout);
+            this.puzzleSetupTimeout = null;
+        }
+        this.puzzleSetupTimeout = setTimeout(() => {
+            if (this.mode !== 'puzzle' || this.puzzleCursor !== 0) return;
             const setupMove = this.puzzleSolution[0];
             if (setupMove) {
                 const from = this.#squareToIndex(setupMove.substring(0, 2));
                 const to = this.#squareToIndex(setupMove.substring(2, 4));
                 const promo = setupMove.length > 4 ? setupMove.substring(4, 5) : 'q';
                 
-                const res = this.makeMove({ from, to }, promo, true, null, true);
+                const res = this.makeMove({ from, to }, promo, false, null, false, true);
                 
                 this.#emit('boardUpdated', { animate: true, overrideMove: this.currentNode.lastMove });
                 
                 if (res) this.triggerMoveSound(res);
-                this.puzzleCursor++;
             }
         }, 500);
 
@@ -2379,7 +2383,7 @@ return move.san;
             const to = this.#squareToIndex(uci.substring(2, 4));
             const promo = uci.length > 4 ? uci.substring(4, 5) : 'q';
             
-            const res = this.makeMove({ from, to }, promo, true, null, true);
+            const res = this.makeMove({ from, to }, promo, false, null, false, true);
             
             this.#emit('boardUpdated', { 
                 animate: true, 
@@ -2387,7 +2391,6 @@ return move.san;
             });
             if (res) this.triggerMoveSound(res);
             
-            this.puzzleCursor++;
             i++;
             
             this._solutionTimeout = setTimeout(playNext, 800);
@@ -4215,14 +4218,19 @@ retryPuzzle() {
             const resetBtn = document.getElementById('resetPuzzleBtn');
             if (resetBtn) resetBtn.style.display = 'none';
 
-            setTimeout(() => {
+            if (this.puzzleSetupTimeout) {
+                clearTimeout(this.puzzleSetupTimeout);
+                this.puzzleSetupTimeout = null;
+            }
+            this.puzzleSetupTimeout = setTimeout(() => {
+                if (this.mode !== 'puzzle' || this.puzzleCursor !== 0) return;
                 const setupMove = this.puzzleSolution[0];
                 if (setupMove) {
                     const from = this.#squareToIndex(setupMove.substring(0, 2));
                     const to = this.#squareToIndex(setupMove.substring(2, 4));
                     const promo = setupMove.length > 4 ? setupMove.substring(4, 5) : 'q';
                     
-                    const res = this.makeMove({ from, to }, promo, true, null, true);
+                    const res = this.makeMove({ from, to }, promo, false, null, false, true);
                     
                     this.#emit('boardUpdated', { 
                         animate: true, 
@@ -4230,7 +4238,6 @@ retryPuzzle() {
                     });
                     
                     if (res) this.triggerMoveSound(res);
-                    this.puzzleCursor++;
                 }
             }, 500);
         }
@@ -4277,6 +4284,16 @@ stepBack(animate = true) {
         this.#emit('boardUpdated', { animate: animate, skipEngine: true });
         this._transientOverrideMove = null;
         
+        if (this.mode === 'puzzle') {
+            let depth = 0;
+            let n = this.currentNode;
+            while (n && n.parent) {
+                depth++;
+                n = n.parent;
+            }
+            this.puzzleCursor = depth;
+        }
+        
         if (undoneNode.lastMove) {
             this.triggerMoveSound(undoneNode.lastMove);
         }
@@ -4315,6 +4332,16 @@ stepForward(animate = true) {
         
         this.#emit('boardUpdated', { animate: animate, overrideMove: nextNode.lastMove, skipEngine: true });
         
+        if (this.mode === 'puzzle') {
+            let depth = 0;
+            let n = this.currentNode;
+            while (n && n.parent) {
+                depth++;
+                n = n.parent;
+            }
+            this.puzzleCursor = depth;
+        }
+        
         if (nextNode.lastMove) {
             this.triggerMoveSound(nextNode.lastMove);
         }
@@ -4329,6 +4356,10 @@ stepForward(animate = true) {
     }
 goToStart(animate = true) {
         if (!this.rootNode) return false;
+
+        if (this.mode === 'puzzle') {
+            this.puzzleCursor = 0;
+        }
 
         const startFen = this.rootNode.fen;
         const previousBoardSnapshot = this.#board.map(p => p ? { ...p } : null);
@@ -4384,6 +4415,16 @@ goToEnd(animate = true) {
         this.currentNode = curr;
         this.loadFEN(this.currentNode.fen, this.gameMode, true);
         
+        if (this.mode === 'puzzle') {
+            let depth = 0;
+            let n = this.currentNode;
+            while (n && n.parent) {
+                depth++;
+                n = n.parent;
+            }
+            this.puzzleCursor = depth;
+        }
+        
         this.#emit('boardUpdated', { animate: animate });
         
         if (animate) {
@@ -4436,6 +4477,16 @@ goToNodeId(id, animate = true) {
             
             this.#engine.load(this.currentNode.fen);
             this.turn = this.#engine.turn();
+            
+            if (this.mode === 'puzzle') {
+                let depth = 0;
+                let n = this.currentNode;
+                while (n && n.parent) {
+                    depth++;
+                    n = n.parent;
+                }
+                this.puzzleCursor = depth;
+            }
             
             if (isStepBack && typeof this.#reconcileBoardIdsReverse === 'function') {
                 this.#reconcileBoardIdsReverse(this.currentNode.fen, undoneNode.lastMove);
@@ -6090,6 +6141,10 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         const nextTurn = this.#engine.turn(); 
 
         if (this.mode === 'puzzle') {
+            if (this.puzzleSetupTimeout) {
+                clearTimeout(this.puzzleSetupTimeout);
+                this.puzzleSetupTimeout = null;
+            }
             const userStr = (result.from + result.to + (result.promotion || '')).toLowerCase();
             const solStr = (this.puzzleSolution[this.puzzleCursor] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
