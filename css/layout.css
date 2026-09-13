@@ -61,24 +61,123 @@ html[data-tab="trainer"] #commentaryBox {
 
 /* Resize Handles */
 .resize-handle {
-    position: absolute; bottom: -15px; right: -15px; width: 25px; height: 25px;
-    cursor: nwse-resize; z-index: 1000; background-size: 4px 4px;
-}
-.resize-handle-side {
-    position: absolute; z-index: 9999; background: transparent; transition: background 0.2s;
-}
-.resize-handle-side:hover, .resize-handle-side.active { background: rgba(56, 189, 248, 0.6); }
-.resize-handle-side.right { top: 0; bottom: 0; right: -6px; width: 12px; cursor: col-resize; }
-.resize-handle-side.bottom { left: 0; right: 0; bottom: 0; height: 12px; cursor: row-resize; }
-#resizeSidebarW { 
     position: absolute; 
-    right: -6px;
-    left: auto;
+    bottom: -10px; 
+    right: -10px; 
+    width: 38px; 
+    height: 38px;
+    cursor: nwse-resize; 
+    z-index: 1000;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.resize-handle::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    width: 16px;
+    height: 16px;
+    background: linear-gradient(135deg, transparent 0%, transparent 35%, rgba(255, 255, 255, 0.4) 35%, rgba(255, 255, 255, 0.4) 45%, transparent 45%, transparent 65%, rgba(255, 255, 255, 0.6) 65%, rgba(255, 255, 255, 0.6) 75%, transparent 75%, transparent 88%, #38bdf8 88%, #38bdf8 100%);
+    border-radius: 2px;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.resize-handle:hover::after,
+.resize-handle:active::after,
+.resize-handle.active::after {
+    transform: scale(1.25);
+    opacity: 1;
+}
+
+.resize-handle-side {
+    position: absolute; 
+    z-index: 9999; 
+    background: transparent; 
+    transition: background 0.2s;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+}
+.resize-handle-side:hover, .resize-handle-side.active { 
+    background: rgba(56, 189, 248, 0.4); 
+}
+
+/* Left resize handle for PGN sidebar - wide 24px hit area for easy grabbing on mobile/desktop */
+.resize-handle-side.left,
+#resizeSidebarLeft {
+    top: 0;
+    bottom: 0;
+    left: -12px;
+    width: 24px;
+    cursor: col-resize;
+    position: absolute;
+    z-index: 101;
+    touch-action: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.resize-handle-side.left::before,
+#resizeSidebarLeft::before {
+    content: '';
+    width: 4px;
+    height: 52px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    transition: background 0.2s, transform 0.2s, height 0.2s;
+}
+.resize-handle-side.left:hover::before,
+.resize-handle-side.left.active::before,
+#resizeSidebarLeft:hover::before,
+#resizeSidebarLeft.active::before {
+    background: #38bdf8;
+    height: 84px;
+    transform: scaleX(1.6);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+}
+
+.resize-handle-side.right,
+#resizeSidebarW { 
     top: 0; 
     bottom: 0; 
-    width: 6px; 
+    right: -12px; 
+    left: auto;
+    width: 24px; 
     cursor: col-resize; 
+    position: absolute;
     z-index: 100; 
+    touch-action: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.resize-handle-side.right::before,
+#resizeSidebarW::before {
+    content: '';
+    width: 4px;
+    height: 52px;
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 4px;
+    transition: background 0.2s, transform 0.2s, height 0.2s;
+}
+.resize-handle-side.right:hover::before,
+.resize-handle-side.right.active::before,
+#resizeSidebarW:hover::before,
+#resizeSidebarW.active::before {
+    background: #38bdf8;
+    height: 84px;
+    transform: scaleX(1.6);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+}
+
+.resize-handle-side.bottom { 
+    left: 0; 
+    right: 0; 
+    bottom: -10px; 
+    height: 20px; 
+    cursor: row-resize; 
 }
 
 #engine-stats-container > div {
@@ -213,4 +312,67 @@ html[data-tab="trainer"] #commentaryBox {
 .theme-preset.active, .theme-box.active, .board-theme-box.active {
     border-color: #38bdf8;
     box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
+}
+
+/* =========================================================
+    SIDE MENU DRAWER & OVERLAY (Mobile & Desktop Responsive)
+   ========================================================= */
+#mainMenuBtn {
+    position: fixed !important;
+    top: 15px !important;
+    left: 15px !important;
+    z-index: 1000000 !important;
+    transform: none !important;
+    touch-action: manipulation;
+}
+
+#sideMenuOverlay {
+    position: fixed !important;
+    inset: 0 !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    min-height: 100dvh !important;
+    background: rgba(0, 0, 0, 0.65) !important;
+    z-index: 1000001 !important;
+    backdrop-filter: blur(3px) !important;
+    -webkit-backdrop-filter: blur(3px) !important;
+    transform: none !important;
+}
+
+#sideMenuPanel {
+    position: fixed !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: -380px;
+    width: 320px !important;
+    max-width: 85vw !important;
+    height: 100% !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    min-height: 100% !important;
+    background: #111 !important;
+    z-index: 1000002 !important;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.8) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    border-right: 1px solid #222 !important;
+    transform: none !important;
+}
+
+#sideMenuPanel.open {
+    left: 0 !important;
+}
+
+@media (max-width: 768px) {
+    #sideMenuPanel {
+        width: 300px !important;
+        max-width: 85vw !important;
+    }
 }

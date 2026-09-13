@@ -755,9 +755,9 @@ getReader() {
                 return;
             }
 
-            const isAnalysingOrStudy = (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'puzzle');
+            const canAnalyze = (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'puzzle' || (!this.isPlayingLiveGame && window.engineAnalysing));
             
-            if (isAnalysingOrStudy && window.engineAnalysing && this._pendingFen) {
+            if (canAnalyze && window.engineAnalysing && this._pendingFen) {
                 const targetFen = this._pendingFen;
                 this.analyzingNode = this._pendingNode;
                 this._pendingFen = null; 
@@ -767,9 +767,9 @@ getReader() {
             return; 
         }
 
-        const isAnalysingOrStudy = (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'puzzle');
+        const canAnalyze = (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'puzzle' || (!this.isPlayingLiveGame && window.engineAnalysing));
         
-        if (isAnalysingOrStudy && window.engineAnalysing && !window.engineReady && (line.startsWith('info') || line.startsWith('bestmove'))) {
+        if (canAnalyze && window.engineAnalysing && !window.engineReady && (line.startsWith('info') || line.startsWith('bestmove'))) {
             return; 
         }
 
@@ -1012,10 +1012,12 @@ getReader() {
                     validFull.push(res);    
                 }
                 
-                rawMoves = validSan; 
-                if (validFull.length > 0) rawMoves.bestMoveFull = validFull[0]; 
+                if (validSan.length > 0) {
+                    rawMoves = validSan; 
+                    if (validFull.length > 0) rawMoves.bestMoveFull = validFull[0]; 
+                }
             }
-            if (rawMoves.length === 0) return;
+            if (rawMoves.length === 0 && (!pvMatch || !pvMatch[1])) return;
 
             let score = 0; let type = 'cp'; let rawEval = 0; 
             const cpMatch = line.match(/score cp (-?\d+)/);
@@ -3614,12 +3616,16 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                             }
 
                             if (engineInstance) {
-                                if (engineInstance.ccall) {
+                                if (typeof engineInstance.onCustomMessage === 'function') {
+                                    engineInstance.onCustomMessage(cmd);
+                                }
+                                if (typeof engineInstance.postMessage === 'function') {
+                                    engineInstance.postMessage(cmd);
+                                } else if (engineInstance.ccall) {
                                     engineInstance.ccall('push_cmd', 'null', ['string'], [cmd]);
-                                } 
-                                else if (typeof engineInstance.postMessage === 'function') engineInstance.postMessage(cmd);
-                                else if (typeof engineInstance.onCustomMessage === 'function') engineInstance.onCustomMessage(cmd);
-                                else if (typeof engineInstance === 'function') engineInstance(cmd);
+                                } else if (typeof engineInstance === 'function') {
+                                    engineInstance(cmd);
+                                }
                             } else {
                                 messageQueue.push(cmd);
                             }
@@ -3633,10 +3639,16 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                             engineInstance = engine;
                             
                             messageQueue.forEach(function(cmd) {
-                                if (engineInstance.ccall) engineInstance.ccall('push_cmd', 'null', ['string'], [cmd]);
-                                else if (typeof engineInstance.postMessage === 'function') engineInstance.postMessage(cmd);
-                                else if (typeof engineInstance.onCustomMessage === 'function') engineInstance.onCustomMessage(cmd);
-                                else if (typeof engineInstance === 'function') engineInstance(cmd);
+                                if (typeof engineInstance.onCustomMessage === 'function') {
+                                    engineInstance.onCustomMessage(cmd);
+                                }
+                                if (typeof engineInstance.postMessage === 'function') {
+                                    engineInstance.postMessage(cmd);
+                                } else if (engineInstance.ccall) {
+                                    engineInstance.ccall('push_cmd', 'null', ['string'], [cmd]);
+                                } else if (typeof engineInstance === 'function') {
+                                    engineInstance(cmd);
+                                }
                             });
                             messageQueue = [];
                             
@@ -4238,8 +4250,12 @@ stepBack(animate = true) {
         if (!this.currentNode || !this.currentNode.parent) return false;
         
         const undoneNode = this.currentNode;
-        this.currentNode = this.currentNode.parent;
-        this.currentNode.selectedChildIndex = 0;
+        const parentNode = this.currentNode.parent;
+        const branchIdx = parentNode.children.indexOf(undoneNode);
+        if (branchIdx !== -1) {
+            parentNode.selectedChildIndex = branchIdx;
+        }
+        this.currentNode = parentNode;
         
         this.#engine.load(this.currentNode.fen);
         this.turn = this.#engine.turn();
@@ -4258,7 +4274,7 @@ stepBack(animate = true) {
             };
         }
 
-        this.#emit('boardUpdated', { animate: animate });
+        this.#emit('boardUpdated', { animate: animate, skipEngine: true });
         this._transientOverrideMove = null;
         
         if (undoneNode.lastMove) {
@@ -4276,10 +4292,19 @@ stepBack(animate = true) {
 stepForward(animate = true) {
         if (!this.currentNode || this.currentNode.children.length === 0) return false;
         
-        const nextNode = this.currentNode.children[0];
+        const childIdx = (typeof this.currentNode.selectedChildIndex === 'number' && this.currentNode.children[this.currentNode.selectedChildIndex])
+            ? this.currentNode.selectedChildIndex
+            : 0;
+        const nextNode = this.currentNode.children[childIdx] || this.currentNode.children[0];
         
         this.currentNode = nextNode;
-        this.currentNode.selectedChildIndex = 0;
+        
+        let curr = nextNode;
+        while (curr.parent) {
+            const idx = curr.parent.children.indexOf(curr);
+            if (idx !== -1) curr.parent.selectedChildIndex = idx;
+            curr = curr.parent;
+        }
         
         this.#engine.load(nextNode.fen);
         this.turn = this.#engine.turn();
@@ -4288,7 +4313,7 @@ stepForward(animate = true) {
             this.#reconcileBoardIds(nextNode.fen, nextNode.lastMove);
         }
         
-        this.#emit('boardUpdated', { animate: animate, overrideMove: nextNode.lastMove });
+        this.#emit('boardUpdated', { animate: animate, overrideMove: nextNode.lastMove, skipEngine: true });
         
         if (nextNode.lastMove) {
             this.triggerMoveSound(nextNode.lastMove);
@@ -4452,6 +4477,9 @@ goToNodeId(id, animate = true) {
                     this._lastSoundTime = now;
                     this.#emit('soundTriggered', { type: 'move-self' });
                 }
+            }
+            if (window.engineAnalysing && !this.isPlayingLiveGame && typeof this.updateStockfish === 'function') {
+                this.updateStockfish();
             }
             return true;
         }

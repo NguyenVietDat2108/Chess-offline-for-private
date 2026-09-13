@@ -62,6 +62,7 @@ constructor() {
         this.DEFAULT_SETTINGS_OPEN = false;
         this.errorNavState = {};
         this.isAnalysisHidden = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_hide_analysis') : 'false') === 'true';
+        this.#initSideMenuDOM();
         
         setTimeout(() => {
             this.injectVariantRuleButtons();
@@ -1558,6 +1559,14 @@ resizeApp() {
             }
         });
 
+        ['sideMenuOverlay', 'sideMenuPanel', 'mainMenuBtn'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                if (el.parentNode === scaler) document.body.appendChild(el);
+                el.style.transform = 'none';
+            }
+        });
+
         // Duck Bank
         let duckBank = document.getElementById('duckBank');
         if (duckBank) {
@@ -2064,7 +2073,7 @@ toggleReviewButton(show) {
         if (btn) btn.style.display = show ? 'block' : 'none';
         if (results && show) results.style.display = 'none';
     }
-#initSideMenuDOM() {
+    #initSideMenuDOM() {
         const sideMenu = document.getElementById('sideMenuPanel');
         const sideMenuOverlay = document.getElementById('sideMenuOverlay');
         const menuBtn = document.querySelector('button[onclick*="toggleSideMenu"]') || document.getElementById('mainMenuBtn');
@@ -2072,8 +2081,19 @@ toggleReviewButton(show) {
         if (sideMenu && sideMenu.parentNode !== document.body) document.body.appendChild(sideMenu);
         if (sideMenuOverlay && sideMenuOverlay.parentNode !== document.body) document.body.appendChild(sideMenuOverlay);
         if (menuBtn && menuBtn.parentNode !== document.body) document.body.appendChild(menuBtn);
+
+        if (sideMenu) {
+            sideMenu.style.transform = 'none';
+            sideMenu.style.height = '100dvh';
+        }
+        if (sideMenuOverlay) {
+            sideMenuOverlay.style.transform = 'none';
+        }
+        if (menuBtn) {
+            menuBtn.style.transform = 'none';
+        }
     }
-toggleSideMenu(forceOpen = null) {
+    toggleSideMenu(forceOpen = null) {
         const panel = document.getElementById('sideMenuPanel');
         const overlay = document.getElementById('sideMenuOverlay');
         if (!panel || !overlay) return;
@@ -2082,15 +2102,33 @@ toggleSideMenu(forceOpen = null) {
         if (panel.parentNode !== document.body) document.body.appendChild(panel);
         if (overlay.parentNode !== document.body) document.body.appendChild(overlay);
 
-        const isOpen = panel.style.left === '0px';
+        const isOpen = panel.classList.contains('open') || panel.style.left === '0px';
         const shouldOpen = forceOpen !== null ? forceOpen : !isOpen;
 
         if (shouldOpen) {
+            overlay.style.position = 'fixed';
+            overlay.style.inset = '0';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100vw';
+            overlay.style.height = '100dvh';
+            overlay.style.minHeight = '100vh';
+            overlay.style.transform = 'none';
             overlay.style.display = 'block';
-            requestAnimationFrame(() => { panel.style.left = '0px'; });
+            panel.style.transform = 'none';
+            panel.style.height = '100dvh';
+            panel.classList.add('open');
+            requestAnimationFrame(() => { 
+                panel.style.left = '0px'; 
+            });
         } else {
-            panel.style.left = '-360px';
-            setTimeout(() => { overlay.style.display = 'none'; }, 300); 
+            panel.classList.remove('open');
+            panel.style.left = '-380px';
+            setTimeout(() => { 
+                if (!panel.classList.contains('open')) {
+                    overlay.style.display = 'none'; 
+                }
+            }, 300); 
         }
     }
 showGameOver(winner, reason) {
@@ -5669,9 +5707,10 @@ importEmbed(text) {
             this.updateHistory(true);
         }
     }
-initSidebarResizers() {
+    initSidebarResizers() {
         const sidebar = document.getElementById('mainSidebar'); 
         const handleW = document.getElementById('resizeSidebarW');
+        const handleLeft = document.getElementById('resizeSidebarLeft');
         if (!sidebar) return;
 
         const lastTab = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_last_tab') : 'analysis') || 'analysis';
@@ -5689,21 +5728,37 @@ initSidebarResizers() {
         sidebar.style.maxWidth = savedWidth; 
         sidebar.style.marginLeft = '16px'; 
 
-        if (handleW) {
-            let startX, startPgnW;
-            const doDragW = (moveEvent) => {
-                const scaler = document.getElementById('app-scaler');
-                let scale = 1;
-                if (scaler) {
-                    const transform = window.getComputedStyle(scaler).transform;
-                    if (transform !== 'none') {
-                        const matrix = transform.match(/^matrix\((.+)\)$/);
-                        if (matrix) scale = parseFloat(matrix[1].split(',')[0]);
-                    }
+        const getScale = () => {
+            const scaler = document.getElementById('app-scaler');
+            let scale = 1;
+            if (scaler) {
+                const transform = window.getComputedStyle(scaler).transform;
+                if (transform && transform !== 'none') {
+                    const matrix = transform.match(/^matrix\((.+)\)$/);
+                    if (matrix) scale = parseFloat(matrix[1].split(',')[0]) || 1;
                 }
+            }
+            return scale;
+        };
 
-                const dx = (moveEvent.clientX - startX) / scale;
+        const setupResizer = (handle, isLeftEdge) => {
+            if (!handle) return;
+            let startX, startPgnW;
+
+            const doDrag = (moveEvent) => {
+                if (moveEvent.cancelable && moveEvent.type && moveEvent.type.startsWith('touch')) {
+                    moveEvent.preventDefault();
+                }
+                const coords = (moveEvent.touches && moveEvent.touches.length > 0)
+                    ? moveEvent.touches[0]
+                    : (moveEvent.changedTouches && moveEvent.changedTouches.length > 0 ? moveEvent.changedTouches[0] : moveEvent);
+
+                const scale = getScale();
+                const rawDx = (coords.clientX - startX) / scale;
+                // If dragging left edge, moving left (dx < 0) increases width; moving right decreases width
+                const dx = isLeftEdge ? -rawDx : rawDx;
                 let newPgnW = startPgnW + dx;
+                
                 const screenW = 2600;
                 const leftPanel = document.querySelector('.left-panel');
                 const leftW = (leftPanel && leftPanel.style.display !== 'none') ? leftPanel.offsetWidth : 0;
@@ -5714,17 +5769,21 @@ initSidebarResizers() {
                 const maxPgnW = screenW - boardW - TOTAL_FIXED_SPACE;
 
                 if (newPgnW > maxPgnW) newPgnW = maxPgnW;
-                if (newPgnW < 300) newPgnW = 300;
+                if (newPgnW < 240) newPgnW = 240;
                 
                 sidebar.style.width = `${newPgnW}px`; 
                 sidebar.style.minWidth = `${newPgnW}px`; 
                 sidebar.style.maxWidth = `${newPgnW}px`;
             };
 
-            const stopDragW = () => {
-                handleW.classList.remove('active'); document.body.style.userSelect = '';
-                document.removeEventListener('mousemove', doDragW); 
-                document.removeEventListener('mouseup', stopDragW);
+            const stopDrag = () => {
+                handle.classList.remove('active'); 
+                document.body.style.userSelect = '';
+                document.removeEventListener('mousemove', doDrag); 
+                document.removeEventListener('mouseup', stopDrag);
+                document.removeEventListener('touchmove', doDrag); 
+                document.removeEventListener('touchend', stopDrag);
+                document.removeEventListener('touchcancel', stopDrag);
                 
                 const curTab = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_last_tab') : 'analysis') || 'analysis';
                 const isGraph = (curTab === 'graph') || document.getElementById('tabContent-Graph')?.classList.contains('active');
@@ -5735,16 +5794,31 @@ initSidebarResizers() {
                 window.dispatchEvent(new Event('resize')); 
             };
 
-            handleW.addEventListener('mousedown', (e) => {
-                e.preventDefault(); handleW.classList.add('active'); document.body.style.userSelect = 'none';
-                startX = e.clientX; startPgnW = sidebar.offsetWidth;
-                document.addEventListener('mousemove', doDragW); document.addEventListener('mouseup', stopDragW);
-            });
-        }
+            const startDrag = (e) => {
+                if (e.cancelable) e.preventDefault();
+                handle.classList.add('active'); 
+                document.body.style.userSelect = 'none';
+                const coords = (e.touches && e.touches.length > 0) ? e.touches[0] : e;
+                startX = coords.clientX; 
+                startPgnW = sidebar.offsetWidth;
+                
+                document.addEventListener('mousemove', doDrag, { passive: false }); 
+                document.addEventListener('mouseup', stopDrag);
+                document.addEventListener('touchmove', doDrag, { passive: false }); 
+                document.addEventListener('touchend', stopDrag);
+                document.addEventListener('touchcancel', stopDrag);
+            };
+
+            handle.addEventListener('mousedown', startDrag);
+            handle.addEventListener('touchstart', startDrag, { passive: false });
+        };
+
+        setupResizer(handleLeft, true);
+        setupResizer(handleW, false);
     }
-initResizer() {
+    initResizer() {
         const handle = document.getElementById('resizeHandle'); 
-        let startX, startBoardW;
+        let startX, startY, startBoardW;
 
         const validateAndApplyLayout = (boardW) => {
             const leftPanel = document.querySelector('.left-panel');
@@ -5767,7 +5841,7 @@ initResizer() {
                 engineReservedSpace = 32;
             }
             
-            if (boardW < 300) boardW = 300;
+            if (boardW < 240) boardW = 240;
             boardW = Math.floor(boardW / 8) * 8; 
 
             if (leftPanel && leftPanel.style.display !== 'none') {
@@ -5807,32 +5881,59 @@ initResizer() {
         };
 
         const doResize = (e) => {
+            if (e.cancelable && e.type && e.type.startsWith('touch')) {
+                e.preventDefault();
+            }
+            const coords = (e.touches && e.touches.length > 0)
+                ? e.touches[0]
+                : (e.changedTouches && e.changedTouches.length > 0 ? e.changedTouches[0] : e);
+
             const scaler = document.getElementById('app-scaler');
             let scale = 1;
             if (scaler) {
                 const transform = window.getComputedStyle(scaler).transform;
-                if (transform !== 'none') {
+                if (transform && transform !== 'none') {
                     const matrix = transform.match(/^matrix\((.+)\)$/);
-                    if (matrix) scale = parseFloat(matrix[1].split(',')[0]);
+                    if (matrix) scale = parseFloat(matrix[1].split(',')[0]) || 1;
                 }
             }
-            const dx = (e.clientX - startX) / scale;
-            let newBoardW = startBoardW + (dx * 2);
+            const dx = (coords.clientX - startX) / scale;
+            const dy = startY !== undefined ? (coords.clientY - startY) / scale : dx;
+            const delta = (Math.abs(dx) >= Math.abs(dy)) ? (dx * 2) : (dy * 2);
+            let newBoardW = startBoardW + delta;
             validateAndApplyLayout(newBoardW);
             window.dispatchEvent(new Event('resize')); 
         };
         
         const stopResize = () => {
-            document.removeEventListener('mousemove', doResize); document.removeEventListener('mouseup', stopResize);
+            if (handle) handle.classList.remove('active');
+            document.removeEventListener('mousemove', doResize); 
+            document.removeEventListener('mouseup', stopResize);
+            document.removeEventListener('touchmove', doResize); 
+            document.removeEventListener('touchend', stopResize);
+            document.removeEventListener('touchcancel', stopResize);
             document.body.style.cursor = ''; 
             if (this.boardWrapper) localStorage.setItem('chessBoardSize', this.boardWrapper.style.width);
         };
         
+        const startResize = (e) => {
+            if (e.cancelable) e.preventDefault();
+            if (handle) handle.classList.add('active');
+            const coords = (e.touches && e.touches.length > 0) ? e.touches[0] : e;
+            startX = coords.clientX; 
+            startY = coords.clientY; 
+            startBoardW = this.boardWrapper ? this.boardWrapper.offsetWidth : 600; 
+            document.body.style.cursor = 'ew-resize'; 
+            document.addEventListener('mousemove', doResize, { passive: false }); 
+            document.addEventListener('mouseup', stopResize);
+            document.addEventListener('touchmove', doResize, { passive: false }); 
+            document.addEventListener('touchend', stopResize);
+            document.addEventListener('touchcancel', stopResize);
+        };
+
         if (handle) {
-            handle.addEventListener('mousedown', (e) => {
-                e.preventDefault(); startX = e.clientX; startBoardW = this.boardWrapper.offsetWidth; document.body.style.cursor = 'ew-resize'; 
-                document.addEventListener('mousemove', doResize); document.addEventListener('mouseup', stopResize);
-            });
+            handle.addEventListener('mousedown', startResize);
+            handle.addEventListener('touchstart', startResize, { passive: false });
         }
         const savedBoard = localStorage.getItem('chessBoardSize') ? parseInt(localStorage.getItem('chessBoardSize'), 10) : 600;
         validateAndApplyLayout(savedBoard);
@@ -8831,7 +8932,10 @@ castSpell(spellType, targetSq) {
             let targetNode = this._virtualNode;
 
             if (isForward && targetNode.children.length > 0) {
-                targetNode = targetNode.children[0];
+                const childIdx = (typeof targetNode.selectedChildIndex === 'number' && targetNode.children[targetNode.selectedChildIndex])
+                    ? targetNode.selectedChildIndex
+                    : 0;
+                targetNode = targetNode.children[childIdx] || targetNode.children[0];
             } 
             else if (isBackward && targetNode.parent) {
                 targetNode = targetNode.parent;
@@ -8902,9 +9006,12 @@ castSpell(spellType, targetSq) {
                 } else {
                     clearTimeout(this._keyboardDebounce);
                     if (this.#game.currentNode.id !== targetNode.id) {
-                        this.#game.goToNodeId(targetNode.id, true);
+                        this.#game.goToNodeId(targetNode.id, false);
                     }
                     this._isKeyboardNavigating = false;
+                    if (window.engineAnalysing && typeof this.#game.updateStockfish === 'function') {
+                        this.#game.updateStockfish();
+                    }
                 }
             }
         });
