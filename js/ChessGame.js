@@ -3734,9 +3734,8 @@ updateStockfish() {
             return; 
         }
 
-        if (window.sfWorker && window.engineReady) {
+        if (window.sfWorker) {
             window.sfWorker.postMessage('stop');
-            window.engineReady = false; 
         }
 
         if (this._engineTimeout) clearTimeout(this._engineTimeout);
@@ -3763,7 +3762,7 @@ updateStockfish() {
             }
             
             window.sfWorker.postMessage('isready'); 
-        }, 250); 
+        }, 30); 
     }
 async reviewGame(autoTriggered = false) {
         if (!this.rootNode) return;
@@ -4265,12 +4264,19 @@ stepBack(animate = true) {
         if (undoneNode.lastMove) {
             this.triggerMoveSound(undoneNode.lastMove);
         }
+        if (this.#ui) {
+            if (typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory();
+            if (typeof this.#ui.renderArrows === 'function') this.#ui.renderArrows();
+            if (typeof this.#ui.updateClocks === 'function') this.#ui.updateClocks();
+        }
+
+        if (window.engineAnalysing && !this.isPlayingLiveGame && typeof this.updateStockfish === 'function') this.updateStockfish();
         return true;
     }
 stepForward(animate = true) {
         if (!this.currentNode || this.currentNode.children.length === 0) return false;
         
-        const nextNode = this.currentNode.children[this.currentNode.selectedChildIndex || 0];
+        const nextNode = this.currentNode.children[0];
         
         this.currentNode = nextNode;
         this.currentNode.selectedChildIndex = 0;
@@ -4287,6 +4293,13 @@ stepForward(animate = true) {
         if (nextNode.lastMove) {
             this.triggerMoveSound(nextNode.lastMove);
         }
+        if (this.#ui) {
+            if (typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory();
+            if (typeof this.#ui.renderArrows === 'function') this.#ui.renderArrows();
+            if (typeof this.#ui.updateClocks === 'function') this.#ui.updateClocks();
+        }
+
+        if (window.engineAnalysing && !this.isPlayingLiveGame && typeof this.updateStockfish === 'function') this.updateStockfish();
         return true;
     }
 goToStart(animate = true) {
@@ -4328,6 +4341,14 @@ goToStart(animate = true) {
                 this.#emit('soundTriggered', { type: 'move-self' });
             }, 25);
         }
+        if (this.#ui) {
+            if (typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory();
+            if (typeof this.#ui.renderArrows === 'function') this.#ui.renderArrows();
+        }
+
+        if (window.engineAnalysing && !this.isPlayingLiveGame && typeof this.updateStockfish === 'function') {
+            this.updateStockfish();
+        }
         return true;
     }
 goToEnd(animate = true) {
@@ -4348,6 +4369,14 @@ goToEnd(animate = true) {
                     this.#emit('soundTriggered', { type: 'move-self' });
                 }, 25);
             }
+        }
+        if (this.#ui) {
+            if (typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory();
+            if (typeof this.#ui.renderArrows === 'function') this.#ui.renderArrows();
+        }
+
+        if (window.engineAnalysing && !this.isPlayingLiveGame && typeof this.updateStockfish === 'function') {
+            this.updateStockfish();
         }
         return true;
     }

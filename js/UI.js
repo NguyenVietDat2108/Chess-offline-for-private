@@ -8831,7 +8831,7 @@ castSpell(spellType, targetSq) {
             let targetNode = this._virtualNode;
 
             if (isForward && targetNode.children.length > 0) {
-                targetNode = targetNode.children[targetNode.selectedChildIndex || 0];
+                targetNode = targetNode.children[0];
             } 
             else if (isBackward && targetNode.parent) {
                 targetNode = targetNode.parent;
@@ -8841,8 +8841,8 @@ castSpell(spellType, targetSq) {
                 while (targetNode.parent) targetNode = targetNode.parent;
             }
             else if (isEnd) { 
-                e.preventDefault(); 
-                while (targetNode.children.length > 0) targetNode = targetNode.children[targetNode.selectedChildIndex || 0];
+                e.preventDefault();
+                while (targetNode.children.length > 0) targetNode = targetNode.children[0];
             }
             else if (isNextBranch || isPrevBranch) {
                 if (targetNode && targetNode.parent && targetNode.parent.children.length > 1) {
@@ -8887,6 +8887,9 @@ castSpell(spellType, targetSq) {
                                 this.#game.goToNodeId(targetNode.id, false);
                             }
                             this._isKeyboardNavigating = false;
+                            if (window.engineAnalysing && typeof this.#game.updateStockfish === 'function') {
+                                this.#game.updateStockfish();
+                            }
                         }, 40); 
                     } else {
                         clearTimeout(this._keyboardDebounce);
