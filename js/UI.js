@@ -305,7 +305,7 @@ setGame(gameInstance) {
                         if (!this.#game.tabMemory['analysis']) this.#game.tabMemory['analysis'] = {};
                         this.#game.tabMemory['analysis'].variant = newMode;
                         this.#game.tabMemory['analysis'].fen = startFen;
-                        this.#game.tabMemory['analysis'].pgn = ""; // Dọn sạch PGN của variant cũ
+                        this.#game.tabMemory['analysis'].pgn = ""; 
                         localStorage.setItem('chess_tab_snapshot_analysis', JSON.stringify(this.#game.tabMemory['analysis']));
                     }
                 }
@@ -913,18 +913,15 @@ switchTab(tabName) {
             }
 
             if (lowerTab === 'graph') {
-                // Ưu tiên đọc nguồn đã lưu, nếu không có mới xét tab trước đó
                 let source = localStorage.getItem('chess_graph_source');
                 if (!source || (source !== 'analysis' && source !== 'study')) {
-                    source = this._previousTabBeforeGraph || 'analysis'; // 👉 Đổi fallback ưu tiên analysis thay vì study
+                    source = this._previousTabBeforeGraph || 'analysis';
                 }
                 this._previousTabBeforeGraph = source;
                 localStorage.setItem('chess_graph_source', source);
 
                 const currentTabContext = (this.#game.mode === 'local' || this.#game.mode === 'bot' || this.#game.mode === 'play') ? 'play' : (this.#game.mode || 'analysis');
                 const currentFlip = this.flipped; 
-
-                // 👉 Khôi phục chính xác trạng thái của Analysis vào cây trước khi render Graph
                 if (source === 'analysis') {
                     if (typeof this.#game.restoreState === 'function') {
                         this.#game.restoreState('analysis');
@@ -1487,7 +1484,6 @@ resizeApp() {
         let scaleX = availableWidth / targetWidth;
         let scaleY = availableHeight / targetHeight;
         
-        // Dynamic scaling: Cho phép scale xuống thấp hơn (0.15) cho màn hình điện thoại dọc
         let scale = Math.min(scaleX, scaleY);
         let minScale = availableWidth < 600 ? 0.15 : 0.25;
         scale = Math.max(minScale, scale); 
@@ -1512,7 +1508,6 @@ resizeApp() {
         document.body.style.minHeight = Math.max(window.innerHeight, calculatedHeight) + 'px'; 
         document.body.style.overflowY = 'auto';
         document.body.style.overflowX = 'hidden';
-        // Modals toàn màn hình
         const fullScreenModals = [
             'botMenuModal', 'continueSetupModal', 'gameOverModal', 
             'notificationModal', 'chapterModal', 'quickImportModal', 
@@ -1916,7 +1911,6 @@ renderHeaders() {
 
             let flagHtml = (typeof this.getCountryFlagHtml === 'function') ? this.getCountryFlagHtml(data.country) : '';
             if (flagHtml && data.country) {
-                // ĐÃ SỬA: Đọc bảng băm toàn cục tĩnh
                 const fullName = ISO_TO_COUNTRY_NAME[data.country.toLowerCase()] || data.country.toUpperCase();
                 flagHtml = `<span title="${fullName}" style="cursor: help; display: flex; align-items: center;">${flagHtml}</span>`;
             }
@@ -2257,7 +2251,7 @@ initEditorBars() {
         if (topBar) {
             topBar.innerHTML = `<div class="tool-group">
                 ${blackPieces.map(p => `
-                    <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'b','${p}')">
+                    <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event," ontouchstart="window.app.ui.startSpareDrag(event,'b','${p}')">
                         ${getSafeImgHtml('b', p)}
                     </div>`).join('')}
             </div><div class="tool-btn trash-btn" onclick="window.app.ui.setEditorTool('trash', this)">${trashIcon}</div>`;
@@ -2267,10 +2261,9 @@ initEditorBars() {
         let whitePieces = ['P','N','B','R','Q','K'];
         let extraBot = '';
 
-        // 👉 TỰ ĐỘNG HIỂN THỊ CON VỊT NẾU LÀ DUCK CHESS
         if (this.#game && this.#game.gameMode === 'duck') {
             extraBot = `
-            <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'none','duck')">
+            <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event," ontouchstart="window.app.ui.startSpareDrag(event,'none','duck')">
                 ${getSafeImgHtml('none', 'duck')}
             </div>`;
         }
@@ -2278,7 +2271,7 @@ initEditorBars() {
         if (bottomBar) {
             bottomBar.innerHTML = `<div class="tool-group">
                 ${whitePieces.map(p => `
-                    <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'w','${p}')">
+                    <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event," ontouchstart="window.app.ui.startSpareDrag(event,'w','${p}')">
                         ${getSafeImgHtml('w', p)}
                     </div>`).join('')}
                 ${extraBot}
@@ -2309,9 +2302,35 @@ resolveCastlingIntent(fromIdx, toIdx) {
         }
         return null;
     }
-initGlobalDragEvents() {
-        document.addEventListener('mousemove', (e) => { if (this.dragData) this.updateGhostPosition(e); });
-        document.addEventListener('mouseup', (e) => { if (this.dragData) this.finishDrag(e); });
+    #getEventPoint(e) {
+        if (!e) return { clientX: 0, clientY: 0 };
+        if (e.touches && e.touches.length > 0) {
+            return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+        }
+        if (e.changedTouches && e.changedTouches.length > 0) {
+            return { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY };
+        }
+        return { clientX: e.clientX || 0, clientY: e.clientY || 0 };
+    }
+    initGlobalDragEvents() {
+        const onMove = (e) => {
+            if (this.dragData) {
+                if (e.cancelable) e.preventDefault();
+                this.updateGhostPosition(e);
+            }
+        };
+        const onEnd = (e) => {
+            if (this.dragData) {
+                if (e.cancelable) e.preventDefault();
+                this.finishDrag(e);
+            }
+        };
+
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onEnd);
+        document.addEventListener("touchmove", onMove, { passive: false });
+        document.addEventListener("touchend", onEnd, { passive: false });
+        document.addEventListener("touchcancel", onEnd, { passive: false });
     }
 startSpareDrag(e, color, type) {
         e.preventDefault(); e.stopPropagation();
@@ -2389,8 +2408,9 @@ updateGhostPosition(e) {
                 if (matrix) scale = parseFloat(matrix[1].split(',')[0]);
             }
         }
-        const localX = (e.clientX - rect.left) / scale;
-        const localY = (e.clientY - rect.top) / scale;
+        const pt = this.#getEventPoint(e);
+        const localX = (pt.clientX - rect.left) / scale;
+        const localY = (pt.clientY - rect.top) / scale;
         const w = this.draggedPieceGhost.offsetWidth;
         const h = this.draggedPieceGhost.offsetHeight;
         this.draggedPieceGhost.style.left = (localX - w / 2) + 'px';
@@ -2571,9 +2591,10 @@ finishDrag(e) {
         if (!state) return;
         if (this.dragData && this.dragData.source === '@') return;
         
+        const pt = this.#getEventPoint(e);
         const rect = this.squaresLayer.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const x = pt.clientX - rect.left;
+        const y = pt.clientY - rect.top;
         let dropIdx = -1;
 
         const buffer = 20;
@@ -2986,6 +3007,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 if (this.duckPlacementMoves) {
                     duckBank.style.borderColor = '#ffeb3b'; duckBank.style.boxShadow = '0 0 15px rgba(255, 235, 59, 0.5)'; duckBank.style.cursor = 'grab';
                     duckBank.onmousedown = (e) => { e.preventDefault(); e.stopPropagation(); this.startDrag(e, 'bank', {id: 'duck_piece', type: 'duck', color: 'none'}); };
+                    duckBank.ontouchstart = (e) => { e.preventDefault(); e.stopPropagation(); this.startDrag(e, 'bank', {id: 'duck_piece', type: 'duck', color: 'none'}); };
                 } else {
                     duckBank.style.borderColor = '#444'; duckBank.style.boxShadow = 'none'; duckBank.style.cursor = 'default'; duckBank.onmousedown = null;
                 }
@@ -3562,6 +3584,9 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 el.onmouseleave = null;
                 el.onmousedown = (e) => { 
                     if (e.button === 0) this.startDrag(e, p.idx, p); 
+                };
+                el.ontouchstart = (e) => {
+                    this.startDrag(e, p.idx, p);
                 };
             }
 
@@ -5641,7 +5666,7 @@ initSidebarResizers() {
         const handleW = document.getElementById('resizeSidebarW');
         if (!sidebar) return;
 
-        const lastTab = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_last_tab') : 'play') || 'play';
+        const lastTab = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_last_tab') : 'analysis') || 'analysis';
         const isGraphActive = (lastTab === 'graph') || document.getElementById('tabContent-Graph')?.classList.contains('active');
         const nodeStyle = this.graphNodeStyle || (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_graph_node_style') : 'tiny') || 'tiny';
         this.graphNodeStyle = nodeStyle;
@@ -5693,7 +5718,7 @@ initSidebarResizers() {
                 document.removeEventListener('mousemove', doDragW); 
                 document.removeEventListener('mouseup', stopDragW);
                 
-                const curTab = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_last_tab') : 'play') || 'play';
+                const curTab = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_last_tab') : 'analysis') || 'analysis';
                 const isGraph = (curTab === 'graph') || document.getElementById('tabContent-Graph')?.classList.contains('active');
                 const isTiny = (this.graphNodeStyle === 'tiny');
                 const keyToSave = (isGraph && isTiny) ? 'sidebarWidth_graph' : 'sidebarWidth_pgn';
@@ -7265,16 +7290,11 @@ loadPgnAndAnalyze() {
 
         const processAndSave = (pgnText) => {
             if (this.#game) {
-                // 1. Chuyển game sang chế độ analysis
                 this.#game.mode = 'analysis';
                 this.#game.gameOver = false;
-
-                // 2. Nạp trực tiếp PGN vào game engine để phân tích cú pháp, dựng cây biến thể và trích xuất header
                 if (typeof this.#game.loadPGN === 'function') {
                     this.#game.loadPGN(pgnText, false, false);
                 }
-
-                // 3. Chuyển tab sau khi dữ liệu đã được xử lý hoàn tất
                 this.switchTab('analysis');
             }
         };
@@ -7971,7 +7991,6 @@ castSpell(spellType, targetSq) {
             if (!parentNode || !childrenContainer) return;
 
             const pPos = getRelativePos(parentNode);
-            // Dây xuất phát từ mép phải chính giữa card cha
             const startX = pPos.left + pPos.width;
             const startY = pPos.top + (pPos.height / 2);
 
@@ -7987,7 +8006,6 @@ castSpell(spellType, targetSq) {
                 if (!childEl) continue;
 
                 const cPos = getRelativePos(childEl);
-                // Dây chạm vào mép trái chính giữa card con
                 const endX = cPos.left;
                 const endY = cPos.top + (cPos.height / 2);
 
@@ -8377,7 +8395,6 @@ castSpell(spellType, targetSq) {
         const zoomWrapper = document.createElement('div');
         zoomWrapper.id = 'graphZoomWrapper';
         const currentZoom = this.graphZoom || 1;
-        // Triệt tiêu padding: 20px để không làm lệch hệ tọa độ
         zoomWrapper.style.cssText = `position: relative; display: inline-block; transform: scale(${currentZoom}); transform-origin: top left; transition: transform 0.1s ease; padding: 0;`;
 
         const treeRoot = document.createElement('div');

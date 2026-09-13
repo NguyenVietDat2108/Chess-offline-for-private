@@ -1366,7 +1366,6 @@ return move.san;
             }
         }
 
-        // Fallback đọc PGN của variant nếu snapshot rỗng
         if ((!state || !state.pgn) && typeof localStorage !== 'undefined') {
             const variantPgn = localStorage.getItem(`chess_${memSlot}_variant_pgn_${this.gameMode}`);
             if (variantPgn) {
@@ -1454,7 +1453,6 @@ return move.san;
                 this.loadFEN(this.currentNode.fen, this.gameMode, true);
             }
 
-            // 2. Ép UI xoá cache để vẽ lại khung metadata và tên kỳ thủ ngay lập tức khi F5 xong
             if (this.#ui) {
                 this.#ui._lastMetadataCache = null;
                 this.#ui._lastHeadersCache = null;
@@ -1516,7 +1514,6 @@ return move.san;
             return 'green'; 
         };
 
-        // Ngăn xếp (Stack) thay thế hoàn toàn đệ quy để chống tràn bộ nhớ và dứt điểm lỗi cú pháp private
         const nodeStack = [];
         let i = index || 0;
 
@@ -1524,7 +1521,6 @@ return move.san;
             let token = tokens[i].trim();
             if (!token) { i++; continue; }
 
-            // 1. MỞ NGOẶC NHÁNH BIẾN THỂ '(' -> PUSH VÀO STACK
             if (token === '(') {
                 nodeStack.push({
                     savedNode: this.currentNode,
@@ -1543,7 +1539,6 @@ return move.san;
                 continue;
             }
 
-            // 2. ĐÓNG NGOẶC BIẾN THỂ ')' -> POP RA KHÔI PHỤC
             if (token === ')') {
                 if (nodeStack.length > 0) {
                     const frame = nodeStack.pop();
@@ -1556,7 +1551,6 @@ return move.san;
                 continue;
             }
 
-            // 3. KÝ HIỆU ĐÁNH GIÁ (NAGs)
             if (token.startsWith('$') || /^[!?]+$/.test(token)) {
                 if (this.currentNode) {
                     this.currentNode.nag = (this.currentNode.nag ? this.currentNode.nag + "," : "") + token;
@@ -1565,11 +1559,9 @@ return move.san;
                 continue;
             }
 
-            // 4. BÌNH LUẬN & TELEMETRY ENGINE {...}
             if (token.startsWith('{')) {
                 let rawComment = token.replace(/^\{|\}$/g, '').trim();
 
-                // Nhãn {book} độc lập của engine
                 if (/^\s*book\s*$/i.test(rawComment)) {
                     this.currentNode.isBook = true;
                     this.currentNode.engineDetails = "book";
@@ -1578,14 +1570,12 @@ return move.san;
                     continue;
                 }
 
-                // Tách các thẻ Lichess: [%eval ...], [%clk ...], [%cal ...], [%csl ...]
                 let lichessTags = [];
                 let nonLichess = rawComment.replace(/\[%[^\]]+\]/g, (m) => {
                     lichessTags.push(m);
                     return '';
                 }).trim();
 
-                // Khối nhận diện telemetry CCC/TCEC khép kín hợp lệ
                 const cccTelemetryRegex = /([+-]?(?:M)?\d+(?:\.\d+)?\/\d+[\s\S]*?tl=[\d\.\-]+s?[\s\S]*?pv=(?:\\*["'])?[^"}\\]*(?:\\*["'])?)|([+-]?(?:M)?\d+(?:\.\d+)?\/\d+[\s\S]*?(?:tl=[\d\.\-]+s?|nps=\d+|pv=[\s\S]*?))|(tl=[\d\.\-]+s?[\s\S]*?nps=\d+)/i;
                 
                 let enginePart = "";
@@ -1697,7 +1687,6 @@ return move.san;
                 if (npsMatch) this.currentNode.nps = npsMatch[1];
                 if (latencyMatch) this.currentNode.latency = latencyMatch[1];
 
-                // Bắt chính xác chuỗi PV ngay cả khi có dấu nháy thoát pv=\"...\"
                 const pvMatch = rawComment.match(/pv\s*=\s*\\*["']?([^"}\\]+)/i);
                 if (pvMatch && pvMatch[1]) {
                     this.currentNode.pv = pvMatch[1].trim();
@@ -1762,7 +1751,6 @@ return move.san;
                 continue;
             }
             else {
-                // 5. NƯỚC ĐI (MOVES)
                 if (!['*', '1-0', '0-1', '1/2-1/2'].includes(token) && !token.endsWith('.')) {
                     
                     if (['+-', '-+', '=', '+=', '=+', '±', '∓', '∞', '⩲', '⩱'].includes(token)) {
@@ -1823,7 +1811,6 @@ return move.san;
                         moveObj = { san: moveText, from: -1, to: -1, flags: '', color: this.#engine.turn(), piece: '' };
                     }
 
-                    // 👉 FIX TRIỆT ĐỂ MẤT DẤU '+': Khôi phục lại toàn bộ dấu '+' và '#' từ moveText gốc hoặc kiểm tra in_check()
                     let finalSanToSave = moveObj.san;
                     if (moveText.includes('+') && !finalSanToSave.includes('+') && !finalSanToSave.includes('#')) {
                         finalSanToSave += '+';
@@ -1893,7 +1880,6 @@ return move.san;
 
         if (node.parent) {
             try {
-                // Kiểm tra xem moves[0] là nước đi từ node.parent (ví dụ c1e3) hay từ node (ví dụ f8e7)
                 this.#engine.load(node.fen);
                 let firstMoveText = moves[0].replace(/[?!+#]+$/, '');
                 let uM = firstMoveText.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
@@ -1907,12 +1893,10 @@ return move.san;
                 console.error = origErr;
 
                 if (testMove) {
-                    // moves[0] đi được từ node -> PV bắt đầu từ sau nước đi hiện tại
                     startNode = node;
                     loadFen = node.fen;
                     pvMovesToPlay = moves;
                 } else {
-                    // moves[0] là nước đi từ node.parent (ví dụ c1e3 là nước 9. Be3 sau 8... g6)
                     startNode = node.parent;
                     loadFen = node.parent.fen;
                     pvMovesToPlay = moves;
@@ -2729,7 +2713,6 @@ return move.san;
                 if (i === activeIdx) continue;
                 let varChild = node.children[i];
                 
-                // Nhánh PV đã nằm trong comment { ... pv="..." }, không in ra ngoặc đơn để tránh nhân bản khi load lại
                 if (varChild.isPV) {
                     continue; 
                 }
@@ -3393,7 +3376,6 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                             }
                         },
                         printErr: function(err) {
-                            // Bỏ qua các log không ảnh hưởng
                             if (err && !err.includes("Blocking on the main thread")) {
                                 console.warn("[SF19 System Log]:", err);
                             }
@@ -4176,7 +4158,6 @@ stepBack(animate = true) {
         this.#emit('boardUpdated', { animate: animate });
         this._transientOverrideMove = null;
         
-        // 👉 Gọi thẳng triggerMoveSound giống hệt stepForward để kích hoạt nhịp throttle 45ms
         if (undoneNode.lastMove) {
             this.triggerMoveSound(undoneNode.lastMove);
         }
@@ -4199,7 +4180,6 @@ stepForward(animate = true) {
         
         this.#emit('boardUpdated', { animate: animate, overrideMove: nextNode.lastMove });
         
-        // 👉 Luôn kích hoạt âm thanh độc lập với cờ animate
         if (nextNode.lastMove) {
             this.triggerMoveSound(nextNode.lastMove);
         }
@@ -4268,7 +4248,6 @@ goToEnd(animate = true) {
         return true;
     }
 goToNodeId(id, animate = true) {
-        // 👉 TỐI ƯU O(1): Lấy trực tiếp từ Map, không đệ quy vét cạn hàng nghìn node
         let target = (this.nodeMap && this.nodeMap.get(id)) || null;
         if (!target) {
             const search = (node) => {
@@ -4290,7 +4269,6 @@ goToNodeId(id, animate = true) {
             
             this.currentNode = target;
             
-            // Chỉ đồng bộ selectedChildIndex lên chuỗi cha trực tiếp
             let curr = target;
             while (curr.parent) {
                 const idx = curr.parent.children.indexOf(curr);
@@ -4321,12 +4299,11 @@ goToNodeId(id, animate = true) {
                 this._transientOverrideMove = target.lastMove;
             }
 
-            // Khi duyệt cây nhanh hoặc gọi từ Graph, tắt animate để đạt tốc độ tối đa
             const shouldAnimate = animate && (isStepBack || isStepForward);
             this.#emit('boardUpdated', { 
                 animate: shouldAnimate, 
                 overrideMove: this._transientOverrideMove,
-                skipEngine: true // Không kích hoạt Stockfish phân tích lại vị trí cũ khi đang lướt
+                skipEngine: true 
             });
             this._transientOverrideMove = null;
             
@@ -4448,7 +4425,6 @@ playEngineSequence(seqString, baseFen) {
                 moveObj.drop = rawMove.split('@')[0].toLowerCase() || 'p';
                 moveObj.to = typeof this.#squareToIndex === 'function' ? this.#squareToIndex(parsedMove.to) : parsedMove.to;
             } else if (this.gameMode === 'duck') {
-                // Xử lý gắn tọa độ con vịt an toàn
                 if (duckSq) {
                     moveObj.duck_sq = typeof this.#squareToIndex === 'function' ? this.#squareToIndex(duckSq) : duckSq;
                 } else if (parsedMove.duck_sq !== undefined) {
@@ -5081,12 +5057,10 @@ parseArrowsAndCircles(node, comment) {
 loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
         if (this.isLoadingPGN) return false;
 
-        // 1. LUÔN BẢO TOÀN NGUYÊN BẢN CHUỖI PGN GỐC (KỂ CẢ KHI RESTORE F5)
         if (typeof pgn === 'string' && pgn.trim() !== '') {
             this._originalPgn = pgn;
         }
 
-        // 2. TRÍCH XUẤT TOÀN BỘ HEADER VÀ ÉP UI XÓA CACHE VẼ LẠI NGAY
         if (typeof pgn === 'string') {
             this.pgnHeaders = {};
             const headerRegex = /\[([A-Za-z0-9_]+)\s+"([^"]*)"\]/g;
@@ -5315,7 +5289,6 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             this.currentNode = this.rootNode;
             this.loadFEN(this.rootNode.fen, this.gameMode, true);
 
-            // 3. NHẬN DIỆN ENGINE MATCH ĐỂ BẢO VỆ TOÀN VẸN CÂY BIẾN THỂ PV & COMMENT
             const wName = (this.pgnHeaders['White'] || "").toLowerCase();
             const bName = (this.pgnHeaders['Black'] || "").toLowerCase();
             const event = (this.pgnHeaders['Event'] || "").toLowerCase();
@@ -5414,7 +5387,6 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             this.clearPremoves();
             this.premoveQueue = [];  
             
-            // 4. LƯU BỘ NHỚ ĐỒNG BỘ - TUYỆT ĐỐI KHÔNG GỌI switchTab Ở ĐÂY ĐỂ TRÁNH ĐỆ QUY VÔ HẠN
             if (!isInternalLoad) {
                 if (this.mode !== 'study' && this.mode !== 'puzzle') {
                     this.mode = 'analysis';
@@ -7469,7 +7441,6 @@ triggerMoveSound(move) {
             }
         }
 
-        // 👉 PHÁT ÂM THANH THEO NHỊP (Throttle ~45ms kiểu Lichess, không dùng clearTimeout để tránh nuốt tiếng)
         const now = performance.now();
         if (!this._lastSoundTime || (now - this._lastSoundTime >= 45)) {
             this._lastSoundTime = now;

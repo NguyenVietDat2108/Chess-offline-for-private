@@ -499,7 +499,7 @@
         
         duck:        { apply: apply_duck_move,       attacked: is_attacked_variant },
         alice:       { apply: apply_alice_move,      attacked: is_attacked_variant },
-        chaturanga:  { apply: apply_chaturanga_move, attacked: is_attacked_variant },
+        chaturanga:  { apply: apply_standard_move, attacked: is_attacked_variant },
         spell:       { apply: apply_standard_move,   attacked: is_attacked_variant }
     };
     function apply_move(prevState, m) {
@@ -538,9 +538,9 @@
     }
     function is_standard_legal_fast(state, m) {
         var us = state.turn, them = us ^ 1;
-        var from = m & 0x3F, to = (m >>> 6) & 0x3F, flags = (m >>> 12) & 0x7F, promoInt = (m >>> 19) & 0x7;
+        var from = m & 0x3F, to = (m >>> 6) & 0x3F, flags = (m >>> 12) & 0xFF, promo = (m >>> 19) & 0x7;
         
-        if (flags & 128) return !is_checked(apply_move(state, m), us);
+        if ((flags & BITS.DROP) && !(flags & BITS.PROMOTION)) return !is_checked(apply_move(state, m), us);
 
         var piece = get_piece_at(state, from) & 7;
         
@@ -885,36 +885,34 @@
         return next;
     }
     function apply_chaturanga_move(prevState, m) {
-    var next = clone_state(prevState);
-    var us = next.turn, them = us ^ 1;
-    var from = m & 0x3F, to = (m >>> 6) & 0x3F;
-    var flags = (m >>> 12) & 0x7F, promo = (m >>> 19) & 0x7;
-    var p_type = get_piece_at(prevState, from) & 7; 
+        var next = clone_state(prevState);
+        var us = next.turn, them = us ^ 1;
+        var from = m & 0x3F, to = (m >>> 6) & 0x3F;
+        var flags = (m >>> 12) & 0x7F, promo = (m >>> 19) & 0x7;
+        var p_type = get_piece_at(prevState, from) & 7; 
 
-    if (from < 32) next.bb_lo[us*6+p_type] &= ~(1<<from); else next.bb_hi[us*6+p_type] &= ~(1<<(from-32));
-    next.board[from] = -1;
-    next.zobrist ^= ZOBRIST.pieces[(us * 6 + p_type) * 64 + from];
+        // 1. Pick up the piece
+        if (from < 32) next.bb_lo[us*6+p_type] &= ~(1<<from); else next.bb_hi[us*6+p_type] &= ~(1<<(from-32));
 
-    if (flags & BITS.CAPTURE) {
-        var cap = get_piece_at(prevState, to) & 7;
-        if (cap !== -1) {
-            if (to < 32) next.bb_lo[them*6+cap] &= ~(1<<to); else next.bb_hi[them*6+cap] &= ~(1<<(to-32));
-            next.zobrist ^= ZOBRIST.pieces[(them * 6 + cap) * 64 + to];
-        }
-    } 
+        // 2. Handle Capture (No En Passant in Chaturanga!)
+        if (flags & BITS.CAPTURE) {
+            var cap = get_piece_at(prevState, to) & 7;
+            if (cap !== -1) {
+                if (to < 32) next.bb_lo[them*6+cap] &= ~(1<<to); else next.bb_hi[them*6+cap] &= ~(1<<(to-32));
+            }
+        } 
 
-    var placed = (flags & BITS.PROMOTION) ? promo : p_type;
-    if (to < 32) next.bb_lo[us*6+placed] |= (1<<to); else next.bb_hi[us*6+placed] |= (1<<(to-32));
-    next.board[to] = (us << 3) | placed;
-    next.zobrist ^= ZOBRIST.pieces[(us * 6 + placed) * 64 + to];
+        // 3. Drop the piece (or the promoted Mantri/Queen)
+        var placed = (flags & BITS.PROMOTION) ? promo : p_type;
+        if (to < 32) next.bb_lo[us*6+placed] |= (1<<to); else next.bb_hi[us*6+placed] |= (1<<(to-32));
 
-    next.turn ^= 1;
-    next.ep_square = -1;
-    next.zobrist ^= ZOBRIST.side;
-    if (p_type === PAWN || (flags & BITS.CAPTURE)) next.half_moves = 0; else next.half_moves++;
-    if (us === BLACK) next.move_number++;
-    return next;
-}
+        // 4. Update Board State
+        next.turn ^= 1;
+        next.ep_square = -1;
+        if (p_type === PAWN || (flags & BITS.CAPTURE)) next.half_moves = 0; else next.half_moves++;
+        if (us === BLACK) next.move_number++;
+        return next;
+    }
     function apply_spell(state, spellType, targetSq) {
         let next = clone_state(state);
         let us = next.turn;
@@ -1044,7 +1042,6 @@
 
         let pieceFilterType = filterSq !== -1 ? (state.board[filterSq] & 7) : -1;
 
-        // --- PAWNS (Chỉ chạy nếu không lọc ô hoặc ô được lọc đúng là Tốt) ---
         if (pieceFilterType === -1 || pieceFilterType === PAWN) {
             let pL = (filterSq !== -1) ? ((filterSq < 32) ? (1 << filterSq) : 0) : bb_lo[uBase+PAWN];
             let pH = (filterSq !== -1) ? ((filterSq >= 32) ? (1 << (filterSq - 32)) : 0) : bb_hi[uBase+PAWN];
@@ -1943,7 +1940,7 @@
         return null;
     }
     function to_obj(state, m, nag, known_san) {
-        var from = m & 0x3F, to = (m >>> 6) & 0x3F, flags = (m >>> 12) & 0x7F, promo = (m >>> 19) & 0x7;
+        var from = m & 0x3F, to = (m >>> 6) & 0x3F, flags = (m >>> 12) & 0xFF, promoInt = (m >>> 19) & 0x7;
         var f = "n";
         if (flags & BITS.KSIDE_CASTLE) f = "k";
         else if (flags & BITS.QSIDE_CASTLE) f = "q";
@@ -1982,7 +1979,7 @@
         return obj;
     }
     function get_san(state, m) {
-        var flags = (m >>> 12) & 0x7F;
+        var flags = (m >>> 12) & 0xFF;
         
         if ((flags & BITS.DROP) && !(flags & BITS.PROMOTION)) {
             var pType = m & 0x3F;
@@ -2504,7 +2501,7 @@ return {
                 var m = ms[i];
                 var from = m & 0x3F;
                 if (filterFrom !== -1 && from !== filterFrom) {
-                    var flags = (m >>> 12) & 0x7F;
+                    var flags = (m >>> 12) & 0xFF;
                     if (!(((flags & BITS.DROP) && !(flags & BITS.PROMOTION)) && filterFrom === 64)) continue;
                 }
 
