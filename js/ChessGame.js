@@ -481,13 +481,18 @@ getReader() {
         window.sfWorker.postMessage(cmdString);
     }
 #safeSetOption(name, value) {
-        if (!this.engineSupportedOptions) return;
-        if (this.engineSupportedOptions.has(name.toLowerCase())) {
-            this.#postEngineCommand(`setoption name ${name} value ${value}`);
-        } else {
-            console.log(`[UCI] Not supported by engine: ${name}`);
-        }
+    const lower = name.toLowerCase();
+    if (lower === 'uci_variant' || lower === 'threads' || lower === 'hash' || lower === 'skill level' || lower === 'multipv') {
+        this.#postEngineCommand(`setoption name ${name} value ${value}`);
+        return;
     }
+
+    if (this.engineSupportedOptions && this.engineSupportedOptions.has(lower)) {
+        this.#postEngineCommand(`setoption name ${name} value ${value}`);
+    } else {
+        console.log(`[UCI] Not supported by engine: ${name}`);
+    }
+}
 #triggerEngineGo(fen) {
         let targetNode = this.analyzingNode || this.currentNode;
 
@@ -3536,7 +3541,7 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                 window.sfWorker = spawnSf19Worker(customUrl);
             } 
             // ==========================================
-            // 2. FAIRY STOCKFISH
+            // 2. FAIRY STOCKFISH (MULTI-THREADING WORKER)
             // ==========================================
             else if (this.activeEngineType === 'fairy') {
                 engineDisplayName = "Fairy-Stockfish 14 NNUE";
@@ -3544,14 +3549,12 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                 const engineDir = new URL('engine/fairy/', appBaseUrl).href;
                 const jsUrl = new URL('fairy-stockfish.js', engineDir).href;
                 const wasmUrl = new URL('fairy-stockfish.wasm', engineDir).href;
-                const workerUrl = new URL('fairy-stockfish.worker.js', engineDir).href;
                 const nnueBaseUrl = new URL('engine/nnue/', appBaseUrl).href;
 
                 const workerScript = `
                     var appBaseUrl = '${appBaseUrl}';
                     var jsUrl = '${jsUrl}';
                     var wasmUrl = '${wasmUrl}';
-                    var workerUrl = '${workerUrl}';
                     var nnueBaseUrl = '${nnueBaseUrl}';
 
                     function sanitize(rawUrl) {
@@ -3564,7 +3567,6 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                         if (url.startsWith('blob:') || url.startsWith('data:')) return url;
                         var fileName = decodeURIComponent(url.split('/').pop().split('?')[0].split('#')[0]);
                         
-                        if (fileName.endsWith('.worker.js')) return workerUrl;
                         if (fileName.endsWith('.wasm')) return wasmUrl;
                         if (fileName.endsWith('.js')) return jsUrl;
                         if (fileName.endsWith('.nnue')) return nnueBaseUrl + fileName;
@@ -3573,32 +3575,23 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                         return new URL(url.replace(/^\\//, ''), appBaseUrl).href;
                     }
 
-                    var nativeFetch = self.fetch;
-                    self.fetch = function(req, opts) { return nativeFetch(resolveUrl(req), opts); };
-                    
-                    var NativeRequest = self.Request;
-                    self.Request = function(input, init) { 
-                        try { return new NativeRequest(resolveUrl(input), init); }
-                        catch(e) { return new NativeRequest(input, init); }
-                    };
-
-                    var NativeURL = self.URL;
-                    self.URL = function(url, base) {
-                        try {
-                            var resolved = resolveUrl(url);
-                            if (resolved.startsWith('blob:') || resolved.startsWith('http')) return new NativeURL(resolved);
-                            return new NativeURL(resolved, base || appBaseUrl);
-                        } catch(e) { return new NativeURL(resolveUrl(url)); }
-                    };
-                    self.URL.createObjectURL = NativeURL.createObjectURL;
-                    self.URL.revokeObjectURL = NativeURL.revokeObjectURL;
-
+                    self.cmd_queue = [];
                     var engineInstance = null;
                     var messageQueue = [];
-                    
+
                     var Module = { 
                         locateFile: function(path) { return resolveUrl(path); },
-                        mainScriptUrlOrBlob: jsUrl 
+                        mainScriptUrlOrBlob: jsUrl,
+                        print: function(line) {
+                            if (line && typeof line === 'string') {
+                                self.postMessage(line);
+                            }
+                        },
+                        printErr: function(err) {
+                            if (err && !err.includes("Blocking on the main thread")) {
+                                console.warn("[FAIRY System Log]:", err);
+                            }
+                        }
                     };
 
                     self.addEventListener('message', function(e) {
@@ -3611,7 +3604,9 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                                 console.error("[FAIRY] NNUE inject error:", err);
                             }
                         } else if (typeof e.data === 'string') {
-                            var cmd = e.data;
+                            var cmd = e.data.trim();
+                            if (!cmd) return;
+
                             if (cmd.startsWith('setoption name Hash value')) cmd = 'setoption name Hash value 256'; 
                             else if (cmd.startsWith('setoption name Threads value')) {
                                 var requestedThreads = parseInt(cmd.split('value ')[1]);
@@ -3619,53 +3614,36 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                             }
 
                             if (engineInstance) {
-                                if (typeof engineInstance.onCustomMessage === 'function') {
-                                    engineInstance.onCustomMessage(cmd);
-                                }
-                                if (typeof engineInstance.postMessage === 'function') {
-                                    engineInstance.postMessage(cmd);
-                                } else if (engineInstance.ccall) {
-                                    engineInstance.ccall('push_cmd', 'null', ['string'], [cmd]);
-                                } else if (typeof engineInstance === 'function') {
-                                    engineInstance(cmd);
-                                }
+                                self.cmd_queue.push(cmd);
                             } else {
                                 messageQueue.push(cmd);
                             }
                         }
                     });
 
-                    try { importScripts(jsUrl); } catch(e) {}
+                    try { 
+                        importScripts(jsUrl); 
+                    } catch(e) {
+                        console.error("[FAIRY] importScripts error:", e);
+                    }
                     
-                    if (typeof Stockfish === 'function') {
-                        Stockfish(Module).then(function(engine) {
+                    var factory = self.Stockfish || self.FairyStockfish || self.Module;
+
+                    if (typeof factory === 'function') {
+                        factory(Module).then(function(engine) {
                             engineInstance = engine;
                             
-                            messageQueue.forEach(function(cmd) {
-                                if (typeof engineInstance.onCustomMessage === 'function') {
-                                    engineInstance.onCustomMessage(cmd);
-                                }
-                                if (typeof engineInstance.postMessage === 'function') {
-                                    engineInstance.postMessage(cmd);
-                                } else if (engineInstance.ccall) {
-                                    engineInstance.ccall('push_cmd', 'null', ['string'], [cmd]);
-                                } else if (typeof engineInstance === 'function') {
-                                    engineInstance(cmd);
-                                }
-                            });
-                            messageQueue = [];
-                            
-                            if (typeof engine.addMessageListener === 'function') {
-                                engine.addMessageListener(function(line) { self.postMessage(line); });
-                            } else if (engine.print) {
-                                engine.print = function(line) { self.postMessage(line); };
-                                engine.printErr = function(line) { self.postMessage(line); };
-                            }
-                            
                             self.postMessage('WORKER_INITIALIZED');
+
+                            while (messageQueue.length > 0) {
+                                var queuedCmd = messageQueue.shift();
+                                self.cmd_queue.push(queuedCmd);
+                            }
                         }).catch(function(e) {
                             console.error("[FAIRY Boot Error]:", e);
                         });
+                    } else {
+                        console.error("[FAIRY] Can not find factory function Stockfish in worker!");
                     }
                 `;
                 
@@ -3717,9 +3695,7 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
             };
             window.sfWorker.onmessage = (event) => this.#handleEngineMessage(event);
 
-            if (this.activeEngineType !== 'fairy') {
-                window.sfWorker.postMessage('uci'); 
-            }
+            window.sfWorker.postMessage('uci');
         } catch (e) {
             console.error("[ENGINE INIT FATAL ERROR]:", e);
         }

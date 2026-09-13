@@ -172,6 +172,14 @@
                 for(let i=0; i<bC; i++) z ^= ZOBRIST.pieces[(BLACK*6 + pType)*64];
             }
         }
+        if (s.gameMode === 'alice') {
+            let bL = s.alice_b_lo, bH = s.alice_b_hi;
+            while (bL || bH) {
+                let sq = ctz(bL, bH);
+                if (sq < 32) bL &= ~(1 << sq); else bH &= ~(1 << (sq - 32));
+                z ^= ZOBRIST.alice_b[sq];
+            }
+        }
         return z;
     }
     function get_slider_attacks(type, sq, occL, occH) {
@@ -880,8 +888,44 @@
     function apply_alice_move(prevState, m) {
         var next = apply_standard_move(prevState, m);
         var from = m & 0x3F, to = (m >>> 6) & 0x3F;
-        next.zobrist ^= ZOBRIST.alice_b[from];
-        next.zobrist ^= ZOBRIST.alice_b[to];
+        var flags = (m >>> 12) & 0x7F;
+        var us = prevState.turn;
+
+        var wasB = (from < 32) 
+            ? ((prevState.alice_b_lo & (1 << from)) !== 0)
+            : ((prevState.alice_b_hi & (1 << (from - 32))) !== 0);
+
+        if (from < 32) next.alice_b_lo &= ~(1 << from);
+        else next.alice_b_hi &= ~(1 << (from - 32));
+
+        if (!wasB) {
+            if (to < 32) next.alice_b_lo |= (1 << to);
+            else next.alice_b_hi |= (1 << (to - 32));
+        } else {
+            if (to < 32) next.alice_b_lo &= ~(1 << to);
+            else next.alice_b_hi &= ~(1 << (to - 32));
+        }
+        if (flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE)) {
+            let isK = Boolean(flags & BITS.KSIDE_CASTLE);
+            let rf = (us === WHITE) ? (isK ? 7 : 0) : (isK ? 63 : 56);
+            let rt = (us === WHITE) ? (isK ? 5 : 3) : (isK ? 61 : 59);
+
+            if (rf < 32) next.alice_b_lo &= ~(1 << rf);
+            else next.alice_b_hi &= ~(1 << (rf - 32));
+
+            if (!wasB) {
+                if (rt < 32) next.alice_b_lo |= (1 << rt);
+                else next.alice_b_hi |= (1 << (rt - 32));
+            } else {
+                if (rt < 32) next.alice_b_lo &= ~(1 << rt);
+                else next.alice_b_hi &= ~(1 << (rt - 32));
+            }
+        }
+
+        next.alice_b_lo = next.alice_b_lo >>> 0;
+        next.alice_b_hi = next.alice_b_hi >>> 0;
+
+        next.zobrist = compute_zobrist(next);
         return next;
     }
     function apply_chaturanga_move(prevState, m) {
@@ -2949,7 +2993,7 @@ return {
             return { w: currentState.checks_w || 0, b: currentState.checks_b || 0 }; 
         },
         alice_b: function() { 
-            return currentState.alice_b ? { lo: currentState.alice_b.lo, hi: currentState.alice_b.hi } : { lo: 0, hi: 0 }; 
+            return { lo: currentState.alice_b_lo, hi: currentState.alice_b_hi }; 
         },
         promoted: function() { 
             return currentState.promoted ? { lo: currentState.promoted.lo, hi: currentState.promoted.hi } : { lo: 0, hi: 0 }; 
