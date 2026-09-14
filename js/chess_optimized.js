@@ -2385,6 +2385,20 @@
             if (empty > 0) { FEN_BUFFER[ptr++] = 48 + empty; empty = 0; }
             if (r > 0) FEN_BUFFER[ptr++] = 47; // /
         }
+
+        if (s.gameMode === 'crazyhouse' || s.gameMode === 'bughouse' || s.gameMode === 'placement') {
+            FEN_BUFFER[ptr++] = 91; // [
+            for (var pType = 0; pType <= 4; pType++) {
+                let wCount = (s.pocket_w >> (pType * 5)) & 31;
+                let bCount = (s.pocket_b >> (pType * 5)) & 31;
+                let cW = PIECE_TO_CHAR[pType].toUpperCase().charCodeAt(0);
+                let cB = PIECE_TO_CHAR[pType].charCodeAt(0);
+                for (var i = 0; i < wCount; i++) FEN_BUFFER[ptr++] = cW;
+                for (var i = 0; i < bCount; i++) FEN_BUFFER[ptr++] = cB;
+            }
+            FEN_BUFFER[ptr++] = 93; // ]
+        }
+
         FEN_BUFFER[ptr++] = 32;
         FEN_BUFFER[ptr++] = s.turn === WHITE ? 119 : 98;
         
@@ -2412,18 +2426,6 @@
         let fmStr = s.move_number.toString();
         for (let i = 0; i < fmStr.length; i++) FEN_BUFFER[ptr++] = fmStr.charCodeAt(i);
         
-        if (s.gameMode === 'crazyhouse' || s.gameMode === 'bughouse' || s.gameMode === 'placement') {
-            FEN_BUFFER[ptr++] = 91; // [
-            for (var pType = 0; pType <= 4; pType++) {
-                let wCount = (s.pocket_w >> (pType * 5)) & 31;
-                let bCount = (s.pocket_b >> (pType * 5)) & 31;
-                let cW = PIECE_TO_CHAR[pType].toUpperCase().charCodeAt(0);
-                let cB = PIECE_TO_CHAR[pType].charCodeAt(0);
-                for (var i = 0; i < wCount; i++) FEN_BUFFER[ptr++] = cW;
-                for (var i = 0; i < bCount; i++) FEN_BUFFER[ptr++] = cB;
-            }
-            FEN_BUFFER[ptr++] = 93; // ]
-        }
         let finalFen = String.fromCharCode.apply(null, FEN_BUFFER.subarray(0, ptr));
         
         if (s.gameMode === '3check') {

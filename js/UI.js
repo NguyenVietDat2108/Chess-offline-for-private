@@ -1344,7 +1344,7 @@ resizeApp() {
         if (boardSection) {
             boardSection.style.marginTop = '0px';
             boardSection.style.marginBottom = '0px';
-            boardSection.style.marginLeft = isDuckMode ? '40px' : '0px';
+            boardSection.style.marginLeft = isDuckMode ? '90px' : '0px';
             boardSection.style.alignSelf = 'flex-start';
         }
 
@@ -1971,7 +1971,13 @@ renderHeaders() {
         const spellsTop = document.getElementById('spells-top');
         const spellsBottom = document.getElementById('spells-bottom');
 
+        const topHeader = document.querySelector('.player-header.top-header') || document.querySelectorAll('.player-header')[0];
+        const botHeader = document.querySelector('.player-header.bottom-header') || document.querySelectorAll('.player-header')[1];
+
         if (state && state.gameMode === 'spell') {
+            document.body.classList.add('mode-spell');
+            if (topHeader) topHeader.classList.add('spell-active');
+            if (botHeader) botHeader.classList.add('spell-active');
             if (spellsTop) spellsTop.style.display = 'flex';
             if (spellsBottom) spellsBottom.style.display = 'flex';
             
@@ -2028,6 +2034,9 @@ renderHeaders() {
                 updateIcon('jump', topColor, true);
             }
         } else {
+            document.body.classList.remove('mode-spell');
+            if (topHeader) topHeader.classList.remove('spell-active');
+            if (botHeader) botHeader.classList.remove('spell-active');
             if (spellsTop) spellsTop.style.display = 'none';
             if (spellsBottom) spellsBottom.style.display = 'none';
         }
@@ -3044,7 +3053,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         let duckBank = document.getElementById('duckBank');
         if (state.gameMode === 'duck') {
             if (!duckBank) {
-                duckBank = document.createElement('div'); duckBank.id = 'duckBank'; duckBank.style.cssText = 'position:absolute; width:65px; height:65px; background:rgba(0,0,0,0.6); border:2px dashed #555; border-radius:12px; display:flex; align-items:center; justify-content:center; z-index:999; transition:all 0.2s ease;';
+                duckBank = document.createElement('div'); duckBank.id = 'duckBank'; duckBank.style.cssText = 'position:absolute; left:-85px; top:50%; transform:translateY(-50%); width:65px; height:65px; background:rgba(0,0,0,0.6); border:2px dashed #555; border-radius:12px; display:flex; align-items:center; justify-content:center; z-index:999; transition:all 0.2s ease;';
                 if (this.boardWrapper) this.boardWrapper.appendChild(duckBank);
             }
             if (this.duckPlacementMoves || state.duck_sq === -1 || state.duck_sq === undefined) {
@@ -3485,11 +3494,10 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             const oldId = el.dataset.id;
             if (piecesMap.has(oldId)) return;
             
-            const domType = Array.from(el.classList).find(c => ['P','N','B','R','Q','K','duck'].includes(c.toUpperCase()));
+            const domType = Array.from(el.classList).find(c => ['P','N','B','R','Q','K','DUCK'].includes(c.toUpperCase()));
             
             const match = Array.from(piecesMap.values()).find(p => 
-                p.color === (el.classList.contains('piece-w') ? 'w' : 'b') && 
-                p.type.toUpperCase() === (domType ? domType.toUpperCase() : '') &&
+                (p.type === 'duck' ? (domType && domType.toUpperCase() === 'DUCK') : (p.color === (el.classList.contains('piece-w') ? 'w' : 'b') && p.type.toUpperCase() === (domType ? domType.toUpperCase() : ''))) &&
                 !this.piecesLayer.querySelector(`[data-id="${p.id}"]`)
             );
             
@@ -4320,7 +4328,7 @@ renderTreeRecursive(node, container, moveNum) {
         let moveUI = typeof this.createMoveSpanSafe === 'function' ? this.createMoveSpanSafe(mainChild) : this.createPlyDiv(mainChild);
         targetCell.appendChild(moveUI);
 
-        let cleanComment = mainChild.comment ? mainChild.comment.replace(/\[%(cal|csl|clk|emt)[^\]]+\]/g,"").trim() : "";
+        let cleanComment = mainChild.comment ? mainChild.comment.replace(/\[%(cal|csl|clk|emt|eval)[^\]]+\]/g,"").trim() : "";
         let hasComment = cleanComment.length > 0;
         let hasVariations = node.children.length > 1;
 

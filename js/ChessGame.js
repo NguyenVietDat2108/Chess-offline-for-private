@@ -29,12 +29,15 @@ export class ChessGame {
     #_isBooting;
     #ui;
     #callbacks;
+    #duck_sq;
     SUSPENDED_VARIANTS = ['bughouse','placement'];
     #EMPTY_ARRAY = [];
 constructor() {
         this.#callbacks = {};
         this.#ui = null;
+        this.#duck_sq = -1;
         this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
+        this.#initEngineHooks();
         this.#pieceIdCounter = 0;
         this.#board = Array(64).fill(null);
         this.#timerInterval = null;
@@ -161,8 +164,25 @@ getReader() {
         let engineDuck = (this.#engine && typeof this.#engine.get_duck_sq === 'function') ? this.#engine.get_duck_sq() : -1;
         let uiDuckSq = -1;
         if (engineDuck !== -1 && engineDuck !== undefined && engineDuck !== null) {
-            let algStr = this.#engineIndexToSquare(engineDuck); 
-            uiDuckSq = this.#squareToIndex(algStr);             
+            if (typeof engineDuck === 'string') {
+                uiDuckSq = this.#squareToIndex(engineDuck);
+            } else if (typeof engineDuck === 'number') {
+                if (this.#engine._duckHooked) {
+                    uiDuckSq = engineDuck;
+                } else {
+                    let algStr = this.#engineIndexToSquare(engineDuck); 
+                    uiDuckSq = this.#squareToIndex(algStr);
+                }
+            }
+        }
+        if (uiDuckSq === -1 && this.gameMode === 'duck') {
+            if (this.currentNode && this.currentNode.duck_sq !== undefined && this.currentNode.duck_sq !== -1) {
+                uiDuckSq = this.currentNode.duck_sq;
+            } else if (this.#duck_sq !== undefined && this.#duck_sq !== -1) {
+                uiDuckSq = this.#duck_sq;
+            } else if (this.currentNode && this.currentNode.fen) {
+                uiDuckSq = this.#getDuckSqFromFen(this.currentNode.fen);
+            }
         }
         const frozenSquares = new Array(64).fill(false);
         let jumpSquare = -1;
@@ -308,6 +328,9 @@ getReader() {
                 dst.id = src.id;
                 src.assigned = true;
                 dst.idAssigned = true;
+                if (this.gameMode === 'alice') {
+                    dst.isBoardB = !src.isBoardB;
+                }
             }
         }
 
@@ -318,6 +341,9 @@ getReader() {
                 np.id = match.id;
                 match.assigned = true;
                 np.idAssigned = true;
+                if (this.gameMode === 'alice' && match.isBoardB) {
+                    np.isBoardB = true;
+                }
             }
         });
 
@@ -415,6 +441,9 @@ getReader() {
                 goingBackTo.id = currentlyAt.id;
                 currentlyAt.assigned = true;
                 goingBackTo.idAssigned = true;
+                if (this.gameMode === 'alice') {
+                    goingBackTo.isBoardB = !currentlyAt.isBoardB;
+                }
             }
         }
 
@@ -425,6 +454,9 @@ getReader() {
                 np.id = match.id;
                 match.assigned = true;
                 np.idAssigned = true;
+                if (this.gameMode === 'alice' && match.isBoardB) {
+                    np.isBoardB = true;
+                }
             }
         });
 
@@ -481,18 +513,136 @@ getReader() {
         window.sfWorker.postMessage(cmdString);
     }
 #safeSetOption(name, value) {
-    const lower = name.toLowerCase();
-    if (lower === 'uci_variant' || lower === 'threads' || lower === 'hash' || lower === 'skill level' || lower === 'multipv') {
-        this.#postEngineCommand(`setoption name ${name} value ${value}`);
-        return;
+        if (!this.engineSupportedOptions) return;
+        if (this.engineSupportedOptions.has(name.toLowerCase())) {
+            this.#postEngineCommand(`setoption name ${name} value ${value}`);
+        } else {
+            console.log(`[UCI] Not supported by engine: ${name}`);
+        }
     }
+    #getDuckSqFromFen(fen) {
+        if (!fen || typeof fen !== 'string' || !fen.includes('*')) return -1;
+        const boardPart = fen.split(' ')[0];
+        const ranks = boardPart.split('/');
+        for (let r = 0; r < Math.min(8, ranks.length); r++) {
+            let f = 0;
+            const rankStr = ranks[r];
+            for (let c = 0; c < rankStr.length; c++) {
+                const ch = rankStr[c];
+                if (ch === '*') {
+                    return r * 8 + f;
+                } else if (ch >= '1' && ch <= '8') {
+                    f += parseInt(ch, 10);
+                } else {
+                    f += 1;
+                }
+            }
+        }
+        return -1;
+    }
+    #stripDuckFromFen(fen) {
+        if (!fen || typeof fen !== 'string' || !fen.includes('*')) return fen;
+        const parts = fen.split(' ');
+        const ranks = parts[0].split('/');
+        const cleanedRanks = ranks.map(rankStr => {
+            if (!rankStr.includes('*')) return rankStr;
+            let cells = [];
+            for (let i = 0; i < rankStr.length; i++) {
+                const ch = rankStr[i];
+                if (ch === '*') {
+                    cells.push(null);
+                } else if (ch >= '1' && ch <= '8') {
+                    let count = parseInt(ch, 10);
+                    for (let k = 0; k < count; k++) cells.push(null);
+                } else {
+                    cells.push(ch);
+                }
+            }
+            let out = '';
+            let emptyCount = 0;
+            for (let cell of cells) {
+                if (!cell) {
+                    emptyCount++;
+                } else {
+                    if (emptyCount > 0) {
+                        out += emptyCount;
+                        emptyCount = 0;
+                    }
+                    out += cell;
+                }
+            }
+            if (emptyCount > 0) out += emptyCount;
+            return out;
+        });
+        parts[0] = cleanedRanks.join('/');
+        return parts.join(' ');
+    }
+    #injectDuckIntoFen(fen, duckSq) {
+        if (!fen || typeof fen !== 'string' || duckSq === undefined || duckSq === null || duckSq < 0 || duckSq > 63) {
+            return fen;
+        }
+        fen = this.#stripDuckFromFen(fen);
+        const targetR = Math.floor(duckSq / 8);
+        const targetF = duckSq % 8;
+        const parts = fen.split(' ');
+        const ranks = parts[0].split('/');
+        if (ranks.length < 8) return fen;
+        
+        let cells = [];
+        const rankStr = ranks[targetR];
+        for (let i = 0; i < rankStr.length; i++) {
+            const ch = rankStr[i];
+            if (ch >= '1' && ch <= '8') {
+                let count = parseInt(ch, 10);
+                for (let k = 0; k < count; k++) cells.push(null);
+            } else {
+                cells.push(ch);
+            }
+        }
+        
+        cells[targetF] = '*';
+        
+        let out = '';
+        let emptyCount = 0;
+        for (let cell of cells) {
+            if (!cell) {
+                emptyCount++;
+            } else if (cell === '*') {
+                if (emptyCount > 0) {
+                    out += emptyCount;
+                    emptyCount = 0;
+                }
+                out += '*';
+            } else {
+                if (emptyCount > 0) {
+                    out += emptyCount;
+                    emptyCount = 0;
+                }
+                out += cell;
+            }
+        }
+        if (emptyCount > 0) out += emptyCount;
+        ranks[targetR] = out;
+        parts[0] = ranks.join('/');
+        return parts.join(' ');
+    }
+    #initEngineHooks() {
+        if (!this.#engine) return;
+        if (this.#engine._duckHooked) return;
+        this.#engine._duckHooked = true;
 
-    if (this.engineSupportedOptions && this.engineSupportedOptions.has(lower)) {
-        this.#postEngineCommand(`setoption name ${name} value ${value}`);
-    } else {
-        console.log(`[UCI] Not supported by engine: ${name}`);
+        const origLoad = this.#engine.load.bind(this.#engine);
+        this.#engine.load = (fen) => {
+            if (typeof fen === 'string' && fen.includes('*')) {
+                this.#duck_sq = this.#getDuckSqFromFen(fen);
+                fen = this.#stripDuckFromFen(fen);
+            }
+            return origLoad(fen);
+        };
+
+        this.#engine.get_duck_sq = () => this.#duck_sq;
+        this.#engine.set_duck_sq = (sq) => { this.#duck_sq = sq; };
     }
-}
 #triggerEngineGo(fen) {
         let targetNode = this.analyzingNode || this.currentNode;
 
@@ -1650,6 +1800,7 @@ return move.san;
                     this.currentNode.isBook = true;
                     this.currentNode.engineDetails = "book";
                     this.currentNode.comment = null;
+                    this.currentNode.rawComment = "book";
                     i++;
                     continue;
                 }
@@ -1683,18 +1834,20 @@ return move.san;
                     }
                 }
 
-                if (/\bbook\b/i.test(enginePart)) {
+                if (/\bbook\b/i.test(enginePart) || /\bbook\b/i.test(rawComment)) {
                     this.currentNode.isBook = true;
                 }
 
-                this.currentNode.comment = (humanPart && humanPart !== '-' && humanPart !== ',-') ? humanPart : null;
-                
-                let totalEngineDetails = [];
-                if (enginePart) totalEngineDetails.push(enginePart);
-                if (lichessTags.length > 0) totalEngineDetails.push(lichessTags.join(' '));
-                this.currentNode.engineDetails = totalEngineDetails.length > 0 ? totalEngineDetails.join(' ') : null;
+                this.currentNode.rawComment = rawComment;
+                this.currentNode.engineDetails = enginePart || (this.isEngineMatch ? rawComment : null);
 
-                // A. Parse Lichess Eval
+                if (this.isEngineMatch || enginePart) {
+                    this.currentNode.comment = rawComment;
+                } else {
+                    this.currentNode.comment = (humanPart && humanPart !== '-' && humanPart !== ',-') ? humanPart : (nonLichess || null);
+                }
+
+                // A. Parse Lichess Eval (Carlsen vs Barbo)
                 let evMatch = rawComment.match(lichessEvalRegex);
                 if (evMatch) {
                     const rawVal = evMatch[1];
@@ -1719,8 +1872,8 @@ return move.san;
                     }
                 }
 
-                // B. Parse CCC Eval
-                if (!this.currentNode.eval) {
+                // B. Parse CCC Eval (Lc0 vs Torch)
+                if (this.currentNode.evalScore === undefined) {
                     let engMatch = rawComment.match(/([+-])?(M)?(\d+(\.\d+)?)\/(\d+)/i);
                     if (engMatch) {
                         let depth = parseInt(engMatch[5], 10);
@@ -1863,10 +2016,22 @@ return move.san;
 
                     let engineInput = moveText; 
 
+                    let duckSqFromSan = -1;
+                    if (this.gameMode === 'duck' && typeof moveText === 'string' && moveText.includes('@')) {
+                        const duckMatch = moveText.match(/@([a-h][1-8])/);
+                        if (duckMatch && duckMatch[1]) {
+                            duckSqFromSan = this.#squareToIndex(duckMatch[1]);
+                        }
+                    }
+
                     if (typeof engineInput === 'string' && engineInput.includes('_')) {
                         const restoredStr = engineInput.replace(/([A-Za-z]+@[a-h][1-8])_([A-Za-z0-9+#=O\-]+)/, "$1 $2");
                         engineInput = restoredStr;
                         moveText = restoredStr; 
+                    }
+
+                    if (this.gameMode === 'duck' && typeof engineInput === 'string' && engineInput.includes('@')) {
+                        engineInput = engineInput.replace(/@[a-h][1-8]/, '');
                     }
 
                     const uciMatch = (typeof engineInput === 'string') ? engineInput.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i) : null;
@@ -1924,6 +2089,17 @@ return move.san;
                         piece: moveObj.piece, 
                         color: moveObj.color
                     };
+                    
+                    if (duckSqFromSan !== -1) {
+                        this.#duck_sq = duckSqFromSan;
+                        newNode.duck_sq = duckSqFromSan;
+                        newNode.fen = this.#injectDuckIntoFen(newNode.fen, duckSqFromSan);
+                        newNode.lastMove.duck_sq = duckSqFromSan;
+                        if (!finalSanToSave.includes('@')) {
+                            finalSanToSave += `@${this.#indexToSquare(duckSqFromSan)}`;
+                            newNode.san = finalSanToSave;
+                        }
+                    }
                     
                     if (attachedNag) {
                         const separatedNags = attachedNag.match(/!!|\?\?|!\?|\?!|[!?]|[\+\-]{2}|[=±∓∞⩲⩱]|\+\/-|-\/\+/g);
@@ -2091,10 +2267,14 @@ return move.san;
         }
         
         try {
-            if (typeof this.#ui !== 'undefined') {
+            if (this.#ui && typeof this.#ui.updateHistory === 'function') {
                 if (this._historyRenderTimeout) clearTimeout(this._historyRenderTimeout);
                 this._historyRenderTimeout = setTimeout(() => {
-                    requestAnimationFrame(() => { this.#ui.updateHistory(); });
+                    if (typeof requestAnimationFrame === 'function') {
+                        requestAnimationFrame(() => { if (this.#ui && this.#ui.updateHistory) this.#ui.updateHistory(); });
+                    } else if (this.#ui && this.#ui.updateHistory) {
+                        this.#ui.updateHistory();
+                    }
                 }, 200); 
             }
         } catch (e) {}
@@ -2579,6 +2759,10 @@ return move.san;
         }
     }
 #evalPGNGenerate(node, format = 'both') {
+        if (this.isEngineMatch && node.rawComment && !node.reviewed) {
+            return `{ ${node.rawComment} }`;
+        }
+
         let parts = [];
         let chessComMetadata = [];
         let evalVal = node.localEval !== undefined ? node.localEval : node.eval;
@@ -2680,18 +2864,28 @@ return move.san;
 
         if (format === 'chesscom' || format === 'both') {
             if (evalVal !== undefined && evalVal !== null) {
-                let eStr = evalVal.toString();
-                if (!eStr.includes('M')) {
-                    let f = parseFloat(eStr);
-                    if (!isNaN(f)) {
-                        eStr = f.toFixed(2);
-                        if (f > 0 && !eStr.startsWith('+')) eStr = '+' + eStr;
+                let cccValStr = evalVal.toString();
+                let isBlackMove = node.lastMove && node.lastMove.color === 'b';
+
+                if (this.isEngineMatch && isBlackMove) {
+                    if (cccValStr.includes('M')) {
+                        cccValStr = cccValStr.startsWith('+M') ? cccValStr.replace('+M', '-M') : cccValStr.replace('-M', '+M');
+                    } else {
+                        let f = parseFloat(cccValStr);
+                        if (!isNaN(f)) {
+                            f = -f;
+                            cccValStr = (f > 0 ? '+' : '') + f.toFixed(2);
+                        }
                     }
                 } else {
-                    if (!eStr.startsWith('+') && !eStr.startsWith('-')) eStr = '+' + eStr;
+                    if (!cccValStr.includes('M')) {
+                        let f = parseFloat(cccValStr);
+                        if (!isNaN(f)) cccValStr = (f > 0 ? '+' : '') + f.toFixed(2);
+                    } else {
+                        if (!cccValStr.startsWith('+') && !cccValStr.startsWith('-')) cccValStr = '+' + cccValStr;
+                    }
                 }
-                let d = node.depth || 20; 
-                chessComMetadata.push(`${eStr}/${d}`);
+
             }
             
             if (hasRealClock) {
@@ -3116,6 +3310,18 @@ getLegalMoves(squareIdx) {
             return out;
         });
 
+        if (this.gameMode === 'duck') {
+            const curDuck = (this.#duck_sq !== undefined && this.#duck_sq !== -1) ? this.#duck_sq : -1;
+            if (curDuck !== -1) {
+                mapped = mapped.filter(m => m.to !== curDuck);
+            }
+            mapped.forEach(m => {
+                if (m.duck_sq === undefined) {
+                    m.duck_sq = curDuck;
+                }
+            });
+        }
+
         if (squareIdx !== undefined && squareIdx !== null && squareIdx !== 'w' && squareIdx !== 'b') {
             const sqInt = parseInt(squareIdx, 10);
             if (!isNaN(sqInt) && sqInt >= 0 && sqInt <= 63) {
@@ -3225,6 +3431,8 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
         
         try {
             this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, this.gameMode);
+            this.#initEngineHooks();
+            if (this.gameMode === 'duck') this.#duck_sq = -1;
             if (this.#engine && typeof this.#engine.setGameMode === 'function') {
                 this.#engine.setGameMode(this.gameMode);
             }
@@ -3541,7 +3749,7 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                 window.sfWorker = spawnSf19Worker(customUrl);
             } 
             // ==========================================
-            // 2. FAIRY STOCKFISH (MULTI-THREADING WORKER)
+            // 2. FAIRY STOCKFISH
             // ==========================================
             else if (this.activeEngineType === 'fairy') {
                 engineDisplayName = "Fairy-Stockfish 14 NNUE";
@@ -3549,12 +3757,14 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                 const engineDir = new URL('engine/fairy/', appBaseUrl).href;
                 const jsUrl = new URL('fairy-stockfish.js', engineDir).href;
                 const wasmUrl = new URL('fairy-stockfish.wasm', engineDir).href;
+                const workerUrl = new URL('fairy-stockfish.worker.js', engineDir).href;
                 const nnueBaseUrl = new URL('engine/nnue/', appBaseUrl).href;
 
                 const workerScript = `
                     var appBaseUrl = '${appBaseUrl}';
                     var jsUrl = '${jsUrl}';
                     var wasmUrl = '${wasmUrl}';
+                    var workerUrl = '${workerUrl}';
                     var nnueBaseUrl = '${nnueBaseUrl}';
 
                     function sanitize(rawUrl) {
@@ -3567,6 +3777,7 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                         if (url.startsWith('blob:') || url.startsWith('data:')) return url;
                         var fileName = decodeURIComponent(url.split('/').pop().split('?')[0].split('#')[0]);
                         
+                        if (fileName.endsWith('.worker.js')) return workerUrl;
                         if (fileName.endsWith('.wasm')) return wasmUrl;
                         if (fileName.endsWith('.js')) return jsUrl;
                         if (fileName.endsWith('.nnue')) return nnueBaseUrl + fileName;
@@ -3575,23 +3786,32 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                         return new URL(url.replace(/^\\//, ''), appBaseUrl).href;
                     }
 
-                    self.cmd_queue = [];
+                    var nativeFetch = self.fetch;
+                    self.fetch = function(req, opts) { return nativeFetch(resolveUrl(req), opts); };
+                    
+                    var NativeRequest = self.Request;
+                    self.Request = function(input, init) { 
+                        try { return new NativeRequest(resolveUrl(input), init); }
+                        catch(e) { return new NativeRequest(input, init); }
+                    };
+
+                    var NativeURL = self.URL;
+                    self.URL = function(url, base) {
+                        try {
+                            var resolved = resolveUrl(url);
+                            if (resolved.startsWith('blob:') || resolved.startsWith('http')) return new NativeURL(resolved);
+                            return new NativeURL(resolved, base || appBaseUrl);
+                        } catch(e) { return new NativeURL(resolveUrl(url)); }
+                    };
+                    self.URL.createObjectURL = NativeURL.createObjectURL;
+                    self.URL.revokeObjectURL = NativeURL.revokeObjectURL;
+
                     var engineInstance = null;
                     var messageQueue = [];
-
+                    
                     var Module = { 
                         locateFile: function(path) { return resolveUrl(path); },
-                        mainScriptUrlOrBlob: jsUrl,
-                        print: function(line) {
-                            if (line && typeof line === 'string') {
-                                self.postMessage(line);
-                            }
-                        },
-                        printErr: function(err) {
-                            if (err && !err.includes("Blocking on the main thread")) {
-                                console.warn("[FAIRY System Log]:", err);
-                            }
-                        }
+                        mainScriptUrlOrBlob: jsUrl 
                     };
 
                     self.addEventListener('message', function(e) {
@@ -3604,9 +3824,7 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                                 console.error("[FAIRY] NNUE inject error:", err);
                             }
                         } else if (typeof e.data === 'string') {
-                            var cmd = e.data.trim();
-                            if (!cmd) return;
-
+                            var cmd = e.data;
                             if (cmd.startsWith('setoption name Hash value')) cmd = 'setoption name Hash value 256'; 
                             else if (cmd.startsWith('setoption name Threads value')) {
                                 var requestedThreads = parseInt(cmd.split('value ')[1]);
@@ -3614,36 +3832,53 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
                             }
 
                             if (engineInstance) {
-                                self.cmd_queue.push(cmd);
+                                if (typeof engineInstance.onCustomMessage === 'function') {
+                                    engineInstance.onCustomMessage(cmd);
+                                }
+                                if (typeof engineInstance.postMessage === 'function') {
+                                    engineInstance.postMessage(cmd);
+                                } else if (engineInstance.ccall) {
+                                    engineInstance.ccall('push_cmd', 'null', ['string'], [cmd]);
+                                } else if (typeof engineInstance === 'function') {
+                                    engineInstance(cmd);
+                                }
                             } else {
                                 messageQueue.push(cmd);
                             }
                         }
                     });
 
-                    try { 
-                        importScripts(jsUrl); 
-                    } catch(e) {
-                        console.error("[FAIRY] importScripts error:", e);
-                    }
+                    try { importScripts(jsUrl); } catch(e) {}
                     
-                    var factory = self.Stockfish || self.FairyStockfish || self.Module;
-
-                    if (typeof factory === 'function') {
-                        factory(Module).then(function(engine) {
+                    if (typeof Stockfish === 'function') {
+                        Stockfish(Module).then(function(engine) {
                             engineInstance = engine;
                             
-                            self.postMessage('WORKER_INITIALIZED');
-
-                            while (messageQueue.length > 0) {
-                                var queuedCmd = messageQueue.shift();
-                                self.cmd_queue.push(queuedCmd);
+                            messageQueue.forEach(function(cmd) {
+                                if (typeof engineInstance.onCustomMessage === 'function') {
+                                    engineInstance.onCustomMessage(cmd);
+                                }
+                                if (typeof engineInstance.postMessage === 'function') {
+                                    engineInstance.postMessage(cmd);
+                                } else if (engineInstance.ccall) {
+                                    engineInstance.ccall('push_cmd', 'null', ['string'], [cmd]);
+                                } else if (typeof engineInstance === 'function') {
+                                    engineInstance(cmd);
+                                }
+                            });
+                            messageQueue = [];
+                            
+                            if (typeof engine.addMessageListener === 'function') {
+                                engine.addMessageListener(function(line) { self.postMessage(line); });
+                            } else if (engine.print) {
+                                engine.print = function(line) { self.postMessage(line); };
+                                engine.printErr = function(line) { self.postMessage(line); };
                             }
+                            
+                            self.postMessage('WORKER_INITIALIZED');
                         }).catch(function(e) {
                             console.error("[FAIRY Boot Error]:", e);
                         });
-                    } else {
-                        console.error("[FAIRY] Can not find factory function Stockfish in worker!");
                     }
                 `;
                 
@@ -3695,7 +3930,9 @@ async initEngine(engineType = null, customUrl = null, customName = null) {
             };
             window.sfWorker.onmessage = (event) => this.#handleEngineMessage(event);
 
-            window.sfWorker.postMessage('uci');
+            if (this.activeEngineType !== 'fairy') {
+                window.sfWorker.postMessage('uci'); 
+            }
         } catch (e) {
             console.error("[ENGINE INIT FATAL ERROR]:", e);
         }
@@ -4241,6 +4478,9 @@ stepBack(animate = true) {
         this.currentNode = parentNode;
         
         this.#engine.load(this.currentNode.fen);
+        if (this.gameMode === 'duck') {
+            this.#duck_sq = this.currentNode.duck_sq !== undefined ? this.currentNode.duck_sq : this.#getDuckSqFromFen(this.currentNode.fen);
+        }
         this.turn = this.#engine.turn();
         
         if (typeof this.#reconcileBoardIdsReverse === 'function') {
@@ -4300,6 +4540,9 @@ stepForward(animate = true) {
         }
         
         this.#engine.load(nextNode.fen);
+        if (this.gameMode === 'duck') {
+            this.#duck_sq = nextNode.duck_sq !== undefined ? nextNode.duck_sq : this.#getDuckSqFromFen(nextNode.fen);
+        }
         this.turn = this.#engine.turn();
         
         if (typeof this.#reconcileBoardIds === 'function') {
@@ -4452,6 +4695,9 @@ goToNodeId(id, animate = true) {
             }
             
             this.#engine.load(this.currentNode.fen);
+            if (this.gameMode === 'duck') {
+                this.#duck_sq = this.currentNode.duck_sq !== undefined ? this.currentNode.duck_sq : this.#getDuckSqFromFen(this.currentNode.fen);
+            }
             this.turn = this.#engine.turn();
             
             if (this.mode === 'puzzle') {
@@ -4745,7 +4991,11 @@ loadFEN(fen, gameMode = null, isLoadMode = false) {
         let loaded = false;
         try {
             if (!this.#engine) this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
+            this.#initEngineHooks();
             this.gameMode = gameMode || this.gameMode || 'classical';
+            if (this.gameMode === 'duck') {
+                this.#duck_sq = this.#getDuckSqFromFen(fen);
+            }
             if (typeof this.#engine.setGameMode === 'function') this.#engine.setGameMode(this.gameMode);
             
             loaded = this.#engine.load(fen);
@@ -4927,15 +5177,17 @@ this.makeMove({
 from:fromIdx,
 to:toIdx
 }, promotion);
-this.#ui.renderBoard(true);
-this.#ui.updateHistory();
-this.#ui.renderArrows();
+if (this.#ui) {
+    this.#ui.renderBoard(true);
+    this.#ui.updateHistory();
+    this.#ui.renderArrows();
+}
 }
 resetGame(clear = false, startFen = null) {
         if (clear) {
             this.#board = Array(64).fill(null);
             this.turn ='w';
-            if (typeof this.#ui !=='undefined') this.#ui.renderBoard(false);
+            if (this.#ui) this.#ui.renderBoard(false);
             return;
         }
 
@@ -4968,7 +5220,7 @@ resetGame(clear = false, startFen = null) {
         }
 
         clearInterval(this.#timerInterval);
-        if (typeof this.#ui !=='undefined') {
+        if (this.#ui) {
             this.#ui.renderBoard(false);
             this.#ui.updateClocks();
             this.#ui.updateHistory();
@@ -5404,7 +5656,7 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             }
 
             let moveTextRaw = pgn
-                .replace(/\[[^\]]*\]/g, '')
+                .replace(/\[(?!\s*%)\s*[A-Za-z0-9_]+[^\]]*\]/g, '')
                 .replace(/^(from|site|date|event|link|url):\s*\S+/gim, '')
                 .replace(/https?:\/\/\S+/gi, '')
                 .trim();
@@ -5498,6 +5750,9 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             const isTournament = /\b(tcec|ccc|computer chess championship)\b/i.test(event) || site.includes('computer-chess');
 
             this.isEngineMatch = (isWhiteEng && isBlackEng) || isTournament || isWhiteEng || isBlackEng;
+            if (!this.isEngineMatch && (/tl=[\d\.]+s?/i.test(moveTextRaw) || /nps=\d+/i.test(moveTextRaw))) {
+                this.isEngineMatch = true;
+            }
 
             let tokens = [];
             let len = moveTextRaw.length;
@@ -5632,58 +5887,62 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                             this.currentBTime = null;
                         }
                         
-                        if (this.#ui.moveListContainer) this.#ui.moveListContainer.innerHTML = '';
-                        if (this.#ui.updateClocks) this.#ui.updateClocks();
-                        
-                        const wLabel = (this.pgnHeaders['White'] || 'White') + (this.pgnHeaders['WhiteElo'] ? ` (${this.pgnHeaders['WhiteElo']})` : '');
-                        const bLabel = (this.pgnHeaders['Black'] || 'Black') + (this.pgnHeaders['BlackElo'] ? ` (${this.pgnHeaders['BlackElo']})` : '');
-                        if (this.#ui.updatePgnAvatars) this.#ui.updatePgnAvatars(this.pgnHeaders['White'], this.pgnHeaders['Black'], this.isEngineMatch, true);
-                        
-                        if (this.#ui.flipped) this.#ui.updatePlayerNames(wLabel, bLabel);
-                        else this.#ui.updatePlayerNames(bLabel, wLabel);
+                        if (this.#ui) {
+                            if (this.#ui.moveListContainer) this.#ui.moveListContainer.innerHTML = '';
+                            if (this.#ui.updateClocks) this.#ui.updateClocks();
+                            
+                            const wLabel = (this.pgnHeaders['White'] || 'White') + (this.pgnHeaders['WhiteElo'] ? ` (${this.pgnHeaders['WhiteElo']})` : '');
+                            const bLabel = (this.pgnHeaders['Black'] || 'Black') + (this.pgnHeaders['BlackElo'] ? ` (${this.pgnHeaders['BlackElo']})` : '');
+                            if (this.#ui.updatePgnAvatars) this.#ui.updatePgnAvatars(this.pgnHeaders['White'], this.pgnHeaders['Black'], this.isEngineMatch, true);
+                            
+                            if (this.#ui.flipped) this.#ui.updatePlayerNames(wLabel, bLabel);
+                            else this.#ui.updatePlayerNames(bLabel, wLabel);
 
-                        this.#ui._lastMetadataCache = null;
-                        this.#ui._lastHeadersCache = null;
-                        this.#ui.displayMetadata(this.pgnHeaders);
-                        this.#ui.playerInfo = this.#ui.playerInfo || { w: {}, b: {} };
-                        
-                        const fetchMissingFlag = async (username, color) => {
-                            if (!username || this.isEngineMatch) return;
-                            try {
-                                const res = await fetch(`https://api.chess.com/pub/player/${username}`);
-                                if (!res.ok) return;
-                                const data = await res.json();
-                                if (data.country) {
-                                    const isoCode = data.country.split('/').pop().toLowerCase();
-                                    this.#ui.playerInfo[color].country = isoCode;
-                                    this.#ui.renderHeaders(); 
-                                }
-                            } catch (e) { }
-                        };
+                            this.#ui._lastMetadataCache = null;
+                            this.#ui._lastHeadersCache = null;
+                            this.#ui.displayMetadata(this.pgnHeaders);
+                            this.#ui.playerInfo = this.#ui.playerInfo || { w: {}, b: {} };
+                            
+                            const fetchMissingFlag = async (username, color) => {
+                                if (!username || this.isEngineMatch) return;
+                                try {
+                                    const res = await fetch(`https://api.chess.com/pub/player/${username}`);
+                                    if (!res.ok) return;
+                                    const data = await res.json();
+                                    if (data.country) {
+                                        const isoCode = data.country.split('/').pop().toLowerCase();
+                                        this.#ui.playerInfo[color].country = isoCode;
+                                        this.#ui.renderHeaders(); 
+                                    }
+                                } catch (e) { }
+                            };
 
-                        if (!this.#ui.playerInfo['w'].country && this.pgnHeaders['WhiteCountry']) {
-                            fetchMissingFlag(this.pgnHeaders['White'], 'w');
+                            if (!this.#ui.playerInfo['w'].country && this.pgnHeaders['WhiteCountry']) {
+                                fetchMissingFlag(this.pgnHeaders['White'], 'w');
+                            }
+                            if (!this.#ui.playerInfo['b'].country && this.pgnHeaders['BlackCountry']) {
+                                fetchMissingFlag(this.pgnHeaders['Black'], 'b');
+                            }
+                            
+                            this.#ui.updateHistory(true);
+                            this.#ui.renderBoard(false);
+                            this.#ui.renderArrows();
+                            this.#ui.renderHeaders();
                         }
-                        if (!this.#ui.playerInfo['b'].country && this.pgnHeaders['BlackCountry']) {
-                            fetchMissingFlag(this.pgnHeaders['Black'], 'b');
-                        }
-                        
-                        this.#ui.updateHistory(true);
-                        this.#ui.renderBoard(false);
-                        this.#ui.renderArrows();
-                        this.#ui.renderHeaders();
                         this.#emit('boardUpdated', { animate: false, skipEngine: true });
                         
-                        requestAnimationFrame(() => { this.#ui.renderCharts(); });
-                        requestAnimationFrame(() => {
+                        if (this.#ui) {
+                            requestAnimationFrame(() => { this.#ui.renderCharts(); });
                             requestAnimationFrame(() => {
-                                const graphTab = document.getElementById('tabContent-Graph');
-                                if (graphTab && graphTab.classList.contains('active') && typeof this.#ui.renderFullGraph === 'function') {
-                                    if (this.#ui._graphNodeCache) this.#ui._graphNodeCache = new Map(); 
-                                    this.#ui.renderFullGraph();
-                                }
+                                requestAnimationFrame(() => {
+                                    const graphTab = document.getElementById('tabContent-Graph');
+                                    if (graphTab && graphTab.classList.contains('active') && typeof this.#ui.renderFullGraph === 'function') {
+                                        if (this.#ui._graphNodeCache) this.#ui._graphNodeCache = new Map(); 
+                                        this.#ui.renderFullGraph();
+                                    }
+                                });
                             });
-                        });
+                        }
                     }
                 } catch (err) {
                     console.warn("UI refresh warning:", err);
@@ -5773,12 +6032,12 @@ addPremove(move) {
             if (last && last.from === move.from && last.to === move.to) return;
             this.premoveQueue.push(move);
         }
-        if (typeof this.#ui !== 'undefined') this.#ui.renderBoard(false);
+        if (this.#ui) this.#ui.renderBoard(false);
         this.#emit('soundTriggered', { type: 'premove' });
     }
 clearPremoves() {
 this.premoveQueue = [];
-if (typeof this.#ui !=='undefined') this.#ui.renderBoard(false);
+if (this.#ui) this.#ui.renderBoard(false);
 }
 attemptPremove() {
         if (this.premoveQueue.length === 0 || this.gameOver) return;
@@ -5790,7 +6049,7 @@ attemptPremove() {
         const actualPiece = this.#board[move.from];
         if (!actualPiece || actualPiece.color !== move.color || actualPiece.type !== move.piece) {
             this.clearPremoves();
-            if (typeof this.#ui !== 'undefined') this.#ui.renderBoard(true);
+            if (this.#ui) this.#ui.renderBoard(true);
             return;
         }
 
@@ -5802,7 +6061,7 @@ attemptPremove() {
 
         if (!isLegal) {
             this.clearPremoves();
-            if (typeof this.#ui !== 'undefined') this.#ui.renderBoard(true);
+            if (this.#ui) this.#ui.renderBoard(true);
             return;
         }
 
@@ -5811,10 +6070,10 @@ attemptPremove() {
         if (result) {
             this.premoveQueue.shift();
             setTimeout(() => this.attemptPremove(), 50);
-            if (typeof this.#ui !== 'undefined') this.#ui.renderBoard(true);
+            if (this.#ui) this.#ui.renderBoard(true);
         } else {
             this.clearPremoves();
-            if (typeof this.#ui !== 'undefined') this.#ui.renderBoard(true);
+            if (this.#ui) this.#ui.renderBoard(true);
         }
     }
 rematch() {
@@ -5912,8 +6171,9 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         }
 
         if (this.currentNode && this.currentNode.fen && this.#engine && !batchMode) {
-            const engineBase = this.#engine.fen().split(' ').slice(0, 3).join(' ');
-            const nodeBase = this.currentNode.fen.split(' ').slice(0, 3).join(' ');
+            const cleanFen = (f) => (f || '').split(' ')[0].replace(/\[.*?\]/g, '').split('/').slice(0, 8).join('/') + ' ' + (f || '').split(' ').slice(1, 3).join(' ');
+            const engineBase = cleanFen(this.#engine.fen());
+            const nodeBase = cleanFen(this.currentNode.fen);
             if (engineBase !== nodeBase) {
                 console.error(`[Sandbox ERROR] Desync! Engine FEN: ${engineBase} | Node FEN: ${nodeBase}`);
                 return null;
@@ -6113,7 +6373,15 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             }
         };
 
-        const newFen = this.#engine.fen();
+        let newFen = this.#engine.fen();
+        if (this.gameMode === 'duck') {
+            if (move.duck_sq !== undefined && move.duck_sq !== null) {
+                this.#duck_sq = typeof move.duck_sq === 'string' ? this.#squareToIndex(move.duck_sq) : move.duck_sq;
+            }
+            if (this.#duck_sq !== undefined && this.#duck_sq !== -1) {
+                newFen = this.#injectDuckIntoFen(newFen, this.#duck_sq);
+            }
+        }
         const nextTurn = this.#engine.turn(); 
 
         if (this.mode === 'puzzle') {
@@ -6158,7 +6426,8 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             from: move.from !== undefined ? move.from : '@', 
             to: move.to !== undefined ? move.to : move.target, 
             flags: result.flags, 
-            color: result.color 
+            color: result.color,
+            duck_sq: this.gameMode === 'duck' ? this.#duck_sq : undefined
         };
         
         let finalSan = result.san;
@@ -6170,10 +6439,15 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             if (!finalSan.startsWith('Fz@') && !finalSan.startsWith('Jp@')) {
                 finalSan = `${move.spellSan} ${finalSan}`;
             }
+        } else if (this.gameMode === 'duck' && this.#duck_sq !== undefined && this.#duck_sq !== -1 && !finalSan.includes('@')) {
+            finalSan = `${finalSan}@${this.#indexToSquare(this.#duck_sq)}`;
         }
         
         console.log(`🌳 [TREE APPEND] Current mode: '${this.mode}', Appending Move: ${finalSan}`);
         if (typeof this.#addMoveToTree === 'function') this.#addMoveToTree(newFen, finalSan, moveData.to, moveData, true);
+        if (this.gameMode === 'duck' && this.currentNode) {
+            this.currentNode.duck_sq = this.#duck_sq;
+        }
         
         if (this.isPlayingLiveGame && this.currentNode) {
             this.currentNode.timeSpent = timeSpent;
@@ -6400,7 +6674,7 @@ startLocalGame(startFen = null) {
             this.#ui.playerInfo['b'] = { name: "Player Black", meta: "Black", avatarBorder: "#e68f00", avatarBg: "transparent" };
         }
 
-        if (typeof this.#ui !== 'undefined') {
+        if (this.#ui) {
             this.#ui._lastMetadataCache = null; 
             this.#ui._lastHeadersCache = null;
             this.#ui._lastTreeSize = -1;
@@ -6546,10 +6820,10 @@ startBotGame(level, colorPreference, startFen = null) {
             }
         }
 
-        if (playerColor === 'b' && !this.#ui.flipped) this.#ui.flipBoard();
-        else if (playerColor === 'w' && this.#ui.flipped) this.#ui.flipBoard();
+        if (this.#ui) {
+            if (playerColor === 'b' && !this.#ui.flipped) this.#ui.flipBoard();
+            else if (playerColor === 'w' && this.#ui.flipped) this.#ui.flipBoard();
 
-        if (typeof this.#ui !== 'undefined') {
             this.#ui._lastMetadataCache = null; 
             this.#ui._lastHeadersCache = null;
             this.#ui._lastTreeSize = -1;
