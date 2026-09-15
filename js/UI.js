@@ -113,11 +113,6 @@ constructor() {
         this.#initializeObservers();
         this.#loadCachedTheme(); 
         
-        const resignBtn = document.getElementById('resignBtn');
-        const drawBtn = document.getElementById('drawBtn');
-        if (resignBtn) resignBtn.style.display = 'none';
-        if (drawBtn) drawBtn.style.display = 'none';
-        
         let lastTab = 'analysis';
         if (typeof localStorage !== 'undefined') {
             lastTab = localStorage.getItem('chess_last_tab') || 'analysis';
@@ -332,6 +327,30 @@ setGame(gameInstance) {
                 }
             });
         }
+        const gameVariantSelect = document.getElementById('gameVariantSelect');
+        if (gameVariantSelect) {
+            gameVariantSelect.addEventListener('change', (e) => {
+                if (!this.#game) return;
+                const needsFairy = !['classical', 'chess960'].includes(newMode);
+                const targetType = needsFairy ? 'fairy' : 'standard';
+
+                if (this.#game.activeEngineType !== targetType || !window.sfWorker) {
+                    this.#game.initEngine(targetType);
+                } else if (window.sfWorker) {
+                    if (targetType === 'fairy') {
+                        const sfVariant = newMode === 'classical' ? 'chess' : newMode;
+                        window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
+                    } else {
+                        window.sfWorker.postMessage('setoption name UCI_Chess960 value ' + (newMode === 'chess960' ? 'true' : 'false'));
+                    }
+                    window.sfWorker.postMessage('isready');
+                }
+                this.updatePlayButtons(false);
+                this.renderBoard(false);
+                this.updateHistory(true);
+                this.renderHeaders();
+            });
+        }
     }
 #initializeObservers() {
         const evalContainer = document.getElementById('evalChartContainer');
@@ -426,10 +445,13 @@ setGame(gameInstance) {
 #applyTabVisuals(stateMode, lowerTab) {
         const resignBtn = document.getElementById('resignBtn');
         const drawBtn = document.getElementById('drawBtn');
+        const rematchBtn = document.getElementById('rematchBtn');
         const isLive = this.#game ? this.#game.isPlayingLiveGame : false;
+        const isPlayTab = (stateMode === 'play' || stateMode === 'local' || stateMode === 'bot');
         
-        if (resignBtn) resignBtn.style.display = (isLive && stateMode === 'play') ? 'block' : 'none';
-        if (drawBtn) drawBtn.style.display = (isLive && stateMode === 'play') ? 'block' : 'none';
+        if (resignBtn) resignBtn.style.display = (isLive && isPlayTab) ? 'block' : 'none';
+        if (drawBtn) drawBtn.style.display = (isLive && isPlayTab) ? 'block' : 'none';
+        if (rematchBtn) rematchBtn.style.display = (!isLive && isPlayTab) ? 'block' : 'none';
 
         const toggleLeftBtn = document.getElementById('toggleLeftPanelBtn');
         if (toggleLeftBtn) {
@@ -3827,9 +3849,14 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         if (typeof this.renderArrows === 'function') this.renderArrows();
         if(document.getElementById('fenDisplay') && this.#game.currentNode) document.getElementById('fenDisplay').innerText = this.#game.currentNode.fen;
         const resignBtn = document.getElementById('resignBtn');
-        if (resignBtn) {
-            const isPlaying = this.#game && (this.#game.mode === 'local' || this.#game.mode === 'bot') && !this.#game.gameOver;
-            resignBtn.style.display = isPlaying ? 'inline-block' : 'none';
+        const drawBtn = document.getElementById('drawBtn');
+        const rematchBtn = document.getElementById('rematchBtn');
+        if (resignBtn || drawBtn || rematchBtn) {
+            const isPlayTab = this.#game && (this.#game.mode === 'local' || this.#game.mode === 'bot' || this.#game.mode === 'play');
+            const isPlaying = isPlayTab && !this.#game.gameOver;
+            if (resignBtn) resignBtn.style.display = isPlaying ? 'block' : 'none';
+            if (drawBtn) drawBtn.style.display = isPlaying ? 'block' : 'none';
+            if (rematchBtn) rematchBtn.style.display = (!isPlaying && isPlayTab) ? 'block' : 'none';
         }
         if (this.#game && this.#game.engine && typeof this.#game.engine.pocket === 'function') {
             if (typeof this.renderPockets === 'function') this.renderPockets(this.#game.engine.pocket());

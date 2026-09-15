@@ -782,6 +782,7 @@
                                         <button class="btn-secondary" onclick="window.app.game.goToEnd()">⏭</button>
                                     </div>
                                     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; margin-bottom:10px;">
+                                        <button class="btn-success" id="rematchBtn" onclick="window.app.game.rematch()" style="grid-column: span 2; width: 100%;">🔄 Rematch</button>
                                         <button class="btn-danger" id="resignBtn" onclick="window.app.game.resign()" style="display:none; width: 100%;">🏳️ Resign</button>
                                         <button class="btn-info" id="drawBtn" onclick="window.app.game.offerDraw()" style="display:none; width: 100%;">🤝 Draw</button>
                                         <button class="btn-primary" onclick="window.app.game.startAnalysisMode(true)" style="grid-column: span 2; width: 100%;">🔬 Analysis Board</button>

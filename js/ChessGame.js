@@ -2323,6 +2323,10 @@ return move.san;
         if (statusMsg.includes(' wins ')) reason = statusMsg.split(' wins ')[1]; 
         else if (statusMsg.startsWith('Draw ')) reason = statusMsg.substring(5);
         this.#emit('gameOver', { winner, reason, statusMsg });
+
+        if (this.#ui && typeof this.#ui.renderBoard === 'function') {
+            this.#ui.renderBoard(false);
+        }
     }
 #stopTimer() {
         if (this.#timerInterval) {
@@ -6164,379 +6168,350 @@ resign() {
     }
 makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = false) {
         console.log(`\n♟️ [MAKE MOVE START] mode: '${this.mode}', Move:`, move);
-        
-        if (isAutoReply && this.mode !== 'bot' && this.mode !== 'puzzle') {
+
+    if (isAutoReply && this.mode !== 'bot' && this.mode !== 'puzzle') {
             console.error(`[Sandbox ERRROR] Blocked delayed auto-reply from bleeding across tabs!`);
+        return null;
+    }
+
+    if (this.currentNode && this.currentNode.fen && this.#engine && !batchMode) {
+        const cleanFen = (f) => (f || '').split(' ')[0].replace(/\[.*?\]/g, '').split('/').slice(0, 8).join('/') + ' ' + (f || '').split(' ').slice(1, 3).join(' ');
+        const engineBase = cleanFen(this.#engine.fen());
+        const nodeBase = cleanFen(this.currentNode.fen);
+        if (engineBase !== nodeBase) {
+            console.error(`[Sandbox ERROR] Desync! Engine FEN: ${engineBase} | Node FEN: ${nodeBase}`);
             return null;
         }
-
-        if (this.currentNode && this.currentNode.fen && this.#engine && !batchMode) {
-            const cleanFen = (f) => (f || '').split(' ')[0].replace(/\[.*?\]/g, '').split('/').slice(0, 8).join('/') + ' ' + (f || '').split(' ').slice(1, 3).join(' ');
-            const engineBase = cleanFen(this.#engine.fen());
-            const nodeBase = cleanFen(this.currentNode.fen);
-            if (engineBase !== nodeBase) {
-                console.error(`[Sandbox ERROR] Desync! Engine FEN: ${engineBase} | Node FEN: ${nodeBase}`);
-                return null;
-            }
-        }
+    }
 
         if (this.#engine && this.#engine.game_over()) return null;
-        
+
         // When loadPGN fires "Fz@f7", we buffer it and wait for the piece move to arrive!
-        if (typeof move === 'string') {
-            if (this.gameMode === 'spell' && move.includes('@') && move.match(/^[FJ]z?p?@/)) {
-                const isFreeze = move.startsWith('Fz');
-                const targetStr = move.split('@')[1];
-                const targetSq = (8 - parseInt(targetStr[1])) * 8 + (targetStr.charCodeAt(0) - 97);
+    if (typeof move === 'string') {
+        if (this.gameMode === 'spell' && move.includes('@') && move.match(/^[FJ]z?p?@/)) {
+            const isFreeze = move.startsWith('Fz');
+            const targetStr = move.split('@')[1];
+            const targetSq = (8 - parseInt(targetStr[1])) * 8 + (targetStr.charCodeAt(0) - 97);
                 
                 // Save it and abort. Don't process a turn yet!
-                this._pendingReloadSpell = { 
-                    isSpell: true, 
-                    spellType: isFreeze ? 'freeze' : 'jump', 
-                    target: targetSq, 
-                    spellSan: move 
-                };
-                return null; 
-            }
+            this._pendingReloadSpell = { 
+                isSpell: true, 
+                spellType: isFreeze ? 'freeze' : 'jump', 
+                target: targetSq, 
+                spellSan: move 
+            };
+            return null; 
         }
+    }
 
-        if (this._pendingReloadSpell) {
-            if (typeof move === 'object') {
-                move.isSpell = true;
-                move.spellType = this._pendingReloadSpell.spellType;
-                move.target = this._pendingReloadSpell.target;
-                move.spellSan = this._pendingReloadSpell.spellSan;
-            } else if (typeof move === 'string') {
+    if (this._pendingReloadSpell) {
+        if (typeof move === 'object') {
+            move.isSpell = true;
+            move.spellType = this._pendingReloadSpell.spellType;
+            move.target = this._pendingReloadSpell.target;
+            move.spellSan = this._pendingReloadSpell.spellSan;
+        } else if (typeof move === 'string') {
                 // If it's a string, seamlessly join them (Jp@d2_Bxe1)
-                move = `${this._pendingReloadSpell.spellSan}_${move}`;
-            }
+            move = `${this._pendingReloadSpell.spellSan}_${move}`;
+        }
             this._pendingReloadSpell = null; // clear it
-        }
-        
-        if (!this.isChess960 && move && move.from !== undefined && move.to !== undefined && !move.isSpell && this.#engine) {
-            const fromStr = typeof move.from === 'number' && typeof this.#indexToSquare === 'function' ? this.#indexToSquare(move.from) : move.from;
-            const toStr = typeof move.to === 'number' && typeof this.#indexToSquare === 'function' ? this.#indexToSquare(move.to) : move.to;
+    }
 
-            if (fromStr && toStr && fromStr !== '@') {
-                const srcPiece = this.#engine.get(fromStr);
-                const tgtPiece = this.#engine.get(toStr);
-                const currTurn = this.#engine.turn();
+    if (!this.isChess960 && move && move.from !== undefined && move.to !== undefined && !move.isSpell && this.#engine) {
+        const fromStr = typeof move.from === 'number' && typeof this.#indexToSquare === 'function' ? this.#indexToSquare(move.from) : move.from;
+        const toStr = typeof move.to === 'number' && typeof this.#indexToSquare === 'function' ? this.#indexToSquare(move.to) : move.to;
+
+        if (fromStr && toStr && fromStr !== '@') {
+            const srcPiece = this.#engine.get(fromStr);
+            const tgtPiece = this.#engine.get(toStr);
+            const currTurn = this.#engine.turn();
+            
+            if (srcPiece && tgtPiece && srcPiece.type === 'k' && tgtPiece.type === 'r' && srcPiece.color === currTurn && tgtPiece.color === currTurn) {
+                const legalMoves = this.#engine.moves({ verbose: true });
+                const fromFile = fromStr.charCodeAt(0);
+                const toFile = toStr.charCodeAt(0);
                 
-                if (srcPiece && tgtPiece && srcPiece.type === 'k' && tgtPiece.type === 'r' && srcPiece.color === currTurn && tgtPiece.color === currTurn) {
-                    const legalMoves = this.#engine.moves({ verbose: true });
-                    const fromFile = fromStr.charCodeAt(0);
-                    const toFile = toStr.charCodeAt(0);
-                    
-                    const castleMove = legalMoves.find(m => 
-                        m.from === fromStr && 
-                        ((toFile > fromFile && m.flags.includes('k')) || (toFile < fromFile && m.flags.includes('q')))
-                    );
-                    
-                    if (castleMove) {
-                        move.to = typeof move.to === 'number' ? this.#squareToIndex(castleMove.to) : castleMove.to;
-                    }
+                const castleMove = legalMoves.find(m => 
+                    m.from === fromStr && 
+                    ((toFile > fromFile && m.flags.includes('k')) || (toFile < fromFile && m.flags.includes('q')))
+                );
+                
+                if (castleMove) {
+                    move.to = typeof move.to === 'number' ? this.#squareToIndex(castleMove.to) : castleMove.to;
                 }
             }
         }
+    }
 
-        const promotion = (promo && promo.length === 1) ? promo.toLowerCase() : undefined;
+    const promotion = (promo && promo.length === 1) ? promo.toLowerCase() : undefined;
 
-        if (batchMode) {
-            const batchObj = {};
-            if (move.isSpell) {
-                batchObj.isSpell = true; 
-                batchObj.spellType = move.spellType; 
-                batchObj.target = typeof move.target === 'number' ? this.#indexToSquare(move.target) : move.target;
-            } 
-            if (move.from !== undefined && move.to !== undefined) {
-                if (move.from === '@' || move.drop) {
-                    batchObj.from = '@';
-                    batchObj.drop = move.drop || move.piece;
-                    batchObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
-                } else {
-                    batchObj.from = typeof move.from === 'number' ? this.#indexToSquare(move.from) : move.from;
-                    batchObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
-                }
-            }
-            batchObj.promotion = promotion || 'q';
-            if (move.duck_sq !== undefined) {
-                batchObj.duck_sq = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
-            }
-
-            let result = null;
-            try {
-                result = this.#engine.move(batchObj);
-            } catch(e) {
-                result = null;
-            }
-            if (!result) return null;
-            
-            const newFen = this.#engine.fen();
-            let finalSan = pgnText || result.san;
-
-            if (move.isSpell) {
-                let targetStr = typeof move.target === 'number' ? this.#indexToSquare(move.target) : move.target;
-                move.spellSan = `${move.spellType === 'freeze' ? 'Fz' : 'Jp'}@${targetStr}`;
-                if (!finalSan.startsWith('Fz@') && !finalSan.startsWith('Jp@')) {
-                    finalSan = `${move.spellSan} ${finalSan}`;
-                }
-            }
-            
-            this.#addMoveToTree(newFen, finalSan, move.to, {
-                from: move.from, to: move.to, flags: result.flags, color: result.color
-            }, false);
-            
-            this.turn = this.#engine.turn();
-            return result;
-        }
-
-        if (this.isPlayingLiveGame && !this.#timerInterval) {
-            if (typeof this.#startTimer === 'function') this.#startTimer();
-        }
-
-        const moveObj = {};
+    if (batchMode) {
+        const batchObj = {};
         if (move.isSpell) {
-            moveObj.isSpell = true; 
-            moveObj.spellType = move.spellType || move.type; 
-            let tVal = move.target !== undefined ? move.target : move.square;
-            moveObj.target = typeof tVal === 'number' ? this.#indexToSquare(tVal) : tVal;
-        }
+            batchObj.isSpell = true; 
+            batchObj.spellType = move.spellType; 
+            batchObj.target = typeof move.target === 'number' ? this.#indexToSquare(move.target) : move.target;
+        } 
         if (move.from !== undefined && move.to !== undefined) {
             if (move.from === '@' || move.drop) {
-                moveObj.from = '@';
-                moveObj.drop = move.drop || move.piece;
-                moveObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
+                batchObj.from = '@';
+                batchObj.drop = move.drop || move.piece;
+                batchObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
             } else {
-                moveObj.from = typeof move.from === 'number' ? this.#indexToSquare(move.from) : move.from;
-                moveObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
+                batchObj.from = typeof move.from === 'number' ? this.#indexToSquare(move.from) : move.from;
+                batchObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
             }
         }
-        if (promotion) {
-            moveObj.promotion = promotion;
-        } else if (moveObj.from && moveObj.to && moveObj.from !== '@') {
-            const pce = this.#engine.get(moveObj.from);
-            if (pce && pce.type === 'p' && (moveObj.to.includes('8') || moveObj.to.includes('1'))) {
-                moveObj.promotion = 'q';
-            }
-        }
+        batchObj.promotion = promotion || 'q';
         if (move.duck_sq !== undefined) {
-            moveObj.duck_sq = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
+            batchObj.duck_sq = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
         }
 
         let result = null;
         try {
-            result = this.#engine.move(moveObj, !!moveObj.isSpell);
+            result = this.#engine.move(batchObj);
         } catch(e) {
             result = null;
         }
-
-        if (!result && move.san) {
-            let fallbackSan = move.san;
-            if (promotion && fallbackSan.includes('=')) {
-                fallbackSan = fallbackSan.substring(0, fallbackSan.indexOf('=') + 1) + promotion.toUpperCase();
-            }
-            try { result = this.#engine.move(fallbackSan, { sloppy: true }); } catch(e) {}
-        }
-        if (!result && moveObj.from && moveObj.to) {
-            const rawUci = moveObj.from + moveObj.to + (promotion || '');
-            try { result = this.#engine.move(rawUci, { sloppy: true }); } catch(e) {}
-        }
-
-        if (!result) {
-            console.error(`[MAKE MOVE] Engine completely rejected move!`, moveObj, move);
-            return null;
-        }
-        if (result.isStandaloneSpell) {
-            if (this.#ui) {
-                this.#emit('boardUpdated', { skipEngine: true });
-            }
-            return result;
-        }
-        let soundFired = false;
-        const fireSound = () => {
-            if (!soundFired && !muteEngine && !isAutoReply) {
-                if (typeof this.triggerMoveSound === 'function') this.triggerMoveSound(result);
-                soundFired = true;
-            }
-        };
-
-        let newFen = this.#engine.fen();
-        if (this.gameMode === 'duck') {
-            if (move.duck_sq !== undefined && move.duck_sq !== null) {
-                this.#duck_sq = typeof move.duck_sq === 'string' ? this.#squareToIndex(move.duck_sq) : move.duck_sq;
-            }
-            if (this.#duck_sq !== undefined && this.#duck_sq !== -1) {
-                newFen = this.#injectDuckIntoFen(newFen, this.#duck_sq);
-            }
-        }
-        const nextTurn = this.#engine.turn(); 
-
-        if (this.mode === 'puzzle') {
-            if (this.puzzleSetupTimeout) {
-                clearTimeout(this.puzzleSetupTimeout);
-                this.puzzleSetupTimeout = null;
-            }
-            const userStr = (result.from + result.to + (result.promotion || '')).toLowerCase();
-            const solStr = (this.puzzleSolution[this.puzzleCursor] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
-            if (!isAutoReply) {
-                if (userStr !== solStr && !this.#engine.in_checkmate()) {
-                    result.puzzleStatus = 'wrong'; 
-                    fireSound(); 
-                    
-                    this.#engine.undo();
-                    if (typeof this.#reconcileBoardIds === 'function') this.#reconcileBoardIds(this.#engine.fen());
-                    if (this.#ui && typeof this.#ui.renderBoard === 'function') this.#ui.renderBoard(false);
-                    if (typeof this.#puzzleFail === 'function') this.#puzzleFail();
-                    return null; 
-                }
-                
-                if (this.#engine.in_checkmate() || (this.puzzleCursor >= this.puzzleSolution.length - 1)) {
-                    result.puzzleStatus = 'solved';
-                    if (window.sfWorker) window.sfWorker.postMessage('stop');
-                    if (typeof this.#puzzleSuccess === 'function') this.#puzzleSuccess();
-                } else {
-                    result.puzzleStatus = 'correct';
-                    this.puzzleCursor++;
-                }
-            } else {
-                this.puzzleCursor++;
-            }
-        }
-
-        const now = Date.now();
-        const timeSpent = Math.max(0, (now - (this.lastMoveTime || now)) / 1000);
-        this.lastMoveTime = now;
-        if (typeof this.#reconcileBoardIds === 'function') this.#reconcileBoardIds(newFen, move);
-
-        const moveData = { 
-            from: move.from !== undefined ? move.from : '@', 
-            to: move.to !== undefined ? move.to : move.target, 
-            flags: result.flags, 
-            color: result.color,
-            duck_sq: this.gameMode === 'duck' ? this.#duck_sq : undefined
-        };
+        if (!result) return null;
         
-        let finalSan = result.san;
-        
+        const newFen = this.#engine.fen();
+        let finalSan = pgnText || result.san;
+
         if (move.isSpell) {
             let targetStr = typeof move.target === 'number' ? this.#indexToSquare(move.target) : move.target;
             move.spellSan = `${move.spellType === 'freeze' ? 'Fz' : 'Jp'}@${targetStr}`;
-            
             if (!finalSan.startsWith('Fz@') && !finalSan.startsWith('Jp@')) {
                 finalSan = `${move.spellSan} ${finalSan}`;
             }
-        } else if (this.gameMode === 'duck' && this.#duck_sq !== undefined && this.#duck_sq !== -1 && !finalSan.includes('@')) {
-            finalSan = `${finalSan}@${this.#indexToSquare(this.#duck_sq)}`;
         }
         
-        console.log(`🌳 [TREE APPEND] Current mode: '${this.mode}', Appending Move: ${finalSan}`);
-        if (typeof this.#addMoveToTree === 'function') this.#addMoveToTree(newFen, finalSan, moveData.to, moveData, true);
-        if (this.gameMode === 'duck' && this.currentNode) {
-            this.currentNode.duck_sq = this.#duck_sq;
-        }
+        this.#addMoveToTree(newFen, finalSan, move.to, {
+            from: move.from, to: move.to, flags: result.flags, color: result.color
+        }, false);
         
-        if (this.isPlayingLiveGame && this.currentNode) {
-            this.currentNode.timeSpent = timeSpent;
+        this.turn = this.#engine.turn();
+        return result;
+    }
+
+    if (this.isPlayingLiveGame && !this.#timerInterval) {
+        if (typeof this.#startTimer === 'function') this.#startTimer();
+    }
+
+    const moveObj = {};
+    if (move.isSpell) {
+        moveObj.isSpell = true; 
+        moveObj.spellType = move.spellType || move.type; 
+        let tVal = move.target !== undefined ? move.target : move.square;
+        moveObj.target = typeof tVal === 'number' ? this.#indexToSquare(tVal) : tVal;
+    }
+    if (move.from !== undefined && move.to !== undefined) {
+        if (move.from === '@' || move.drop) {
+            moveObj.from = '@';
+            moveObj.drop = move.drop || move.piece;
+            moveObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
+        } else {
+            moveObj.from = typeof move.from === 'number' ? this.#indexToSquare(move.from) : move.from;
+            moveObj.to = typeof move.to === 'number' ? this.#indexToSquare(move.to) : move.to;
         }
-
-        if (this.isPlayingLiveGame && !result.isSpell) {
-            if (nextTurn === 'b') this.whiteTime += this.whiteIncrement;
-            else this.blackTime += this.blackIncrement;
+    }
+    if (promotion) {
+        moveObj.promotion = promotion;
+    } else if (moveObj.from && moveObj.to && moveObj.from !== '@') {
+        const pce = this.#engine.get(moveObj.from);
+        if (pce && pce.type === 'p' && (moveObj.to.includes('8') || moveObj.to.includes('1'))) {
+            moveObj.promotion = 'q';
         }
+    }
+    if (move.duck_sq !== undefined) {
+        moveObj.duck_sq = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
+    }
 
-        this.turn = nextTurn;
-        
-        if (this.isPlayingLiveGame && this.currentNode && !result.isSpell) {
-            const clkSeconds = nextTurn === 'b' ? this.whiteTime : this.blackTime;
-            const h = Math.floor(clkSeconds / 3600);
-            const m = Math.floor((clkSeconds % 3600) / 60);
-            const s = Math.floor(clkSeconds % 60);
-            const clkStr = `[%clk ${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}]`;
-            
-            this.currentNode.comment = this.currentNode.comment ? this.currentNode.comment + ` ${clkStr}` : clkStr;
+    let result = null;
+    try {
+        result = this.#engine.move(moveObj, !!moveObj.isSpell);
+    } catch(e) {
+        result = null;
+    }
+
+    if (!result && move.san) {
+        let fallbackSan = move.san;
+        if (promotion && fallbackSan.includes('=')) {
+            fallbackSan = fallbackSan.substring(0, fallbackSan.indexOf('=') + 1) + promotion.toUpperCase();
         }
+        try { result = this.#engine.move(fallbackSan, { sloppy: true }); } catch(e) {}
+    }
+    if (!result && moveObj.from && moveObj.to) {
+        const rawUci = moveObj.from + moveObj.to + (promotion || '');
+        try { result = this.#engine.move(rawUci, { sloppy: true }); } catch(e) {}
+    }
 
-        if (!this.gameOver && !this.isAnalysisMode && !result.isSpell) {
-            setTimeout(() => { if (typeof this.attemptPremove === 'function') this.attemptPremove(); }, 150);
+    if (!result) {
+            console.error(`[MAKE MOVE] Engine completely rejected move!`, moveObj, move);
+        return null;
+    }
+    if (result.isStandaloneSpell) {
+        if (this.#ui) {
+            this.#emit('boardUpdated', { skipEngine: true });
         }
-
-        if (this.isPlayingLiveGame && this.#engine.game_over()) {
-            let resultStr = "1/2-1/2";
-            let statusMsg = "Draw by agreement";
-
-            let variantWinner = typeof this.#engine.variant_winner === 'function' ? this.#engine.variant_winner() : null;
-
-            if (variantWinner !== null) {
-                const winnerColor = variantWinner === 'w' ? 'White' : 'Black';
-                resultStr = winnerColor === 'White' ? "1-0" : "0-1";
-                statusMsg = `${winnerColor} wins by Variant Rules`;
-            } 
-            else if (this.#engine.in_checkmate()) {
-                const winnerColor = this.turn === 'w' ? 'Black' : 'White';
-                resultStr = winnerColor === 'White' ? "1-0" : "0-1";
-                statusMsg = `${winnerColor} wins by checkmate`;
-            } else if (this.#engine.in_stalemate()) {
-                statusMsg = "Draw by stalemate";
-            } else if (this.#engine.in_threefold_repetition && this.#engine.in_threefold_repetition()) {
-                statusMsg = "Draw by repetition";
-            } else if (this.#engine.insufficient_material && this.#engine.insufficient_material()) {
-                statusMsg = "Draw by insufficient material";
-            } else if (this.#engine.half_moves && this.#engine.half_moves() >= 100) {
-                statusMsg = "Draw by 50-Move Rule";
-            }
-
-            if (typeof this.#endGame === 'function') this.#endGame(resultStr, statusMsg);
-            
-            if (typeof this.clearPremoves === 'function') this.clearPremoves();
-            if (window.sfWorker && !window.engineAnalysing) window.sfWorker.postMessage('stop');
-            
-            if (!muteEngine && window.engineAnalysing && window.sfWorker && this.turn !== this.botColor) {
-                if (this._engineRebootTimeout) clearTimeout(this._engineRebootTimeout);
-                this._engineRebootTimeout = setTimeout(() => { if(typeof this.updateStockfish === 'function') this.updateStockfish(); }, 200);
-            }
-
-            fireSound(); 
-            return result;
+        return result;
+    }
+    let soundFired = false;
+    const fireSound = () => {
+        if (!soundFired && !muteEngine && !isAutoReply) {
+            if (typeof this.triggerMoveSound === 'function') this.triggerMoveSound(result);
+            soundFired = true;
         }
-        
-        const liveTurn = this.currentLiveTurn || this.turn;
-        const isBotTurn = (this.mode === 'bot' && liveTurn === this.botColor);
-        
-        if (this.isPlayingLiveGame && isBotTurn) {
-            setTimeout(() => { if (typeof this.#triggerBotMove === 'function') this.#triggerBotMove(); }, 250);
-        } 
-        else if (this.mode === 'puzzle' && !this.gameOver) {
-            if (this.puzzleCursor % 2 === 0 && this.puzzleCursor < this.puzzleSolution.length) {
-                const isRush = ['3min', '5min', 'survival'].includes(this.puzzleMode);
-                const delay = isRush ? 150 : 400;
+    };
+
+    let newFen = this.#engine.fen();
+    if (this.gameMode === 'duck') {
+        if (move.duck_sq !== undefined && move.duck_sq !== null) {
+            this.#duck_sq = typeof move.duck_sq === 'string' ? this.#squareToIndex(move.duck_sq) : move.duck_sq;
+        }
+        if (this.#duck_sq !== undefined && this.#duck_sq !== -1) {
+            newFen = this.#injectDuckIntoFen(newFen, this.#duck_sq);
+        }
+    }
+    const nextTurn = this.#engine.turn(); 
+
+    if (this.mode === 'puzzle') {
+        if (this.puzzleSetupTimeout) {
+            clearTimeout(this.puzzleSetupTimeout);
+            this.puzzleSetupTimeout = null;
+        }
+        const userStr = (result.from + result.to + (result.promotion || '')).toLowerCase();
+        const solStr = (this.puzzleSolution[this.puzzleCursor] || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+        if (!isAutoReply) {
+            if (userStr !== solStr && !this.#engine.in_checkmate()) {
+                result.puzzleStatus = 'wrong'; 
+                fireSound(); 
                 
-                setTimeout(() => {
-                    const response = this.puzzleSolution[this.puzzleCursor];
-                    if (response) {
-                        const from = typeof this.#squareToIndex === 'function' ? this.#squareToIndex(response.substring(0, 2)) : response.substring(0,2);
-                        const to = typeof this.#squareToIndex === 'function' ? this.#squareToIndex(response.substring(2, 4)) : response.substring(2,4);
-                        const prm = response.length > 4 ? response.substring(4, 5) : undefined;
-                        const botRes = this.makeMove({ from, to }, prm, false, null, false, true);
-                        
-                        if (this.#ui && botRes) {
-                            if (typeof this.#ui.renderBoard === 'function') this.#ui.renderBoard(true); 
-                            if (typeof this.#ui.renderHeaders === 'function') this.#ui.renderHeaders();
-                            if (!this.isAnalysisMode) setTimeout(() => { if (typeof this.attemptPremove === 'function') this.attemptPremove(); }, 100);
-                        }
-                    }
-                }, delay);
+                this.#engine.undo();
+                if (typeof this.#reconcileBoardIds === 'function') this.#reconcileBoardIds(this.#engine.fen());
+                if (this.#ui && typeof this.#ui.renderBoard === 'function') this.#ui.renderBoard(false);
+                if (typeof this.#puzzleFail === 'function') this.#puzzleFail();
+                return null; 
             }
+            
+            if (this.#engine.in_checkmate() || (this.puzzleCursor >= this.puzzleSolution.length - 1)) {
+                result.puzzleStatus = 'solved';
+                if (window.sfWorker) window.sfWorker.postMessage('stop');
+                if (typeof this.#puzzleSuccess === 'function') this.#puzzleSuccess();
+            } else {
+                result.puzzleStatus = 'correct';
+                this.puzzleCursor++;
+            }
+        } else {
+            this.puzzleCursor++;
+        }
+    }
+
+    const now = Date.now();
+    const timeSpent = Math.max(0, (now - (this.lastMoveTime || now)) / 1000);
+    this.lastMoveTime = now;
+    if (typeof this.#reconcileBoardIds === 'function') this.#reconcileBoardIds(newFen, move);
+
+    const moveData = { 
+        from: move.from !== undefined ? move.from : '@', 
+        to: move.to !== undefined ? move.to : move.target, 
+        flags: result.flags, 
+        color: result.color,
+        duck_sq: this.gameMode === 'duck' ? this.#duck_sq : undefined
+    };
+    
+    let finalSan = result.san;
+    if (move.isSpell) {
+        let targetStr = typeof move.target === 'number' ? this.#indexToSquare(move.target) : move.target;
+        move.spellSan = `${move.spellType === 'freeze' ? 'Fz' : 'Jp'}@${targetStr}`;
+        if (!finalSan.startsWith('Fz@') && !finalSan.startsWith('Jp@')) {
+            finalSan = `${move.spellSan} ${finalSan}`;
+        }
+    } else if (this.gameMode === 'duck' && this.#duck_sq !== undefined && this.#duck_sq !== -1 && !finalSan.includes('@')) {
+        finalSan = `${finalSan}@${this.#indexToSquare(this.#duck_sq)}`;
+    }
+    
+    if (typeof this.#addMoveToTree === 'function') this.#addMoveToTree(newFen, finalSan, moveData.to, moveData, true);
+    if (this.gameMode === 'duck' && this.currentNode) {
+        this.currentNode.duck_sq = this.#duck_sq;
+    }
+    
+    if (this.isPlayingLiveGame && this.currentNode) {
+        this.currentNode.timeSpent = timeSpent;
+    }
+
+    if (this.isPlayingLiveGame && !result.isSpell) {
+        if (nextTurn === 'b') this.whiteTime += this.whiteIncrement;
+        else this.blackTime += this.blackIncrement;
+    }
+
+    this.turn = nextTurn;
+
+    if (this.isPlayingLiveGame && this.#engine.game_over()) {
+        let resultStr = "1/2-1/2";
+        let statusMsg = "Draw by agreement";
+
+        let variantWinner = typeof this.#engine.variant_winner === 'function' ? this.#engine.variant_winner() : null;
+        if (variantWinner !== null) {
+            const winnerColor = variantWinner === 'w' ? 'White' : 'Black';
+            resultStr = winnerColor === 'White' ? "1-0" : "0-1";
+            statusMsg = `${winnerColor} wins by Variant Rules`;
+        } else if (this.#engine.in_checkmate()) {
+            const winnerColor = this.turn === 'w' ? 'Black' : 'White';
+            resultStr = winnerColor === 'White' ? "1-0" : "0-1";
+            statusMsg = `${winnerColor} wins by checkmate`;
+        } else if (this.#engine.in_stalemate()) {
+            statusMsg = "Draw by stalemate";
+        } else if (this.#engine.in_threefold_repetition && this.#engine.in_threefold_repetition()) {
+            statusMsg = "Draw by repetition";
+        } else if (this.#engine.insufficient_material && this.#engine.insufficient_material()) {
+            statusMsg = "Draw by insufficient material";
+        } else if (this.#engine.half_moves && this.#engine.half_moves() >= 100) {
+            statusMsg = "Draw by 50-Move Rule";
         }
 
-        if (!muteEngine && window.engineAnalysing && window.sfWorker && !isBotTurn) {
-            if (this._engineRebootTimeout) clearTimeout(this._engineRebootTimeout);
-            this._engineRebootTimeout = setTimeout(() => { if(typeof this.updateStockfish === 'function') this.updateStockfish(); }, 200);
-        }
-
+        if (typeof this.#endGame === 'function') this.#endGame(resultStr, statusMsg);
+        if (typeof this.clearPremoves === 'function') this.clearPremoves();
+        if (window.sfWorker && !window.engineAnalysing) window.sfWorker.postMessage('stop');
+        
         fireSound(); 
         return result;
     }
+    
+    const liveTurn = this.currentLiveTurn || this.turn;
+    const isBotTurn = (this.mode === 'bot' && liveTurn === this.botColor);
+    
+    if (this.isPlayingLiveGame && isBotTurn) {
+        setTimeout(() => { if (typeof this.#triggerBotMove === 'function') this.#triggerBotMove(); }, 250);
+    } else if (this.mode === 'puzzle' && !this.gameOver) {
+        if (this.puzzleCursor % 2 === 0 && this.puzzleCursor < this.puzzleSolution.length) {
+            const isRush = ['3min', '5min', 'survival'].includes(this.puzzleMode);
+            const delay = isRush ? 150 : 400;
+            setTimeout(() => {
+                const response = this.puzzleSolution[this.puzzleCursor];
+                if (response) {
+                    const from = typeof this.#squareToIndex === 'function' ? this.#squareToIndex(response.substring(0, 2)) : response.substring(0, 2);
+                    const to = typeof this.#squareToIndex === 'function' ? this.#squareToIndex(response.substring(2, 4)) : response.substring(2, 4);
+                    const prm = response.length > 4 ? response.substring(4, 5) : undefined;
+                    const botRes = this.makeMove({ from, to }, prm, false, null, false, true);
+                    if (this.#ui && botRes) {
+                        if (typeof this.#ui.renderBoard === 'function') this.#ui.renderBoard(true); 
+                        if (typeof this.#ui.renderHeaders === 'function') this.#ui.renderHeaders();
+                    }
+                }
+            }, delay);
+        }
+    }
+
+    if (!muteEngine && window.engineAnalysing && window.sfWorker && !isBotTurn) {
+        if (this._engineRebootTimeout) clearTimeout(this._engineRebootTimeout);
+        this._engineRebootTimeout = setTimeout(() => { if (typeof this.updateStockfish === 'function') this.updateStockfish(); }, 200);
+    }
+
+    fireSound(); 
+    return result;
+}
 generateChess960FEN() {
         let pieces = Array(8).fill('');
         
@@ -6684,8 +6659,10 @@ startLocalGame(startFen = null) {
         
         const resignBtn = document.getElementById('resignBtn');
         const drawBtn = document.getElementById('drawBtn');
+        const rematchBtn = document.getElementById('rematchBtn');
         if (resignBtn) resignBtn.style.display = 'block';
         if (drawBtn) drawBtn.style.display = 'block';
+        if (rematchBtn) rematchBtn.style.display = 'none';
         
         console.log(`💾 Forcing base state save post-initialization...`);
         this.#saveState('play');
@@ -6844,8 +6821,10 @@ startBotGame(level, colorPreference, startFen = null) {
         if (typeof this.#startTimer === 'function') this.#startTimer();
         const resignBtn = document.getElementById('resignBtn');
         const drawBtn = document.getElementById('drawBtn');
+        const rematchBtn = document.getElementById('rematchBtn');
         if (resignBtn) resignBtn.style.display = 'block';
         if (drawBtn) drawBtn.style.display = 'block';
+        if (rematchBtn) rematchBtn.style.display = 'none';
         this.#saveState('play');
     }
 startChess960Game(targetMode = 'local', level = 8, colorPref = 'w') {
