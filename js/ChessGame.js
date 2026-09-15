@@ -6508,7 +6508,12 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         if (this._engineRebootTimeout) clearTimeout(this._engineRebootTimeout);
         this._engineRebootTimeout = setTimeout(() => { if (typeof this.updateStockfish === 'function') this.updateStockfish(); }, 200);
     }
-
+    const isLiveOrPuzzle = this.isPlayingLiveGame || (this.mode === 'puzzle' && !this.gameOver);
+        if (isLiveOrPuzzle && !isBotTurn && this.premoveQueue && this.premoveQueue.length > 0) {
+            setTimeout(() => {
+                if (typeof this.attemptPremove === 'function') this.attemptPremove();
+            }, 50);
+        }
     fireSound(); 
     return result;
 }

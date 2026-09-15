@@ -2775,10 +2775,18 @@ finishDrag(e) {
                         moveMade = true;
                         this.renderBoard(false);
                     } else {
-                        let move = this.legalMoves.find(m => m.to === dropIdx);
+                        let currentLegalMoves = this.#game ? this.#game.getLegalMoves(this.dragData.fromIdx) : this.legalMoves;
+                        let move = currentLegalMoves.find(m => m.to === dropIdx);
                         if (!move) {
-                            const castleMove = this.resolveCastlingIntent(this.dragData.fromIdx, dropIdx);
-                            if (castleMove) move = castleMove;
+                            const targetSq = state.board[dropIdx];
+                            if (pType === 'k' && targetSq && targetSq.type === 'r' && targetSq.color === pColor) {
+                                const fromFile = this.dragData.fromIdx & 7;
+                                const toFile = dropIdx & 7;
+                                move = currentLegalMoves.find(m => {
+                                    if (toFile > fromFile) return m.san.startsWith('O-O') && !m.san.startsWith('O-O-O'); 
+                                    return m.san.startsWith('O-O-O'); 
+                                });
+                            }
                         }
                         if (move) {
                             this.executeMove(move, false);
@@ -3200,7 +3208,64 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 }
             }
         }
+        let visualBoard;
+        const currentFen = this.#game && this.#game.currentNode ? this.#game.currentNode.fen : '';
+        
+        if (currentFen.includes('~')) {
+            visualBoard = new Array(64).fill(null);
+            let validPieces = state.board.filter(p => p && p.type !== '~');
+            
+            let fenRanks = currentFen.split(' ')[0];
+            let logicalIndex = 0;
+            let pieceCursor = 0;
+            
+            for (let i = 0; i < fenRanks.length; i++) {
+                let char = fenRanks[i];
+                if (char === '/') continue;
+                
+                if (/\d/.test(char)) { 
+                    let empties = parseInt(char, 10);
+                    for (let e = 0; e < empties; e++) {
+                        visualBoard[logicalIndex] = null;
+                        logicalIndex++;
+                    }
+                } else if (char === '~') { 
+                    let prevSq = logicalIndex - 1;
+                    if (visualBoard[prevSq] && state.gameMode === 'alice') {
+                        visualBoard[prevSq].isBoardB = true;
+                    }
+                } else { 
+                    if (pieceCursor < validPieces.length) {
+                        visualBoard[logicalIndex] = { ...validPieces[pieceCursor] };
+                        pieceCursor++;
+                    }
+                    logicalIndex++; 
+                }
+            }
+        } else {
+            visualBoard = [...state.board];
+        }
+        if (state.premoves && state.premoves.length > 0) {
+            for (let pm of state.premoves) {
+                if (pm.from !== '@' && visualBoard[pm.from]) {
+                    let p = visualBoard[pm.from];
+                    visualBoard[pm.to] = { ...p, idx: pm.to };
+                    visualBoard[pm.from] = null;
+                    if (pm.promotion) {
+                        visualBoard[pm.to].type = pm.promotion;
+                    }
+                } else if (pm.drop) {
+                    visualBoard[pm.to] = { type: pm.drop, color: pm.color, id: 'pm_' + pm.to, idx: pm.to };
+                }
+            }
+        }
 
+        if (this.duckPlacementMoves && this.pendingDuckMove) {
+            const fromIdx = this.pendingDuckMove.from; const toIdx = this.pendingDuckMove.to;
+            if (fromIdx >= 0 && fromIdx < 64 && toIdx >= 0 && toIdx < 64) {
+                visualBoard[toIdx] = visualBoard[fromIdx]; visualBoard[fromIdx] = null;
+            }
+        }
         for (let v = 0; v < 64; v++) {
             let r_vis = v >> 3; 
             let c_vis = v & 7;
@@ -3437,7 +3502,36 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 }
                 continue; 
             }
-            if (this.selectedSq != null && this.legalMoves) {
+            let isPremoveSelection = false;
+            if (this.selectedSq != null && state.mode !== 'editor') {
+                const selPiece = visualBoard[this.selectedSq];
+                if (selPiece && selPiece.color !== state.turn) {
+                    isPremoveSelection = true;
+                }
+            }
+
+            if (isPremoveSelection) {
+                if (this.selectedSq !== logical_i) {
+                    sq.onmousedown = (e) => {
+                        if (e.button !== 0) return;
+                        if (this.moveInputMode === 'drag') return;
+                        e.stopPropagation();
+                        
+                        const selPiece = visualBoard[this.selectedSq];
+                        const toRow = Math.floor(logical_i / 8);
+                        let promo = undefined;
+                        if (selPiece.type === 'p') {
+                            if ((selPiece.color === 'w' && toRow === 0) || (selPiece.color === 'b' && toRow === 7)) {
+                                promo = document.getElementById('autoQueen')?.checked ? 'q' : 'q';
+                            }
+                        }
+                        const moveObj = { from: this.selectedSq, to: logical_i, color: selPiece.color, piece: selPiece.type, promotion: promo };
+                        if (this.#game) this.#game.addPremove(moveObj);
+                        this.selectedSq = null;
+                        this.renderBoard(false);
+                    };
+                }
+            } else if (this.selectedSq != null && this.legalMoves) {
                 let move = this.legalMoves.find(m => m.to === logical_i);
                 if (!move && typeof this.resolveCastlingIntent === 'function') {
                     const castleMove = this.resolveCastlingIntent(this.selectedSq, logical_i);
@@ -3446,11 +3540,11 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 if (move) {
                     sq.classList.add('valid-move');
                     
-                    const selPiece = state.board[this.selectedSq];
+                    const selPiece = visualBoard[this.selectedSq];
                     if (selPiece) sq.classList.add(selPiece.color === 'w' ? 'dest-w' : 'dest-b');
                     
                     let hint = document.createElement('div');
-                    hint.className = state.board[logical_i] ? 'hint-capture' : 'hint-dot';
+                    hint.className = visualBoard[logical_i] ? 'hint-capture' : 'hint-dot';
                     sq.appendChild(hint);
                     sq.onmousedown = (e) => {
                         if (e.button !== 0) return;
@@ -3477,51 +3571,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         }
 
         if (this.coordsPosition === 'outside' && typeof this.renderExternalCoords === 'function') this.renderExternalCoords();
-        
-        let visualBoard;
-        const currentFen = this.#game && this.#game.currentNode ? this.#game.currentNode.fen : '';
-        
-        if (currentFen.includes('~')) {
-            visualBoard = new Array(64).fill(null);
-            let validPieces = state.board.filter(p => p && p.type !== '~');
-            
-            let fenRanks = currentFen.split(' ')[0];
-            let logicalIndex = 0;
-            let pieceCursor = 0;
-            
-            for (let i = 0; i < fenRanks.length; i++) {
-                let char = fenRanks[i];
-                if (char === '/') continue;
-                
-                if (/\d/.test(char)) { 
-                    let empties = parseInt(char, 10);
-                    for (let e = 0; e < empties; e++) {
-                        visualBoard[logicalIndex] = null;
-                        logicalIndex++;
-                    }
-                } else if (char === '~') { 
-                    let prevSq = logicalIndex - 1;
-                    if (visualBoard[prevSq] && state.gameMode === 'alice') {
-                        visualBoard[prevSq].isBoardB = true;
-                    }
-                } else { 
-                    if (pieceCursor < validPieces.length) {
-                        visualBoard[logicalIndex] = { ...validPieces[pieceCursor] };
-                        pieceCursor++;
-                    }
-                    logicalIndex++; 
-                }
-            }
-        } else {
-            visualBoard = [...state.board];
-        }
-
-        if (this.duckPlacementMoves && this.pendingDuckMove) {
-            const fromIdx = this.pendingDuckMove.from; const toIdx = this.pendingDuckMove.to;
-            if (fromIdx >= 0 && fromIdx < 64 && toIdx >= 0 && toIdx < 64) {
-                visualBoard[toIdx] = visualBoard[fromIdx]; visualBoard[fromIdx] = null;
-            }
-        }
         
         const piecesMap = new Map();
         for (let i = 0; i < 64; i++) {
@@ -3625,14 +3674,19 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 }
             }
 
+            let finalClasses = `piece ${colorClass} ${typeClass}`;
+            if (this.dragData && !this.dragData.isSpare && this.dragData.piece && this.dragData.piece.id === id) {
+                finalClasses += ' dragging-source';
+            }
+
             if (!el) {
                 el = document.createElement('div');
-                el.className = `piece ${colorClass} ${typeClass}`; 
+                el.className = finalClasses; 
                 el.dataset.id = id; el.innerHTML = htmlBuffer;
                 this.piecesLayer.appendChild(el);
                 isNew = true;
             } else {
-                el.className = `piece ${colorClass} ${typeClass}`; 
+                el.className = finalClasses; 
                 if (el.innerHTML !== htmlBuffer) el.innerHTML = htmlBuffer;
             }
 

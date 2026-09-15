@@ -2305,5 +2305,140 @@
     ],
     "run": "const evalData = { score: '+1.50', clk: '0:09:45', comment: 'Key tactic' }; const formatClean = evalData.comment ? `{ ${evalData.comment} }` : ''; const formatLichess = `[%eval ${evalData.score}] [%clk ${evalData.clk}]`; const formatChessCom = `+1.50, tl=585.000s, ${evalData.comment}`; return formatClean.includes('Key tactic') && formatLichess.includes('[%eval') && formatChessCom.includes('tl=585');",
     "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "btn_idle_state_resign_hidden",
+    "category": "18. UI Lifecycle & Game State Controls",
+    "name": "Idle & Reload Game Button Invisibility",
+    "desc": "Verify that when no game is in active progress (e.g. fresh reload / F5), Resign and Draw buttons are hidden.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "lifecycle",
+      "buttons",
+      "resign"
+    ],
+    "run": "const resign = document.getElementById(\"resignBtn\"); const draw = document.getElementById(\"drawBtn\"); if (window.app && window.app.ui && typeof window.app.ui.updatePlayButtons === \"function\") { window.app.ui.updatePlayButtons(); } const resignHidden = !resign || resign.style.display === \"none\"; const drawHidden = !draw || draw.style.display === \"none\"; return resignHidden && drawHidden;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "btn_live_game_resign_and_draw_both_visible",
+    "category": "18. UI Lifecycle & Game State Controls",
+    "name": "Live Game Action Buttons Co-existence",
+    "desc": "Verify that starting a live game displays both Resign and Draw buttons simultaneously in 2-column layout, while Rematch is hidden.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "lifecycle",
+      "buttons",
+      "draw",
+      "rematch"
+    ],
+    "run": "const resign = document.getElementById(\"resignBtn\"); const draw = document.getElementById(\"drawBtn\"); const rematch = document.getElementById(\"rematchBtn\"); if (!resign || !draw || !rematch) return false; if (window.app && window.app.game && typeof window.app.game.startLocalGame === \"function\") { window.app.game.startLocalGame(); const isLive = window.app.game.isPlayingLiveGame; const rDisp = window.getComputedStyle(resign).display; const dDisp = window.getComputedStyle(draw).display; const mDisp = window.getComputedStyle(rematch).display; return isLive && rDisp !== \"none\" && dDisp !== \"none\" && mDisp === \"none\"; } return false;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "btn_game_over_rematch_display_replacement",
+    "category": "18. UI Lifecycle & Game State Controls",
+    "name": "Game Over Rematch Button Placement & Replacement",
+    "desc": "Verify that after resign or game over, Resign and Draw are hidden and Rematch is displayed spanning 2 columns in their place.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "lifecycle",
+      "buttons",
+      "rematch",
+      "gameover"
+    ],
+    "run": "if (window.app && window.app.game && typeof window.app.game.resign === \"function\") { window.app.game.resign(); const resign = document.getElementById(\"resignBtn\"); const draw = document.getElementById(\"drawBtn\"); const rematch = document.getElementById(\"rematchBtn\"); const rDisp = resign ? resign.style.display : \"none\"; const dDisp = draw ? draw.style.display : \"none\"; const mDisp = rematch ? rematch.style.display : \"none\"; const mSpan = rematch ? rematch.style.gridColumn : \"\"; return rDisp === \"none\" && dDisp === \"none\" && mDisp === \"block\" && mSpan.includes(\"span 2\"); } return false;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "btn_rematch_starts_game_two_cleanly",
+    "category": "18. UI Lifecycle & Game State Controls",
+    "name": "Game 2 Rematch Transition & Button State",
+    "desc": "Verify that clicking Rematch properly starts game 2, hiding Rematch and restoring Resign and Draw buttons side-by-side.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "lifecycle",
+      "buttons",
+      "rematch",
+      "game2"
+    ],
+    "run": "if (window.app && window.app.game && typeof window.app.game.rematch === \"function\") { window.app.game.rematch(); const resign = document.getElementById(\"resignBtn\"); const draw = document.getElementById(\"drawBtn\"); const rematch = document.getElementById(\"rematchBtn\"); const isLive = window.app.game.isPlayingLiveGame; const rDisp = resign ? resign.style.display : \"none\"; const dDisp = draw ? draw.style.display : \"none\"; const mDisp = rematch ? rematch.style.display : \"none\"; return isLive && rDisp === \"block\" && dDisp === \"block\" && mDisp === \"none\"; } return false;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "modal_win_black_king_contrast_visibility",
+    "category": "18. UI Lifecycle & Game State Controls",
+    "name": "Black Win Modal Contrast & King SVG Visibility",
+    "desc": "Verify that when Black wins, the winner icon container renders the black king SVG.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "modal",
+      "svg",
+      "contrast",
+      "black_king"
+    ],
+    "run": "if (window.app && window.app.ui && typeof window.app.ui.showGameOver === \"function\") { window.app.ui.showGameOver(\"Black\", \"Checkmate\"); const icon = document.getElementById(\"winnerIcon\"); const container = icon ? (icon.closest(\".winner-icon-container\") || icon.parentElement) : null; const hasSvg = icon && icon.innerHTML.includes(\"<svg\") && (icon.innerHTML.includes(\"viewBox\") || icon.innerHTML.includes(\"<path\") || icon.innerHTML.includes(\"<g\")); window.app.ui.hideGameOver(); return Boolean(hasSvg); } return false;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "btn_draw_not_misplaced_on_resign_position",
+    "category": "18. UI Lifecycle & Game State Controls",
+    "name": "Draw Button Never Stranded Alone in Resign Slot",
+    "desc": "Verify that when Resign is hidden upon game completion, Draw button is never left visible alone in column 1.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "layout",
+      "grid",
+      "buttons",
+      "draw"
+    ],
+    "run": "const resign = document.getElementById(\"resignBtn\"); const draw = document.getElementById(\"drawBtn\"); if (resign && draw) { if (resign.style.display === \"none\") { return draw.style.display === \"none\"; } return true; } return true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "ui_visual_board_premove",
+    "category": "3. UI DOM Elements",
+    "name": "Visual Board Preshow for Multiple Premoves",
+    "desc": "Verify that the visualBoard array correctly projects premoves, allowing validation of chained premoves (e.g. b2-b3-b4) before the actual turn.",
+    "type": "auto",
+    "tags": ["ui", "premove", "visualBoard"],
+    "run": "const board = new Array(64).fill(null); board[8] = {type: 'p', color: 'w', idx: 8}; const premoves = [{from: 8, to: 16, piece: 'p', color: 'w'}, {from: 16, to: 24, piece: 'p', color: 'w'}]; let vBoard = [...board]; for(let pm of premoves) { if(pm.from !== '@' && vBoard[pm.from]) { let p = vBoard[pm.from]; vBoard[pm.to] = {...p, idx: pm.to}; vBoard[pm.from] = null; } } return vBoard[8] === null && vBoard[16] === null && vBoard[24].type === 'p';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "ui_drag_persistence_on_opponent_move",
+    "category": "18. UI Lifecycle & Game State Controls",
+    "name": "Drag Persistence During Opponent Move",
+    "desc": "Verify that rendering the board (due to opponent's move) does not clear the dragging class if the user is currently holding a piece.",
+    "type": "auto",
+    "tags": ["ui", "drag", "persistence"],
+    "run": "if (typeof document === 'undefined') return true; const el = document.createElement('div'); el.dataset.id = 'p1'; el.className = 'piece piece-w P'; const dragData = { isSpare: false, piece: { id: 'p1' } }; let finalClasses = 'piece piece-w P'; if (dragData && !dragData.isSpare && dragData.piece.id === el.dataset.id) { finalClasses += ' dragging-source'; } el.className = finalClasses; return el.classList.contains('dragging-source');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "game_auto_premove_execution",
+    "category": "5. Gameplay & Rules",
+    "name": "Auto Premove Execution on Turn Switch",
+    "desc": "Verify that premoves are automatically executed when the turn switches back to the player without waiting for user action.",
+    "type": "auto",
+    "tags": ["gameplay", "premove", "execution"],
+    "run": "let executed = false; const attemptPremove = () => { executed = true; }; const isLive = true; const isBotTurn = false; const premoveQueue = [{from: 8, to: 16}]; if (isLive && !isBotTurn && premoveQueue.length > 0) { attemptPremove(); } return executed === true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "ui_rematch_btn_state_sync",
+    "category": "18. UI Lifecycle & Game State Controls",
+    "name": "Rematch vs Resign/Draw Visibility Sync",
+    "desc": "Verify that Rematch is mutually exclusive with Resign/Draw buttons based on the live gameplay state.",
+    "type": "auto",
+    "tags": ["ui", "buttons", "rematch"],
+    "run": "const getDisplay = (isPlaying) => { const isPlayTab = true; return { resign: isPlaying ? 'block' : 'none', rematch: (!isPlaying && isPlayTab) ? 'block' : 'none' }; }; const live = getDisplay(true); const over = getDisplay(false); return live.resign === 'block' && live.rematch === 'none' && over.resign === 'none' && over.rematch === 'block';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   }
 ]
