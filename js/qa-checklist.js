@@ -1,8 +1,6 @@
 /**
- * Chess Offline Private - QA Test Suite Runner (v2.0)
+ * Chess Offline Private - QA Test Runner (v2.0)
  * Replaces or upgrades js/qa-checklist.js
- * Supports 150 functional tests across all 14 categories:
- * UI, Stockfish Engine, Fairy Variants, YOLO Model, Audio Synth, Charts & Puzzles.
  */
 
 // Global Offline Reference Simulator
@@ -327,7 +325,7 @@ class QATrackerV2 {
     `;
     const toggleBtn = document.createElement('button');
     toggleBtn.id = 'qaToggleBtn';
-    toggleBtn.innerHTML = `🧪 QA Test Suite (${this.tests.length})`;
+    toggleBtn.innerHTML = `🧪 QA Test(${this.tests.length})`;
     toggleBtn.style.cssText = `display: none !important;`;
 
     const panel = document.createElement('div');
@@ -385,7 +383,7 @@ class QATrackerV2 {
       this.renderRows();
     };
 
-    const cats = Array.from(new Set(this.tests.map(t => t.category))).sort();
+    const cats = Array.from(new Set(this.tests.map(t => t.category))).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
     const catSelect = document.getElementById('qaCatSelect');
     cats.forEach(c => {
       catSelect.innerHTML += `<option value="${c}">${c}</option>`;
