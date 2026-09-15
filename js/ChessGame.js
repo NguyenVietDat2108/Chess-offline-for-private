@@ -6263,28 +6263,20 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
                 batchObj.duck_sq = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
             }
 
-            const originalError = console.error;
-            console.error = () => {};
-
             let result = null;
             try {
                 result = this.#engine.move(batchObj);
             } catch(e) {
                 result = null;
             }
-
-            console.error = originalError;
-            
             if (!result) return null;
             
             const newFen = this.#engine.fen();
-            
             let finalSan = pgnText || result.san;
 
             if (move.isSpell) {
                 let targetStr = typeof move.target === 'number' ? this.#indexToSquare(move.target) : move.target;
                 move.spellSan = `${move.spellType === 'freeze' ? 'Fz' : 'Jp'}@${targetStr}`;
-                
                 if (!finalSan.startsWith('Fz@') && !finalSan.startsWith('Jp@')) {
                     finalSan = `${move.spellSan} ${finalSan}`;
                 }
@@ -6331,9 +6323,6 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             moveObj.duck_sq = typeof move.duck_sq === 'number' ? this.#indexToSquare(move.duck_sq) : move.duck_sq;
         }
 
-        const originalError = console.error;
-        console.error = () => {};
-
         let result = null;
         try {
             result = this.#engine.move(moveObj, !!moveObj.isSpell);
@@ -6352,8 +6341,6 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
             const rawUci = moveObj.from + moveObj.to + (promotion || '');
             try { result = this.#engine.move(rawUci, { sloppy: true }); } catch(e) {}
         }
-
-        console.error = originalError;
 
         if (!result) {
             console.error(`[MAKE MOVE] Engine completely rejected move!`, moveObj, move);
