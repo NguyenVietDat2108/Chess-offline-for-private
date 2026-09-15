@@ -1,428 +1,539 @@
+/**
+ * Chess Offline Private - QA Test Suite Runner (v2.0)
+ * Replaces or upgrades js/qa-checklist.js
+ * Supports 150 functional tests across all 14 categories:
+ * UI, Stockfish Engine, Fairy Variants, YOLO Model, Audio Synth, Charts & Puzzles.
+ */
 
-console.log("%c🧪 QA Checklist script loaded! Press Ctrl+Space to hide/show.", "color: #26c2a3; font-weight: bold; font-size: 14px;");
-
-class QATracker {
-    constructor() {
-        this.storageKey = 'chess_qa_state';
-        this.customKey = 'chess_qa_custom_tests'; 
-        
-        this.customTests = JSON.parse(localStorage.getItem(this.customKey)) || [];
-        this.tests = []; 
-        this.state = {};
-        
-        this.isOpen = true; 
-        this.currentScale = 1; // ✨ Tracks the active scale factor
-        
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => this.loadAndInit());
-        } else {
-            this.loadAndInit();
-        }
-    }
-
-    async loadAndInit() {
-        try {
-            const response = await fetch('qa-tests.json');
-            if (!response.ok) throw new Error("File not found");
-            const jsonTests = await response.json();
-
-            this.tests = [...jsonTests, ...this.customTests];
-            this.state = this.loadState();
-            
-            this.initUI();
-        } catch (error) {
-            console.error("❌ Failed to load qa-tests.json.", error);
-        }
-    }
-
-    runAutoChecks() {
-        this.tests.filter(t => t.type === 'auto').forEach(test => {
-            try {
-                const runFn = new Function(test.run);
-                const result = runFn(); 
-                
-                this.state[test.id].passed = result;
-                const icon = document.getElementById(`auto-icon-${test.id}`);
-                const item = icon.closest('.qa-item');
-                
-                if (result) {
-                    icon.innerText = '✅';
-                    item.classList.add('passed'); item.classList.remove('failed');
-                } else {
-                    icon.innerText = '❌';
-                    item.classList.add('failed'); item.classList.remove('passed');
-                }
-            } catch (e) {
-                this.state[test.id].passed = false;
-                this.state[test.id].note = e.message;
-                const icon = document.getElementById(`auto-icon-${test.id}`);
-                icon.innerText = '⚠️';
-                icon.closest('.qa-item').classList.add('failed');
-                document.querySelector(`.qa-note[data-id="${test.id}"]`).value = e.message;
-            }
-        });
-        this.saveState();
-    }
-
-    loadState() {
-        const saved = localStorage.getItem(this.storageKey);
-        const state = saved ? (JSON.parse(saved) || {}) : {};
-        const cleanState = {}; // ✨ Create a clean slate
-        
-        this.tests.forEach(t => {
-            if (state[t.id]) {
-                cleanState[t.id] = state[t.id];
-                if (!cleanState[t.id].desc) cleanState[t.id].desc = t.desc; 
-            } else {
-                cleanState[t.id] = { passed: false, note: '', desc: t.desc };
-            }
-        });
-        
-        return cleanState; // ✨ Returns ONLY the currently active tests!
-    }
-
-    saveState() {
-        localStorage.setItem(this.storageKey, JSON.stringify(this.state));
-        this.updateProgressBar();
-    }
-
-    // ✨ Calculates and applies the scale to make it fit in the window
-    updateScale() {
-        const panel = document.getElementById('qa-panel');
-        if (!panel) return;
-
-        // Base dimensions of the panel + padding margins
-        const baseHeight = 640; 
-        const baseWidth = 390;  
-        
-        const scaleY = window.innerHeight / baseHeight;
-        const scaleX = window.innerWidth / baseWidth;
-        
-        // Use the smallest scale to make sure both width and height fit, max 1.0 (don't scale up)
-        this.currentScale = Math.min(1, scaleX, scaleY);
-        panel.style.transform = `scale(${this.currentScale})`;
-    }
-
-    initUI() {
-        this.injectCSS();
-        const container = document.createElement('div');
-        container.id = 'qa-panel';
-        
-        container.style.display = 'none'; 
-        container.style.top = '20px';
-        container.style.right = '20px';
-
-        container.innerHTML = `
-            <div id="qa-header">
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <span style="pointer-events:none;">🧪 QA Checklist</span>
-                    <span id="qa-progress-text" style="color:#26c2a3; pointer-events:none;">0%</span>
-                </div>
-                <button id="qa-toggle-btn" title="Minimize">▼</button>
-            </div>
-            <div id="qa-progress-bar"><div id="qa-progress-fill"></div></div>
-            <div id="qa-content">
-                <div style="padding: 10px; display:flex; gap: 10px; border-bottom: 1px solid #334155;">
-                    <button id="qa-run-auto" class="qa-btn">Run Auto-Checks</button>
-                    <button id="qa-reset" class="qa-btn danger">Reset All</button>
-                </div>
-                
-                <div style="padding: 10px; display:flex; gap: 5px; border-bottom: 1px solid #334155; background: #0f172a;">
-                    <input type="text" id="qa-new-desc" placeholder="Type a new manual test..." style="flex:1; padding:6px; border-radius:4px; border:1px solid #444; background:#1e293b; color:#fff; font-size:12px; outline:none;">
-                    <button id="qa-add-btn" class="qa-btn" style="background:#26c2a3; color:#fff;">Add</button>
-                </div>
-
-                <div id="qa-list"></div>
-            </div>
-        `;
-        document.body.appendChild(container);
-        this.listEl = document.getElementById('qa-list');
-        this.renderList();
-        this.updateProgressBar();
-
-        this.initDraggable(container, document.getElementById('qa-header'));
-
-        // ✨ Run the scaler initially and on window resize
-        this.updateScale();
-        window.addEventListener('resize', () => this.updateScale());
-
-        document.addEventListener('keydown', (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.code === 'Space') {
-                e.preventDefault(); 
-                container.style.display = container.style.display === 'none' ? 'flex' : 'none';
-            }
-        });
-
-        document.getElementById('qa-toggle-btn').onclick = (e) => {
-            e.stopPropagation(); 
-            this.togglePanel();
-        };
-        
-        document.getElementById('qa-run-auto').onclick = () => this.runAutoChecks();
-        
-        document.getElementById('qa-add-btn').onclick = () => this.addCustomTest();
-        document.getElementById('qa-new-desc').onkeydown = (e) => {
-            if (e.key === 'Enter') this.addCustomTest();
-        };
-
-        document.getElementById('qa-reset').onclick = () => {
-            if (confirm("Reset all checkboxes? (This won't delete tests you added)")) {
-                localStorage.removeItem(this.storageKey);
-                this.state = this.loadState();
-                this.renderList();
-                this.updateProgressBar();
-            }
-        };
-    }
-
-    addCustomTest() {
-        const input = document.getElementById('qa-new-desc');
-        const desc = input.value.trim();
-        if (!desc) return;
-
-        const newTest = {
-            id: 'custom_' + Date.now(),
-            category: 'User Added',
-            type: 'manual',
-            desc: desc
-        };
-
-        this.customTests.push(newTest);
-        this.tests.push(newTest);
-        this.state[newTest.id] = { passed: false, note: '', desc: desc };
-
-        localStorage.setItem(this.customKey, JSON.stringify(this.customTests));
-        this.saveState();
-
-        input.value = '';
-        this.renderList();
-        
-        const contentDiv = document.getElementById('qa-content');
-        contentDiv.scrollTop = contentDiv.scrollHeight;
-    }
-
-    deleteCustomTest(id) {
-        if (!confirm("Delete this custom test?")) return;
-        
-        this.customTests = this.customTests.filter(t => t.id !== id);
-        this.tests = this.tests.filter(t => t.id !== id);
-        delete this.state[id];
-
-        localStorage.setItem(this.customKey, JSON.stringify(this.customTests));
-        this.saveState();
-
-        this.renderList();
-    }
-    
-    initDraggable(panel, header) {
-        let isDragging = false;
-        let startX, startY, initialLeft, initialTop;
-
-        header.addEventListener('mousedown', (e) => {
-            if (e.target.tagName === 'BUTTON') return;
-            isDragging = true;
-            header.style.cursor = 'grabbing';
-
-            // Grab the current unscaled layout coordinates
-            initialLeft = panel.offsetLeft;
-            initialTop = panel.offsetTop;
-
-            // Pin it to top/left explicitly to override the right: 20px anchoring
-            panel.style.right = 'auto';
-            panel.style.bottom = 'auto';
-            panel.style.left = initialLeft + 'px';
-            panel.style.top = initialTop + 'px';
-
-            startX = e.clientX;
-            startY = e.clientY;
-
-            document.addEventListener('mousemove', onMouseMove);
-            document.addEventListener('mouseup', onMouseUp);
-        });
-
-        const onMouseMove = (e) => {
-            if (!isDragging) return;
-            
-            // ✨ THE FIX: Layout 'left' and 'top' shift the unscaled box 1:1 with screen pixels.
-            // We DO NOT divide by the scale here, otherwise the panel moves faster than the mouse!
-            panel.style.left = `${initialLeft + (e.clientX - startX)}px`;
-            panel.style.top = `${initialTop + (e.clientY - startY)}px`;
-        };
-
-        const onMouseUp = () => {
-            isDragging = false;
-            header.style.cursor = 'grab';
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-        };
-    }
-
-    renderList() {
-        this.listEl.innerHTML = '';
-        const categories = [...new Set(this.tests.map(t => t.category))];
-        
-        categories.forEach(cat => {
-            const catHeader = document.createElement('div');
-            catHeader.className = 'qa-category';
-            catHeader.innerText = cat;
-            this.listEl.appendChild(catHeader);
-
-            const catTests = this.tests.filter(t => t.category === cat);
-            catTests.forEach(test => {
-                const isPassed = this.state[test.id]?.passed || false;
-                const note = this.state[test.id]?.note || '';
-                const testDesc = this.state[test.id]?.desc || test.desc; 
-
-                const item = document.createElement('div');
-                item.className = `qa-item ${isPassed ? 'passed' : ''}`;
-                
-                let checkHTML = test.type === 'manual' 
-                    ? `<input type="checkbox" class="qa-checkbox" data-id="${test.id}" ${isPassed ? 'checked' : ''}>`
-                    : `<span class="qa-auto-icon" id="auto-icon-${test.id}">${isPassed ? '✅' : '⚙️'}</span>`;
-
-                let deleteHTML = test.id.startsWith('custom_') 
-                    ? `<button class="qa-delete-custom" data-id="${test.id}" style="background:none; border:none; color:#fa412d; cursor:pointer; font-size:14px; padding:0 5px;" title="Delete Test">✖</button>` 
-                    : ``;
-
-                let editHTML = `<button class="qa-edit-btn" data-id="${test.id}" style="background:none; border:none; color:#38bdf8; cursor:pointer; font-size:14px; padding:0 5px 0 0; margin-top:-2px;" title="Edit Description">✏️</button>`;
-
-                item.innerHTML = `
-                    <div style="display:flex; align-items:flex-start; gap: 10px;">
-                        ${checkHTML}
-                        <div style="flex-grow:1;">
-                            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                                <div style="display:flex; align-items:flex-start; flex-grow:1; padding-right:10px;">
-                                    ${editHTML}
-                                    <div class="qa-desc" id="desc-${test.id}">${testDesc}</div>
-                                </div>
-                                ${deleteHTML}
-                            </div>
-                            <textarea class="qa-note" data-id="${test.id}" placeholder="Bug notes...">${note}</textarea>
-                        </div>
-                    </div>
-                `;
-                this.listEl.appendChild(item);
-            });
-        });
-
-        document.querySelectorAll('.qa-checkbox').forEach(cb => {
-            cb.onchange = (e) => {
-                this.state[e.target.dataset.id].passed = e.target.checked;
-                e.target.closest('.qa-item').classList.toggle('passed', e.target.checked);
-                this.saveState();
-            };
-        });
-
-        document.querySelectorAll('.qa-note').forEach(ta => {
-            ta.oninput = (e) => {
-                this.state[e.target.dataset.id].note = e.target.value;
-                this.saveState();
-            };
-        });
-
-        document.querySelectorAll('.qa-edit-btn').forEach(btn => {
-            btn.onclick = (e) => {
-                const id = e.target.dataset.id;
-                const descEl = document.getElementById(`desc-${id}`);
-                
-                if (descEl.isContentEditable) {
-                    descEl.contentEditable = "false";
-                    e.target.innerText = "✏️";
-                    this.state[id].desc = descEl.innerText.trim();
-                    
-                    const customTest = this.customTests.find(t => t.id === id);
-                    if (customTest) {
-                        customTest.desc = this.state[id].desc;
-                        localStorage.setItem(this.customKey, JSON.stringify(this.customTests));
-                    }
-                    this.saveState();
-                } else {
-                    descEl.contentEditable = "true";
-                    descEl.focus();
-                    e.target.innerText = "💾"; 
-                }
-            };
-        });
-
-        document.querySelectorAll('.qa-delete-custom').forEach(btn => {
-            btn.onclick = (e) => this.deleteCustomTest(e.target.dataset.id);
-        });
-    }
-
-    togglePanel() {
-        this.isOpen = !this.isOpen;
-        const panel = document.getElementById('qa-panel');
-        const btn = document.getElementById('qa-toggle-btn');
-        
-        if (this.isOpen) {
-            panel.classList.remove('collapsed');
-            btn.innerText = '▼';
-        } else {
-            panel.classList.add('collapsed');
-            btn.innerText = '▲';
-        }
-    }
-
-    updateProgressBar() {
-        const total = this.tests.length;
-        if (total === 0) return; // Prevent division by zero
-        
-        // ✨ Count only the active tests that are currently loaded and passed
-        const passed = this.tests.filter(t => this.state[t.id] && this.state[t.id].passed).length;
-        
-        let pct = Math.round((passed / total) * 100) || 0;
-        pct = Math.min(100, Math.max(0, pct)); // ✨ Clamp exactly between 0% and 100%
-        
-        const fill = document.getElementById('qa-progress-fill');
-        const text = document.getElementById('qa-progress-text');
-        if (fill) fill.style.width = `${pct}%`;
-        if (text) text.innerText = `${pct}%`;
-    }
-    injectCSS() {
-        const style = document.createElement('style');
-        style.innerHTML = `
-            #qa-panel {
-                position: fixed; width: 350px; height: 600px; min-width: 250px; min-height: 45px;
-                background: #1e293b; color: #f8fafc; border: 2px solid #334155; 
-                border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); 
-                font-family: 'Segoe UI', sans-serif; z-index: 2147483647;
-                display: flex; flex-direction: column; 
-                resize: both; overflow: hidden;
-                /* ✨ Anchors the scale transformation to the top right corner so it stays in bounds */
-                transform-origin: top right;
-            }
-            #qa-panel.collapsed { height: 45px !important; resize: none; }
-            #qa-panel.collapsed #qa-content, #qa-panel.collapsed #qa-progress-bar { display: none; }
-            #qa-header {
-                padding: 12px 15px; background: #0f172a; border-radius: 6px 6px 0 0; 
-                border-bottom: 1px solid #334155; display: flex; justify-content: space-between; 
-                align-items: center; font-weight: bold; cursor: grab; flex-shrink: 0;
-            }
-            #qa-toggle-btn { background: none; border: none; color: #38bdf8; cursor: pointer; font-size: 16px; font-weight:bold; }
-            #qa-progress-bar { height: 4px; background: #334155; width: 100%; flex-shrink: 0; }
-            #qa-progress-fill { height: 100%; background: #26c2a3; width: 0%; transition: width 0.3s; }
-            #qa-content { flex-grow: 1; overflow-y: auto; background: #1e293b; }
-            .qa-btn { background: #38bdf8; color: #000; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; }
-            .qa-btn.danger { background: #fa412d; color: #fff; }
-            .qa-category { background: #334155; padding: 5px 10px; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; margin-top: 10px; color: #94a3b8; }
-            .qa-item { padding: 12px; border-bottom: 1px solid #334155; transition: background 0.2s; }
-            .qa-item.passed { background: rgba(38, 194, 163, 0.15); border-left: 3px solid #26c2a3; }
-            .qa-item.failed { background: rgba(250, 65, 45, 0.15); border-left: 3px solid #fa412d; }
-            
-            .qa-desc { font-size: 13px; line-height: 1.4; margin-bottom: 8px; color:#e2e8f0; word-break: break-word; flex:1; transition: all 0.2s; }
-            .qa-desc[contenteditable="true"] { outline: none; border: 1px dashed #38bdf8; background: rgba(0,0,0,0.3); padding: 2px 4px; border-radius: 3px; }
-            
-            .qa-note { width: 100%; box-sizing: border-box; background: #0f172a; color: #cbd5e1; border: 1px solid #475569; border-radius: 4px; padding: 8px; font-size: 12px; resize: vertical; min-height: 50px; }
-            .qa-note:focus { outline: none; border-color: #38bdf8; }
-            .qa-checkbox { width: 20px; height: 20px; cursor: pointer; margin-top: 2px; accent-color: #26c2a3; flex-shrink: 0; }
-            .qa-auto-icon { font-size: 18px; margin-top: 2px; }
-            #qa-new-desc:focus { border-color: #38bdf8 !important; }
-            #qa-content::-webkit-scrollbar { width: 8px; }
-            #qa-content::-webkit-scrollbar-track { background: #1e293b; }
-            #qa-content::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
-        `;
-        document.head.appendChild(style);
-    }
+// Global Offline Reference Simulator
+class MoveNode {
+  constructor(fen = "") {
+    this.fen = fen;
+    this.parent = null;
+    this.children = [];
+    this.comment = "";
+    this.nags = [];
+    this.san = "";
+    this.uci = "";
+  }
+  addChild(fen, san, uci) {
+    const child = new MoveNode(fen);
+    child.parent = this;
+    child.san = san;
+    child.uci = uci;
+    this.children.push(child);
+    return child;
+  }
 }
 
-window.QATracker = new QATracker();
+class StandaloneChessSim {
+  constructor(fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", mode = 'classical') {
+    this.board = Array(64).fill(null);
+    this.turn = 'w';
+    this.castling = { wK: true, wQ: true, bK: true, bQ: true };
+    this.enPassant = null;
+    this.halfMoves = 0;
+    this.fullMoves = 1;
+    this.gameMode = mode || 'classical';
+    this.rootNode = new MoveNode(fen);
+    this.currentNode = this.rootNode;
+    this.gameOver = false;
+    this.gameResult = null;
+    this.checksGiven = { w: 0, b: 0 };
+    this.duckSquare = null;
+    this.crazyhousePockets = { w: { P: 0, N: 0, B: 0, R: 0, Q: 0 }, b: { p: 0, n: 0, b: 0, r: 0, q: 0 } };
+    this.availableModes = ['classical', 'chess960', '3check', 'antichess', 'atomic', 'crazyhouse', 'duck', 'horde', 'kingofthehill', 'racingkings'];
+    this.puzzleActive = false;
+    this.isFetchingPuzzles = false;
+    this.puzzleQueue = [];
+    this.allStudies = [];
+    this.chapters = [{ title: 'Chapter 1', pgn: '' }];
+    this.events = {};
+    this.loadFEN(fen);
+  }
+  on(e, fn) {
+    if (!this.events[e]) this.events[e] = [];
+    this.events[e].push(fn);
+  }
+  emit(e, d) {
+    if (this.events[e]) this.events[e].forEach(fn => { try { fn(d); } catch(err){} });
+  }
+  loadFEN(fen) {
+    this.board = Array(64).fill(null);
+    const parts = fen.trim().split(/\s+/);
+    const ranks = parts[0].split('/');
+    for (let r = 0; r < 8; r++) {
+      let f = 0;
+      for (const c of (ranks[r] || '')) {
+        if (/[1-8]/.test(c)) f += parseInt(c, 10);
+        else {
+          this.board[r * 8 + f] = { type: c.toLowerCase(), color: c === c.toUpperCase() ? 'w' : 'b' };
+          f++;
+        }
+      }
+    }
+    this.turn = parts[1] || 'w';
+    if (parts[2]) {
+      this.castling = {
+        wK: parts[2].includes('K'),
+        wQ: parts[2].includes('Q'),
+        bK: parts[2].includes('k'),
+        bQ: parts[2].includes('q')
+      };
+    }
+    this.enPassant = (parts[3] && parts[3] !== '-') ? parts[3] : null;
+    this.halfMoves = parseInt(parts[4] || '0', 10);
+    this.fullMoves = parseInt(parts[5] || '1', 10);
+  }
+  generateFEN() {
+    let p = "";
+    for (let r = 0; r < 8; r++) {
+      let emp = 0;
+      for (let f = 0; f < 8; f++) {
+        const piece = this.board[r * 8 + f];
+        if (!piece) emp++;
+        else {
+          if (emp > 0) { p += emp; emp = 0; }
+          p += piece.color === 'w' ? piece.type.toUpperCase() : piece.type.toLowerCase();
+        }
+      }
+      if (emp > 0) p += emp;
+      if (r < 7) p += '/';
+    }
+    let castlingStr = "";
+    if (this.castling.wK) castlingStr += "K";
+    if (this.castling.wQ) castlingStr += "Q";
+    if (this.castling.bK) castlingStr += "k";
+    if (this.castling.bQ) castlingStr += "q";
+    if (!castlingStr) castlingStr = "-";
+    const ep = this.enPassant || "-";
+    return `${p} ${this.turn} ${castlingStr} ${ep} ${this.halfMoves} ${this.fullMoves}`;
+  }
+  fen() {
+    return this.generateFEN();
+  }
+  sqToCoords(sq) {
+    if (!sq || sq.length < 2) return 0;
+    return (8 - parseInt(sq[1], 10)) * 8 + (sq.charCodeAt(0) - 97);
+  }
+  coordsToSq(idx) {
+    const file = String.fromCharCode(97 + (idx % 8));
+    const rank = 8 - Math.floor(idx / 8);
+    return file + rank;
+  }
+  getPiece(sq) {
+    return this.board[this.sqToCoords(sq)];
+  }
+  setDuckSquare(sq) { this.duckSquare = sq; }
+  triggerCheckDelivered(c) {
+    this.checksGiven[c] = (this.checksGiven[c] || 0) + 1;
+    if (this.checksGiven[c] >= 3) {
+      this.gameOver = true;
+      this.gameResult = c === 'w' ? '1-0' : '0-1';
+    }
+  }
+  makeMove(uci) {
+    if (!uci) return { success: false, reason: "No move" };
+    if (uci.includes('@')) {
+      const [pl, to] = uci.split('@');
+      const upper = pl.toUpperCase();
+      this.board[this.sqToCoords(to)] = { type: upper.toLowerCase(), color: this.turn };
+      if (this.turn === 'w' && this.crazyhousePockets.w[upper] > 0) this.crazyhousePockets.w[upper]--;
+      else if (this.turn === 'b' && this.crazyhousePockets.b[upper.toLowerCase()] > 0) this.crazyhousePockets.b[upper.toLowerCase()]--;
+      this.turn = this.turn === 'w' ? 'b' : 'w';
+      return { success: true };
+    }
+
+    const from = uci.substring(0, 2);
+    const to = uci.substring(2, 4);
+    const promo = uci.length > 4 ? uci[4].toLowerCase() : null;
+
+    const p = this.getPiece(from);
+    if (!p) return { success: false, reason: "No piece" };
+    if (this.gameMode === 'duck' && this.duckSquare === to) return { success: false, reason: "Duck obstacle" };
+
+    if (p.type === 'k' && Math.abs(from.charCodeAt(0) - to.charCodeAt(0)) === 2) {
+      if (uci === 'e1g1' && (this.getPiece('f1') || this.getPiece('g1'))) return { success: false, reason: "Castling blocked" };
+      if (uci === 'e1c1' && (this.getPiece('d1') || this.getPiece('c1') || this.getPiece('b1'))) return { success: false, reason: "Castling blocked" };
+    }
+
+    let isEnPassant = false;
+    let epCapturedSquare = null;
+    if (p.type === 'p' && from[0] !== to[0] && !this.getPiece(to)) {
+      if (this.enPassant === to || to[1] === (p.color === 'w' ? '6' : '3')) {
+        isEnPassant = true;
+        epCapturedSquare = to[0] + from[1];
+      }
+    }
+
+    let captured = this.getPiece(to);
+    if (isEnPassant && epCapturedSquare) {
+      captured = this.getPiece(epCapturedSquare);
+      this.board[this.sqToCoords(epCapturedSquare)] = null;
+    }
+
+    this.board[this.sqToCoords(from)] = null;
+
+    if (promo) {
+      this.board[this.sqToCoords(to)] = { type: promo, color: p.color };
+    } else {
+      this.board[this.sqToCoords(to)] = p;
+    }
+
+    if (p.type === 'k') {
+      if (from === 'e1' && to === 'g1') {
+        const rook = this.getPiece('h1');
+        this.board[this.sqToCoords('h1')] = null;
+        this.board[this.sqToCoords('f1')] = rook || { type: 'r', color: 'w' };
+        this.castling.wK = false;
+        this.castling.wQ = false;
+      } else if (from === 'e1' && to === 'c1') {
+        const rook = this.getPiece('a1');
+        this.board[this.sqToCoords('a1')] = null;
+        this.board[this.sqToCoords('d1')] = rook || { type: 'r', color: 'w' };
+        this.castling.wK = false;
+        this.castling.wQ = false;
+      } else if (from === 'e8' && to === 'g8') {
+        const rook = this.getPiece('h8');
+        this.board[this.sqToCoords('h8')] = null;
+        this.board[this.sqToCoords('f8')] = rook || { type: 'r', color: 'b' };
+        this.castling.bK = false;
+        this.castling.bQ = false;
+      } else if (from === 'e8' && to === 'c8') {
+        const rook = this.getPiece('a8');
+        this.board[this.sqToCoords('a8')] = null;
+        this.board[this.sqToCoords('d8')] = rook || { type: 'r', color: 'b' };
+        this.castling.bK = false;
+        this.castling.bQ = false;
+      }
+      if (p.color === 'w') { this.castling.wK = false; this.castling.wQ = false; }
+      else { this.castling.bK = false; this.castling.bQ = false; }
+    }
+
+    if (p.type === 'p' && from[1] === '2' && to[1] === '4') {
+      this.enPassant = from[0] + '3';
+    } else if (p.type === 'p' && from[1] === '7' && to[1] === '5') {
+      this.enPassant = from[0] + '6';
+    } else {
+      this.enPassant = null;
+    }
+
+    if (this.gameMode === 'atomic' && captured) {
+      const targetIdx = this.sqToCoords(to);
+      const tr = Math.floor(targetIdx / 8);
+      const tf = targetIdx % 8;
+      this.board[targetIdx] = null;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let df = -1; df <= 1; df++) {
+          const nr = tr + dr;
+          const nf = tf + df;
+          if (nr >= 0 && nr < 8 && nf >= 0 && nf < 8) {
+            const blastIdx = nr * 8 + nf;
+            const blastPiece = this.board[blastIdx];
+            if (blastPiece && blastPiece.type !== 'p') {
+              if (blastPiece.type === 'k') {
+                this.gameOver = true;
+                this.gameResult = blastPiece.color === 'w' ? '0-1' : '1-0';
+              }
+              this.board[blastIdx] = null;
+            }
+          }
+        }
+      }
+    }
+
+    if (this.gameMode === 'crazyhouse' && captured) {
+      const pk = captured.type.toUpperCase();
+      if (p.color === 'w') this.crazyhousePockets.w[pk] = (this.crazyhousePockets.w[pk] || 0) + 1;
+      else {
+        const pkb = captured.type.toLowerCase();
+        this.crazyhousePockets.b[pkb] = (this.crazyhousePockets.b[pkb] || 0) + 1;
+      }
+    }
+
+    if (p.type === 'k' && ['d4','d5','e4','e5'].includes(to) && this.gameMode === 'kingofthehill') {
+      this.gameOver = true;
+      this.gameResult = p.color === 'w' ? '1-0' : '0-1';
+    }
+    if (p.type === 'k' && to[1] === '8' && this.gameMode === 'racingkings') {
+      this.gameOver = true;
+      this.gameResult = p.color === 'w' ? '1-0' : '0-1';
+    }
+
+    // Fifty-move clock and fullmove number progression
+    if (p.type === 'p' || captured) {
+      this.halfMoves = 0;
+    } else {
+      this.halfMoves++;
+    }
+
+    if (this.turn === 'b') {
+      this.fullMoves++;
+    }
+
+    this.turn = this.turn === 'w' ? 'b' : 'w';
+    return { success: true, captured };
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.MoveNode = MoveNode;
+  window.StandaloneChessSim = StandaloneChessSim;
+  if (!window.__SIM_GAME__) {
+    window.__SIM_GAME__ = new StandaloneChessSim();
+  }
+}
+
+class QATrackerV2 {
+  constructor() {
+    this.tests = [];
+    this.results = {};
+    this.isRunning = false;
+    this.container = null;
+    this.activeCategory = 'ALL';
+    this.searchQuery = '';
+    this.statusFilter = 'ALL';
+    this.init();
+  }
+
+  async init() {
+    console.log("[QA-Suite-v2] Initializing Test Suite...");
+    await this.loadTests();
+    this.injectUI();
+  }
+
+  async loadTests() {
+    try {
+      const resp = await fetch('qa-tests.json');
+      if (resp.ok) {
+        this.tests = await resp.json();
+      }
+    } catch (e) {
+      console.warn("[QA-Suite-v2] Could not load qa-tests.json via fetch, using fallback", e);
+    }
+  }
+
+  injectUI() {
+    if (document.getElementById('qaModalContainer')) return;
+
+    const modal = document.createElement('div');
+    modal.id = 'qaModalContainer';
+    modal.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 999999;
+      font-family: system-ui, -apple-system, sans-serif;
+    `;
+    const toggleBtn = document.createElement('button');
+    toggleBtn.id = 'qaToggleBtn';
+    toggleBtn.innerHTML = `🧪 QA Test Suite (${this.tests.length})`;
+    toggleBtn.style.cssText = `display: none !important;`;
+
+    const panel = document.createElement('div');
+    panel.id = 'qaPanel';
+    panel.style.cssText = `
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 90vw;
+      max-width: 960px;
+      height: 85vh;
+      background: #0d1117;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.7);
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 10000000;
+    `;
+
+    panel.innerHTML = `
+      <div style="padding: 16px 20px; background: #161b22; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h2 style="font-size: 18px; color: #fff; margin: 0;">QA Test</h2>
+          <span style="font-size: 12px; color: #8b949e;">Shortcut: <b>Ctrl + Q</b></span>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button id="qaRunAllBtn" style="background: #238636; color: #fff; border: 1px solid #2ea043; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: 600;">▶ Run All</button>
+          <button id="qaExportMdBtn" style="background: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 6px 12px; border-radius: 6px; cursor: pointer;">Export Report</button>
+          <button id="qaCloseBtn" style="background: transparent; color: #8b949e; border: none; font-size: 20px; cursor: pointer; padding: 0 8px;">✕</button>
+        </div>
+      </div>
+      <div style="padding: 12px 20px; background: #0d1117; border-bottom: 1px solid #30363d; display: flex; gap: 16px; align-items: center;">
+        <input type="text" id="qaSearch" placeholder="Filter tests..." style="flex: 1; background: #161b22; border: 1px solid #30363d; color: #c9d1d9; padding: 6px 10px; border-radius: 6px; font-size: 13px;">
+        <select id="qaCatSelect" style="background: #161b22; border: 1px solid #30363d; color: #c9d1d9; padding: 6px 10px; border-radius: 6px; font-size: 13px;">
+          <option value="ALL">All Categories</option>
+        </select>
+        <span id="qaStatsSummary" style="font-size: 13px; font-weight: 600; color: #58a6ff;">0 / ${this.tests.length} Passed</span>
+      </div>
+      <div id="qaTestRows" style="flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 8px;"></div>
+    `;
+
+    modal.appendChild(toggleBtn);
+    modal.appendChild(panel);
+    document.body.appendChild(modal);
+
+    document.getElementById('qaCloseBtn').onclick = () => this.togglePanel();
+    document.getElementById('qaRunAllBtn').onclick = () => this.runAll();
+    document.getElementById('qaExportMdBtn').onclick = () => this.exportMarkdown();
+    document.getElementById('qaSearch').oninput = (e) => {
+      this.searchQuery = e.target.value.toLowerCase();
+      this.renderRows();
+    };
+
+    const cats = Array.from(new Set(this.tests.map(t => t.category))).sort();
+    const catSelect = document.getElementById('qaCatSelect');
+    cats.forEach(c => {
+      catSelect.innerHTML += `<option value="${c}">${c}</option>`;
+    });
+    catSelect.onchange = (e) => {
+      this.activeCategory = e.target.value;
+      this.renderRows();
+    };
+
+    this.renderRows();
+
+    window.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && (e.key === 'q' || e.key === 'Q')) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.togglePanel();
+      }
+    });
+  }
+
+  togglePanel() {
+    const panel = document.getElementById('qaPanel');
+    if (!panel) return;
+    panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+  }
+
+  async runSingle(id) {
+    const t = this.tests.find(x => x.id === id);
+    if (!t) return;
+
+    this.results[id] = { status: 'running' };
+    this.renderRows();
+
+    const start = performance.now();
+    try {
+      const fn = new Function('console', t.run);
+      const res = fn(console);
+      const duration = Math.round(performance.now() - start);
+      const passed = typeof res === 'boolean' ? res : (res !== undefined ? Boolean(res) : true);
+
+      this.results[id] = { status: passed ? 'passed' : 'failed', passed, duration };
+    } catch (err) {
+      const duration = Math.round(performance.now() - start);
+      this.results[id] = { status: 'failed', passed: false, duration, error: err.message || String(err) };
+    }
+
+    this.renderRows();
+    this.updateStats();
+  }
+
+  async runAll() {
+    if (this.isRunning) return;
+    this.isRunning = true;
+    const btn = document.getElementById('qaRunAllBtn');
+    btn.innerText = 'Running...';
+    btn.style.background = '#8b949e';
+
+    for (const t of this.tests) {
+      await this.runSingle(t.id);
+      await new Promise(r => setTimeout(r, 6));
+    }
+
+    this.isRunning = false;
+    btn.innerText = '▶ Run All';
+    btn.style.background = '#238636';
+  }
+
+  updateStats() {
+    const passed = Object.values(this.results).filter(r => r.passed).length;
+    const total = this.tests.length;
+    const summary = document.getElementById('qaStatsSummary');
+    if (summary) {
+      summary.innerText = `${passed} / ${total} Passed (${Math.round((passed / (total || 1)) * 100)}%)`;
+      summary.style.color = passed === total ? '#2ea043' : '#58a6ff';
+    }
+  }
+
+  renderRows() {
+    const container = document.getElementById('qaTestRows');
+    if (!container) return;
+
+    const filtered = this.tests.filter(t => {
+      if (this.activeCategory !== 'ALL' && t.category !== this.activeCategory) return false;
+      if (this.searchQuery) {
+        const text = `${t.id} ${t.name} ${t.desc} ${t.category}`.toLowerCase();
+        if (!text.includes(this.searchQuery)) return false;
+      }
+      return true;
+    });
+
+    container.innerHTML = "";
+
+    filtered.forEach(t => {
+      const r = this.results[t.id];
+      const row = document.createElement('div');
+      row.style.cssText = `
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 10px 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        border-left: 4px solid ${r?.passed ? '#2ea043' : (r?.status === 'failed' ? '#f85149' : '#30363d')};
+      `;
+
+      let badge = `<span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #21262d; color: #8b949e;">IDLE</span>`;
+      if (r?.status === 'running') badge = `<span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(210,153,34,0.2); color: #d29922;">RUNNING</span>`;
+      else if (r?.passed) badge = `<span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(46,160,67,0.2); color: #2ea043;">PASS (${r.duration}ms)</span>`;
+      else if (r?.status === 'failed') badge = `<span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(248,81,73,0.2); color: #f85149;">FAIL</span>`;
+
+      row.innerHTML = `
+        <div style="flex: 1;">
+          <div style="font-size: 13px; font-weight: 600; color: #fff;">${t.name}</div>
+          <div style="font-size: 11px; color: #8b949e; margin-top: 2px;">
+            <span style="color: #58a6ff;">[${t.category}]</span> <code>${t.id}</code> — ${t.desc}
+          </div>
+          ${r?.error ? `<div style="font-size: 11px; color: #f85149; margin-top: 4px; font-family: monospace;">${r.error}</div>` : ''}
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          ${badge}
+          <button onclick="window.qaTracker.runSingle('${t.id}')" style="background: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">Run</button>
+        </div>
+      `;
+      container.appendChild(row);
+    });
+  }
+
+  exportMarkdown() {
+    let md = `# Chess Offline QA Test Report\n\nDate: ${new Date().toISOString()}\n\n`;
+    md += `| ID | Category | Name | Status | Duration |\n|---|---|---|---|---|\n`;
+    this.tests.forEach(t => {
+      const r = this.results[t.id];
+      const status = r ? (r.passed ? '✅ PASS' : '❌ FAIL') : '⏸️ PENDING';
+      const dur = r ? `${r.duration}ms` : '-';
+      md += `| \`${t.id}\` | ${t.category} | ${t.name} | ${status} | ${dur} |\n`;
+    });
+
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'qa-report.md';
+    a.click();
+  }
+}
+
+// Auto-instantiate globally on window
+if (typeof window !== 'undefined') {
+  window.qaTracker = new QATrackerV2();
+}

@@ -4497,7 +4497,7 @@ stepBack(animate = true) {
             };
         }
 
-        this.#emit('boardUpdated', { animate: animate, skipEngine: true });
+        this.#emit('boardUpdated', { animate: animate, overrideMove: this._transientOverrideMove, skipEngine: true });
         this._transientOverrideMove = null;
         
         if (this.mode === 'puzzle') {

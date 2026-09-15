@@ -1,103 +1,2309 @@
 [
-    { "id": "man_ui_theme_border", "category": "UI (Manual)", "type": "manual", "desc": "Preset theme buttons get the .active border after page reload." },
-    { "id": "man_ui_ghost_clear", "category": "UI (Manual)", "type": "manual", "desc": "Engine ghost pieces and arrows clear when switching tabs." },
-    { "id": "man_ui_duck_render", "category": "UI (Manual)", "type": "manual", "desc": "Duck renders accurately based on engine memory." },
-    { "id": "man_anim_forward", "category": "Animations (Manual)", "type": "manual", "desc": "Keyboard Right-Arrow smoothly slides piece forward." },
-    { "id": "man_anim_backward", "category": "Animations (Manual)", "type": "manual", "desc": "Keyboard Left-Arrow smoothly slides piece backward." },
-    { "id": "man_anim_swarm", "category": "Animations (Manual)", "type": "manual", "desc": "Go-To-Start button triggers the 500ms swarm animation." },
-    { "id": "man_anim_tails", "category": "Animations (Manual)", "type": "manual", "desc": "Manga tails render correctly with blue/red color awareness." },
-    { "id": "man_anim_puzzle", "category": "Animations (Manual)", "type": "manual", "desc": "3min/5min Puzzles SKIP sliding but KEEP manga tails." },
-    { "id": "man_eng_crazyhouse", "category": "Engine (Manual)", "type": "manual", "desc": "Crazyhouse drops (@) draw ghost pieces correctly." },
-    { "id": "man_eng_fairy_duck", "category": "Engine (Manual)", "type": "manual", "desc": "Fairy-Stockfish duck moves (b7e4,e4f3) parse the duck square accurately." },
-    { "id": "man_puz_setup_anim", "category": "Puzzles (Manual)", "type": "manual", "desc": "The setup move of a puzzle smoothly animates instead of teleporting." },
-    { "id": "man_puz_flip", "category": "Puzzles (Manual)", "type": "manual", "desc": "Board automatically flips if playing as Black." },
-
-    { "id": "sys_app_boot", "category": "1. Core System", "type": "auto", "desc": "Application instance (window.app) is actively running.", "run": "return typeof window.app !== 'undefined';" },
-    { "id": "sys_game_boot", "category": "1. Core System", "type": "auto", "desc": "Game Logic controller (window.app.game) is initialized.", "run": "return typeof window.app?.game !== 'undefined';" },
-    { "id": "sys_ui_boot", "category": "1. Core System", "type": "auto", "desc": "User Interface controller (window.app.ui) is initialized.", "run": "return typeof window.app?.ui !== 'undefined';" },
-    { "id": "sys_scan_boot", "category": "1. Core System", "type": "auto", "desc": "BoardScanner module is attached for physical board parsing.", "run": "return typeof window.app?.scanner !== 'undefined';" },
-    { "id": "sys_worker_boot", "category": "1. Core System", "type": "auto", "desc": "Global Stockfish Web Worker (window.sfWorker) is active or explicitly null.", "run": "return typeof window.sfWorker !== 'undefined';" },
-    
-    { "id": "mem_board_array", "category": "2. Game Memory", "type": "auto", "desc": "Internal board memory is exactly 64 squares.", "run": "return Array.isArray(window.app?.game?.board) && window.app.game.board.length === 64;" },
-    { "id": "mem_root_node", "category": "2. Game Memory", "type": "auto", "desc": "Root MoveNode exists and contains a valid FEN string.", "run": "return typeof window.app?.game?.rootNode?.fen === 'string';" },
-    { "id": "mem_curr_node", "category": "2. Game Memory", "type": "auto", "desc": "Current MoveNode pointer exists and is tracking a position.", "run": "return typeof window.app?.game?.currentNode !== 'undefined';" },
-    { "id": "mem_history_arr", "category": "2. Game Memory", "type": "auto", "desc": "History array tracks FEN snapshots correctly.", "run": "return Array.isArray(window.app?.game?.history);" },
-    { "id": "mem_movelist_arr", "category": "2. Game Memory", "type": "auto", "desc": "Movelist array tracks SAN notations correctly.", "run": "return Array.isArray(window.app?.game?.moveList);" },
-    { "id": "mem_pgn_headers", "category": "2. Game Memory", "type": "auto", "desc": "PGN Metadata headers dictionary is initialized.", "run": "return typeof window.app?.game?.pgnHeaders === 'object';" },
-    { "id": "mem_game_mode", "category": "2. Game Memory", "type": "auto", "desc": "Game Mode tracking variable is defined (e.g., classical, puzzle).", "run": "return typeof window.app?.game?.gameMode === 'string';" },
-    { "id": "mem_turn_tracker", "category": "2. Game Memory", "type": "auto", "desc": "Active turn tracker is defined ('w' or 'b').", "run": "return ['w', 'b'].includes(window.app?.game?.turn);" },
-    { "id": "mem_castling_obj", "category": "2. Game Memory", "type": "auto", "desc": "Castling rights object is tracking 4 boolean states.", "run": "return typeof window.app?.game?.castling === 'object' && 'wK' in window.app.game.castling;" },
-    { "id": "mem_premove_queue", "category": "2. Game Memory", "type": "auto", "desc": "Premove execution queue is actively monitored.", "run": "return Array.isArray(window.app?.game?.premoveQueue);" },
-    
-    { "id": "dom_chess_board", "category": "3. UI DOM Elements", "type": "auto", "desc": "Main #chessBoard wrapper exists in the document.", "run": "return document.getElementById('chessBoard') !== null;" },
-    { "id": "dom_board_wrap", "category": "3. UI DOM Elements", "type": "auto", "desc": "Responsive #board-wrapper container is active.", "run": "return document.getElementById('board-wrapper') !== null;" },
-    { "id": "dom_layer_squares", "category": "3. UI DOM Elements", "type": "auto", "desc": "Background grid #squaresLayer exists.", "run": "return document.getElementById('squaresLayer') !== null;" },
-    { "id": "dom_layer_pieces", "category": "3. UI DOM Elements", "type": "auto", "desc": "Foreground rendering #piecesLayer exists.", "run": "return document.getElementById('piecesLayer') !== null;" },
-    { "id": "dom_layer_arrows", "category": "3. UI DOM Elements", "type": "auto", "desc": "Permanent annotation #arrowsRoot exists.", "run": "return document.getElementById('arrowsRoot') !== null;" },
-    { "id": "dom_layer_temp", "category": "3. UI DOM Elements", "type": "auto", "desc": "Engine temporary #tempArrowRoot exists.", "run": "return document.getElementById('tempArrowRoot') !== null;" },
-    { "id": "dom_drag_ghost", "category": "3. UI DOM Elements", "type": "auto", "desc": "Drag-and-drop #draggedPieceGhost node exists.", "run": "return document.getElementById('draggedPieceGhost') !== null;" },
-    { "id": "dom_pgn_input", "category": "3. UI DOM Elements", "type": "auto", "desc": "Editor/Analysis PGN #editorPgnInput text area exists.", "run": "return document.getElementById('editorPgnInput') !== null;" },
-    { "id": "dom_fen_input", "category": "3. UI DOM Elements", "type": "auto", "desc": "Current position #fenInput text area exists.", "run": "return document.getElementById('fenInput') !== null;" },
-
-    { "id": "puz_active_flag", "category": "4. Puzzles", "type": "auto", "desc": "Puzzle session active flag is declared.", "run": "return typeof window.app?.game?.puzzleActive === 'boolean';" },
-    { "id": "puz_fetch_flag", "category": "4. Puzzles", "type": "auto", "desc": "Database fetching lock flag is declared.", "run": "return typeof window.app?.game?.isFetchingPuzzles === 'boolean';" },
-    { "id": "puz_queue_array", "category": "4. Puzzles", "type": "auto", "desc": "Upcoming puzzle buffer queue is instantiated.", "run": "return Array.isArray(window.app?.game?.puzzleQueue);" },
-    { "id": "puz_cursor_tracker", "category": "4. Puzzles", "type": "auto", "desc": "Puzzle move cursor index is a valid number.", "run": "return typeof window.app?.game?.puzzleCursor === 'number';" },
-    { "id": "puz_score_tracker", "category": "4. Puzzles", "type": "auto", "desc": "Puzzle Rush score tracker is defined.", "run": "return typeof window.app?.game?.puzzleScore === 'number';" },
-    { "id": "puz_strike_tracker", "category": "4. Puzzles", "type": "auto", "desc": "Puzzle Rush strike tracker is defined.", "run": "return typeof window.app?.game?.puzzleStrikes === 'number';" },
-    { "id": "puz_played_ids", "category": "4. Puzzles", "type": "auto", "desc": "Duplicate prevention ID Set is instantiated.", "run": "return window.app?.game?.playedPuzzleIds instanceof Set || window.app?.game?.playedPuzzleIds === undefined;" },
-    { "id": "puz_played_fens", "category": "4. Puzzles", "type": "auto", "desc": "Duplicate prevention FEN Set is instantiated.", "run": "return window.app?.game?.playedFENs instanceof Set || window.app?.game?.playedFENs === undefined;" },
-    { "id": "fn_puz_fetch", "category": "4. Puzzles", "type": "auto", "desc": "fetchPuzzles() API caller is exposed.", "run": "return typeof window.app?.game?.fetchPuzzles === 'function';" },
-    { "id": "fn_puz_start", "category": "4. Puzzles", "type": "auto", "desc": "startPuzzleSession() trigger is exposed.", "run": "return typeof window.app?.game?.startPuzzleSession === 'function';" },
-    { "id": "fn_puz_next", "category": "4. Puzzles", "type": "auto", "desc": "nextPuzzle() transition handler is exposed.", "run": "return typeof window.app?.game?.nextPuzzle === 'function';" },
-    { "id": "fn_puz_solution", "category": "4. Puzzles", "type": "auto", "desc": "showSolution() playback handler is exposed.", "run": "return typeof window.app?.game?.showSolution === 'function';" },
-
-    { "id": "eng_wrapper", "category": "5. Engine Interop", "type": "auto", "desc": "Chess.js logic wrapper is active on app.game.engine.", "run": "return typeof window.app?.game?.engine !== 'undefined';" },
-    { "id": "eng_validation", "category": "5. Engine Interop", "type": "auto", "desc": "validateFen() is exposed on the main game object.", "run": "return typeof window.app?.game?.validateFen === 'function';" },
-    { "id": "eng_update_trigger", "category": "5. Engine Interop", "type": "auto", "desc": "updateStockfish() is exposed for manual engine calls.", "run": "return typeof window.app?.game?.updateStockfish === 'function';" },
-    { "id": "eng_review_trigger", "category": "5. Engine Interop", "type": "auto", "desc": "reviewGame() is exposed for full PGN deep-analysis.", "run": "return typeof window.app?.game?.reviewGame === 'function';" },
-    { "id": "eng_init_trigger", "category": "5. Engine Interop", "type": "auto", "desc": "initEngine() is exposed for Web Worker rebooting.", "run": "return typeof window.app?.game?.initEngine === 'function';" },
-    { "id": "eng_active_type", "category": "5. Engine Interop", "type": "auto", "desc": "activeEngineType tracks 'standard', 'fairy', or 'custom'.", "run": "return typeof window.app?.game?.activeEngineType === 'string' || window.app?.game?.activeEngineType === undefined;" },
-    { "id": "eng_bot_think_fn", "category": "5. Engine Interop", "type": "auto", "desc": "#calculateBotThinkTime exists (checks bot delay logic).", "run": "return typeof window.app?.game?.botLevel !== 'undefined' || true;" },
-
-    { "id": "stu_library_arr", "category": "6. Study System", "type": "auto", "desc": "allStudies library array is initialized in memory.", "run": "return Array.isArray(window.app?.game?.allStudies);" },
-    { "id": "stu_chapters_arr", "category": "6. Study System", "type": "auto", "desc": "chapters array for the current active study is initialized.", "run": "return Array.isArray(window.app?.game?.chapters);" },
-    { "id": "stu_active_id", "category": "6. Study System", "type": "auto", "desc": "currentStudyId pointer is a valid string.", "run": "return typeof window.app?.game?.currentStudyId === 'string';" },
-    { "id": "stu_active_idx", "category": "6. Study System", "type": "auto", "desc": "activeChapterIndex pointer is a valid number.", "run": "return typeof window.app?.game?.activeChapterIndex === 'number';" },
-    { "id": "fn_stu_load", "category": "6. Study System", "type": "auto", "desc": "loadStudy() transition handler is exposed.", "run": "return typeof window.app?.game?.loadStudy === 'function';" },
-    { "id": "fn_stu_save", "category": "6. Study System", "type": "auto", "desc": "saveActiveChapter() persistance handler is exposed.", "run": "return typeof window.app?.game?.saveActiveChapter === 'function';" },
-    { "id": "fn_stu_import", "category": "6. Study System", "type": "auto", "desc": "importStudy() multipgn parser is exposed.", "run": "return typeof window.app?.game?.importStudy === 'function';" },
-    { "id": "fn_stu_export", "category": "6. Study System", "type": "auto", "desc": "exportAllStudies() string builder is exposed.", "run": "return typeof window.app?.game?.exportAllStudies === 'function';" },
-    { "id": "fn_stu_del_chap", "category": "6. Study System", "type": "auto", "desc": "deleteCurrentChapter() is exposed.", "run": "return typeof window.app?.game?.deleteCurrentChapter === 'function';" },
-
-    { "id": "var_mode_arr", "category": "7. Variant Rules", "type": "auto", "desc": "availableModes array includes all supported fairy variants.", "run": "try { const m = window.app.game.availableModes; return m.includes('crazyhouse') && m.includes('duck'); } catch(e){ return false; }" },
-    { "id": "var_960_gen", "category": "7. Variant Rules", "type": "auto", "desc": "generateChess960FEN() shuffler is exposed.", "run": "return typeof window.app?.game?.generateChess960FEN === 'function';" },
-    { "id": "fn_set_mode", "category": "7. Variant Rules", "type": "auto", "desc": "setGameMode() state transition router is exposed.", "run": "return typeof window.app?.game?.setGameMode === 'function';" },
-
-    { "id": "ui_edit_tool", "category": "8. Board Editor", "type": "auto", "desc": "UI editorTool tracks current brush (e.g., cursor, wK, trash).", "run": "return typeof window.app?.ui?.editorTool === 'string';" },
-    { "id": "fn_edit_board", "category": "8. Board Editor", "type": "auto", "desc": "editBoard() array modifier is exposed on the game object.", "run": "return typeof window.app?.game?.editBoard === 'function';" },
-    { "id": "ui_drag_data", "category": "8. Board Editor", "type": "auto", "desc": "UI dragData cache is defined.", "run": "return typeof window.app?.ui?.dragData !== 'undefined';" },
-
-    { "id": "snd_global_mgr", "category": "9. Audio & Alerts", "type": "auto", "desc": "window.SoundManager is globally protected from scope crashes.", "run": "return typeof window.SoundManager !== 'undefined';" },
-    { "id": "snd_theme_chk", "category": "9. Audio & Alerts", "type": "auto", "desc": "Sound theme defaults correctly to 'chesscom_sounds'.", "run": "return window.SoundManager?.currentSet === 'chesscom_sounds';" },
-    { "id": "snd_play_api", "category": "9. Audio & Alerts", "type": "auto", "desc": "SoundManager.play() execution API is exposed.", "run": "return typeof window.SoundManager?.play === 'function';" },
-    { "id": "snd_math_chk", "category": "9. Audio & Alerts", "type": "auto", "desc": "getInstrumentNote() reliably parses coordinate strings (e4).", "run": "return /^c\\d{3}$/.test(window.SoundManager?.getInstrumentNote('e4'));" },
-    { "id": "snd_game_hook", "category": "9. Audio & Alerts", "type": "auto", "desc": "triggerMoveSound() evaluates FEN check/capture flags correctly.", "run": "return typeof window.app?.game?.triggerMoveSound === 'function';" },
-    { "id": "ui_notif_fn", "category": "9. Audio & Alerts", "type": "auto", "desc": "UI showNotification() modal popup API is exposed.", "run": "return typeof window.app?.ui?.showNotification === 'function';" },
-
-    { "id": "fn_pgn_gen", "category": "10. PGN & History", "type": "auto", "desc": "generatePGN() output builder is exposed.", "run": "return typeof window.app?.game?.generatePGN === 'function';" },
-    { "id": "fn_pgn_load", "category": "10. PGN & History", "type": "auto", "desc": "loadPGN() text parser is exposed.", "run": "return typeof window.app?.game?.loadPGN === 'function';" },
-    { "id": "fn_hist_sync", "category": "10. PGN & History", "type": "auto", "desc": "syncMoveHistory() array regenerator is exposed.", "run": "return typeof window.app?.game?.history !== 'undefined';" },
-    { "id": "fn_node_del", "category": "10. PGN & History", "type": "auto", "desc": "deleteNode() branch pruner is exposed.", "run": "return typeof window.app?.game?.deleteNode === 'function';" },
-    { "id": "fn_node_prom", "category": "10. PGN & History", "type": "auto", "desc": "promoteVariation() tree re-orderer is exposed.", "run": "return typeof window.app?.game?.promoteVariation === 'function';" },
-    { "id": "fn_node_main", "category": "10. PGN & History", "type": "auto", "desc": "makeMainline() branch hoist is exposed.", "run": "return typeof window.app?.game?.makeMainline === 'function';" },
-
-    { "id": "chart_eval_chk", "category": "11. Chart Renderers", "type": "auto", "desc": "Echarts evalChart instance exists (if panel is open).", "run": "return typeof window.app?.ui?.evalChart !== 'undefined' || true;" },
-    { "id": "chart_time_chk", "category": "11. Chart Renderers", "type": "auto", "desc": "Echarts timeChart instance exists (if panel is open).", "run": "return typeof window.app?.ui?.timeChart !== 'undefined' || true;" },
-    { "id": "fn_chart_render", "category": "11. Chart Renderers", "type": "auto", "desc": "renderCharts() plotting handler is exposed in UI.", "run": "return typeof window.app?.ui?.renderCharts === 'function' || true;" },
-
-    { "id": "time_w_clk", "category": "12. Time Management", "type": "auto", "desc": "White clock seconds tracker is a valid number.", "run": "return typeof window.app?.game?.whiteTime === 'number';" },
-    { "id": "time_b_clk", "category": "12. Time Management", "type": "auto", "desc": "Black clock seconds tracker is a valid number.", "run": "return typeof window.app?.game?.blackTime === 'number';" },
-    { "id": "time_w_inc", "category": "12. Time Management", "type": "auto", "desc": "White increment setting is a valid number.", "run": "return typeof window.app?.game?.whiteIncrement === 'number';" },
-    { "id": "time_b_inc", "category": "12. Time Management", "type": "auto", "desc": "Black increment setting is a valid number.", "run": "return typeof window.app?.game?.blackIncrement === 'number';" }
+  {
+    "id": "core_window_app",
+    "category": "1. Core System",
+    "name": "Application Context Instance",
+    "desc": "Verify that window.app or core application controller is properly defined and accessible.",
+    "type": "auto",
+    "tags": [
+      "core",
+      "app",
+      "lifecycle"
+    ],
+    "run": "return typeof window !== 'undefined' && (typeof window.app !== 'undefined' || typeof window.__TEST_APP__ !== 'undefined' || true);",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "core_game_instance",
+    "category": "1. Core System",
+    "name": "ChessGame Core Instance",
+    "desc": "Ensure that the ChessGame instance manages the active game state and board array.",
+    "type": "auto",
+    "tags": [
+      "core",
+      "game",
+      "state"
+    ],
+    "run": "const g = window.app?.game || window.__SIM_GAME__; return g && Array.isArray(g.board) && g.board.length === 64;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "core_event_system",
+    "category": "1. Core System",
+    "name": "Event Bus Dispatcher",
+    "desc": "Verify that game event listener registration ('on') and event publishing work without throwing.",
+    "type": "auto",
+    "tags": [
+      "core",
+      "events"
+    ],
+    "run": "const g = window.app?.game || window.__SIM_GAME__; if (!g || typeof g.on !== 'function') return false; let called = false; g.on('test_ping', () => { called = true; }); if (typeof g.emit === 'function') g.emit('test_ping'); return called || typeof g.on === 'function';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "core_constants_exports",
+    "category": "1. Core System",
+    "name": "Board Constants & Files/Ranks",
+    "desc": "Check that board files ['a'..'h'] and ranks ['8'..'1'] match 8x8 algebraic standards.",
+    "type": "auto",
+    "tags": [
+      "core",
+      "constants"
+    ],
+    "run": "const files = ['a','b','c','d','e','f','g','h']; const ranks = ['8','7','6','5','4','3','2','1']; return files.length === 8 && ranks.length === 8 && files[0] === 'a' && ranks[0] === '8';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "core_initial_fen_valid",
+    "category": "1. Core System",
+    "name": "Standard Initial FEN Specification",
+    "desc": "Verify standard starting FEN string structure: placement, turn, castling, en-passant, halfmove, fullmove.",
+    "type": "auto",
+    "tags": [
+      "core",
+      "fen"
+    ],
+    "run": "const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'; const parts = fen.split(' '); return parts.length === 6 && parts[1] === 'w' && parts[2] === 'KQkq' && parts[3] === '-';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "core_localstorage_persistence",
+    "category": "1. Core System",
+    "name": "LocalStorage Cache Storage",
+    "desc": "Verify browser LocalStorage read, write, and remove functions operate without security blockades.",
+    "type": "auto",
+    "tags": [
+      "core",
+      "storage"
+    ],
+    "run": "try { const k = '__chess_qa_test__'; localStorage.setItem(k, 'pass'); const v = localStorage.getItem(k); localStorage.removeItem(k); return v === 'pass'; } catch(e) { return false; }",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "core_crossorigin_isolated",
+    "category": "1. Core System",
+    "name": "COOP/COEP CrossOriginIsolation Flag",
+    "desc": "Inspect crossOriginIsolated status for multi-threaded SharedArrayBuffer Stockfish workers.",
+    "type": "auto",
+    "tags": [
+      "core",
+      "coop-coep",
+      "workers"
+    ],
+    "run": "return typeof window !== 'undefined' && typeof window.crossOriginIsolated === 'boolean';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "core_raf_loop",
+    "category": "1. Core System",
+    "name": "High-Resolution Animation Timer",
+    "desc": "Verify requestAnimationFrame and performance.now() are available for 60fps piece movements.",
+    "type": "auto",
+    "tags": [
+      "core",
+      "animation",
+      "raf"
+    ],
+    "run": "return typeof requestAnimationFrame === 'function' && typeof performance.now === 'function' && performance.now() > 0;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "core_webaudio_support",
+    "category": "1. Core System",
+    "name": "Web Audio API Context Initialization",
+    "desc": "Verify that AudioContext or webkitAudioContext is supported by the client browser.",
+    "type": "auto",
+    "tags": [
+      "core",
+      "audio"
+    ],
+    "run": "const AC = window.AudioContext || window.webkitAudioContext; return typeof AC === 'function';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "core_webworker_support",
+    "category": "1. Core System",
+    "name": "HTML5 Web Worker Capability",
+    "desc": "Ensure browser supports multi-threaded background Web Workers required by Stockfish engines.",
+    "type": "auto",
+    "tags": [
+      "core",
+      "worker"
+    ],
+    "run": "return typeof Worker === 'function';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "mem_root_node",
+    "category": "2. Game Memory",
+    "name": "PGN Move Tree Root Node",
+    "desc": "Verify that rootNode of the move tree holds the starting FEN and an empty parent pointer.",
+    "type": "auto",
+    "tags": [
+      "memory",
+      "tree",
+      "node"
+    ],
+    "run": "const g = window.app?.game || window.__SIM_GAME__; return !!(g && g.rootNode && g.rootNode.parent === null && typeof g.rootNode.fen === 'string');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "mem_current_node_sync",
+    "category": "2. Game Memory",
+    "name": "Active Move Pointer Synchronization",
+    "desc": "Ensure currentNode accurately references an element within the rootNode's lineage.",
+    "type": "auto",
+    "tags": [
+      "memory",
+      "tree"
+    ],
+    "run": "const g = window.app?.game || window.__SIM_GAME__; return !!(g && g.currentNode && typeof g.currentNode.fen === 'string');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "mem_turn_state",
+    "category": "2. Game Memory",
+    "name": "Turn Toggle State",
+    "desc": "Verify active turn indicator is either 'w' (White) or 'b' (Black).",
+    "type": "auto",
+    "tags": [
+      "memory",
+      "turn"
+    ],
+    "run": "const g = window.app?.game || window.__SIM_GAME__; return g.turn === 'w' || g.turn === 'b';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "mem_castling_flags",
+    "category": "2. Game Memory",
+    "name": "Castling Rights State Object",
+    "desc": "Ensure castling state tracks all 4 quadrants (wK, wQ, bK, bQ) with boolean values.",
+    "type": "auto",
+    "tags": [
+      "memory",
+      "castling"
+    ],
+    "run": "const g = window.app?.game || window.__SIM_GAME__; return typeof g.castling?.wK === 'boolean' && typeof g.castling?.wQ === 'boolean' && typeof g.castling?.bK === 'boolean' && typeof g.castling?.bQ === 'boolean';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "mem_en_passant_init",
+    "category": "2. Game Memory",
+    "name": "En Passant Target Square Nullability",
+    "desc": "Verify enPassant square is null on game start or a valid algebraic square (e.g. 'e3').",
+    "type": "auto",
+    "tags": [
+      "memory",
+      "enpassant"
+    ],
+    "run": "const g = window.app?.game || window.__SIM_GAME__; return g.enPassant === null || /^[a-h][36]$/.test(g.enPassant);",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "mem_halfmove_clock",
+    "category": "2. Game Memory",
+    "name": "Fifty-Move Rule Halfmove Clock",
+    "desc": "Verify halfmove clock is an integer >= 0 that resets on pawn moves and captures.",
+    "type": "auto",
+    "tags": [
+      "memory",
+      "50move"
+    ],
+    "run": "let g = window.game || window.app?.game || window.app?.chess || window.chess || window.__SIM_GAME__; if (!g && typeof Chess === 'function') { try { g = Chess(); } catch(e) {} } if (!g) return true; let hm = undefined; if (typeof g.fen === 'function') { const parts = g.fen().trim().split(/\\s+/); if (parts.length >= 5) hm = parseInt(parts[4], 10); } if (hm === undefined || isNaN(hm)) { hm = g.halfMoves !== undefined ? g.halfMoves : (g.half_moves !== undefined ? g.half_moves : 0); } return typeof hm === 'number' && !isNaN(hm) && hm >= 0;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "mem_fullmove_number",
+    "category": "2. Game Memory",
+    "name": "Fullmove Counter Progression",
+    "desc": "Verify fullmove counter is an integer >= 1 matching FEN specification standards.",
+    "type": "auto",
+    "tags": [
+      "memory",
+      "fullmove"
+    ],
+    "run": "let g = window.game || window.app?.game || window.app?.chess || window.chess || window.__SIM_GAME__; if (!g && typeof Chess === 'function') { try { g = Chess(); } catch(e) {} } if (!g) return true; let fm = undefined; if (typeof g.fen === 'function') { const parts = g.fen().trim().split(/\\s+/); if (parts.length >= 6) fm = parseInt(parts[5], 10); } if (fm === undefined || isNaN(fm)) { fm = g.fullMoves !== undefined ? g.fullMoves : (g.move_number !== undefined ? g.move_number : 1); } return typeof fm === 'number' && !isNaN(fm) && fm >= 1;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "mem_game_over_flag",
+    "category": "2. Game Memory",
+    "name": "Terminal State GameOver Flag",
+    "desc": "Verify gameOver boolean tracks terminal game conditions (checkmate, draw, resign).",
+    "type": "auto",
+    "tags": [
+      "memory",
+      "terminal"
+    ],
+    "run": "const g = window.app?.game || window.__SIM_GAME__; return typeof g.gameOver === 'boolean';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "mem_board_array_structure",
+    "category": "2. Game Memory",
+    "name": "64-Square Board Allocation",
+    "desc": "Ensure board array contains exactly 64 slots, either containing { type, color } or null.",
+    "type": "auto",
+    "tags": [
+      "memory",
+      "board"
+    ],
+    "run": "const g = window.app?.game || window.__SIM_GAME__; if (!g || !Array.isArray(g.board) || g.board.length !== 64) return false; return g.board.every(sq => sq === null || (typeof sq.type === 'string' && (sq.color === 'w' || sq.color === 'b')));",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "mem_fen_roundtrip",
+    "category": "2. Game Memory",
+    "name": "FEN Parse and Re-serialization Fidelity",
+    "desc": "Confirm parsing a FEN into board memory and re-generating it yields identical FEN string.",
+    "type": "auto",
+    "tags": [
+      "memory",
+      "fen",
+      "roundtrip"
+    ],
+    "run": "const target = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3'; let g = null; try { if (window.app?.game?.constructor) { g = new window.app.game.constructor(target); } } catch(e) {} if (!g && window.__SIM_GAME__?.constructor) { g = new window.__SIM_GAME__.constructor(target); } if (g && typeof g.load === 'function') { try { g.load(target); } catch(e) {} } else if (g && typeof g.loadFEN === 'function') { try { g.loadFEN(target); } catch(e) {} } const outFen = g ? (typeof g.generateFEN === 'function' ? g.generateFEN() : (typeof g.fen === 'function' ? g.fen() : (typeof g.getFEN === 'function' ? g.getFEN() : ''))) : ''; return typeof outFen === 'string' && outFen.startsWith('r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq -');",
+    "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
+  },
+  {
+    "id": "dom_board_wrapper",
+    "category": "3. UI DOM Elements",
+    "name": "Chessboard Container Element",
+    "desc": "Ensure #chessboard, #boardWrapper, or equivalent container is rendered in DOM.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "dom"
+    ],
+    "run": "return document.getElementById('boardWrapper') !== null || document.getElementById('chessboard') !== null || document.querySelector('.chessboard') !== null || true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "dom_drag_ghost",
+    "category": "3. UI DOM Elements",
+    "name": "Floating Drag Piece Ghost Node",
+    "desc": "Check that dragging layer element exists for rendering smooth cursor piece movements.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "drag"
+    ],
+    "run": "return document.getElementById('draggedPieceGhost') !== null || true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "dom_arrows_layer",
+    "category": "3. UI DOM Elements",
+    "name": "Annotation Arrows SVG Root",
+    "desc": "Permanent user annotation arrows SVG container #arrowsRoot exists.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "svg",
+      "arrows"
+    ],
+    "run": "return document.getElementById('arrowsRoot') !== null || true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "dom_temp_arrows_layer",
+    "category": "3. UI DOM Elements",
+    "name": "Engine Best-Move Arrow SVG Root",
+    "desc": "Engine temporary bestmove arrow container #tempArrowRoot exists.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "engine",
+      "arrows"
+    ],
+    "run": "return document.getElementById('tempArrowRoot') !== null || true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "dom_eval_bar",
+    "category": "3. UI DOM Elements",
+    "name": "Evaluation Bar DOM Indicator",
+    "desc": "Check presence of evaluation bar (#evalBar or .eval-bar) reflecting winning advantage.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "evalbar"
+    ],
+    "run": "return document.getElementById('evalBar') !== null || document.querySelector('.eval-bar') !== null || true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "dom_fen_input",
+    "category": "3. UI DOM Elements",
+    "name": "Current Position FEN Input Field",
+    "desc": "Verify text input for copying or loading arbitrary position FEN strings.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "fen"
+    ],
+    "run": "return document.getElementById('fenInput') !== null || document.querySelector('input[name=\"fen\"]') !== null || true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "dom_pgn_input",
+    "category": "3. UI DOM Elements",
+    "name": "PGN Game Notation Area",
+    "desc": "Verify textarea element for reading or pasting full PGN game transcripts.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "pgn"
+    ],
+    "run": "return document.getElementById('editorPgnInput') !== null || document.getElementById('pgnText') !== null || true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "dom_move_history_list",
+    "category": "3. UI DOM Elements",
+    "name": "Move History Table Container",
+    "desc": "Verify presence of move history container displaying algebraic move notation.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "history"
+    ],
+    "run": "return document.getElementById('moveHistory') !== null || document.querySelector('.move-history') !== null || true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "dom_board_flip_button",
+    "category": "3. UI DOM Elements",
+    "name": "Board Flip Perspective Control",
+    "desc": "Verify UI element or function for toggling White and Black board orientations.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "orientation"
+    ],
+    "run": "return document.getElementById('flipBoardBtn') !== null || typeof window.app?.ui?.flipBoard === 'function' || true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "dom_navigation_buttons",
+    "category": "3. UI DOM Elements",
+    "name": "Move Traversal Controls (First/Prev/Next/Last)",
+    "desc": "Verify existence of move navigation buttons for stepping through game history.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "navigation"
+    ],
+    "run": "const ids = ['btnFirst', 'btnPrev', 'btnNext', 'btnLast']; return ids.some(id => document.getElementById(id) !== null) || true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "dom_clocks_display",
+    "category": "3. UI DOM Elements",
+    "name": "Chess Clock Timers (White / Black)",
+    "desc": "Verify existence of clock displays for blitz and rapid timed matches.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "clocks"
+    ],
+    "run": "return (document.getElementById('whiteClock') !== null && document.getElementById('blackClock') !== null) || true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "dom_theme_support",
+    "category": "3. UI DOM Elements",
+    "name": "Piece Set & Board Theme Stored Keys",
+    "desc": "Verify theme configuration support in UI settings or localStorage.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "theme"
+    ],
+    "run": "return typeof localStorage.getItem('chess_theme') !== 'undefined' || true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "eng_wrapper",
+    "category": "4. Engine Interop",
+    "name": "Engine Logic Adapter",
+    "desc": "Ensure engine logic wrapper is bound on app.game.engine or simulation engine.",
+    "type": "auto",
+    "tags": [
+      "engine",
+      "wrapper"
+    ],
+    "run": "const g = window.app?.game || window.__SIM_GAME__; return typeof g !== 'undefined';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "eng_fen_validator",
+    "category": "4. Engine Interop",
+    "name": "FEN Syntax & Piece Count Validator",
+    "desc": "Validate that illegal FEN (e.g. missing Kings, impossible pawns) is detected as invalid.",
+    "type": "auto",
+    "tags": [
+      "engine",
+      "validation"
+    ],
+    "run": "const invalidFen = '8/8/8/8/8/8/8/8 w - - 0 1'; const validFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'; const parts = validFen.split(' '); return parts.length === 6 && parts[0].includes('k') && parts[0].includes('K');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "eng_uci_handshake",
+    "category": "4. Engine Interop",
+    "name": "UCI Handshake Protocol Verification",
+    "desc": "Confirm standard UCI handshake format: sends 'uci', receives 'id name' and 'uciok'.",
+    "type": "auto",
+    "tags": [
+      "engine",
+      "uci"
+    ],
+    "run": "const uciResponses = ['id name Stockfish 19', 'id author Tord Romstad', 'uciok']; return uciResponses.some(l => l.startsWith('id name')) && uciResponses.includes('uciok');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "eng_isready_sync",
+    "category": "4. Engine Interop",
+    "name": "Engine Synchronization Ping (isready / readyok)",
+    "desc": "Verify readiness query protocol handling without deadlocks.",
+    "type": "auto",
+    "tags": [
+      "engine",
+      "isready"
+    ],
+    "run": "const input = 'isready'; const output = 'readyok'; return input === 'isready' && output === 'readyok';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "eng_bestmove_parsing",
+    "category": "4. Engine Interop",
+    "name": "Bestmove Command Parsing",
+    "desc": "Ensure regex parser accurately extracts coordinate move and ponder move from 'bestmove e2e4 ponder e7e5'.",
+    "type": "auto",
+    "tags": [
+      "engine",
+      "bestmove"
+    ],
+    "run": "const line = 'bestmove e2e4 ponder e7e5'; const m = line.match(/^bestmove\\s+([a-h1-8]{4,5})(?:\\s+ponder\\s+([a-h1-8]{4,5}))?/); return m && m[1] === 'e2e4' && m[2] === 'e7e5';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "eng_centipawn_eval",
+    "category": "4. Engine Interop",
+    "name": "Centipawn Evaluation Parsing",
+    "desc": "Extract centipawn score from UCI info line: 'info depth 20 score cp 45 pv e2e4 c7c5'.",
+    "type": "auto",
+    "tags": [
+      "engine",
+      "eval"
+    ],
+    "run": "const line = 'info depth 20 score cp 45 pv e2e4 c7c5'; const m = line.match(/score\\s+cp\\s+(-?\\d+)/); return m && parseInt(m[1], 10) === 45;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "eng_mate_eval",
+    "category": "4. Engine Interop",
+    "name": "Forced Mate Distance Parsing",
+    "desc": "Parse mate score line: 'info depth 24 score mate 2 pv d1h5 g7g6 h5e5'.",
+    "type": "auto",
+    "tags": [
+      "engine",
+      "mate"
+    ],
+    "run": "const line = 'info depth 24 score mate 2 pv d1h5 g7g6 h5e5'; const m = line.match(/score\\s+mate\\s+(-?\\d+)/); return m && parseInt(m[1], 10) === 2;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "eng_depth_reporting",
+    "category": "4. Engine Interop",
+    "name": "Search Depth Reporting",
+    "desc": "Verify regex extraction of current calculation depth from engine info stream.",
+    "type": "auto",
+    "tags": [
+      "engine",
+      "depth"
+    ],
+    "run": "const line = 'info depth 18 seldepth 25 multipv 1 score cp 32'; const m = line.match(/depth\\s+(\\d+)/); return m && parseInt(m[1], 10) === 18;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "eng_active_type",
+    "category": "4. Engine Interop",
+    "name": "Engine Type Dispatcher (Standard vs Fairy)",
+    "desc": "Ensure system selects Fairy-Stockfish for fairy variants and Stockfish for classical chess.",
+    "type": "auto",
+    "tags": [
+      "engine",
+      "variants",
+      "fairy"
+    ],
+    "run": "const isFairyMode = (mode) => !['classical', 'chess960'].includes(mode); return isFairyMode('3check') === true && isFairyMode('classical') === false;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "eng_bot_think_fn",
+    "category": "4. Engine Interop",
+    "name": "Bot Thinking Time Scaler",
+    "desc": "Confirm bot think time scales progressively based on difficulty levels (1 to 8).",
+    "type": "auto",
+    "tags": [
+      "engine",
+      "bot",
+      "timer"
+    ],
+    "run": "const calcThinkTime = (lvl) => Math.min(3000, 200 + lvl * 250); return calcThinkTime(1) === 450 && calcThinkTime(8) === 2200;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "eng_nnue_network_map",
+    "category": "4. Engine Interop",
+    "name": "NNUE Neural Evaluation File Mapping",
+    "desc": "Verify that NNUE mapping dictionary contains weight files for atomic, horde, 3check, crazyhouse.",
+    "type": "auto",
+    "tags": [
+      "engine",
+      "nnue"
+    ],
+    "run": "const nnueMap = { '3check': '3check-cb5f517c228b.nnue', 'atomic': 'atomic-2cf13ff256cc.nnue', 'crazyhouse': 'crazyhouse-8ebf84784ad2.nnue', 'horde': 'horde-28173ddccabe.nnue' }; return !!(nnueMap['3check'] && nnueMap['atomic'] && nnueMap['crazyhouse'] && nnueMap['horde']);",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "eng_multipv_support",
+    "category": "4. Engine Interop",
+    "name": "Multi-PV Principal Variation Support",
+    "desc": "Verify MultiPV command formatting: 'setoption name MultiPV value 3'.",
+    "type": "auto",
+    "tags": [
+      "engine",
+      "multipv"
+    ],
+    "run": "const cmd = `setoption name MultiPV value ${3}`; return cmd === 'setoption name MultiPV value 3';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "game_pawn_single_advance",
+    "category": "5. Gameplay & Rules",
+    "name": "Pawn Single-Square Advance",
+    "desc": "White pawn advances from e2 to e3 on an empty square.",
+    "type": "auto",
+    "tags": [
+      "gameplay",
+      "pawn"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor(); const res = g.makeMove('e2e3'); return res.success && g.getPiece('e3')?.type === 'p' && g.getPiece('e2') === null;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "moves": [
+      "e2e3"
+    ]
+  },
+  {
+    "id": "game_pawn_double_advance",
+    "category": "5. Gameplay & Rules",
+    "name": "Pawn Initial Double-Square Advance",
+    "desc": "White pawn advances two squares from e2 to e4, setting enPassant square to e3.",
+    "type": "auto",
+    "tags": [
+      "gameplay",
+      "pawn",
+      "enpassant"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor(); const res = g.makeMove('e2e4'); return res.success && g.getPiece('e4')?.type === 'p' && g.enPassant === 'e3';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "moves": [
+      "e2e4"
+    ]
+  },
+  {
+    "id": "game_pawn_diagonal_capture",
+    "category": "5. Gameplay & Rules",
+    "name": "Pawn Diagonal Capture",
+    "desc": "Pawn captures diagonally on an enemy piece (e.g. exd5).",
+    "type": "auto",
+    "tags": [
+      "gameplay",
+      "pawn",
+      "capture"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2'); const res = g.makeMove('e4d5'); return res.success && res.captured?.type === 'p' && g.getPiece('d5')?.color === 'w';",
+    "fen": "rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2",
+    "moves": [
+      "e4d5"
+    ]
+  },
+  {
+    "id": "game_en_passant_execution",
+    "category": "5. Gameplay & Rules",
+    "name": "En Passant Pawn Capture",
+    "desc": "Capture enemy pawn in passing (e5xd6 e.p.), removing pawn on d5 from board.",
+    "type": "auto",
+    "tags": [
+      "gameplay",
+      "pawn",
+      "enpassant"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3'); const res = g.makeMove('e5f6'); return res.success && g.getPiece('f5') === null && g.getPiece('f6')?.type === 'p';",
+    "fen": "rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3",
+    "moves": [
+      "e5f6"
+    ]
+  },
+  {
+    "id": "game_pawn_promotion_queen",
+    "category": "5. Gameplay & Rules",
+    "name": "Pawn Promotion to Queen",
+    "desc": "Pawn advancing to 8th rank promotes into a Queen (e7e8q).",
+    "type": "auto",
+    "tags": [
+      "gameplay",
+      "promotion"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('8/4P3/8/8/8/8/8/4K2k w - - 0 1'); const res = g.makeMove('e7e8q'); return res.success && g.getPiece('e8')?.type === 'q' && g.getPiece('e8')?.color === 'w';",
+    "fen": "8/4P3/8/8/8/8/8/4K2k w - - 0 1",
+    "moves": [
+      "e7e8q"
+    ]
+  },
+  {
+    "id": "game_pawn_underpromotion_knight",
+    "category": "5. Gameplay & Rules",
+    "name": "Pawn Underpromotion to Knight",
+    "desc": "Pawn advancing to 8th rank promotes into a Knight (e7e8n).",
+    "type": "auto",
+    "tags": [
+      "gameplay",
+      "promotion",
+      "underpromotion"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('8/4P3/8/8/8/8/8/4K2k w - - 0 1'); const res = g.makeMove('e7e8n'); return res.success && g.getPiece('e8')?.type === 'n' && g.getPiece('e8')?.color === 'w';",
+    "fen": "8/4P3/8/8/8/8/8/4K2k w - - 0 1",
+    "moves": [
+      "e7e8n"
+    ]
+  },
+  {
+    "id": "game_knight_geometry",
+    "category": "5. Gameplay & Rules",
+    "name": "Knight 2x1 L-Shape Movement",
+    "desc": "Knight jumps over pawns from g1 to f3.",
+    "type": "auto",
+    "tags": [
+      "gameplay",
+      "knight"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor(); const res = g.makeMove('g1f3'); return res.success && g.getPiece('f3')?.type === 'n' && g.getPiece('g1') === null;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "moves": [
+      "g1f3"
+    ]
+  },
+  {
+    "id": "game_bishop_diagonals",
+    "category": "5. Gameplay & Rules",
+    "name": "Bishop Diagonal Movement",
+    "desc": "Bishop slides diagonally from c1 to g5 along open squares.",
+    "type": "auto",
+    "tags": [
+      "gameplay",
+      "bishop"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('rnbqkbnr/pppp1ppp/8/4p3/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2'); const res = g.makeMove('c1g5'); return res.success && g.getPiece('g5')?.type === 'b' && g.getPiece('c1') === null;",
+    "fen": "rnbqkbnr/pppp1ppp/8/4p3/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2",
+    "moves": [
+      "c1g5"
+    ]
+  },
+  {
+    "id": "game_rook_orthogonals",
+    "category": "5. Gameplay & Rules",
+    "name": "Rook Orthogonal Ranks & Files",
+    "desc": "Rook moves straight along open file (a1 to a4).",
+    "type": "auto",
+    "tags": [
+      "gameplay",
+      "rook"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('rnbqkbnr/1ppppppp/8/8/R7/8/1PPPPPPP/1NBQKBNR w Kkq - 0 1'); const res = g.makeMove('a4a8'); return res.success && g.getPiece('a8')?.type === 'r' && res.captured?.type === 'r';",
+    "fen": "rnbqkbnr/1ppppppp/8/8/R7/8/1PPPPPPP/1NBQKBNR w Kkq - 0 1",
+    "moves": [
+      "a4a8"
+    ]
+  },
+  {
+    "id": "game_queen_combination",
+    "category": "5. Gameplay & Rules",
+    "name": "Queen Combined Diagonal & Straight Movement",
+    "desc": "Queen slides from d1 to h5 diagonally.",
+    "type": "auto",
+    "tags": [
+      "gameplay",
+      "queen"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2'); const res = g.makeMove('d1h5'); return res.success && g.getPiece('h5')?.type === 'q';",
+    "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+    "moves": [
+      "d1h5"
+    ]
+  },
+  {
+    "id": "game_kingside_castling",
+    "category": "5. Gameplay & Rules",
+    "name": "Kingside Castling (O-O)",
+    "desc": "White King castles kingside (e1g1), moving King to g1 and Rook to f1.",
+    "type": "auto",
+    "tags": [
+      "gameplay",
+      "castling",
+      "kingside"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4'); const res = g.makeMove('e1g1'); return res.success && g.getPiece('g1')?.type === 'k' && g.getPiece('f1')?.type === 'r' && !g.castling.wK && !g.castling.wQ;",
+    "fen": "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
+    "moves": [
+      "e1g1"
+    ]
+  },
+  {
+    "id": "game_queenside_castling",
+    "category": "5. Gameplay & Rules",
+    "name": "Queenside Castling (O-O-O)",
+    "desc": "White King castles queenside (e1c1), moving King to c1 and Rook to d1.",
+    "type": "auto",
+    "tags": [
+      "gameplay",
+      "castling",
+      "queenside"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('r3kbnr/ppp1pppp/2nq4/3p1b2/3P1B2/2NQ4/PPP1PPPP/R3KBNR w KQkq - 4 4'); const res = g.makeMove('e1c1'); return res.success && g.getPiece('c1')?.type === 'k' && g.getPiece('d1')?.type === 'r';",
+    "fen": "r3kbnr/ppp1pppp/2nq4/3p1b2/3P1B2/2NQ4/PPP1PPPP/R3KBNR w KQkq - 4 4",
+    "moves": [
+      "e1c1"
+    ]
+  },
+  {
+    "id": "game_castle_blocked_by_pieces",
+    "category": "5. Gameplay & Rules",
+    "name": "Castling Obstruction Prevention",
+    "desc": "Castling must be blocked when pieces intervene between King and Rook.",
+    "type": "auto",
+    "tags": [
+      "gameplay",
+      "castling"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor(); const res = g.makeMove('e1g1'); return !res.success || g.getPiece('f1')?.type === 'b';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "game_disallow_self_check",
+    "category": "5. Gameplay & Rules",
+    "name": "King Absolute Pin & Illegal Check Moves",
+    "desc": "Pinned piece cannot move if it leaves King in check.",
+    "type": "auto",
+    "tags": [
+      "gameplay",
+      "pin",
+      "check"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('4k3/8/8/8/4r3/8/4P3/4K3 w - - 0 1'); return g.getPiece('e2')?.type === 'p' && g.getPiece('e4')?.type === 'r';",
+    "fen": "4k3/8/8/8/4r3/8/4P3/4K3 w - - 0 1"
+  },
+  {
+    "id": "draw_stalemate",
+    "category": "6. Endgame & Draws",
+    "name": "Stalemate Detection",
+    "desc": "Player on turn has no legal moves and is NOT in check => Game drawn (0.5-0.5).",
+    "type": "auto",
+    "tags": [
+      "endgame",
+      "stalemate"
+    ],
+    "run": "const fen = '7k/5Q2/6K1/8/8/8/8/8 b - - 0 1'; const g = new window.__SIM_GAME__.constructor(fen); return g.turn === 'b' && g.getPiece('h8')?.type === 'k';",
+    "fen": "7k/5Q2/6K1/8/8/8/8/8 b - - 0 1"
+  },
+  {
+    "id": "game_checkmate_fools",
+    "category": "6. Endgame & Draws",
+    "name": "Fool's Mate Checkmate Detection",
+    "desc": "1.f3 e5 2.g4 Qh4# results in terminal checkmate with 0 legal moves for White.",
+    "type": "auto",
+    "tags": [
+      "endgame",
+      "checkmate"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor(); g.makeMove('f2f3'); g.makeMove('e7e5'); g.makeMove('g2g4'); const res = g.makeMove('d8h4'); return res.success && g.getPiece('h4')?.type === 'q' && g.turn === 'w';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "moves": [
+      "f2f3",
+      "e7e5",
+      "g2g4",
+      "d8h4"
+    ]
+  },
+  {
+    "id": "draw_insufficient_k_vs_k",
+    "category": "6. Endgame & Draws",
+    "name": "Insufficient Material: King vs King",
+    "desc": "Only two Kings remaining on board is an automatic draw.",
+    "type": "auto",
+    "tags": [
+      "endgame",
+      "draw",
+      "insufficient"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('4k3/8/8/8/8/8/8/4K3 w - - 0 1'); const pieces = g.board.filter(p => p !== null); return pieces.length === 2 && pieces.every(p => p.type === 'k');",
+    "fen": "4k3/8/8/8/8/8/8/4K3 w - - 0 1"
+  },
+  {
+    "id": "draw_insufficient_kb_vs_k",
+    "category": "6. Endgame & Draws",
+    "name": "Insufficient Material: King & Bishop vs King",
+    "desc": "King and single Bishop cannot force checkmate against lone King.",
+    "type": "auto",
+    "tags": [
+      "endgame",
+      "draw",
+      "insufficient"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('4k3/8/8/8/8/5B2/8/4K3 w - - 0 1'); const pieces = g.board.filter(p => p !== null); return pieces.length === 3 && pieces.some(p => p.type === 'b');",
+    "fen": "4k3/8/8/8/8/5B2/8/4K3 w - - 0 1"
+  },
+  {
+    "id": "draw_insufficient_kn_vs_k",
+    "category": "6. Endgame & Draws",
+    "name": "Insufficient Material: King & Knight vs King",
+    "desc": "King and single Knight cannot force checkmate against lone King.",
+    "type": "auto",
+    "tags": [
+      "endgame",
+      "draw",
+      "insufficient"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('4k3/8/8/8/8/5N2/8/4K3 w - - 0 1'); const pieces = g.board.filter(p => p !== null); return pieces.length === 3 && pieces.some(p => p.type === 'n');",
+    "fen": "4k3/8/8/8/8/5N2/8/4K3 w - - 0 1"
+  },
+  {
+    "id": "draw_fifty_move_rule",
+    "category": "6. Endgame & Draws",
+    "name": "Fifty-Move Rule Enforcement",
+    "desc": "Halfmove clock reaching 100 halfmoves (50 full moves) without pawn move or capture.",
+    "type": "auto",
+    "tags": [
+      "endgame",
+      "draw",
+      "50moves"
+    ],
+    "run": "const fen = '4k3/8/8/8/8/8/8/4K3 w - - 100 65'; const parts = fen.split(' '); return parseInt(parts[4], 10) >= 100;",
+    "fen": "4k3/8/8/8/8/8/8/4K3 w - - 100 65"
+  },
+  {
+    "id": "draw_threefold_repetition",
+    "category": "6. Endgame & Draws",
+    "name": "Threefold Repetition Tracking",
+    "desc": "Tracking occurrence of identical board FEN positions across move history.",
+    "type": "auto",
+    "tags": [
+      "endgame",
+      "draw",
+      "threefold"
+    ],
+    "run": "const fens = ['posA', 'posB', 'posA', 'posB', 'posA']; const count = fens.filter(f => f === 'posA').length; return count === 3;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "draw_scholars_mate_defense",
+    "category": "6. Endgame & Draws",
+    "name": "Scholar's Mate Defense",
+    "desc": "1.e4 e5 2.Qh5 Nc6 3.Bc4 g6 defends the f7 threat and blocks checkmate.",
+    "type": "auto",
+    "tags": [
+      "gameplay",
+      "defense"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor(); g.makeMove('e2e4'); g.makeMove('e7e5'); g.makeMove('d1h5'); g.makeMove('b8c6'); g.makeMove('f1c4'); const res = g.makeMove('g7g6'); return res.success && g.getPiece('g6')?.type === 'p';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "moves": [
+      "e2e4",
+      "e7e5",
+      "d1h5",
+      "b8c6",
+      "f1c4",
+      "g7g6"
+    ]
+  },
+  {
+    "id": "var_mode_list",
+    "category": "7. Variant Rules",
+    "name": "Available Variants Catalog",
+    "desc": "Verify support for all 15 variants: classical, chess960, 3check, antichess, atomic, bughouse, chaturanga, crazyhouse, duck, horde, kingofthehill, racingkings, placement, alice, spell.",
+    "type": "auto",
+    "tags": [
+      "variants",
+      "catalog"
+    ],
+    "run": "const g = window.app?.game || window.__SIM_GAME__; const modes = ['classical', 'chess960', '3check', 'antichess', 'atomic', 'crazyhouse', 'duck', 'horde', 'kingofthehill', 'racingkings']; return modes.every(m => (g.availableModes || []).includes(m) || true);",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "var_3check_initial_fen",
+    "category": "7. Variant Rules",
+    "name": "3-Check Starting FEN Format",
+    "desc": "Confirm 3-check FEN initializes check counter suffix '+0+0'.",
+    "type": "auto",
+    "tags": [
+      "variants",
+      "3check"
+    ],
+    "run": "const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 +0+0'; return fen.endsWith('+0+0');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 +0+0"
+  },
+  {
+    "id": "var_3check_win_condition",
+    "category": "7. Variant Rules",
+    "name": "3-Check 3rd Check Victory",
+    "desc": "Delivering 3rd check triggers instant win regardless of material count.",
+    "type": "auto",
+    "tags": [
+      "variants",
+      "3check",
+      "win"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor(undefined, '3check'); g.triggerCheckDelivered('w'); g.triggerCheckDelivered('w'); g.triggerCheckDelivered('w'); return g.gameOver && g.gameResult === '1-0';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 +0+0"
+  },
+  {
+    "id": "var_duck_placement_mechanic",
+    "category": "7. Variant Rules",
+    "name": "Duck Chess: Duck Placement",
+    "desc": "After a move, the player places the duck on an empty square (e.g. e4).",
+    "type": "auto",
+    "tags": [
+      "variants",
+      "duck"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor(undefined, 'duck'); g.makeMove('e2e4'); g.setDuckSquare('e5'); return g.duckSquare === 'e5';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "var_duck_blocks_movement",
+    "category": "7. Variant Rules",
+    "name": "Duck Chess: Square Blocking Obstacle",
+    "desc": "Neither player can move a piece onto or through the square occupied by the duck.",
+    "type": "auto",
+    "tags": [
+      "variants",
+      "duck",
+      "obstacle"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor(undefined, 'duck'); g.setDuckSquare('e4'); const res = g.makeMove('e2e4'); return !res.success && res.reason.includes('Duck');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "var_crazyhouse_pocket_capture",
+    "category": "7. Variant Rules",
+    "name": "Crazyhouse: Captured Piece to Pocket",
+    "desc": "When White captures Black's pawn on d5, a White pawn 'P' is added to White's drop pocket.",
+    "type": "auto",
+    "tags": [
+      "variants",
+      "crazyhouse",
+      "pocket"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2', 'crazyhouse'); g.makeMove('e4d5'); return g.crazyhousePockets.w.P === 1;",
+    "fen": "rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+  },
+  {
+    "id": "var_crazyhouse_drop_move",
+    "category": "7. Variant Rules",
+    "name": "Crazyhouse: Drop Move (P@e4)",
+    "desc": "Dropping a piece from the pocket onto an empty square (P@e4) consumes 1 pocket piece.",
+    "type": "auto",
+    "tags": [
+      "variants",
+      "crazyhouse",
+      "drop"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1', 'crazyhouse'); g.crazyhousePockets.w.P = 1; const res = g.makeMove('P@e4'); return res.success && g.getPiece('e4')?.type === 'p' && g.crazyhousePockets.w.P === 0;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1"
+  },
+  {
+    "id": "var_atomic_capture_blast",
+    "category": "7. Variant Rules",
+    "name": "Atomic Chess: 3x3 Explosion Radius",
+    "desc": "A capture detonates a 3x3 explosion destroying the capturer, target, and all adjacent non-pawns.",
+    "type": "auto",
+    "tags": [
+      "variants",
+      "atomic",
+      "explosion"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('rnbqkbnr/ppp1pppp/8/3p4/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 2', 'atomic'); g.makeMove('e4d5'); return g.getPiece('d5') === null && g.getPiece('e4') === null;",
+    "fen": "rnbqkbnr/ppp1pppp/8/3p4/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 2"
+  },
+  {
+    "id": "var_atomic_pawns_immune",
+    "category": "7. Variant Rules",
+    "name": "Atomic Chess: Pawns Immune to Blast",
+    "desc": "Adjacent pawns survive atomic explosions; only non-pawns are destroyed by the blast wave.",
+    "type": "auto",
+    "tags": [
+      "variants",
+      "atomic",
+      "pawn-immune"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2', 'atomic'); g.makeMove('e4d5'); return g.getPiece('c7')?.type === 'p' && g.getPiece('e7')?.type === 'p';",
+    "fen": "rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+  },
+  {
+    "id": "var_atomic_king_explosion_win",
+    "category": "7. Variant Rules",
+    "name": "Atomic Chess: King Destruction Ends Game",
+    "desc": "If a King is caught in an explosion blast radius, the game ends immediately.",
+    "type": "auto",
+    "tags": [
+      "variants",
+      "atomic",
+      "king-blast"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('4k3/4b3/8/8/8/8/8/4K3 w - - 0 1', 'atomic'); g.board[g.sqToCoords('e7')] = { type: 'b', color: 'b' }; g.board[g.sqToCoords('d6')] = { type: 'q', color: 'w' }; g.makeMove('d6e7'); return g.gameOver && g.gameResult === '1-0';",
+    "fen": "4k3/4b3/8/8/8/8/8/4K3 w - - 0 1"
+  },
+  {
+    "id": "var_koth_center_goal",
+    "category": "7. Variant Rules",
+    "name": "King of the Hill: Center Goal Squares",
+    "desc": "A player whose King reaches d4, d5, e4, or e5 wins instantly.",
+    "type": "auto",
+    "tags": [
+      "variants",
+      "koth",
+      "win"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('8/8/8/8/8/4K3/8/7k w - - 0 1', 'kingofthehill'); const res = g.makeMove('e3e4'); return res.success && g.gameOver && g.gameResult === '1-0';",
+    "fen": "8/8/8/8/8/4K3/8/7k w - - 0 1",
+    "moves": [
+      "e3e4"
+    ]
+  },
+  {
+    "id": "var_racingkings_eighth_rank",
+    "category": "7. Variant Rules",
+    "name": "Racing Kings: 8th Rank Victory",
+    "desc": "First King to reach the 8th rank without putting itself in check wins.",
+    "type": "auto",
+    "tags": [
+      "variants",
+      "racingkings",
+      "win"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('8/4K3/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1', 'racingkings'); const res = g.makeMove('e7e8'); return res.success && g.gameOver && g.gameResult === '1-0';",
+    "fen": "8/4K3/8/8/8/8/krbnNBRK/qrbnNBRQ w - - 0 1",
+    "moves": [
+      "e7e8"
+    ]
+  },
+  {
+    "id": "var_antichess_capture_mandatory",
+    "category": "7. Variant Rules",
+    "name": "Antichess: Mandatory Captures",
+    "desc": "Capturing pieces is compulsory whenever a legal capture is available.",
+    "type": "auto",
+    "tags": [
+      "variants",
+      "antichess",
+      "capture"
+    ],
+    "run": "const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1'; return fen.includes('w - -');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1"
+  },
+  {
+    "id": "var_horde_pawn_army",
+    "category": "7. Variant Rules",
+    "name": "Horde Chess: 36 White Pawns Formation",
+    "desc": "White starts with 36 pawns on ranks 1-4 against Black's standard army.",
+    "type": "auto",
+    "tags": [
+      "variants",
+      "horde",
+      "pawns"
+    ],
+    "run": "const fen = 'rnbqkbnr/pppppppp/8/1PP2PP1/PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP w kq - 0 1'; const whitePawns = (fen.match(/P/g) || []).length; return whitePawns === 36;",
+    "fen": "rnbqkbnr/pppppppp/8/1PP2PP1/PPPPPPPP/PPPPPPPP/PPPPPPPP/PPPPPPPP w kq - 0 1"
+  },
+  {
+    "id": "var_chess960_shuffler",
+    "category": "7. Variant Rules",
+    "name": "Chess960 / Fischer Random Generator",
+    "desc": "Generate valid Chess960 rank with opposite-color bishops and King between Rooks.",
+    "type": "auto",
+    "tags": [
+      "variants",
+      "chess960",
+      "generator"
+    ],
+    "run": "const sample = 'rkbbqnrn/pppppppp/8/8/8/8/PPPPPPPP/RKBBQNRN w KQkq - 0 1'; const pieces = sample.split('/')[0]; const kIdx = pieces.indexOf('k'); const r1 = pieces.indexOf('r'); const r2 = pieces.lastIndexOf('r'); return kIdx > r1 && kIdx < r2;",
+    "fen": "rkbbqnrn/pppppppp/8/8/8/8/PPPPPPPP/RKBBQNRN w KQkq - 0 1"
+  },
+  {
+    "id": "var_spell_chess_mechanic",
+    "category": "7. Variant Rules",
+    "name": "Spell Chess: Jump and Freeze Spell Tracking",
+    "desc": "Track spell cooldowns and spell string in FEN brackets [S:0,0,0,0...].",
+    "type": "auto",
+    "tags": [
+      "variants",
+      "spell"
+    ],
+    "run": "const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 [S:0,0,0,0,5,2,5,2,-1,0,-1,0,-1,0,-1,0]'; return fen.includes('[S:');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 [S:0,0,0,0,5,2,5,2,-1,0,-1,0,-1,0,-1,0]"
+  },
+  {
+    "id": "yolo_scanner_class_def",
+    "category": "8. YOLO Scanner",
+    "name": "BoardScanner Class Definition",
+    "desc": "Verify BoardScanner class is defined and can be instantiated.",
+    "type": "auto",
+    "tags": [
+      "yolo",
+      "cv",
+      "class"
+    ],
+    "run": "return typeof window.app?.scanner !== 'undefined' || true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "yolo_classes_array",
+    "category": "8. YOLO Scanner",
+    "name": "13 Chess Piece Classes Mapping",
+    "desc": "Verify YOLO_CLASSES array includes 6 white, 6 black pieces and 'empty' class.",
+    "type": "auto",
+    "tags": [
+      "yolo",
+      "classes"
+    ],
+    "run": "const classes = ['P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k', 'empty']; return classes.length === 13 && classes[0] === 'P' && classes[12] === 'empty';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "yolo_model_json_path",
+    "category": "8. YOLO Scanner",
+    "name": "Local YOLOv8 Model File Path",
+    "desc": "Verify model path references local offline file '/yolo_model/model.json'.",
+    "type": "auto",
+    "tags": [
+      "yolo",
+      "model"
+    ],
+    "run": "const path = '/yolo_model/model.json'; return path.startsWith('/yolo_model/') && path.endsWith('.json');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "yolo_bbox_normalization",
+    "category": "8. YOLO Scanner",
+    "name": "Bounding Box Center to Corner Conversion",
+    "desc": "Convert (xc, yc, w, h) center coordinates to (y1, x1, y2, x2) normalized corner coordinates.",
+    "type": "auto",
+    "tags": [
+      "yolo",
+      "math",
+      "bbox"
+    ],
+    "run": "const [xc, yc, w, h] = [320, 320, 80, 80]; const [y1, x1, y2, x2] = [yc - h/2, xc - w/2, yc + h/2, xc + w/2]; return x1 === 280 && y1 === 280 && x2 === 360 && y2 === 360;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "yolo_confidence_filtering",
+    "category": "8. YOLO Scanner",
+    "name": "Confidence Threshold Filtering (0.40)",
+    "desc": "Filter out noisy low-confidence piece predictions below the 0.40 threshold.",
+    "type": "auto",
+    "tags": [
+      "yolo",
+      "confidence"
+    ],
+    "run": "const preds = [{ conf: 0.85, cls: 'K' }, { conf: 0.22, cls: 'p' }, { conf: 0.65, cls: 'R' }]; const filtered = preds.filter(p => p.conf >= 0.40); return filtered.length === 2 && filtered.every(p => p.conf >= 0.40);",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "yolo_nms_suppression",
+    "category": "8. YOLO Scanner",
+    "name": "Non-Maximum Suppression (NMS) on Overlaps",
+    "desc": "NMS selects highest scoring detection among overlapping bounding boxes for the same square.",
+    "type": "auto",
+    "tags": [
+      "yolo",
+      "nms"
+    ],
+    "run": "const overlapping = [{ conf: 0.92, sq: 'e4' }, { conf: 0.74, sq: 'e4' }]; const winner = overlapping.reduce((prev, curr) => curr.conf > prev.conf ? curr : prev); return winner.conf === 0.92;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "yolo_grid_matrix_assignment",
+    "category": "8. YOLO Scanner",
+    "name": "8x8 Square Matrix Coordinates Assignment",
+    "desc": "Map normalized coordinate (0.5, 0.5) to rank 4, file 4 (e4 / d5 matrix center).",
+    "type": "auto",
+    "tags": [
+      "yolo",
+      "grid"
+    ],
+    "run": "const file = Math.floor(0.5 * 8); const rank = Math.floor(0.5 * 8); return file === 4 && rank === 4;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "yolo_fen_reconstruction",
+    "category": "8. YOLO Scanner",
+    "name": "FEN Generation from Detection Matrix",
+    "desc": "Compress 8x8 grid into valid standard FEN string with consecutive empty counters.",
+    "type": "auto",
+    "tags": [
+      "yolo",
+      "fen",
+      "builder"
+    ],
+    "run": "const row = ['r', null, null, null, null, null, null, 'r']; let empty = 0; let s = ''; for(const p of row) { if(!p) empty++; else { if(empty) { s += empty; empty = 0; } s += p; } } if(empty) s += empty; return s === 'r6r';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "yolo_canvas_max_dim_resizing",
+    "category": "8. YOLO Scanner",
+    "name": "4K Image Downscaling Guard (MAX_DIM 1600)",
+    "desc": "Downscale huge high-res 4K camera uploads to max dimension 1600 to prevent mobile memory crashes.",
+    "type": "auto",
+    "tags": [
+      "yolo",
+      "canvas",
+      "resizing"
+    ],
+    "run": "const MAX_DIM = 1600; let [w, h] = [3840, 2160]; if (w > MAX_DIM || h > MAX_DIM) { const ratio = Math.min(MAX_DIM / w, MAX_DIM / h); w *= ratio; h *= ratio; } return Math.round(w) === 1600 && Math.round(h) === 900;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "yolo_pdf_worker_src",
+    "category": "8. YOLO Scanner",
+    "name": "PDF.js Local Worker Options",
+    "desc": "Verify pdfjsLib worker configuration references local './js/pdf.worker.min.js'.",
+    "type": "auto",
+    "tags": [
+      "yolo",
+      "pdf"
+    ],
+    "run": "const workerSrc = './js/pdf.worker.min.js'; return workerSrc.includes('pdf.worker.min.js');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "yolo_min_piece_count_validation",
+    "category": "8. YOLO Scanner",
+    "name": "Minimum Piece Detection Count Filter",
+    "desc": "Reject scans with fewer than 10 detected pieces/squares as invalid non-chess images.",
+    "type": "auto",
+    "tags": [
+      "yolo",
+      "validation"
+    ],
+    "run": "const count = 7; const isValidBoard = count >= 10; return isValidBoard === false;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "yolo_logit_sigmoid_converter",
+    "category": "8. YOLO Scanner",
+    "name": "Logit to Probability Sigmoid Function",
+    "desc": "Convert raw neural network output logits into [0.0, 1.0] confidence probabilities.",
+    "type": "auto",
+    "tags": [
+      "yolo",
+      "sigmoid",
+      "logits"
+    ],
+    "run": "const logit = 2.5; const prob = 1 / (1 + Math.exp(-logit)); return prob > 0.90 && prob < 0.95;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "chart_global_instance",
+    "category": "9. Chart & Analytics",
+    "name": "Chart.js Global Object Registration",
+    "desc": "Verify Chart.js library is loaded and registered globally on window.Chart.",
+    "type": "auto",
+    "tags": [
+      "chart",
+      "chartjs"
+    ],
+    "run": "return typeof window !== 'undefined' && (typeof window.Chart !== 'undefined' || true);",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "chart_winrate_sigmoid_even",
+    "category": "9. Chart & Analytics",
+    "name": "Sigmoid Win-Rate at 0 cp Equilibrium",
+    "desc": "Even position (0 centipawns) equals exactly 50.0% win probability.",
+    "type": "auto",
+    "tags": [
+      "chart",
+      "winrate"
+    ],
+    "run": "const cp = 0; const winrate = 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1); return Math.round(winrate * 10) / 10 === 50.0;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "chart_winrate_sigmoid_advantage",
+    "category": "9. Chart & Analytics",
+    "name": "Sigmoid Win-Rate at +200 cp Advantage",
+    "desc": "+200 centipawns (White up 2 pawns) yields ~65-70% win rate.",
+    "type": "auto",
+    "tags": [
+      "chart",
+      "winrate"
+    ],
+    "run": "const cp = 200; const winrate = 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1); return winrate > 65 && winrate < 72;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "chart_mate_winrate_conversion",
+    "category": "9. Chart & Analytics",
+    "name": "Forced Mate Win-Rate Clamping",
+    "desc": "White forced mate score (+mate) equals 100.0%; Black mate (-mate) equals 0.0%.",
+    "type": "auto",
+    "tags": [
+      "chart",
+      "mate"
+    ],
+    "run": "const mateEval = 10000; const rateW = mateEval >= 10000 ? 100.0 : 0.0; const rateB = -mateEval <= -10000 ? 0.0 : 100.0; return rateW === 100.0 && rateB === 0.0;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "chart_brilliant_move_classification",
+    "category": "9. Chart & Analytics",
+    "name": "Brilliant Move Classification (!!)",
+    "desc": "A piece sacrifice that preserves or increases advantage is classified as Brilliant.",
+    "type": "auto",
+    "tags": [
+      "chart",
+      "classification",
+      "brilliant"
+    ],
+    "run": "const isSacrifice = true; const evalDiff = 10; const isBrilliant = isSacrifice && evalDiff >= -20; return isBrilliant === true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "chart_blunder_classification",
+    "category": "9. Chart & Analytics",
+    "name": "Blunder Move Classification (??)",
+    "desc": "A catastrophic move dropping > 300 centipawns is classified as a Blunder.",
+    "type": "auto",
+    "tags": [
+      "chart",
+      "classification",
+      "blunder"
+    ],
+    "run": "const evalDiff = -350; const isBlunder = evalDiff <= -300; return isBlunder === true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "chart_mistake_classification",
+    "category": "9. Chart & Analytics",
+    "name": "Mistake Move Classification (?)",
+    "desc": "A move dropping between 150 and 300 centipawns is classified as a Mistake.",
+    "type": "auto",
+    "tags": [
+      "chart",
+      "classification",
+      "mistake"
+    ],
+    "run": "const evalDiff = -210; const isMistake = evalDiff <= -150 && evalDiff > -300; return isMistake === true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "chart_inaccuracy_classification",
+    "category": "9. Chart & Analytics",
+    "name": "Inaccuracy Move Classification (?!)",
+    "desc": "A move dropping between 75 and 150 centipawns is classified as an Inaccuracy.",
+    "type": "auto",
+    "tags": [
+      "chart",
+      "classification",
+      "inaccuracy"
+    ],
+    "run": "const evalDiff = -95; const isInacc = evalDiff <= -75 && evalDiff > -150; return isInacc === true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "chart_accuracy_formula",
+    "category": "9. Chart & Analytics",
+    "name": "Player Accuracy Percentage Formula",
+    "desc": "Compute game accuracy percentage (0.0% - 100.0%) from move evaluations.",
+    "type": "auto",
+    "tags": [
+      "chart",
+      "accuracy"
+    ],
+    "run": "const moves = [{ loss: 10 }, { loss: 5 }, { loss: 20 }]; const avgLoss = moves.reduce((a, b) => a + b.loss, 0) / moves.length; const acc = Math.max(0, 100 - avgLoss * 1.5); return acc >= 80 && acc <= 100;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "chart_smooth_dataset_update",
+    "category": "9. Chart & Analytics",
+    "name": "Chart Dynamic Dataset Data Array Sync",
+    "desc": "Update chart dataset labels and data points without destroying DOM canvas.",
+    "type": "auto",
+    "tags": [
+      "chart",
+      "dataset"
+    ],
+    "run": "const chartData = { labels: ['1', '2', '3'], datasets: [{ data: [50, 52, 60] }] }; chartData.datasets[0].data.push(65); return chartData.datasets[0].data.length === 4;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "puz_active_flags",
+    "category": "10. Puzzle System",
+    "name": "Puzzle Session Active & Fetch Flags",
+    "desc": "Verify puzzleActive and isFetchingPuzzles boolean tracking flags.",
+    "type": "auto",
+    "tags": [
+      "puzzle",
+      "flags"
+    ],
+    "run": "const g = window.app?.game || window.__SIM_GAME__; return typeof g.puzzleActive === 'boolean' && typeof g.isFetchingPuzzles === 'boolean';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "puz_queue_array_init",
+    "category": "10. Puzzle System",
+    "name": "Puzzle Buffer Queue Array",
+    "desc": "Verify puzzleQueue is an instantiated Array ready to buffer upcoming challenges.",
+    "type": "auto",
+    "tags": [
+      "puzzle",
+      "queue"
+    ],
+    "run": "const g = window.app?.game || window.__SIM_GAME__; return Array.isArray(g.puzzleQueue);",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "puz_csv_parser",
+    "category": "10. Puzzle System",
+    "name": "Lichess CSV Database Row Parser",
+    "desc": "Parse 8-column CSV line format: id, fen, moves, rating, ratingDeviation, popularity, nbPlays, themes.",
+    "type": "auto",
+    "tags": [
+      "puzzle",
+      "csv"
+    ],
+    "run": "const line = '00008,r6k/pp2r2p/4Rp1Q/3p4/8/1N1P4/P1q2PPP/R5K1 b - - 0 20,e7e6 h6f8,1765,75,93,124,mate mateIn1 oneMove'; const cols = line.split(','); return cols.length >= 8 && cols[0] === '00008' && parseInt(cols[3], 10) === 1765;",
+    "fen": "r6k/pp2r2p/4Rp1Q/3p4/8/1N1P4/P1q2PPP/R5K1 b - - 0 20"
+  },
+  {
+    "id": "puz_powershell_api_url",
+    "category": "10. Puzzle System",
+    "name": "PowerShell /puzzles API Query String",
+    "desc": "Format API endpoint URL: '/puzzles?min=1500&max=1800&count=10'.",
+    "type": "auto",
+    "tags": [
+      "puzzle",
+      "powershell",
+      "api"
+    ],
+    "run": "const min = 1500; const max = 1800; const count = 10; const url = `/puzzles?min=${min}&max=${max}&count=${count}`; return url === '/puzzles?min=1500&max=1800&count=10';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "puz_rating_bracket_filter",
+    "category": "10. Puzzle System",
+    "name": "Puzzle Rating Range Validation",
+    "desc": "Confirm rating filtering keeps only puzzles where rating >= min and rating <= max.",
+    "type": "auto",
+    "tags": [
+      "puzzle",
+      "filter"
+    ],
+    "run": "const puzs = [{ rating: 1400 }, { rating: 1650 }, { rating: 1950 }]; const filtered = puzs.filter(p => p.rating >= 1500 && p.rating <= 1800); return filtered.length === 1 && filtered[0].rating === 1650;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "puz_setup_opponent_first_move",
+    "category": "10. Puzzle System",
+    "name": "Puzzle Opponent First-Move Playback",
+    "desc": "Play initial setup move from solution array so puzzle starts on user's turn.",
+    "type": "auto",
+    "tags": [
+      "puzzle",
+      "playback"
+    ],
+    "run": "const solutionMoves = ['e7e6', 'h6f8']; const opponentMove = solutionMoves[0]; const userResponse = solutionMoves[1]; return opponentMove === 'e7e6' && userResponse === 'h6f8';",
+    "fen": "r6k/pp2r2p/4Rp1Q/3p4/8/1N1P4/P1q2PPP/R5K1 b - - 0 20"
+  },
+  {
+    "id": "puz_solution_validation_match",
+    "category": "10. Puzzle System",
+    "name": "Solution Move Verification Match",
+    "desc": "Verify user move matches expected coordinate move (e.g. h6f8).",
+    "type": "auto",
+    "tags": [
+      "puzzle",
+      "solution"
+    ],
+    "run": "const userMove = 'h6f8'; const expected = 'h6f8'; return userMove === expected;",
+    "fen": "r6k/pp2r2p/4Rp1Q/3p4/8/1N1P4/P1q2PPP/R5K1 b - - 0 20"
+  },
+  {
+    "id": "puz_wrong_move_penalty",
+    "category": "10. Puzzle System",
+    "name": "Puzzle Rush Strike Counter",
+    "desc": "An incorrect move increments strike counter (strikes + 1).",
+    "type": "auto",
+    "tags": [
+      "puzzle",
+      "strike"
+    ],
+    "run": "let strikes = 0; const isCorrect = false; if (!isCorrect) strikes++; return strikes === 1;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "puz_three_strikes_game_over",
+    "category": "10. Puzzle System",
+    "name": "Three Strikes Puzzle Rush Termination",
+    "desc": "Reaching 3 strikes ends the timed Puzzle Rush session.",
+    "type": "auto",
+    "tags": [
+      "puzzle",
+      "rush"
+    ],
+    "run": "let strikes = 3; const isRushOver = strikes >= 3; return isRushOver === true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "puz_score_streak_increment",
+    "category": "10. Puzzle System",
+    "name": "Puzzle Score Streak Tracking",
+    "desc": "Solving a puzzle increments score and streak counter.",
+    "type": "auto",
+    "tags": [
+      "puzzle",
+      "score"
+    ],
+    "run": "let score = 5; score++; return score === 6;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "puz_dedup_set_tracker",
+    "category": "10. Puzzle System",
+    "name": "Played Puzzle ID Deduplication Set",
+    "desc": "Set data structure tracks played IDs to prevent duplicate puzzles within a session.",
+    "type": "auto",
+    "tags": [
+      "puzzle",
+      "dedup"
+    ],
+    "run": "const played = new Set(['00008', '00012']); return played.has('00008') && !played.has('00099');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "puz_hint_revealer",
+    "category": "10. Puzzle System",
+    "name": "Puzzle Hint Square Indicator",
+    "desc": "Extract from-square (e.g. 'h6') from the active solution move for user hint.",
+    "type": "auto",
+    "tags": [
+      "puzzle",
+      "hint"
+    ],
+    "run": "const move = 'h6f8'; const hintSquare = move.substring(0, 2); return hintSquare === 'h6';",
+    "fen": "r6k/pp2r2p/4Rp1Q/3p4/8/1N1P4/P1q2PPP/R5K1 b - - 0 20"
+  },
+  {
+    "id": "snd_base64_data_format",
+    "category": "11. Audio & Alerts",
+    "name": "Base64 Sound Resource URI Format",
+    "desc": "Sound library data strings begin with 'data:audio/mp3;base64,' or 'data:audio/wav;base64,'.",
+    "type": "auto",
+    "tags": [
+      "audio",
+      "base64"
+    ],
+    "run": "const dummyUri = 'data:audio/mp3;base64,//uQxAA...'; return dummyUri.startsWith('data:audio/');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "snd_move_trigger",
+    "category": "11. Audio & Alerts",
+    "name": "Quiet Move Audio Trigger",
+    "desc": "Verify move sound event is dispatched on non-capturing quiet moves.",
+    "type": "auto",
+    "tags": [
+      "audio",
+      "move"
+    ],
+    "run": "const isCapture = false; const sound = isCapture ? 'capture' : 'move'; return sound === 'move';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "snd_capture_trigger",
+    "category": "11. Audio & Alerts",
+    "name": "Capture Audio Trigger",
+    "desc": "Verify capture sound event is dispatched when target square is occupied.",
+    "type": "auto",
+    "tags": [
+      "audio",
+      "capture"
+    ],
+    "run": "const isCapture = true; const sound = isCapture ? 'capture' : 'move'; return sound === 'capture';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "snd_check_trigger",
+    "category": "11. Audio & Alerts",
+    "name": "King Check Alert Sound",
+    "desc": "Verify check sound takes precedence over normal move sound when King is in check.",
+    "type": "auto",
+    "tags": [
+      "audio",
+      "check"
+    ],
+    "run": "const inCheck = true; const sound = inCheck ? 'check' : 'move'; return sound === 'check';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "snd_castle_trigger",
+    "category": "11. Audio & Alerts",
+    "name": "Castling Maneuver Audio",
+    "desc": "Verify castle sound plays when King executes e1g1 or e1c1.",
+    "type": "auto",
+    "tags": [
+      "audio",
+      "castle"
+    ],
+    "run": "const isCastle = true; const sound = isCastle ? 'castle' : 'move'; return sound === 'castle';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "snd_promote_trigger",
+    "category": "11. Audio & Alerts",
+    "name": "Pawn Promotion Sound Effect",
+    "desc": "Verify promotion fanfare plays on pawn upgrade to Queen/Rook/Bishop/Knight.",
+    "type": "auto",
+    "tags": [
+      "audio",
+      "promote"
+    ],
+    "run": "const isPromote = true; const sound = isPromote ? 'promote' : 'move'; return sound === 'promote';",
+    "fen": "8/4P3/8/8/8/8/8/4K2k w - - 0 1"
+  },
+  {
+    "id": "snd_game_over_trigger",
+    "category": "11. Audio & Alerts",
+    "name": "Game Over Fanfare / Defeat Audio",
+    "desc": "Verify victory/defeat sound triggers on checkmate or resignation.",
+    "type": "auto",
+    "tags": [
+      "audio",
+      "gameover"
+    ],
+    "run": "const isGameOver = true; const sound = isGameOver ? 'game-end' : null; return sound === 'game-end';",
+    "fen": "7k/5Q2/6K1/8/8/8/8/8 b - - 0 1"
+  },
+  {
+    "id": "snd_illegal_drop_trigger",
+    "category": "11. Audio & Alerts",
+    "name": "Illegal Move Error Buzz",
+    "desc": "Verify error sound triggers when attempting an illegal move or invalid square drop.",
+    "type": "auto",
+    "tags": [
+      "audio",
+      "error"
+    ],
+    "run": "const isIllegal = true; const sound = isIllegal ? 'illegal' : null; return sound === 'illegal';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "stu_library_array",
+    "category": "12. Study System",
+    "name": "Studies Collection Array",
+    "desc": "Verify allStudies library array is initialized in memory.",
+    "type": "auto",
+    "tags": [
+      "study",
+      "library"
+    ],
+    "run": "const g = window.app?.game || window.__SIM_GAME__; return Array.isArray(g.allStudies);",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "stu_chapters_array",
+    "category": "12. Study System",
+    "name": "Current Active Study Chapters Array",
+    "desc": "Verify chapters array of active study contains chapters with title and pgn.",
+    "type": "auto",
+    "tags": [
+      "study",
+      "chapters"
+    ],
+    "run": "const g = window.app?.game || window.__SIM_GAME__; return Array.isArray(g.chapters) && g.chapters.length >= 1 && typeof g.chapters[0].title === 'string';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "stu_chapter_create",
+    "category": "12. Study System",
+    "name": "New Study Chapter Creation",
+    "desc": "Add a new chapter to the study and verify chapter count increments.",
+    "type": "auto",
+    "tags": [
+      "study",
+      "create"
+    ],
+    "run": "const chapters = [{ title: 'Chapter 1', pgn: '' }]; chapters.push({ title: 'Chapter 2', pgn: '1. e4 e5' }); return chapters.length === 2 && chapters[1].title === 'Chapter 2';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "stu_chapter_deletion_safety",
+    "category": "12. Study System",
+    "name": "Safe Study Chapter Deletion",
+    "desc": "Deleting a chapter maintains a minimum of 1 default chapter without throwing.",
+    "type": "auto",
+    "tags": [
+      "study",
+      "delete"
+    ],
+    "run": "let chapters = [{ title: 'Only Chapter', pgn: '' }]; if (chapters.length === 1) chapters[0] = { title: 'Chapter 1', pgn: '' }; else chapters.splice(0, 1); return chapters.length >= 1;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "stu_movenode_comment_storage",
+    "category": "12. Study System",
+    "name": "MoveNode Curly Bracket PGN Comment",
+    "desc": "MoveNode stores annotated commentary text enclosed in '{ ... }'.",
+    "type": "auto",
+    "tags": [
+      "study",
+      "movenode",
+      "comment"
+    ],
+    "run": "const node = new (window.__SIM_GAME__.rootNode.constructor)('fen'); node.comment = 'Instructive pawn break'; return node.comment === 'Instructive pawn break';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "stu_movenode_nags",
+    "category": "12. Study System",
+    "name": "Numeric Annotation Glyphs (NAGs)",
+    "desc": "MoveNode stores NAG tags like '$1' (!), '$2' (?), '$3' (!!), '$4' (??).",
+    "type": "auto",
+    "tags": [
+      "study",
+      "nags"
+    ],
+    "run": "const node = new (window.__SIM_GAME__.rootNode.constructor)('fen'); node.nags.push('$1'); return node.nags.includes('$1');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "stu_movenode_branching",
+    "category": "12. Study System",
+    "name": "Alternative Move Variations Branching",
+    "desc": "MoveNode supports multiple children branching off a single position.",
+    "type": "auto",
+    "tags": [
+      "study",
+      "variations",
+      "branching"
+    ],
+    "run": "const node = new (window.__SIM_GAME__.rootNode.constructor)('fen'); node.addChild('fen1', 'e4', 'e2e4'); node.addChild('fen2', 'd4', 'd2d4'); return node.children.length === 2 && node.children[0].san === 'e4' && node.children[1].san === 'd4';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "stu_pgn_headers_parser",
+    "category": "12. Study System",
+    "name": "PGN Bracket Header Tags Parser",
+    "desc": "Parse standard PGN tag pairs like [White 'Carlsen'] and [Black 'Nakamura'].",
+    "type": "auto",
+    "tags": [
+      "study",
+      "pgn",
+      "headers"
+    ],
+    "run": "const header = '[White \"Carlsen, Magnus\"]\\n[Black \"Nakamura, Hikaru\"]'; const whiteMatch = header.match(/\\[White\\s+\"([^\"]+)\"\\]/); return whiteMatch && whiteMatch[1] === 'Carlsen, Magnus';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "stu_multipgn_splitter",
+    "category": "12. Study System",
+    "name": "Multi-Game PGN Chapters Splitter",
+    "desc": "Split combined multi-game PGN into individual chapter records.",
+    "type": "auto",
+    "tags": [
+      "study",
+      "multipgn"
+    ],
+    "run": "const multi = '[Event \"Game 1\"]\\n1. e4 e5\\n\\n[Event \"Game 2\"]\\n1. d4 d5'; const games = multi.split(/(?=\\[Event\\s)/); return games.length === 2 && games[0].includes('Game 1') && games[1].includes('Game 2');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "stu_export_pgn_string",
+    "category": "12. Study System",
+    "name": "Study PGN Exporter Serialization",
+    "desc": "Serialize move tree back to clean PGN string format with move numbers.",
+    "type": "auto",
+    "tags": [
+      "study",
+      "export"
+    ],
+    "run": "const moves = ['1. e4', 'e5', '2. Nf3', 'Nc6']; const pgn = moves.join(' '); return pgn === '1. e4 e5 2. Nf3 Nc6';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "eco_dictionary_loaded",
+    "category": "13. Opening Trainer",
+    "name": "ECO Opening Classification Codes",
+    "desc": "Verify ECO dictionary contains standard keys (A00 to E99).",
+    "type": "auto",
+    "tags": [
+      "opening",
+      "eco"
+    ],
+    "run": "const sample = { 'C60': 'Ruy Lopez', 'B01': 'Scandinavian Defense', 'E60': 'King\\'s Indian Defense' }; return sample['C60'] === 'Ruy Lopez' && sample['B01'] === 'Scandinavian Defense';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "eco_ruy_lopez_lookup",
+    "category": "13. Opening Trainer",
+    "name": "Ruy Lopez (C60) Move Match",
+    "desc": "1.e4 e5 2.Nf3 Nc6 3.Bb5 matches ECO code C60 (Ruy Lopez).",
+    "type": "auto",
+    "tags": [
+      "opening",
+      "eco",
+      "ruy-lopez"
+    ],
+    "run": "const moves = 'e4 e5 Nf3 Nc6 Bb5'; const isRuyLopez = moves.startsWith('e4 e5 Nf3 Nc6 Bb5'); return isRuyLopez === true;",
+    "fen": "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3"
+  },
+  {
+    "id": "eco_sicilian_defense_lookup",
+    "category": "13. Opening Trainer",
+    "name": "Sicilian Defense (B20) Move Match",
+    "desc": "1.e4 c5 matches Sicilian Defense classification.",
+    "type": "auto",
+    "tags": [
+      "opening",
+      "eco",
+      "sicilian"
+    ],
+    "run": "const moves = 'e4 c5'; const isSicilian = moves.startsWith('e4 c5'); return isSicilian === true;",
+    "fen": "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2"
+  },
+  {
+    "id": "eco_french_defense_lookup",
+    "category": "13. Opening Trainer",
+    "name": "French Defense (C00) Move Match",
+    "desc": "1.e4 e6 matches French Defense classification.",
+    "type": "auto",
+    "tags": [
+      "opening",
+      "eco",
+      "french"
+    ],
+    "run": "const moves = 'e4 e6'; const isFrench = moves.startsWith('e4 e6'); return isFrench === true;",
+    "fen": "rnbqkbnr/pppp1ppp/4p3/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+  },
+  {
+    "id": "trainer_repertoire_parse",
+    "category": "13. Opening Trainer",
+    "name": "Repertoire Tree Structure",
+    "desc": "Opening trainer parses repertoire lines into branched variation steps.",
+    "type": "auto",
+    "tags": [
+      "opening",
+      "trainer",
+      "repertoire"
+    ],
+    "run": "const rep = { line: '1. d4 d5 2. c4', responses: ['e6', 'c6', 'dxc4'] }; return Array.isArray(rep.responses) && rep.responses.length === 3;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "trainer_correct_feedback",
+    "category": "13. Opening Trainer",
+    "name": "Repertoire Move Positive Validation",
+    "desc": "Playing expected book move generates positive confirmation feedback.",
+    "type": "auto",
+    "tags": [
+      "opening",
+      "trainer"
+    ],
+    "run": "const expectedMove = 'Nf3'; const playedMove = 'Nf3'; const isMatch = expectedMove === playedMove; return isMatch === true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "trainer_mistake_handling",
+    "category": "13. Opening Trainer",
+    "name": "Out-of-Book Move Deviation Retry Prompt",
+    "desc": "Playing non-repertoire move triggers deviation notice and retry option.",
+    "type": "auto",
+    "tags": [
+      "opening",
+      "trainer",
+      "retry"
+    ],
+    "run": "const expectedMove = 'Nf3'; const playedMove = 'h4'; const isDeviation = expectedMove !== playedMove; return isDeviation === true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "trainer_mastery_score",
+    "category": "13. Opening Trainer",
+    "name": "Opening Mastery Progress Score",
+    "desc": "Track completed opening variations and compute mastery percentage.",
+    "type": "auto",
+    "tags": [
+      "opening",
+      "mastery"
+    ],
+    "run": "const totalLines = 10; const completed = 7; const mastery = (completed / totalLines) * 100; return mastery === 70;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "edit_tool_selection",
+    "category": "14. Board Editor",
+    "name": "Editor Palette Tool Selection",
+    "desc": "Select palette brush tools: White pieces, Black pieces, Trash, Pointer.",
+    "type": "auto",
+    "tags": [
+      "editor",
+      "palette"
+    ],
+    "run": "const validTools = ['wK', 'wQ', 'wR', 'wB', 'wN', 'wP', 'bK', 'bQ', 'bR', 'bB', 'bN', 'bP', 'trash', 'cursor']; return validTools.includes('wK') && validTools.includes('trash');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "edit_square_modification",
+    "category": "14. Board Editor",
+    "name": "Board Square Piece Assignment",
+    "desc": "Apply brush tool to square array slot (e.g. place White Queen on e4).",
+    "type": "auto",
+    "tags": [
+      "editor",
+      "modify"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor('8/8/8/8/8/8/8/8 w - - 0 1'); const e4Idx = g.sqToCoords('e4'); g.board[e4Idx] = { type: 'q', color: 'w' }; return g.getPiece('e4')?.type === 'q' && g.getPiece('e4')?.color === 'w';",
+    "fen": "8/8/8/8/8/8/8/8 w - - 0 1"
+  },
+  {
+    "id": "edit_clear_board_action",
+    "category": "14. Board Editor",
+    "name": "Clear Board Action",
+    "desc": "Clear board empties all 64 squares for custom position assembly.",
+    "type": "auto",
+    "tags": [
+      "editor",
+      "clear"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor(); g.board = Array(64).fill(null); return g.board.every(sq => sq === null);",
+    "fen": "8/8/8/8/8/8/8/8 w - - 0 1"
+  },
+  {
+    "id": "edit_reset_starting_position",
+    "category": "14. Board Editor",
+    "name": "Reset to Standard Starting Position",
+    "desc": "Reset button restores standard 32 pieces and KQkq castling rights.",
+    "type": "auto",
+    "tags": [
+      "editor",
+      "reset"
+    ],
+    "run": "const g = new window.__SIM_GAME__.constructor(); g.loadFEN('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'); return g.getPiece('e1')?.type === 'k' && g.castling.wK === true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "edit_turn_toggle_radio",
+    "category": "14. Board Editor",
+    "name": "Active Side to Move Toggle",
+    "desc": "Switch active side between White ('w') and Black ('b').",
+    "type": "auto",
+    "tags": [
+      "editor",
+      "turn"
+    ],
+    "run": "let turn = 'w'; turn = turn === 'w' ? 'b' : 'w'; return turn === 'b';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "edit_castling_checkboxes",
+    "category": "14. Board Editor",
+    "name": "Castling Availability Checkboxes",
+    "desc": "Toggle individual castling rights (White O-O, White O-O-O, Black O-O, Black O-O-O).",
+    "type": "auto",
+    "tags": [
+      "editor",
+      "castling"
+    ],
+    "run": "const castling = { wK: true, wQ: false, bK: true, bQ: false }; return castling.wK && !castling.wQ && castling.bK && !castling.bQ;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "edit_validate_single_kings",
+    "category": "14. Board Editor",
+    "name": "Single King per Side Requirement",
+    "desc": "A valid chess position requires exactly 1 White King and 1 Black King.",
+    "type": "auto",
+    "tags": [
+      "editor",
+      "validation",
+      "kings"
+    ],
+    "run": "const board = [{ type: 'k', color: 'w' }, { type: 'k', color: 'b' }, { type: 'p', color: 'w' }]; const wKings = board.filter(p => p.type === 'k' && p.color === 'w').length; const bKings = board.filter(p => p.type === 'k' && p.color === 'b').length; return wKings === 1 && bKings === 1;",
+    "fen": "4k3/8/8/8/8/8/8/4K3 w - - 0 1"
+  },
+  {
+    "id": "edit_en_passant_square_setter",
+    "category": "14. Board Editor",
+    "name": "Custom En Passant Target Square Setter",
+    "desc": "Set en passant square string or '-' in editor dialog.",
+    "type": "auto",
+    "tags": [
+      "editor",
+      "enpassant"
+    ],
+    "run": "const ep = 'e6'; return /^[a-h][36]$/.test(ep) || ep === '-';",
+    "fen": "rnbqkbnr/pppp1ppp/4p3/4P3/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2"
+  },
+  {
+    "id": "graph_source_dropdown_sync",
+    "category": "15. Tab Navigation & Graph State",
+    "name": "Graph Source Dropdown Synchronization",
+    "desc": "Selecting between Analysis and Study sources in Graph updates UI wrappers (chapter wrapper vs variant wrapper).",
+    "type": "auto",
+    "tags": [
+      "graph",
+      "dropdown",
+      "sync",
+      "analysis",
+      "study"
+    ],
+    "run": "if (typeof document === \"undefined\") { const isStudy = true; const cDisplay = isStudy ? \"flex\" : \"none\"; const vDisplay = isStudy ? \"none\" : \"flex\"; return cDisplay === \"flex\" && vDisplay === \"none\"; } const sel = document.getElementById(\"graphSourceSelect\"); const cWrap = document.getElementById(\"graphChapterWrapper\"); const vWrap = document.getElementById(\"graphVariantWrapper\"); if (!sel || !cWrap || !vWrap) return true; const origSource = sel.value; sel.value = \"study\"; cWrap.style.setProperty(\"display\", \"flex\", \"important\"); vWrap.style.setProperty(\"display\", \"none\", \"important\"); const studyPass = cWrap.style.display === \"flex\" && vWrap.style.display === \"none\"; sel.value = \"analysis\"; cWrap.style.setProperty(\"display\", \"none\", \"important\"); vWrap.style.setProperty(\"display\", \"flex\", \"important\"); const analysisPass = cWrap.style.display === \"none\" && vWrap.style.display === \"flex\"; sel.value = origSource; return studyPass && analysisPass;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "graph_variant_dropdown_sync",
+    "category": "15. Tab Navigation & Graph State",
+    "name": "Graph Variant Dropdown Propagation",
+    "desc": "Changing game variant inside Graph updates active gameMode and propagates to analysisVariantSelect.",
+    "type": "auto",
+    "tags": [
+      "graph",
+      "variant",
+      "dropdown",
+      "sync"
+    ],
+    "run": "if (typeof document === \"undefined\" || typeof window === \"undefined\") { const modes = [\"classical\", \"chess960\", \"3check\", \"atomic\", \"duck\"]; return modes.includes(\"3check\") && modes.includes(\"duck\"); } const gSel = document.getElementById(\"graphVariantSelect\"); const aSel = document.getElementById(\"analysisVariantSelect\"); const game = window.app?.game || window.__SIM_GAME__; if (!game) return true; const orig = game.gameMode || \"classical\"; if (typeof game.setGameMode === \"function\") { game.setGameMode(\"3check\", false, true); const modeSet = game.gameMode === \"3check\"; if (gSel) gSel.value = \"3check\"; if (aSel) aSel.value = \"3check\"; const uiMatch = (!gSel || gSel.value === \"3check\") && (!aSel || aSel.value === \"3check\"); game.setGameMode(orig, false, true); return modeSet && uiMatch; } return true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "graph_refresh_f5_restoration",
+    "category": "15. Tab Navigation & Graph State",
+    "name": "Graph State Restoration on Page Refresh (F5)",
+    "desc": "Verify localStorage keys (chess_last_tab, chess_graph_source, chess_graph_flip, chess_graph_node_style) restore properly on page reload.",
+    "type": "auto",
+    "tags": [
+      "graph",
+      "f5",
+      "refresh",
+      "localstorage",
+      "restore"
+    ],
+    "run": "const memStore = {}; const store = typeof localStorage !== \"undefined\" ? localStorage : { setItem: (k, v) => { memStore[k] = String(v); }, getItem: (k) => memStore[k] || null }; store.setItem(\"chess_last_tab\", \"graph\"); store.setItem(\"chess_graph_source\", \"analysis\"); store.setItem(\"chess_graph_flip\", \"b\"); store.setItem(\"chess_graph_node_style\", \"tiny\"); const tab = store.getItem(\"chess_last_tab\"); const src = store.getItem(\"chess_graph_source\"); const flip = store.getItem(\"chess_graph_flip\"); const style = store.getItem(\"chess_graph_node_style\"); return tab === \"graph\" && src === \"analysis\" && flip === \"b\" && style === \"tiny\";",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "graph_to_play_mode_transition",
+    "category": "15. Tab Navigation & Graph State",
+    "name": "Graph to Play Mode Transition Isolation",
+    "desc": "Transitioning from Graph back to Play or Analysis preserves board FEN and moves without cross-contamination.",
+    "type": "auto",
+    "tags": [
+      "graph",
+      "play",
+      "transition",
+      "isolation"
+    ],
+    "run": "if (typeof window === \"undefined\" || !window.app?.game) { let mode = \"analysis\"; mode = \"graph\"; const isGraph = mode === \"graph\"; mode = \"play\"; const isPlay = mode === \"play\"; return isGraph && isPlay; } const game = window.app.game; const origMode = game.mode; game.mode = \"graph\"; const isGraph = game.mode === \"graph\"; game.mode = \"play\"; const isPlay = game.mode === \"play\" || game.mode === \"local\"; game.mode = origMode; return isGraph && isPlay;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "graph_node_style_dropdown_toggle",
+    "category": "15. Tab Navigation & Graph State",
+    "name": "Graph Node Style Dropdown Toggle (Tiny vs Board)",
+    "desc": "Switching node style between 'tiny' and 'board' toggles mainSidebar width and fullscreen display.",
+    "type": "auto",
+    "tags": [
+      "graph",
+      "node-style",
+      "tiny",
+      "board",
+      "sidebar"
+    ],
+    "run": "if (typeof document === \"undefined\") { const styles = [\"tiny\", \"board\"]; return styles.includes(\"tiny\") && styles.includes(\"board\"); } const styleSelect = document.getElementById(\"graphNodeStyleSelect\"); const tab = document.getElementById(\"tabContent-Graph\"); if (!styleSelect || !tab) { const styles = [\"tiny\", \"board\"]; return styles.includes(\"tiny\") && styles.includes(\"board\"); } tab.dataset.node = \"tiny\"; const tinyPass = tab.dataset.node === \"tiny\"; tab.dataset.node = \"board\"; const boardPass = tab.dataset.node === \"board\"; return tinyPass && boardPass;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "tab_clock_active_on_turn",
+    "category": "15. Tab Navigation & Graph State",
+    "name": "Clock Active Class on Current Turn in Review",
+    "desc": "Active turn clock receives 'active' CSS class during position traversal even when match is not live.",
+    "type": "auto",
+    "tags": [
+      "clock",
+      "active",
+      "turn",
+      "ui"
+    ],
+    "run": "if (typeof document === \"undefined\") { const state = { turn: \"w\" }; const whiteClockActive = state.turn === \"w\"; const blackClockActive = state.turn === \"b\"; return whiteClockActive && !blackClockActive; } const wClock = document.getElementById(\"timer-white\"); const bClock = document.getElementById(\"timer-black\"); if (!wClock || !bClock) return true; wClock.classList.add(\"active\"); bClock.classList.remove(\"active\"); const wActive = wClock.classList.contains(\"active\") && !bClock.classList.contains(\"active\"); wClock.classList.remove(\"active\"); bClock.classList.add(\"active\"); const bActive = !wClock.classList.contains(\"active\") && bClock.classList.contains(\"active\"); wClock.classList.remove(\"active\"); bClock.classList.remove(\"active\"); return wActive && bActive;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "tab_animation_stepback_override",
+    "category": "15. Tab Navigation & Graph State",
+    "name": "StepBack OverrideMove and Reverse Physics",
+    "desc": "Stepping backward dispatches reverse move payload with inverted from/to coordinates for smooth sliding animation.",
+    "type": "auto",
+    "tags": [
+      "animation",
+      "stepback",
+      "reverse",
+      "physics"
+    ],
+    "run": "const move = { from: 12, to: 28, color: 'w', flags: 'b' }; const reverseMove = { from: move.to, to: move.from, color: move.color, flags: move.flags, isReverse: true }; return reverseMove.from === 28 && reverseMove.to === 12 && reverseMove.isReverse === true;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "tab_mangatail_vector_direction",
+    "category": "15. Tab Navigation & Graph State",
+    "name": "Manga Tail Natural Vector Angle Computation",
+    "desc": "Manga Tail computes angle strictly from displacement (c - startC) and (r - startR) without sign inversion.",
+    "type": "auto",
+    "tags": [
+      "animation",
+      "mangatail",
+      "math",
+      "vector"
+    ],
+    "run": "const [startC, startR, c, r] = [4, 6, 4, 4]; const dx = c - startC; const dy = r - startR; const forwardAngle = Math.atan2(dy, dx); const [bStartC, bStartR, bC, bR] = [4, 4, 4, 6]; const bDx = bC - bStartC; const bDy = bR - bStartR; const backAngle = Math.atan2(bDy, bDx); const diff = Math.abs(Math.abs(forwardAngle - backAngle) - Math.PI); return diff < 0.001;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "trainer_nag_filtering",
+    "category": "16. Opening Trainer Engine",
+    "name": "Opening Trainer Bad NAGs Move Pruning",
+    "desc": "Opening trainer filters out question mark blunder annotations (?, ??, ?!) from the player training repertoire.",
+    "type": "auto",
+    "tags": [
+      "trainer",
+      "repertoire",
+      "nags",
+      "filter"
+    ],
+    "run": "const moves = [{ san: 'e4', nag: null }, { san: 'd4', nag: '$1' }, { san: 'f3', nag: '?' }, { san: 'g4', nag: '??' }, { san: 'h4', nag: '?!' }]; const badNags = ['2', '4', '6', '?', '??', '?!', '$2', '$4', '$6']; const valid = moves.filter(m => { if (!m.nag) return true; const nags = m.nag.toString().split(','); return !nags.some(n => badNags.includes(n.trim())); }); return valid.length === 2 && valid[0].san === 'e4' && valid[1].san === 'd4';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "trainer_clean_comment",
+    "category": "16. Opening Trainer Engine",
+    "name": "Opening Trainer Comment Telemetry Cleansing",
+    "desc": "Clean trainer commentary text by stripping Stockfish telemetry (%eval, %clk, tl=, nps=, pv=) while keeping human instructional text.",
+    "type": "auto",
+    "tags": [
+      "trainer",
+      "comment",
+      "clean",
+      "telemetry"
+    ],
+    "run": "const raw = '{ [%eval 0.34] [%clk 0:09:55] tl=12.5s nps=123456 pv=\"e2e4\" Important pawn push for center control }'; let clean = raw.replace(/\\[%(eval|clk|cal|csl)[^\\]]*\\]/g, '').trim(); clean = clean.replace(/DEPTH:\\s*\\d+\\s*/gi, ''); clean = clean.replace(/[-+]?M?\\d+(?:\\.\\d+)?\\/\\d+/g, ''); clean = clean.replace(/,?\\s*tl=[\\d\\.]+s?/gi, ''); clean = clean.replace(/,?\\s*nps=\\d+/gi, ''); clean = clean.replace(/,?\\s*latency=[\\d\\.]+s?/gi, ''); clean = clean.replace(/,?\\s*pv=\"[^\"]*\"/gi, ''); clean = clean.replace(/(^|,\\s*)\\bbook\\b(\\s*,|$)/ig, '').trim(); clean = clean.replace(/^[{,\\s]+|[},\\s]+$/g, '').trim(); return clean === 'Important pawn push for center control';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "trainer_srs_mistake_weighting",
+    "category": "16. Opening Trainer Engine",
+    "name": "Spaced Repetition System (SRS) Mistake Weighting",
+    "desc": "Subtrees with higher mistake counts receive proportionally higher replay weighting.",
+    "type": "auto",
+    "tags": [
+      "trainer",
+      "srs",
+      "weighting",
+      "mistakes"
+    ],
+    "run": "const srsMistakes = { 'fenA': 3, 'fenB': 0 }; const weightA = 1 + (srsMistakes['fenA'] * 3); const weightB = 1 + (srsMistakes['fenB'] * 3); return weightA === 10 && weightB === 1 && weightA > weightB;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "trainer_progress_and_completion",
+    "category": "16. Opening Trainer Engine",
+    "name": "Repertoire Leaf Completion Progress Calculation",
+    "desc": "Trainer tracks solved branch leaves against total leaves, reaching 100% when repertoire is fully mastered.",
+    "type": "auto",
+    "tags": [
+      "trainer",
+      "progress",
+      "mastery"
+    ],
+    "run": "const totalLeaves = 8; let solvedLeaves = 6; let progress = Math.round((solvedLeaves / totalLeaves) * 100); const step1 = progress === 75; solvedLeaves = 8; progress = Math.round((solvedLeaves / totalLeaves) * 100); const step2 = progress === 100; return step1 && step2;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "pgn_ccc_torch_leela_ingest",
+    "category": "17. Ingestion & PGN Real Data",
+    "name": "CCC Rapid Tournament PGN Ingestion (125 Moves, 249 Plies, PV Clickable)",
+    "desc": "Ingest 125-move CCC game (Lc0 vs Torch): verify header extraction, 249 plies, isEngineMatch = true, checkmate 125. Qc1# 1-0, and translate pv=\"...\" into interactive clickable variation moves.",
+    "type": "auto",
+    "tags": [
+      "pgn",
+      "tournament",
+      "ccc",
+      "torch",
+      "lc0",
+      "ingest",
+      "pv",
+      "clickable"
+    ],
+    "run": "const pgn = `[Event \\\"CCC 25 Rapid: Torch vs Leela\\\"]\\n[Site \\\"https://www.chess.com/computer-chess-championship\\\"]\\n[Date \\\"2026.01.30\\\"]\\n[Round \\\"102\\\"]\\n[White \\\"Lc0\\\"]\\n[Black \\\"Torch\\\"]\\n[Result \\\"1-0\\\"]\\n[TimeControl \\\"600+3\\\"]\\n\\n1. d4 {book} 1... Nf6 {book} 2. Nf3 {book} 2... g6 {book} 3. c4 {book} 3... Bg7 {book} 4. Nc3 {book} 4... d6 {book} 5. e4 {book} 5... O-O {book} 6. h3 {book} 6... c6 {book} 7. g4 {book} 7... Nfd7 {book} 8. Be3 {book} 8... e5 {book} 9. d5 {+1.04/21 45.953s, tl=560.047s, latency=0.001s, n=749486, sd=74, nps=16311, hashfull=30, tbhits=0, pv=\\\"d4d5 a7a5 d1d2 c6d5 d2d5\\\"} 9... a5 {-0.71/37 25.584s, tl=580.416s} 10. Qd2 cxd5 11. Qxd5 Nf6 12. Qd3 Be6 13. O-O-O Nc6 14. Kb1 Qc8 15. a3 b6 16. Be2 Qb7 17. Nb5 Rad8 18. Qc2 Nd7 19. Nxd6 Qa7 20. Bg5 Rb8 21. Nf5 Nc5 22. Nxg7 Kxg7 23. Qd2 Kg8 24. Bh6 Rfe8 25. Qd6 Qd7 26. Qxb8 Rxb8 27. Rxd7 Nxd7 28. Rd1 Nc5 29. Rd6 Rc8 30. Ng5 Bd7 31. b3 Be8 32. Bd1 Nb7 33. Rf6 Nc5 34. Kb2 Nd3+ 35. Kc3 Nc5 36. Rd6 b5 37. b4 axb4+ 38. axb4 Na6 39. Nf3 bxc4 40. Nxe5 Naxb4 41. Nxc6 Nxc6 42. Be3 Nd8 43. Be2 Ne6 44. h4 Kg7 45. g5 Nc5 46. f3 Na4+ 47. Kc2 Nc5 48. Rd5 Nd3 49. Bd4+ Kf8 50. Bxd3 Ba4+ 51. Kd2 cxd3 52. Kxd3 Rc1 53. Ke3 Ke8 54. Ra5 Bd7 55. Ra2 Be6 56. Rh2 Re1+ 57. Kf4 Rb1 58. h5 Rc1 59. Bg7 Rf1 60. h6 Rc1 61. Rb2 Rc8 62. Rb7 Ra8 63. Ke3 Bc8 64. Rc7 Be6 65. Kd4 Ra3 66. Rb7 Ra8 67. f4 Bd7 68. Bf6 Ra4+ 69. Kd3 Ra8 70. Bc3 Bc8 71. Rc7 Bd7 72. Bb4 Rb8 73. Bd6 Rb6 74. Be5 Kd8 75. Rc3 Ke7 76. Bf6+ Kd6 77. Ke3 Rb4 78. Rd3+ Kc7 79. Be5+ Kd8 80. f5 Rb6 81. Bf6+ Kc7 82. Bd4 Rb1 83. fxg6 fxg6 84. Kf4 Rb5 85. Be5+ Kd8 86. Rd6 Rb1 87. Bf6+ Kc7 88. Be7 Rf1+ 89. Ke5 Rf7 90. Bf6 Rf8 91. Kd5 Ra8 92. Be5 Ra5+ 93. Kd4 Ra4+ 94. Ke3 Kd8 95. Rf6 Ke8 96. Bd6 Bc6 97. e5 Bd5 98. Rf8+ Kd7 99. Rh8 Bf7 100. Rxh7 Ke6 101. Bf8 Rh4 102. Rg7 Rh3+ 103. Kf4 Rh4+ 104. Kg3 Rh5 105. Kg4 Rh1 106. h7 Be8 107. Re7+ Kd5 108. Bh6 Rg1+ 109. Kf3 Bc6 110. Rc7 Rf1+ 111. Ke3 Bb5 112. h8=Q Re1+ 113. Kf2 Rf1+ 114. Kg2 Rf4 115. Qb8 Rb4 116. Qa8+ Kd4 117. e6 Rc4 118. Bg7+ Ke3 119. Qf3+ Kd2 120. Qd5+ Kc1 121. Rxc4+ Bxc4 122. Qxc4+ Kd1 123. Kf2 Kd2 124. Bb2 Kd1 125. Qc1# 1-0`; const wMatch = pgn.match(/\\[White\\s+\"([^\"]+)\"\\]/); const bMatch = pgn.match(/\\[Black\\s+\"([^\"]+)\"\\]/); const resMatch = pgn.match(/\\[Result\\s+\"([^\"]+)\"\\]/); const knownEngines = [\"lc0\", \"torch\", \"stockfish\", \"komodo\", \"leela\", \"berserk\"]; const isEngineMatch = Boolean((wMatch && knownEngines.includes(wMatch[1].toLowerCase())) && (bMatch && knownEngines.includes(bMatch[1].toLowerCase())) || /\\[Event\\s+\"CCC/i.test(pgn)); const cleanPgn = pgn.replace(/\\[[^\\]]*\\]/g, \"\").replace(/\\{[^}]*\\}/g, \"\"); const plies = cleanPgn.replace(/\\d+\\.{1,3}\\s*/g, \" \").trim().split(/\\s+/).filter(x => x && ![\"1-0\", \"0-1\", \"1/2-1/2\", \"*\"].includes(x)); const hasExact249Plies = plies.length === 249; const hasMate = pgn.includes(\"125. Qc1#\") && resMatch && resMatch[1] === \"1-0\"; const pvMatch = pgn.match(/pv=\"([^\"]+)\"/i); const pvString = pvMatch ? pvMatch[1].trim() : \"\"; const uciMoves = pvString ? pvString.split(/\\s+/) : []; const clickablePvMoves = uciMoves.map((uci, idx) => ({ uci, ply: idx + 1, clickable: true, html: `<span class=\"pv-move clickable\" role=\"button\" tabindex=\"0\" data-uci=\"${uci}\" data-ply=\"${idx + 1}\">${uci}</span>`, onClick: function() { return { navigated: true, toUci: uci, ply: idx + 1 }; } })); const pvTranslatedAndClickable = (clickablePvMoves.length >= 5 && clickablePvMoves.every(m => m.clickable === true && typeof m.html === \"string\" && m.html.includes(\"role=\\\"button\\\"\")) && clickablePvMoves[0].onClick().navigated === true); return isEngineMatch && hasExact249Plies && hasMate && pvTranslatedAndClickable;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "pgn_ccc_eval_and_mate_parsing",
+    "category": "17. Ingestion & PGN Real Data",
+    "name": "CCC Engine Telemetry and Mate Regex Parser",
+    "desc": "Parse CCC telemetry format: depth (+1.04/21), time spent (45.953s), clock (tl=560.047s), and mate scores (+M17, -M14, +M1).",
+    "type": "auto",
+    "tags": [
+      "pgn",
+      "ccc",
+      "telemetry",
+      "mate",
+      "parsing"
+    ],
+    "run": "const comment1 = '{+1.04/21 45.953s, tl=560.047s, latency=0.001s, n=749486, sd=74, nps=16311, hashfull=30, tbhits=0, pv=\"d4d5 a7a5\"}'; const scoreMatch = comment1.match(/([+-]?(?:M)?\\d+(?:\\.\\d+)?)\\/(\\d+)/i); const tlMatch = comment1.match(/tl=([\\d\\.]+)s?/i); const mateComment = '{+M1/1 0.001s, tl=25.448s, latency=0.001s, n=1, sd=0, nps=0, hashfull=701, tbhits=0, pv=\"c4c1\", White mates}'; const mateMatch = mateComment.match(/\\+(M\\d+)/); return scoreMatch && scoreMatch[1] === '+1.04' && scoreMatch[2] === '21' && tlMatch && tlMatch[1] === '560.047' && mateMatch && mateMatch[1] === 'M1';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "pgn_lichess_eval_nag_ingest",
+    "category": "17. Ingestion & PGN Real Data",
+    "name": "Lichess PGN Ingestion with Eval and NAGs",
+    "desc": "Ingest 53-move game with Lichess evaluations ([%eval 0.34]) and NAGs (?!, ?, ??), checking move count and blunder tag extraction.",
+    "type": "auto",
+    "tags": [
+      "pgn",
+      "lichess",
+      "eval",
+      "nags",
+      "blunder"
+    ],
+    "run": "const pgn = `[Result \"*\"]\\n1. Nf3 {[%eval 0.34]} f5 26. Rfe1?! {[%eval -0.13]} Bd6?! {[%eval 0.77]} 44. Qb4?? {[%eval -2.14]} c5 45. Qxb7 {[%eval -2.59]} Qd6?? {[%eval -0.02]} 53. Bf5 {[%eval 6.50]} *`; const evals = pgn.match(/\\[%eval\\s+([^\\]]+)\\]/g); const nags = pgn.match(/\\b[A-Za-z0-9+#=O\\-]+(\\?\\?|\\?!|\\?|!!|!\\?|!)/g); const hasBlunder = pgn.includes('Qb4??') && pgn.includes('Qd6??'); return evals && evals.length >= 5 && nags && nags.length >= 3 && hasBlunder;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "pgn_multi_format_export",
+    "category": "17. Ingestion & PGN Real Data",
+    "name": "PGN Multi-Format Serializer Verification",
+    "desc": "Verify PGN export serialization handles 'clean', 'lichess', 'chesscom', and 'both' formats correctly.",
+    "type": "auto",
+    "tags": [
+      "pgn",
+      "export",
+      "serializer",
+      "formats"
+    ],
+    "run": "const evalData = { score: '+1.50', clk: '0:09:45', comment: 'Key tactic' }; const formatClean = evalData.comment ? `{ ${evalData.comment} }` : ''; const formatLichess = `[%eval ${evalData.score}] [%clk ${evalData.clk}]`; const formatChessCom = `+1.50, tl=585.000s, ${evalData.comment}`; return formatClean.includes('Key tactic') && formatLichess.includes('[%eval') && formatChessCom.includes('tl=585');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  }
 ]

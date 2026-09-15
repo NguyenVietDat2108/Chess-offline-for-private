@@ -310,13 +310,6 @@ setGame(gameInstance) {
                         const sfVariant = newMode === 'classical' ? 'chess' : newMode;
                         window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
                     }
-                    if (this.#game.tabMemory) {
-                        if (!this.#game.tabMemory['analysis']) this.#game.tabMemory['analysis'] = {};
-                        this.#game.tabMemory['analysis'].variant = newMode;
-                        this.#game.tabMemory['analysis'].fen = startFen;
-                        this.#game.tabMemory['analysis'].pgn = ""; 
-                        localStorage.setItem('chess_tab_snapshot_analysis', JSON.stringify(this.#game.tabMemory['analysis']));
-                    }
                 }
             });
         }
@@ -326,28 +319,16 @@ setGame(gameInstance) {
                 if (this.#game) {
                     const newMode = e.target.value;
                     this.#game.setGameMode(newMode);
-                    
-                    const startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[newMode]) ? VARIANT_STARTING_FENS[newMode] : INITIAL_FEN;
-                    
-                    this.#game.loadFEN(startFen, newMode, true);
-                    this.#game.rootNode = new MoveNode(startFen, null);
-                    this.#game.currentNode = this.#game.rootNode;
-                    this.#game.mode = 'analysis'; 
-                    
-                    if (window.sfWorker) {
-                        const sfVariant = newMode === 'classical' ? 'chess' : newMode;
-                        window.sfWorker.postMessage('setoption name UCI_Variant value ' + sfVariant);
-                    }
-                    if (this.#game.tabMemory) {
-                        if (!this.#game.tabMemory['analysis']) this.#game.tabMemory['analysis'] = {};
-                        this.#game.tabMemory['analysis'].variant = newMode;
-                        this.#game.tabMemory['analysis'].fen = startFen;
-                        this.#game.tabMemory['analysis'].pgn = ""; 
-                        localStorage.setItem('chess_tab_snapshot_analysis', JSON.stringify(this.#game.tabMemory['analysis']));
-                    }
-                    
                     this.renderBoard(false);
                     this.updateHistory(true);
+                    this.renderHeaders();
+                    
+                    if (typeof this.renderCharts === 'function') {
+                        this.renderCharts(true);
+                    }
+                    if (window.engineAnalysing && typeof this.#game.updateStockfish === 'function') {
+                        this.#game.updateStockfish();
+                    }
                 }
             });
         }
@@ -766,94 +747,129 @@ initThemeButtons() {
             });
         });
     }
-toggleAnalysisPanel() {
-        this.isAnalysisHidden = !this.isAnalysisHidden;
-        if (typeof localStorage !== 'undefined') {
-            localStorage.setItem('chess_hide_analysis', this.isAnalysisHidden);
-        }
-        
-        this.resizeApp();
-        
-        const btn = document.getElementById('toggleLeftPanelBtn');
-        const img = document.getElementById('toggleLeftPanelImg');
-        if (btn) {
-            if (this.isAnalysisHidden) {
-                btn.style.left = '-65px';
-                btn.style.bottom = '30px';
-                btn.style.borderColor = '#334155';
-                if (img) img.style.filter = 'grayscale(100%) opacity(0.5)';
-            } else {
-                btn.style.left = '20px';
-                btn.style.bottom = '20px';
-                btn.style.borderColor = '#0284c7';
-                if (img) img.style.filter = 'none';
-            }
-        }
-    }
 injectPanelToggle() {
-        if (document.getElementById('toggleLeftPanelBtn')) return;
-
+        let btn = document.getElementById('toggleLeftPanelBtn');
         const scaler = document.getElementById('app-scaler') || document.body;
 
-        const btn = document.createElement('button');
-        btn.id = 'toggleLeftPanelBtn';
-        
-        btn.innerHTML = `<img id="toggleLeftPanelImg" src="./assets/tabs-icon/rating-stats.svg" style="width: 28px; height: 28px; object-fit: contain; transition: filter 0.2s;">`; 
-        btn.title = "Toggle Analysis & Stats Panel";
-        const initialLeft = this.isAnalysisHidden ? '-65px' : '20px';
-        const initialBottom = this.isAnalysisHidden ? '30px' : '20px';
-
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.id = 'toggleLeftPanelBtn';
+            btn.title = "Toggle Analysis & Stats Panel";
+            btn.innerHTML = `<img id="toggleLeftPanelImg" src="./assets/tabs-icon/rating-stats.svg" style="width: 24px; height: 24px; object-fit: contain; transition: filter 0.2s;">`;
+            scaler.appendChild(btn);
+        } else {
+            if (btn.parentNode !== scaler) scaler.appendChild(btn);
+        }
         btn.style.cssText = `
             position: absolute; 
-            bottom: ${initialBottom}; 
-            left: ${initialLeft}; 
-            z-index: 100; 
-            background: rgba(30, 30, 30, 0.85); 
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            border: 1px solid #334155; 
-            border-radius: 12px; 
-            width: 50px; 
-            height: 50px; 
+            z-index: 9999; 
+            width: 44px; 
+            height: 44px; 
+            border-radius: 10px; 
             cursor: pointer; 
             display: flex; 
             align-items: center; 
             justify-content: center; 
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+            padding: 0;
+            margin: 0;
+            background: rgba(30, 30, 30, 0.95);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
         `;
-        
+
         btn.onmouseenter = () => { 
-            btn.style.background = 'rgba(45, 45, 45, 0.95)';
-            btn.style.borderColor = '#38bdf8';
-            btn.style.transform = 'translateY(-2px)';
-            btn.style.boxShadow = '0 6px 16px rgba(0,0,0,0.6)';
-            
+            btn.style.transform = 'scale(1.08)';
             const img = document.getElementById('toggleLeftPanelImg');
             if (img) img.style.filter = 'drop-shadow(0px 0px 4px rgba(56, 189, 248, 0.8))'; 
         };
         
         btn.onmouseleave = () => { 
-            btn.style.transform = 'translateY(0)';
-            btn.style.boxShadow = '0 4px 8px rgba(0,0,0,0.4)';
+            btn.style.transform = 'scale(1)';
             const img = document.getElementById('toggleLeftPanelImg');
-
             if (this.isAnalysisHidden) {
-                btn.style.background = 'rgba(30, 30, 30, 0.85)';
                 btn.style.borderColor = '#334155';
                 if (img) img.style.filter = 'grayscale(100%) opacity(0.5)';
             } else {
-                btn.style.background = 'rgba(30, 30, 30, 0.95)';
                 btn.style.borderColor = '#0284c7';
                 if (img) img.style.filter = 'none';
             }
         };
 
-        btn.onclick = () => this.toggleAnalysisPanel();
-        
-        scaler.appendChild(btn);
-        
-        btn.onmouseleave();
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            this.toggleAnalysisPanel();
+        };
+
+        this.applyToggleBtnPlacement();
+    }
+applyToggleBtnPlacement() {
+        const btn = document.getElementById('toggleLeftPanelBtn');
+        const img = document.getElementById('toggleLeftPanelImg');
+        const scaler = document.getElementById('app-scaler');
+        const analysisPanel = document.getElementById('analysisPanel');
+        const boardSection = document.querySelector('.board-section');
+        if (!btn || !scaler) return;
+
+        if (btn.parentNode !== scaler) scaler.appendChild(btn);
+
+        const sRect = scaler.getBoundingClientRect();
+        const scale = window.appScale || 1;
+
+        if (this.isAnalysisHidden) {
+            if (boardSection) {
+                const bRect = boardSection.getBoundingClientRect();
+                const targetLeft = ((bRect.left - sRect.left) / scale) - 54;
+                const targetTop = ((bRect.bottom - sRect.top) / scale) - 50;
+
+                btn.style.left = `${targetLeft}px`;
+                btn.style.top = `${targetTop}px`;
+                btn.style.right = 'auto';
+                btn.style.bottom = 'auto';
+            } else {
+                btn.style.left = '20px';
+                btn.style.bottom = '20px';
+                btn.style.top = 'auto';
+            }
+
+            btn.style.borderColor = '#334155';
+            if (img) img.style.filter = 'grayscale(100%) opacity(0.5)';
+        } else {
+            if (analysisPanel && analysisPanel.style.display !== 'none') {
+                const pRect = analysisPanel.getBoundingClientRect();
+                const targetLeft = ((pRect.right - sRect.left) / scale) - 54;
+                const targetTop = ((pRect.bottom - sRect.top) / scale) - 50;
+
+                btn.style.left = `${targetLeft}px`;
+                btn.style.top = `${targetTop}px`;
+                btn.style.right = 'auto';
+                btn.style.bottom = 'auto';
+            } else {
+                btn.style.left = '450px';
+                btn.style.bottom = '20px';
+                btn.style.top = 'auto';
+            }
+
+            btn.style.borderColor = '#0284c7';
+            if (img) img.style.filter = 'none';
+        }
+    }
+toggleAnalysisPanel() {
+        this.isAnalysisHidden = !this.isAnalysisHidden;
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('chess_hide_analysis', this.isAnalysisHidden);
+        }
+
+        const analysisPanel = document.getElementById('analysisPanel');
+        if (analysisPanel) {
+            analysisPanel.style.display = this.isAnalysisHidden ? 'none' : 'flex';
+        }
+
+        this.resizeApp();
+        requestAnimationFrame(() => {
+            this.applyToggleBtnPlacement();
+        });
     }
 switchTab(tabName) {
         if (!tabName) return;
@@ -1028,6 +1044,7 @@ switchTab(tabName) {
 
         if (this.resizeApp) this.resizeApp();
         if (this.safeResizeCharts) this.safeResizeCharts();
+        if (typeof this.updateToggleBtnPosition === 'function') this.updateToggleBtnPosition();
     }
 async loadCustomPieces() {
         if (!window.showDirectoryPicker) {
@@ -1579,6 +1596,7 @@ resizeApp() {
             duckBank.style.backgroundColor = 'rgba(0,0,0,0.4)';
             duckBank.style.zIndex = '999';
         }
+        if (typeof this.applyToggleBtnPlacement === 'function') this.applyToggleBtnPlacement();
     }
 setMoveMethod(val) {
         this.moveInputMode = val;
@@ -3016,15 +3034,20 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         }
         
         this.coordsPosition = document.getElementById('coordPosition') ? document.getElementById('coordPosition').value : 'inside';
-        let moveDuration = 250; let castleDuration = 250;
+        let moveDuration = 200; let castleDuration = 200;
 
         if (animate) {
             const now = performance.now();
             const delta = now - (this.lastAnimTime || 0);
-            this.lastAnimTime = now;
-            if (delta > 0 && delta < 300) { 
-                moveDuration = Math.max(160, delta * 0.95);
-                castleDuration = Math.max(160, delta * 0.95); 
+            if (delta > 35 && delta < 180) {
+                moveDuration = Math.max(50, Math.round(delta * 0.75));
+                castleDuration = moveDuration;
+            } else {
+                moveDuration = 200;
+                castleDuration = 200;
+            }
+            if (delta > 35 || !this.lastAnimTime) {
+                this.lastAnimTime = now;
             }
         }
 
@@ -3780,10 +3803,6 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
             }
             if (showMangaTail && (isMovedPiece || isCastlingMove) && !isNew && targetMove && targetMove.from !== '@') {                let dx = (c - startC); 
                 let dy = (r - startR);
-                if (isReverseMove) {
-                    dx = -dx;
-                    dy = -dy;
-                }
                 
                 const dist = Math.sqrt(dx*dx + dy*dy);
                 
@@ -7572,9 +7591,14 @@ updateClocks() {
         wClockEl.classList.remove('active', 'running');
         bClockEl.classList.remove('active', 'running');
 
-        if (isLive) {
-            if (state.turn === 'w') wClockEl.classList.add('active', 'running');
-            else bClockEl.classList.add('active', 'running');
+        const currentTurn = state.turn || (this.#game && this.#game.turn) || 'w';
+        const activeClockEl = (currentTurn === 'w') ? wClockEl : bClockEl;
+
+        if (activeClockEl) {
+            activeClockEl.classList.add('active');
+            if (isLive && !state.isPaused) {
+                activeClockEl.classList.add('running');
+            }
         }
     }
 renderAnalysisResult(stats) {
@@ -9002,7 +9026,7 @@ castSpell(spellType, targetSq) {
                             if (window.engineAnalysing && typeof this.#game.updateStockfish === 'function') {
                                 this.#game.updateStockfish();
                             }
-                        }, 40); 
+                        }, 60); 
                     } else {
                         clearTimeout(this._keyboardDebounce);
                         if (this.#game.currentNode.id !== targetNode.id) {
@@ -9014,7 +9038,7 @@ castSpell(spellType, targetSq) {
                 } else {
                     clearTimeout(this._keyboardDebounce);
                     if (this.#game.currentNode.id !== targetNode.id) {
-                        this.#game.goToNodeId(targetNode.id, false);
+                        this.#game.goToNodeId(targetNode.id, true);
                     }
                     this._isKeyboardNavigating = false;
                     if (window.engineAnalysing && typeof this.#game.updateStockfish === 'function') {
