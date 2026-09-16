@@ -1274,12 +1274,13 @@ hashfull=698, tbhits=124, pv=\"e6e7\", Draw by 3-fold repetition} 1/2-1/2</texta
     
     <div id="results" class="results" style="display: none;"></div>
 </div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <script>
     window.StandardChess = window.Chess;
 </script>
-
 <script src="./js/chess_optimized.js"></script>
+
 <script type="module">
     import { ChessGame } from './js/ChessGame.js';
 
@@ -1289,7 +1290,6 @@ hashfull=698, tbhits=124, pv=\"e6e7\", Draw by 3-fold repetition} 1/2-1/2</texta
         let len = moveTextRaw.length;
         let i = 0, start;
         
-        // 1. Phân tách Token (Giả lập chi phí tách chuỗi)
         while (i < len) {
             let code = moveTextRaw.charCodeAt(i);
             if (code <= 32) { i++; continue; }
@@ -1338,7 +1338,6 @@ hashfull=698, tbhits=124, pv=\"e6e7\", Draw by 3-fold repetition} 1/2-1/2</texta
 
         let mainMoves = 0;
         let pvMoves = 0;
-        
         let moveHistory = [];
 
         for (let token of tokens) {
@@ -1348,7 +1347,6 @@ hashfull=698, tbhits=124, pv=\"e6e7\", Draw by 3-fold repetition} 1/2-1/2</texta
                     let pvs = pvMatch[1].trim().split(/\s+/);
                     let played = 0;
                     
-                    // Thử check xem nước đầu tiên trong PV có hợp lệ không
                     let firstClean = pvs[0].replace(/[?!+#]+$/, '');
                     let isValidFromCurrent = false;
                     try { 
@@ -1413,10 +1411,31 @@ hashfull=698, tbhits=124, pv=\"e6e7\", Draw by 3-fold repetition} 1/2-1/2</texta
                 standardTime = t1 - t0;
             } catch (e) {
                 console.error("Standard chess.js failed:", e);
+                resultsDiv.innerHTML += `<br><span style="color:#fa412d;">Error in Standard Chess: ${e.message}</span>`;
             }
 
             try {
                 const optGame = new ChessGame();
+                
+                optGame.setUI({
+                    getElement: () => null,
+                    showNotification: () => {},
+                    updateHistory: () => {},
+                    renderBoard: () => {},
+                    renderArrows: () => {},
+                    updateClocks: () => {},
+                    displayMetadata: () => {},
+                    updatePgnAvatars: () => {},
+                    updatePlayerNames: () => {},
+                    renderHeaders: () => {},
+                    renderCharts: () => {},
+                    togglePgnEditing: () => {},
+                    toggleReviewButton: () => {},
+                    resetUIState: () => {},
+                    updateStatus: () => {},
+                    switchTab: () => {}
+                });
+
                 const t2 = performance.now();
                 optGame.loadPGN(pgnData);
                 const t3 = performance.now();
@@ -1438,6 +1457,7 @@ hashfull=698, tbhits=124, pv=\"e6e7\", Draw by 3-fold repetition} 1/2-1/2</texta
                 }
             } catch (e) {
                 console.error("Optimized Chess failed:", e);
+                resultsDiv.innerHTML += `<br><span style="color:#fa412d;">Error in ChessGame: ${e.message}</span>`;
             }
 
             const ratio = standardTime / optimizedTime;
@@ -1454,7 +1474,7 @@ hashfull=698, tbhits=124, pv=\"e6e7\", Draw by 3-fold repetition} 1/2-1/2</texta
 
                 <div class="stat">
                     <span><b>Optimized <code>ChessGame</code></b> (Native \`loadPGN\` Tree Builder):</span>
-                    <span style="color: #a3e635">${optimizedTime.toFixed(2)} ms</span>
+                    <span style="color: #a3e635">${optimizedTime ? optimizedTime.toFixed(2) : 'ERROR'} ms</span>
                 </div>
                 <div class="stat" style="color:#888; font-size:13px; padding-top:0;">
                     <span>Main moves: ${optStats.mainMoves} | PV nodes built: ${optStats.pvMoves}</span>
