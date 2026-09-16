@@ -1456,7 +1456,9 @@ return move.san;
             history: this.history ? Array.from(this.history, val => val.toString()) : [],
             moveList: this.moveList ? [...this.moveList] : [],
             activeNodeId: this.currentNode ? this.currentNode.id : null,
-            
+            isGameOver: this.gameOver,
+            isPaused: this.isPaused,
+
             wTime: this.whiteTime,
             bTime: this.blackTime,
             botColor: this.botColor,
@@ -1567,6 +1569,7 @@ return move.san;
 
         if (state) {
             this.gameMode = state.variant || targetVariant || 'classical';
+            this.gameOver = state.isGameOver || false;
             this._originalPgn = null;
             if (typeof localStorage !== 'undefined') {
                 localStorage.setItem('chess_last_variant', this.gameMode);
@@ -1588,6 +1591,10 @@ return move.san;
                 if (typeof this.loadPGN === 'function') {
                     this.loadPGN(state.pgn, false, true);
                     this._originalPgn = state.pgn;
+                    const res = this.pgnHeaders['Result'];
+                    if (res === '1-0' || res === '0-1' || res === '1/2-1/2') {
+                        this.gameOver = true;
+                    }
                 }
             } else if (state.fen) {
                 if (typeof this.loadNewPosition === 'function') this.loadNewPosition(state.fen);
@@ -1662,13 +1669,24 @@ return move.san;
             if (this.currentNode && typeof this.loadFEN === 'function') {
                 this.loadFEN(this.currentNode.fen, this.gameMode, true);
             }
-
+            this.gameOver = state.isGameOver || this.gameOver || false;
+            this.isPaused = state.isPaused || false;
             if (typeof this.#checkAndSwitchEngine === 'function') {
                 this.#checkAndSwitchEngine();
             }
 
             this.#emit('variantChanged', this.gameMode);
-
+            if ((this.mode === 'local' || this.mode === 'bot') && !this.gameOver) {
+                if (!this.isPaused && typeof this.#startTimer === 'function') this.#startTimer();
+                if (this.mode === 'bot' && this.turn === this.botColor && !this.isPaused) {
+                    setTimeout(() => {
+                        if (typeof window.sfWorker !== 'undefined' && window.sfWorker) {
+                            window.sfWorker.postMessage('isready');
+                        }
+                        if (typeof this.#triggerBotMove === 'function') this.#triggerBotMove();
+                    }, 500);
+                }
+            }
             if (this.#ui) {
                 this.#ui._lastMetadataCache = null;
                 this.#ui._lastHeadersCache = null;
@@ -2342,11 +2360,14 @@ return move.san;
         if (statusMsg.includes(' wins ')) reason = statusMsg.split(' wins ')[1]; 
         else if (statusMsg.startsWith('Draw ')) reason = statusMsg.substring(5);
         this.#emit('gameOver', { winner, reason, statusMsg });
-
+        
         this.clearPremoves();
 
         if (this.#ui && typeof this.#ui.renderBoard === 'function') {
             this.#ui.renderBoard(false);
+        }
+        if (typeof this.#saveState === 'function') {
+            this.#saveState('play', true); 
         }
     }
 #stopTimer() {
@@ -6107,6 +6128,11 @@ rematch() {
         if (typeof this.#ui !== 'undefined' && typeof this.#ui.updateHistory === 'function') {
             this.#ui.updateHistory(true);
         }
+        setTimeout(() => {
+            if (this.#ui && typeof this.#ui.renderBoard === 'function') {
+                this.#ui.renderBoard(false);
+            }
+        }, 15);
     }
 offerDraw() {
         if (this.gameOver) return;
@@ -6145,7 +6171,7 @@ resign() {
         if (window.sfWorker && !window.engineAnalysing) window.sfWorker.postMessage('stop');
         
         this.clearPremoves();
-        
+
         const isWhiteResigning = this.turn === 'w';
         const resultStr = isWhiteResigning ? "0-1" : "1-0";
         const winnerName = isWhiteResigning ? "Black" : "White";

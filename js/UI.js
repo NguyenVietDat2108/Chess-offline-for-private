@@ -2624,13 +2624,14 @@ startDrag(e, idx, piece) {
         }
 
         if (state.mode !== 'editor') {
-            if (state.isLive && state.mode === 'bot' && piece.color === state.botColor) {
-                if ((this.moveInputMode === 'click' || this.moveInputMode === 'both') && this.selectedSq !== null) { } 
-                else return;
-            }
-            if (state.turn !== piece.color) {
-                if ((this.moveInputMode === 'click' || this.moveInputMode === 'both') && this.selectedSq !== null) { } 
-                else if (state.mode === 'analysis' || this.#game.premoveMode === 'none') { return; }
+            if (this.#game && (this.#game.mode === 'bot' || this.#game.mode === 'puzzle') && !this.#game.gameOver) {
+                let myExpectedColor = this.#game.myColor || this.#game.playerColor || (this.flipped ? 'b' : 'w');
+                if (piece.color !== myExpectedColor) return;
+            } else {
+                if (state.turn !== piece.color) {
+                    if ((this.moveInputMode === 'click' || this.moveInputMode === 'both') && this.selectedSq !== null) { } 
+                    else if (state.mode === 'analysis' || this.#game.premoveMode === 'none') { return; }
+                }
             }
         }
 
@@ -2969,7 +2970,7 @@ updateLessonUI() {
                 }
             }
         }
-
+        
         const moveObj = { from: fromIdx, to: toIdx, color: pColor, piece: pType, promotion: promo, isCastle, kingTo, rookFrom, rookTo };
         if (this.#game) this.#game.addPremove(moveObj);
         this.renderBoard(false);
@@ -5668,21 +5669,28 @@ processTrashAction(e) {
         }
     }
 editorClear() {
-    if (this.#game) {
-        const emptyFen = "8/8/8/8/8/8/8/8 w - - 0 1";
-        this.#game.loadFEN(emptyFen);
-        
-        // Ensure the engine and visual board are in sync
-        if (typeof this.#game.syncEngineToBoard === 'function') this.#game.syncEngineToBoard(); 
-        
-        this.renderBoard(false);
-        const fenInput = document.getElementById('fenInput');
-        if (fenInput) fenInput.value = emptyFen;
+        if (this.#game) {
+            const emptyFen = "8/8/8/8/8/8/8/8 w - - 0 1";
+            this.#game.loadFEN(emptyFen, this.#game.gameMode);
+            
+            if (typeof this.#game.syncEngineToBoard === 'function') this.#game.syncEngineToBoard(); 
+            if (typeof this.#game.clearPremoves === 'function') this.#game.clearPremoves();
+            
+            this.cleanupDrag(false);
+            this.clearGhostPiece();
+            this.clearArrows();
+            document.querySelectorAll('.square, .piece').forEach(el => {
+                el.classList.remove('selected', 'highlight', 'valid-move', 'selected-w', 'selected-b', 'last-move', 'premove-source', 'premove-dest', 'in-check', 'dragging-source', 'animating');
+            });
 
-        this.updateEditorInputs();
-        this.#emit('soundTriggered', { type: 'scatter' });
+            this.renderBoard(false);
+            const fenInput = document.getElementById('fenInput');
+            if (fenInput) fenInput.value = emptyFen;
+
+            this.updateEditorInputs();
+            this.#emit('soundTriggered', { type: 'scatter' });
+        }
     }
-}
 editorReset() {
     let startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     if (this.#game) {
@@ -9350,6 +9358,9 @@ castSpell(spellType, targetSq) {
         height: Math.ceil(maxY + config.nodeRadiusY * 2 + config.paddingY * 2)
     };
     }
+
+
+    // --- Auto-generated MVC methods ---
     getEngineDepth() {
         return document.getElementById('engineDepth')?.value || 99;
     }
@@ -9472,5 +9483,17 @@ castSpell(spellType, targetSq) {
     getCheckedCheckboxes(selector) {
         return Array.from(document.querySelectorAll(selector)).map(cb => cb.value);
     }
-
+    updatePlayButtons(forceLive = null) {
+        const resignBtn = document.getElementById('resignBtn');
+        const drawBtn = document.getElementById('drawBtn');
+        const rematchBtn = document.getElementById('rematchBtn');
+        
+        const isLive = forceLive !== null ? forceLive : (this.#game ? this.#game.isPlayingLiveGame : false);
+        const stateMode = this.#game ? (this.#game.mode === 'local' || this.#game.mode === 'bot' || this.#game.mode === 'play' ? 'play' : this.#game.mode) : 'analysis';
+        const isPlayTab = (stateMode === 'play');
+        
+        if (resignBtn) resignBtn.style.display = (isLive && isPlayTab) ? 'block' : 'none';
+        if (drawBtn) drawBtn.style.display = (isLive && isPlayTab) ? 'block' : 'none';
+        if (rematchBtn) rematchBtn.style.display = (!isLive && isPlayTab) ? 'block' : 'none';
+    }
 }

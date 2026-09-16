@@ -1209,13 +1209,68 @@
                         if (!is_attacked(state, 60, WHITE) && !is_attacked(state, 59, WHITE) && !is_attacked(state, 58, WHITE)) add_move(60, 58, BITS.QSIDE_CASTLE);
                     }
                 }
+            } else {
+                let kL = state.bb_lo[uBase+KING], kH = state.bb_hi[uBase+KING];
+                if (kL || kH) {
+                    let kSq = ctz(kL, kH);
+                    if (!is_attacked(state, kSq, them)) {
+                        if (state.castling & (us===WHITE?1:4)) {
+                            let rSq = -1;
+                            for (let f = 7; f >= 0; f--) {
+                                let sq = (us===WHITE?0:56) + f;
+                                if (state.board[sq] === ((us<<3)|ROOK)) { rSq = sq; break; }
+                            }
+                            if (rSq !== -1) {
+                                let minSq = Math.min(kSq, rSq); let maxSq = Math.max(kSq, rSq);
+                                let blocked = false;
+                                for (let s = minSq + 1; s < maxSq; s++) { if (state.board[s] !== -1) { blocked = true; break; } }
+                                let k_to = us===WHITE ? 6 : 62;
+                                let minTo = Math.min(kSq, k_to); let maxTo = Math.max(kSq, k_to);
+                                for (let s = minTo; s <= maxTo; s++) {
+                                    if (s !== kSq && s !== rSq && state.board[s] !== -1) { blocked = true; break; }
+                                    if (s !== kSq && is_attacked(state, s, them)) { blocked = true; break; }
+                                }
+                                let r_to = us===WHITE ? 5 : 61;
+                                if (state.board[r_to] !== -1 && r_to !== kSq && r_to !== rSq) blocked = true;
+                                if (!blocked) add_move(kSq, rSq, BITS.KSIDE_CASTLE);
+                            }
+                        }
+                        if (state.castling & (us===WHITE?2:8)) {
+                            let rSq = -1;
+                            for (let f = 0; f <= 7; f++) {
+                                let sq = (us===WHITE?0:56) + f;
+                                if (state.board[sq] === ((us<<3)|ROOK)) { rSq = sq; break; }
+                            }
+                            if (rSq !== -1) {
+                                let minSq = Math.min(kSq, rSq); let maxSq = Math.max(kSq, rSq);
+                                let blocked = false;
+                                for (let s = minSq + 1; s < maxSq; s++) { if (state.board[s] !== -1) { blocked = true; break; } }
+                                let k_to = us===WHITE ? 2 : 58;
+                                let minTo = Math.min(kSq, k_to); let maxTo = Math.max(kSq, k_to);
+                                for (let s = minTo; s <= maxTo; s++) {
+                                    if (s !== kSq && s !== rSq && state.board[s] !== -1) { blocked = true; break; }
+                                    if (s !== kSq && is_attacked(state, s, them)) { blocked = true; break; }
+                                }
+                                let r_to = us===WHITE ? 3 : 59;
+                                if (state.board[r_to] !== -1 && r_to !== kSq && r_to !== rSq) blocked = true;
+                                if (!blocked) add_move(kSq, rSq, BITS.QSIDE_CASTLE);
+                            }
+                        }
+                    }
+                }
             }
         }
         let final_moves = [];
         for (let i = 0; i < moveCount; i++) {
             let m = MOVE_BUFFER[i];
             if (!options || options.legal !== false) {
-                if (is_standard_legal_fast(state, m)) final_moves.push(m);
+                let flags = (m >>> 12) & 0x7F;
+                if (state.gameMode === 'chess960' && (flags & (BITS.KSIDE_CASTLE | BITS.QSIDE_CASTLE))) {
+                    let nextState = apply_move(state, m);
+                    if (!is_checked(nextState, us)) final_moves.push(m);
+                } else if (is_standard_legal_fast(state, m)) {
+                    final_moves.push(m);
+                }
             } else {
                 final_moves.push(m);
             }

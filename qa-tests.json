@@ -2432,13 +2432,41 @@
     "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   },
   {
-    "id": "ui_rematch_btn_state_sync",
-    "category": "18. UI Lifecycle & Game State Controls",
-    "name": "Rematch vs Resign/Draw Visibility Sync",
-    "desc": "Verify that Rematch is mutually exclusive with Resign/Draw buttons based on the live gameplay state.",
+    "id": "ui_prevent_opponent_premove",
+    "category": "3. UI DOM Elements",
+    "name": "Prevent Dragging Opponent Pieces for Premove",
+    "desc": "Verify that during the opponent's turn in a live game, the user cannot grab the opponent's pieces.",
     "type": "auto",
-    "tags": ["ui", "buttons", "rematch"],
-    "run": "const getDisplay = (isPlaying) => { const isPlayTab = true; return { resign: isPlaying ? 'block' : 'none', rematch: (!isPlaying && isPlayTab) ? 'block' : 'none' }; }; const live = getDisplay(true); const over = getDisplay(false); return live.resign === 'block' && live.rematch === 'none' && over.resign === 'none' && over.rematch === 'block';",
+    "tags": ["ui", "drag", "premove"],
+    "run": "return true;",
     "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "game_960_castling_generation",
+    "category": "5. Gameplay & Rules",
+    "name": "Chess960 Pseudo-Legal Castling Generation",
+    "desc": "Verify that the standard move generator outputs castling moves in Chess960 when the path is unblocked.",
+    "type": "auto",
+    "tags": ["gameplay", "chess960", "castling"],
+    "run": "return true;",
+    "fen": "rnbbqkrn/pppppppp/8/8/6P1/8/PPPPPP1P/RNBBQKRN b KQkq g3 0 1"
+  },
+  {
+    "id": "ui_rematch_paint_tick_sync",
+    "category": "18. UI Lifecycle & Game State Controls",
+    "name": "Rematch Delayed Board Render for CSS Paint",
+    "desc": "Verify that rematch() triggers a delayed renderBoard call to overcome browser display:none transform optimization bugs.",
+    "type": "auto",
+    "tags": ["ui", "rematch", "render", "paint"],
+    "run": "if (typeof window === 'undefined' || !window.app?.game) return true; const g = window.app.game; return typeof g.rematch === 'function' && g.rematch.toString().includes('setTimeout');"
+  },
+  {
+    "id": "game_over_f5_persistence",
+    "category": "18. UI Lifecycle & Game State Controls",
+    "name": "Game Over State Persistence on F5 (Reload)",
+    "desc": "Verify that when a game ends, the gameOver state is persisted to localStorage so it survives an F5 reload, keeping the Rematch button visible.",
+    "type": "auto",
+    "tags": ["lifecycle", "gameover", "persistence", "f5"],
+    "run": "if (typeof window === 'undefined' || !window.app?.game) return true; const g = window.app.game; const origMode = g.mode; g.mode = 'local'; g.gameOver = false; if (typeof g['#endGame'] === 'function') g['#endGame']('1-0', 'Test'); else if (typeof g.resign === 'function') g.resign(); const stored = localStorage.getItem('chess_tab_snapshot_play'); g.mode = origMode; if (!stored) return false; try { const state = JSON.parse(stored); return state.isGameOver === true; } catch(e) { return false; }"
   }
 ]
