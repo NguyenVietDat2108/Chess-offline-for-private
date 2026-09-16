@@ -2343,6 +2343,8 @@ return move.san;
         else if (statusMsg.startsWith('Draw ')) reason = statusMsg.substring(5);
         this.#emit('gameOver', { winner, reason, statusMsg });
 
+        this.clearPremoves();
+
         if (this.#ui && typeof this.#ui.renderBoard === 'function') {
             this.#ui.renderBoard(false);
         }
@@ -6141,6 +6143,8 @@ resign() {
         if (this.gameOver || !this.isPlayingLiveGame) return;
         
         if (window.sfWorker && !window.engineAnalysing) window.sfWorker.postMessage('stop');
+        
+        this.clearPremoves();
         
         const isWhiteResigning = this.turn === 'w';
         const resultStr = isWhiteResigning ? "0-1" : "1-0";
