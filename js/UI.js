@@ -629,6 +629,24 @@ setGame(gameInstance) {
         const enginePanel = document.getElementById('enginePanel');
         if (enginePanel) enginePanel.style.display = (isEditor || isTrainer || isFullscreenGraph) ? 'none' : '';
     }
+getElement(id) { 
+    return typeof document !== 'undefined' ? document.getElementById(id) : null; 
+}
+querySelector(sel) { 
+    return typeof document !== 'undefined' ? document.querySelector(sel) : null; 
+}
+querySelectorAll(sel) { 
+    return typeof document !== 'undefined' ? document.querySelectorAll(sel) : []; 
+}
+createElement(tag) { 
+    return typeof document !== 'undefined' ? document.createElement(tag) : null; 
+}
+appendChild(el) { 
+    if (typeof document !== 'undefined' && document.body) document.body.appendChild(el); 
+}
+removeChild(el) { 
+    if (typeof document !== 'undefined' && document.body) document.body.removeChild(el); 
+}
 renderArrows() {
         if (!this.arrowLayer) return;
         this.arrowLayer.innerHTML = '';
@@ -2763,17 +2781,8 @@ finishDrag(e) {
 
                     if (state.turn !== pColor) {
                         if (state.mode === 'analysis') { this.cleanupDrag(true); return; }
-                        const toRow = Math.floor(dropIdx / 8);
-                        let promo = undefined;
-                        if (pType && pType.toLowerCase() === 'p') {
-                            if ((pColor === 'w' && toRow === 0) || (pColor === 'b' && toRow === 7)) {
-                                promo = document.getElementById('autoQueen')?.checked ? 'q' : 'q';
-                            }
-                        }
-                        const moveObj = { from: this.dragData.fromIdx, to: dropIdx, color: pColor, piece: pType, promotion: promo };
-                        this.#game.addPremove(moveObj);
+                        this.handleAddPremove(this.dragData.fromIdx, dropIdx, pColor, pType, this.getVisualBoard());
                         moveMade = true;
-                        this.renderBoard(false);
                     } else {
                         let currentLegalMoves = this.#game ? this.#game.getLegalMoves(this.dragData.fromIdx) : this.legalMoves;
                         let move = currentLegalMoves.find(m => m.to === dropIdx);
@@ -2877,7 +2886,95 @@ updateLessonUI() {
             if (progBar) progBar.style.width = "100%";
         }
 }
-executeMove(move, animate = true, overridePromo = null) {
+    getVisualBoard() {
+        const state = this.#game.getReader();
+        let visualBoard = [...state.board];
+        if (state.premoves && state.premoves.length > 0) {
+            for (let pm of state.premoves) {
+                if (pm.from !== '@' && visualBoard[pm.from]) {
+                    if (pm.isCastle && pm.rookFrom >= 0) {
+                        let p = visualBoard[pm.from];
+                        let r = visualBoard[pm.rookFrom];
+                        visualBoard[pm.from] = null;
+                        if (pm.rookFrom !== pm.kingTo) visualBoard[pm.rookFrom] = null;
+                        visualBoard[pm.kingTo] = { ...p, idx: pm.kingTo };
+                        if (r) visualBoard[pm.rookTo] = { ...r, idx: pm.rookTo };
+                    } else {
+                        let p = visualBoard[pm.from];
+                        visualBoard[pm.to] = { ...p, idx: pm.to };
+                        visualBoard[pm.from] = null;
+                        if (pm.promotion) {
+                            visualBoard[pm.to].type = pm.promotion;
+                        }
+                    }
+                } else if (pm.drop) {
+                    visualBoard[pm.to] = { type: pm.drop, color: pm.color, id: 'pm_' + pm.to, idx: pm.to };
+                }
+            }
+        }
+        return visualBoard;
+    }
+    handleAddPremove(fromIdx, toIdx, pColor, pType, visualBoard, skipDialog = false) {
+        const toRow = Math.floor(toIdx / 8);
+        const autoQueen = document.getElementById('autoQueen')?.checked;
+        let isPromotion = false;
+        
+        if (pType && pType.toLowerCase() === 'p') {
+            if ((pColor === 'w' && toRow === 0) || (pColor === 'b' && toRow === 7)) {
+                isPromotion = true;
+            }
+        }
+        
+        if (isPromotion && !skipDialog && !autoQueen) {
+            this.showPromotionModal(pColor, toIdx, (selectedType) => {
+                this.handleAddPremove(fromIdx, toIdx, pColor, pType, visualBoard, selectedType);
+            });
+            return;
+        }
+        
+        let promo = undefined;
+        if (isPromotion) {
+            promo = (typeof skipDialog === 'string') ? skipDialog : 'q';
+        }
+
+        let isCastle = false;
+        let kingTo = toIdx;
+        let rookFrom = -1;
+        let rookTo = -1;
+
+        if (pType && pType.toLowerCase() === 'k') {
+            const targetSq = visualBoard[toIdx];
+            const fromFile = fromIdx & 7;
+            const toFile = toIdx & 7;
+
+            if (targetSq && targetSq.type === 'r' && targetSq.color === pColor) {
+                isCastle = true;
+                rookFrom = toIdx;
+                if (toFile > fromFile) {
+                    kingTo = (fromIdx & ~7) + 6;
+                    rookTo = (fromIdx & ~7) + 5;
+                } else {
+                    kingTo = (fromIdx & ~7) + 2;
+                    rookTo = (fromIdx & ~7) + 3;
+                }
+            } else if (Math.abs(fromFile - toFile) === 2 && Math.floor(fromIdx / 8) === Math.floor(toIdx / 8)) {
+                isCastle = true;
+                kingTo = toIdx;
+                if (toFile > fromFile) {
+                    rookFrom = (fromIdx & ~7) + 7;
+                    rookTo = (fromIdx & ~7) + 5;
+                } else {
+                    rookFrom = (fromIdx & ~7) + 0;
+                    rookTo = (fromIdx & ~7) + 3;
+                }
+            }
+        }
+
+        const moveObj = { from: fromIdx, to: toIdx, color: pColor, piece: pType, promotion: promo, isCastle, kingTo, rookFrom, rookTo };
+        if (this.#game) this.#game.addPremove(moveObj);
+        this.renderBoard(false);
+    }
+    executeMove(move, animate = true, overridePromo = null) {
         const state = this.#game ? this.#game.getReader() : null;
         
         const chapter = (state && state.chapters) ? state.chapters[state.activeChapterIndex] : null;
@@ -3248,11 +3345,20 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         if (state.premoves && state.premoves.length > 0) {
             for (let pm of state.premoves) {
                 if (pm.from !== '@' && visualBoard[pm.from]) {
-                    let p = visualBoard[pm.from];
-                    visualBoard[pm.to] = { ...p, idx: pm.to };
-                    visualBoard[pm.from] = null;
-                    if (pm.promotion) {
-                        visualBoard[pm.to].type = pm.promotion;
+                    if (pm.isCastle && pm.rookFrom >= 0) {
+                        let p = visualBoard[pm.from];
+                        let r = visualBoard[pm.rookFrom];
+                        visualBoard[pm.from] = null;
+                        if (pm.rookFrom !== pm.kingTo) visualBoard[pm.rookFrom] = null;
+                        visualBoard[pm.kingTo] = { ...p, idx: pm.kingTo };
+                        if (r) visualBoard[pm.rookTo] = { ...r, idx: pm.rookTo };
+                    } else {
+                        let p = visualBoard[pm.from];
+                        visualBoard[pm.to] = { ...p, idx: pm.to };
+                        visualBoard[pm.from] = null;
+                        if (pm.promotion) {
+                            visualBoard[pm.to].type = pm.promotion;
+                        }
                     }
                 } else if (pm.drop) {
                     visualBoard[pm.to] = { type: pm.drop, color: pm.color, id: 'pm_' + pm.to, idx: pm.to };
@@ -3518,17 +3624,8 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                         e.stopPropagation();
                         
                         const selPiece = visualBoard[this.selectedSq];
-                        const toRow = Math.floor(logical_i / 8);
-                        let promo = undefined;
-                        if (selPiece.type === 'p') {
-                            if ((selPiece.color === 'w' && toRow === 0) || (selPiece.color === 'b' && toRow === 7)) {
-                                promo = document.getElementById('autoQueen')?.checked ? 'q' : 'q';
-                            }
-                        }
-                        const moveObj = { from: this.selectedSq, to: logical_i, color: selPiece.color, piece: selPiece.type, promotion: promo };
-                        if (this.#game) this.#game.addPremove(moveObj);
+                        this.handleAddPremove(this.selectedSq, logical_i, selPiece.color, selPiece.type, visualBoard);
                         this.selectedSq = null;
-                        this.renderBoard(false);
                     };
                 }
             } else if (this.selectedSq != null && this.legalMoves) {
@@ -9253,4 +9350,127 @@ castSpell(spellType, targetSq) {
         height: Math.ceil(maxY + config.nodeRadiusY * 2 + config.paddingY * 2)
     };
     }
+    getEngineDepth() {
+        return document.getElementById('engineDepth')?.value || 99;
+    }
+    clearEngineLines() {
+        const box = document.getElementById('engine-lines-box');
+        if (box) box.innerHTML = '';
+        const arrowRoot = document.getElementById('tempArrowRoot');
+        if (arrowRoot) arrowRoot.innerHTML = '';
+        const depthEl = document.getElementById('depth-display');
+        if (depthEl) depthEl.innerText = '';
+    }
+    removeCalcPlaceholder() {
+        const placeholder = document.getElementById('calc-placeholder');
+        if (placeholder) placeholder.remove();
+    }
+    hidePuzzleButtons() {
+        const analysisBtn = document.getElementById('analysisBtn');
+        if (analysisBtn) analysisBtn.style.display = 'none';
+        const hintBtn = document.getElementById('hintBtn');
+        if (hintBtn) hintBtn.style.display = 'none';
+        const resetBtn = document.getElementById('resetPuzzleBtn');
+        if (resetBtn) resetBtn.style.display = 'none';
+    }
+    hideEnginePanel() {
+        const panel = document.getElementById('enginePanel');
+        if (panel) panel.classList.remove('visible');
+        const stats = document.getElementById('engine-stats-container');
+        if (stats) stats.style.display = 'none';
+        const arrows = document.getElementById('tempArrowRoot');
+        if (arrows) arrows.innerHTML = '';
+    }
+    updatePuzzleStatus(statusText, nextVis, solVis, hintVis, resetVis, analysisVis) {
+        const status = document.getElementById('puzzleStatus');
+        if (status) status.innerText = statusText;
+        const next = document.getElementById('nextPuzzleBtn');
+        if (next) next.style.display = nextVis ? 'block' : 'none';
+        const solBtn = document.getElementById('showSolBtn');
+        if (solBtn) solBtn.style.display = solVis ? 'block' : 'none';
+        const hintBtn = document.getElementById('hintBtn');
+        if (hintBtn) hintBtn.style.display = hintVis ? 'block' : 'none';
+        const resetBtn = document.getElementById('resetPuzzleBtn');
+        if (resetBtn) resetBtn.style.display = resetVis ? 'block' : 'none';
+        const analysisBtn = document.getElementById('analysisBtn');
+        if (analysisBtn) analysisBtn.style.display = analysisVis ? 'block' : 'none';
+    }
+    setFenInput(fen) {
+        const fenInput = document.getElementById('fenInput');
+        if (fenInput) fenInput.value = fen;
+    }
+    getVariantSelects() {
+        return {
+            analysis: document.getElementById('analysisVariantSelect')?.value || 'classical',
+            graph: document.getElementById('graphVariantSelect')?.value || 'classical',
+            game: document.getElementById('gameVariantSelect')?.value || 'classical',
+        };
+    }
+    getAssetEngineFolder() {
+        return document.getElementById('assetEngineFolder')?.value || '';
+    }
+    setEngineBtnText(text) {
+        const toggleText = document.getElementById('engine-btn-name');
+        if (toggleText) toggleText.innerText = text;
+    }
+    hidePuzzleTopControls() {
+        const puzzleTopControls = document.getElementById('puzzleTopControls');
+        if (puzzleTopControls) puzzleTopControls.style.display = 'none';
+    }
+    getEditorInputs() {
+        return {
+            turn: document.getElementById('editorTurn')?.value || 'w',
+            castling: {
+                wK: document.getElementById('castling-wK')?.checked || false,
+                wQ: document.getElementById('castling-wQ')?.checked || false,
+                bK: document.getElementById('castling-bK')?.checked || false,
+                bQ: document.getElementById('castling-bQ')?.checked || false
+            }
+        };
+    }
+    hideGameOverModal() {
+        const modal = document.getElementById('gameOverModal');
+        if (modal) modal.style.display = 'none';
+    }
+    setPauseUI(isPaused) {
+        const btn = document.getElementById('pauseBtn');
+        if (btn) btn.innerText = isPaused ? "▶️" : "⏸";
+        const board = document.getElementById('chessBoard');
+        if (board) board.style.opacity = isPaused ? '0.7' : '1';
+    }
+    getPgnFormat() {
+        return document.getElementById('pgnFormatSelect')?.value || 'standard';
+    }
+    getEditorPgn() {
+        return document.getElementById('editorPgnInput')?.value || '';
+    }
+    getNewStudyInputs() {
+        return {
+            name: document.getElementById('newStudyName')?.value || '',
+            input: document.getElementById('newStudyInput')?.value || ''
+        };
+    }
+    getChapterInputs() {
+        return {
+            name: document.getElementById('chapterNameInput')?.value || '',
+            orientation: document.getElementById('chapterOrientationInput')?.value || 'white',
+            mode: document.getElementById('chapterAnalysisModeInput')?.value || 'normal',
+            data: document.getElementById('chapterDataInput')?.value || ''
+        };
+    }
+    showCustomConfirm(message, onYes, onNo) {
+        const modal = document.getElementById('customConfirmModal');
+        const textEl = document.getElementById('customConfirmMessage');
+        const yesBtn = document.getElementById('customConfirmYes');
+        const noBtn = document.getElementById('customConfirmNo');
+        if (!modal || !textEl || !yesBtn || !noBtn) return;
+        textEl.innerText = message;
+        modal.style.display = 'flex';
+        yesBtn.onclick = () => { modal.style.display = 'none'; if (onYes) onYes(); };
+        noBtn.onclick = () => { modal.style.display = 'none'; if (onNo) onNo(); };
+    }
+    getCheckedCheckboxes(selector) {
+        return Array.from(document.querySelectorAll(selector)).map(cb => cb.value);
+    }
+
 }

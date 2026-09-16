@@ -32,7 +32,8 @@ export class ChessGame {
     #duck_sq;
     SUSPENDED_VARIANTS = ['bughouse','placement'];
     #EMPTY_ARRAY = [];
-constructor() {
+
+    constructor() {
         this.#callbacks = {};
         this.#ui = null;
         this.#duck_sq = -1;
@@ -683,8 +684,7 @@ getReader() {
             }
             
             if (targetNode === this.currentNode) {
-                const box = document.getElementById('engine-lines-box');
-                if (box) box.innerHTML = '';
+                if (this.#ui && typeof this.#ui.clearEngineLines === 'function') this.#ui.clearEngineLines();
                 if (this.#ui && typeof this.#ui.renderCharts === 'function') requestAnimationFrame(() => {this.#ui.renderCharts();});
             }
             return; 
@@ -704,7 +704,7 @@ getReader() {
         this.#safeSetOption('MultiPV', '3');
         this.#postEngineCommand('position fen ' + fen);
         
-        const depth = document.getElementById('engineDepth')?.value || 99;
+        const depth = (this.#ui && typeof this.#ui.getEngineDepth === 'function') ? this.#ui.getEngineDepth() : 99;
         this.#postEngineCommand('go depth ' + depth);
     }
 #triggerBotMove(ignoreBook = false) {
@@ -1198,8 +1198,7 @@ getReader() {
             }
 
             if (window.engineAnalysing && this.#ui && this.#ui.renderAnalysisLine && targetNode === this.currentNode) {
-                const placeholder = document.getElementById('calc-placeholder');
-                if (placeholder) placeholder.remove();
+                if (this.#ui && typeof this.#ui.removeCalcPlaceholder === 'function') this.#ui.removeCalcPlaceholder();
                 this.#ui.renderAnalysisLine(lineIndex, type, score, rawMoves, currentFen);
             }
 
@@ -1668,14 +1667,7 @@ return move.san;
                 this.#checkAndSwitchEngine();
             }
 
-            if (typeof document !== 'undefined') {
-                const aSel = document.getElementById('analysisVariantSelect');
-                if (aSel) aSel.value = this.gameMode;
-                const gSel = document.getElementById('graphVariantSelect');
-                if (gSel) gSel.value = this.gameMode;
-                const pSel = document.getElementById('gameVariantSelect');
-                if (pSel) pSel.value = this.gameMode;
-            }
+            this.#emit('variantChanged', this.gameMode);
 
             if (this.#ui) {
                 this.#ui._lastMetadataCache = null;
@@ -1710,14 +1702,7 @@ return move.san;
             this.loadFEN(startFen, this.gameMode, true);
         }
 
-        if (typeof document !== 'undefined') {
-            const aSel = document.getElementById('analysisVariantSelect');
-            if (aSel) aSel.value = this.gameMode;
-            const gSel = document.getElementById('graphVariantSelect');
-            if (gSel) gSel.value = this.gameMode;
-            const pSel = document.getElementById('gameVariantSelect');
-            if (pSel) pSel.value = this.gameMode;
-        }
+        this.#emit('variantChanged', this.gameMode);
 
         return false;
     }
@@ -1733,7 +1718,7 @@ return move.san;
             }
         }
     }
-#parsePGNTokens(tokens, index = 0) {
+#parsePGNTokens(pgnStr, tokenIndices, tokenCount, index = 0) {
         const tlRegex = /tl\s*=\s*(-?\d+(\.\d+)?)/i;
         const lichessEvalRegex = /\[%eval\s+([#]?[+-]?[\d\.]+)\]/i; 
         const lichessClkRegex = /\[%clk\s+([0-9:\.]+)\]/i; 
@@ -1749,13 +1734,19 @@ return move.san;
         };
 
         const nodeStack = [];
-        let i = index || 0;
+        let idx = index || 0;
 
-        while (i < tokens.length) {
-            let token = tokens[i].trim();
-            if (!token) { i++; continue; }
+        while (idx < tokenCount) {
+            let tStart = tokenIndices[idx];
+            let tEnd = tokenIndices[idx+1];
+            idx += 2;
+            
+            let len = tEnd - tStart;
+            if (len <= 0) continue;
 
-            if (token === '(') {
+            let firstChar = pgnStr.charCodeAt(tStart);
+
+            if (firstChar === 40 && len === 1) {
                 nodeStack.push({
                     savedNode: this.currentNode,
                     savedW: this.currentWTime,
@@ -1769,11 +1760,10 @@ return move.san;
                         try { this.#engine.load(this.currentNode.fen); } catch(e) {}
                     }
                 }
-                i++;
                 continue;
             }
 
-            if (token === ')') {
+            if (firstChar === 41 && len === 1) {
                 if (nodeStack.length > 0) {
                     const frame = nodeStack.pop();
                     this.currentNode = frame.savedNode;
@@ -1781,19 +1771,32 @@ return move.san;
                     this.currentBTime = frame.savedB;
                     try { this.#engine.load(frame.savedFen); } catch(e) {}
                 }
-                i++;
                 continue;
             }
 
-            if (token.startsWith('$') || /^[!?]+$/.test(token)) {
+            if (firstChar === 36) {
+                let token = pgnStr.substring(tStart, tEnd);
                 if (this.currentNode) {
                     this.currentNode.nag = (this.currentNode.nag ? this.currentNode.nag + "," : "") + token;
                 }
-                i++;
+                continue;
+            }
+            
+            let isPureNag = true;
+            for(let j = tStart; j < tEnd; j++) {
+                let c = pgnStr.charCodeAt(j);
+                if (c !== 33 && c !== 63) { isPureNag = false; break; }
+            }
+            if (isPureNag) {
+                let token = pgnStr.substring(tStart, tEnd);
+                if (this.currentNode) {
+                    this.currentNode.nag = (this.currentNode.nag ? this.currentNode.nag + "," : "") + token;
+                }
                 continue;
             }
 
-            if (token.startsWith('{')) {
+            if (firstChar === 123) {
+                let token = pgnStr.substring(tStart, tEnd);
                 let rawComment = token.replace(/^\{|\}$/g, '').trim();
 
                 if (/^\s*book\s*$/i.test(rawComment)) {
@@ -1801,7 +1804,6 @@ return move.san;
                     this.currentNode.engineDetails = "book";
                     this.currentNode.comment = null;
                     this.currentNode.rawComment = "book";
-                    i++;
                     continue;
                 }
 
@@ -1983,40 +1985,57 @@ return move.san;
                 if (isEngineLog && typeof this.#processEngineComment === 'function') {
                     this.#processEngineComment(this.currentNode, rawComment);
                 }
-
-                i++;
                 continue;
             }
-            else {
-                if (!['*', '1-0', '0-1', '1/2-1/2'].includes(token) && !token.endsWith('.')) {
-                    
-                    if (['+-', '-+', '=', '+=', '=+', '±', '∓', '∞', '⩲', '⩱'].includes(token)) {
-                        if (this.currentNode) {
-                            this.currentNode.nag = (this.currentNode.nag ? this.currentNode.nag + "," : "") + token;
-                        }
-                        i++;
-                        continue;
+            
+            let lastChar = pgnStr.charCodeAt(tEnd - 1);
+            if (lastChar === 46) {
+                continue;
+            }
+
+            if (firstChar === 42 && len === 1) continue; 
+            if (firstChar === 49 && len === 3 && pgnStr.charCodeAt(tStart+1) === 45 && pgnStr.charCodeAt(tStart+2) === 48) continue; 
+            if (firstChar === 48 && len === 3 && pgnStr.charCodeAt(tStart+1) === 45 && pgnStr.charCodeAt(tStart+2) === 49) continue; 
+            if (len === 7 && pgnStr.substring(tStart, tEnd) === '1/2-1/2') continue;
+            
+            let token = pgnStr.substring(tStart, tEnd);
+
+            if (['+-', '-+', '=', '+=', '=+', '±', '∓', '∞', '⩲', '⩱'].includes(token)) {
+                if (this.currentNode) {
+                    this.currentNode.nag = (this.currentNode.nag ? this.currentNode.nag + "," : "") + token;
+                }
+                continue;
+            }
+
+            let moveText = token;
+            let attachedNag = "";
+            
+            if ((lastChar >= 48 && lastChar <= 57) || (lastChar >= 65 && lastChar <= 90) || (lastChar >= 97 && lastChar <= 122) || lastChar === 35 || lastChar === 43) {
+                if (token.endsWith('+-') || token.endsWith('-+') || token.endsWith('=+') || token.endsWith('+=')) {
+                    let fallbackMatch = token.match(/^([a-zA-Z0-9\+#\-@=]+?)([!?[\]±∓∞⩲⩱]|\+\-|\-\+|\+\/-|-\/\+)+$/);
+                    if (fallbackMatch) {
+                        moveText = fallbackMatch[1];
+                        attachedNag = fallbackMatch[2];
                     }
-
-                    let moveText = token;
-                    let attachedNag = "";
-                    const sanRegex = /^([KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?(?:@[a-h][1-8])?[\+#]?|[a-h][1-8](?:=[QRBN])?[\+#]?|O-O-O(?:@[a-h][1-8])?[\+#]?|O-O(?:@[a-h][1-8])?[\+#]?)(.*)$/;
-                    let match = token.match(sanRegex);
-                    
-                    if (match && match[1]) { 
-                        moveText = match[1]; 
-                        attachedNag = match[2]; 
-                    } else {
-                        let fallbackMatch = token.match(/^([a-zA-Z0-9\+#\-@=]+?)([!?[\]±∓∞⩲⩱]|\+\-|\-\+|\+\/-|-\/\+)+$/);
-                        if (fallbackMatch) {
-                            moveText = fallbackMatch[1];
-                            attachedNag = fallbackMatch[2];
-                        }
+                }
+            } else {
+                const sanRegex = /^([KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?(?:@[a-h][1-8])?[\+#]?|[a-h][1-8](?:=[QRBN])?[\+#]?|O-O-O(?:@[a-h][1-8])?[\+#]?|O-O(?:@[a-h][1-8])?[\+#]?)(.*)$/;
+                let match = token.match(sanRegex);
+                if (match && match[1]) { 
+                    moveText = match[1]; 
+                    attachedNag = match[2]; 
+                } else {
+                    let fallbackMatch = token.match(/^([a-zA-Z0-9\+#\-@=]+?)([!?[\]±∓∞⩲⩱]|\+\-|\-\+|\+\/-|-\/\+)+$/);
+                    if (fallbackMatch) {
+                        moveText = fallbackMatch[1];
+                        attachedNag = fallbackMatch[2];
                     }
+                }
+            }
 
-                    let engineInput = moveText; 
+            let engineInput = moveText; 
 
-                    let duckSqFromSan = -1;
+            let duckSqFromSan = -1;
                     if (this.gameMode === 'duck' && typeof moveText === 'string' && moveText.includes('@')) {
                         const duckMatch = moveText.match(/@([a-h][1-8])/);
                         if (duckMatch && duckMatch[1]) {
@@ -2050,7 +2069,6 @@ return move.san;
 
                     if (!moveObj) {
                         if (moveText.includes(':') || moveText.includes('/') || moveText.length > 8) {
-                            i++;
                             continue;
                         }
                     }
@@ -2122,11 +2140,8 @@ return move.san;
                         this.currentNode.clock = { w: this.currentWTime, b: this.currentBTime };
                         this.currentNode.hasClock = true;
                     }
-                }
-                i++;
-            }
         }
-        return i;
+        return idx;
     }
 #addPVToNode(node, pvString) {
         if (!pvString || !node) return;
@@ -2134,17 +2149,24 @@ return move.san;
         let savedNode = this.currentNode;
         let savedFen = this.#engine.fen();
 
-        let moves = pvString.trim().split(/\s+/);
-        if (moves.length === 0) return;
+        let pvMovesToPlay = [];
+        let pvi = 0; let pvlen = pvString.length;
+        while (pvi < pvlen) {
+            while(pvi < pvlen && pvString.charCodeAt(pvi) <= 32) pvi++;
+            if (pvi >= pvlen) break;
+            let st = pvi;
+            while(pvi < pvlen && pvString.charCodeAt(pvi) > 32) pvi++;
+            pvMovesToPlay.push(pvString.substring(st, pvi));
+        }
+        if (pvMovesToPlay.length === 0) return;
 
         let startNode = node.parent || node;
         let loadFen = (node.parent && node.parent.fen) ? node.parent.fen : node.fen;
-        let pvMovesToPlay = moves;
 
         if (node.parent) {
             try {
                 this.#engine.load(node.fen);
-                let firstMoveText = moves[0].replace(/[?!+#]+$/, '');
+                let firstMoveText = pvMovesToPlay[0].replace(/[?!+#]+$/, '');
                 let uM = firstMoveText.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
                 let testInput = uM 
                     ? { from: uM[1], to: uM[2], promotion: uM[3] ? uM[3].toLowerCase() : undefined }
@@ -2158,16 +2180,13 @@ return move.san;
                 if (testMove) {
                     startNode = node;
                     loadFen = node.fen;
-                    pvMovesToPlay = moves;
                 } else {
                     startNode = node.parent;
                     loadFen = node.parent.fen;
-                    pvMovesToPlay = moves;
                 }
             } catch(e) {
                 startNode = node.parent;
                 loadFen = node.parent.fen;
-                pvMovesToPlay = moves;
             }
         }
 
@@ -2451,34 +2470,22 @@ return move.san;
         this.rootNode = new MoveNode(p.fen, null);
         this.currentNode = this.rootNode;
         
-        const pgnBox = document.getElementById('pgnDisplay');
-        if (pgnBox) {
-            if (pgnBox.tagName === 'INPUT' || pgnBox.tagName === 'TEXTAREA') pgnBox.value = "";
-            else pgnBox.innerText = "";
+        if (this.#ui && typeof this.#ui.clearPGNDisplay === 'function') {
+            this.#ui.clearPGNDisplay();
+        } else {
+            this.#emit('clearPGN');
         }
         
-        const analysisBtn = document.getElementById('analysisBtn');
-        if (analysisBtn) analysisBtn.style.display = 'none';
-        const hintBtn = document.getElementById('hintBtn');
-        if (hintBtn) hintBtn.style.display = 'none';
-        const resetBtn = document.getElementById('resetPuzzleBtn');
-        if (resetBtn) resetBtn.style.display = 'none';
+        if (this.#ui && typeof this.#ui.hidePuzzleButtons === 'function') this.#ui.hidePuzzleButtons();
 
         if (window.engineAnalysing) {
             window.engineAnalysing = false;
             if (window.sfWorker) window.sfWorker.postMessage('stop');
 
-            const btn = document.querySelector('.engine-toggle-btn');
+            const btn = this.#ui.querySelector('.engine-toggle-btn');
             if (btn) btn.classList.remove('active');
 
-            const panel = document.getElementById('enginePanel');
-            if (panel) panel.classList.remove('visible');
-
-            const stats = document.getElementById('engine-stats-container');
-            if (stats) stats.style.display = 'none';
-
-            const arrows = document.getElementById('tempArrowRoot');
-            if (arrows) arrows.innerHTML = '';
+            if (this.#ui && typeof this.#ui.hideEnginePanel === 'function') this.#ui.hideEnginePanel();
         }
 
         this.currentPuzzle = p;
@@ -2599,23 +2606,17 @@ return move.san;
             }, 100);
             this.gameOver = true; 
         } else {
-            const status = document.getElementById('puzzleStatus');
-            const next = document.getElementById('nextPuzzleBtn');
-            const solBtn = document.getElementById('showSolBtn');
-            const hintBtn = document.getElementById('hintBtn');
-            const resetPuzzleBtn = document.getElementById('resetPuzzleBtn');
-            const analysisBtn = document.getElementById('analysisBtn');
+            const status = this.#ui.getElement('puzzleStatus');
+            const next = this.#ui.getElement('nextPuzzleBtn');
+            const solBtn = this.#ui.getElement('showSolBtn');
+            const hintBtn = this.#ui.getElement('hintBtn');
+            const resetPuzzleBtn = this.#ui.getElement('resetPuzzleBtn');
+            const analysisBtn = this.#ui.getElement('analysisBtn');
 
-            if (status) { status.innerText ="Solved!"; status.style.color ="#26c2a3"; }
-            if (next) next.style.display ="block";
-            if (solBtn) solBtn.style.display ="none";
-            if (hintBtn) hintBtn.style.display ="none";
-            if (resetPuzzleBtn) resetPuzzleBtn.style.display ="none";
-            if (analysisBtn) analysisBtn.style.display ="block";
-            const engineBtn = document.querySelector('.engine-toggle-btn');
+            this.#emit('puzzleSolvedUI');
+            const engineBtn = this.#ui.querySelector('.engine-toggle-btn');
             if (engineBtn) { 
-                engineBtn.style.opacity = '1'; 
-                engineBtn.style.cursor = 'pointer'; 
+                this.#emit('engineBtnState', { enabled: true }); 
             }
             // NO mode switching!
         }
@@ -2645,25 +2646,24 @@ return move.san;
             if (!isRush) {
                 this.#ui.showNotification(`Wrong Move! Try again. ❌`, 'Incorrect');
                 
-                const nextBtn = document.getElementById('nextPuzzleBtn');
+                const nextBtn = this.#ui.getElement('nextPuzzleBtn');
                 if (nextBtn) nextBtn.style.display = 'block';
                 
-                const analysisBtn = document.getElementById('analysisBtn');
+                const analysisBtn = this.#ui.getElement('analysisBtn');
                 if (analysisBtn) analysisBtn.style.display = 'none';
 
-                const hintBtn = document.getElementById('hintBtn');
+                const hintBtn = this.#ui.getElement('hintBtn');
                 if (hintBtn) hintBtn.style.display = 'flex';
                 
-                const resetBtn = document.getElementById('resetPuzzleBtn');
+                const resetBtn = this.#ui.getElement('resetPuzzleBtn');
                 if (resetBtn) resetBtn.style.display = 'flex';
             }
             if (this.#ui.updatePuzzleStats) this.#ui.updatePuzzleStats();
         }
 
-        const engineBtn = document.querySelector('.engine-toggle-btn');
+        const engineBtn = this.#ui.querySelector('.engine-toggle-btn');
         if (engineBtn) { 
-            engineBtn.style.opacity = '0.5'; 
-            engineBtn.style.cursor = 'not-allowed'; 
+            this.#emit('engineBtnState', { enabled: false }); 
         }
 
         if (isRush) {
@@ -3212,8 +3212,7 @@ editBoard(idx, piece) {
             this.pgnHeaders['FEN'] = newFen;
             this.pgnHeaders['SetUp'] = '1';
 
-            const fenInput = document.getElementById('fenInput');
-            if (fenInput) fenInput.value = newFen;
+            if (this.#ui && typeof this.#ui.setFenInput === 'function') this.#ui.setFenInput(newFen);
             if (typeof localStorage !== 'undefined') localStorage.setItem('chess_state_editor_fen', newFen);
         }
     }
@@ -3374,9 +3373,9 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             
             if (!confirmReset) {
                 if (typeof document !== 'undefined') {
-                    const select = document.getElementById('analysisVariantSelect');
+                    const select = this.#ui.getElement('analysisVariantSelect');
                     if (select) select.value = oldMode;
-                    const gSelect = document.getElementById('graphVariantSelect');
+                    const gSelect = this.#ui.getElement('graphVariantSelect');
                     if (gSelect) gSelect.value = oldMode;
                 }
                 return; 
@@ -3416,11 +3415,11 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             }
 
             if (typeof document !== 'undefined') {
-                const aSel = document.getElementById('analysisVariantSelect');
+                const aSel = this.#ui.getElement('analysisVariantSelect');
                 if (aSel) aSel.value = mode;
-                const gSel = document.getElementById('graphVariantSelect');
+                const gSel = this.#ui.getElement('graphVariantSelect');
                 if (gSel) gSel.value = mode;
-                const pSel = document.getElementById('gameVariantSelect');
+                const pSel = this.#ui.getElement('gameVariantSelect');
                 if (pSel) pSel.value = mode;
             }
             return;
@@ -3456,8 +3455,7 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
                     this._originalPgn = savedPgn;
                     
                     if (typeof document !== 'undefined') {
-                        const fenBox = document.getElementById('fenInput');
-                        if (fenBox && this.currentNode) fenBox.value = this.currentNode.fen;
+                        if (this.#ui && typeof this.#ui.setFenInput === 'function') this.#ui.setFenInput(this.currentNode?.fen);
                     }
                 } else {
                     let startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[mode]) ? VARIANT_STARTING_FENS[mode] : INITIAL_FEN;
@@ -3501,11 +3499,11 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             }
 
             if (typeof document !== 'undefined') {
-                const aSel = document.getElementById('analysisVariantSelect');
+                const aSel = this.#ui.getElement('analysisVariantSelect');
                 if (aSel) aSel.value = mode;
-                const gSel = document.getElementById('graphVariantSelect');
+                const gSel = this.#ui.getElement('graphVariantSelect');
                 if (gSel) gSel.value = mode;
-                const pSel = document.getElementById('gameVariantSelect');
+                const pSel = this.#ui.getElement('gameVariantSelect');
                 if (pSel) pSel.value = mode;
             }
             
@@ -3528,9 +3526,9 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             }
             
             if (typeof document !== 'undefined') {
-                const select = document.getElementById('analysisVariantSelect');
+                const select = this.#ui.getElement('analysisVariantSelect');
                 if (select) select.value = 'classical';
-                const gSelect = document.getElementById('graphVariantSelect');
+                const gSelect = this.#ui.getElement('graphVariantSelect');
                 if (gSelect) gSelect.value = 'classical';
             }
         }
@@ -3621,7 +3619,7 @@ async loadEngineFromFolder() {
                 const parts = jsFile.webkitRelativePath.split('/');
                 const folderName = parts.length > 1 ? parts[0] : jsFile.name.replace('.js', '');
                 
-                const box = document.getElementById('assetEngineFolder');
+                const box = this.#ui.getElement('assetEngineFolder');
                 if (box) box.value = folderName;
                 const nativeUrl = '/engine/' + jsFile.webkitRelativePath;
                 this.initEngine(nativeUrl, folderName, 'custom');
@@ -3952,12 +3950,11 @@ updateStockfish() {
                 window.engineReady = true; 
             }
             
-            const box = document.getElementById('engine-lines-box');
-            if (box) box.innerHTML = ''; 
-            const arrowRoot = document.getElementById('tempArrowRoot');
+            if (this.#ui && typeof this.#ui.clearEngineLines === 'function') this.#ui.clearEngineLines(); 
+            const arrowRoot = this.#ui.getElement('tempArrowRoot');
             if (arrowRoot) arrowRoot.innerHTML = '';
-            document.querySelectorAll('.ghost-suggestion').forEach(el => el.remove());
-            const depthEl = document.getElementById('depth-display');
+            this.#ui.querySelectorAll('.ghost-suggestion').forEach(el => el.remove());
+            const depthEl = this.#ui.getElement('depth-display');
             if (depthEl) depthEl.innerText = '';
             
             if (this.#ui && typeof this.#ui.updateEvalBar === 'function') {
@@ -3972,11 +3969,11 @@ updateStockfish() {
 
         if (this._engineTimeout) clearTimeout(this._engineTimeout);
 
-        const box = document.getElementById('engine-lines-box');
+        const box = this.#ui.getElement('engine-lines-box');
         if (box) box.innerHTML = '<div id="calc-placeholder" style="color:#888; font-size:13px; font-style:italic; padding:8px;">Calculating...</div>';
-        const arrowRoot = document.getElementById('tempArrowRoot');
+        const arrowRoot = this.#ui.getElement('tempArrowRoot');
         if (arrowRoot) arrowRoot.innerHTML = '';
-        const depthEl = document.getElementById('depth-display');
+        const depthEl = this.#ui.getElement('depth-display');
         if (depthEl) depthEl.innerText = 'Depth: 0 | Nps: 0';
 
         this._pendingFen = this.currentNode ? this.currentNode.fen : this.generateFEN();
@@ -4000,12 +3997,11 @@ async reviewGame(autoTriggered = false) {
         if (!this.rootNode) return;
         console.log("%c=== STARTING FULL GAME REVIEW ===", "color:#b369f2; font-weight:bold;");
 
-        const toggleBtn = document.querySelector('.engine-toggle-btn');
-        const toggleText = document.getElementById('engine-btn-name');
+        const toggleBtn = this.#ui.querySelector('.engine-toggle-btn');
+        const toggleText = this.#ui.getElement('engine-btn-name');
         if (toggleBtn) {
             toggleBtn.disabled = true;
-            toggleBtn.style.opacity = '0.5';
-            toggleBtn.style.cursor = 'not-allowed';
+            this.#emit('engineBtnState', { enabled: false });
             if (toggleText) toggleText.innerText = 'Reviewing...';
         }
 
@@ -4226,8 +4222,7 @@ async reviewGame(autoTriggered = false) {
         } finally {
             if (toggleBtn) {
                 toggleBtn.disabled = false;
-                toggleBtn.style.opacity = '1';
-                toggleBtn.style.cursor = 'pointer';
+                this.#emit('engineBtnState', { enabled: true });
                 if (toggleText) {
                     toggleText.innerText = window.currentEngineShortName ? window.currentEngineShortName : "Stockfish 18";
                 }
@@ -4302,8 +4297,8 @@ async startPuzzleSession(mode = 'rush') {
         if (this.puzzleTimer) clearInterval(this.puzzleTimer);
 
         const isRush = ['3min', '5min', 'survival'].includes(mode);
-        const puzzleTopControls = document.getElementById('puzzleTopControls');
-        if (puzzleTopControls) puzzleTopControls.style.display = isRush ? 'none' : 'flex';
+        const puzzleTopControls = this.#ui.getElement('puzzleTopControls');
+        this.#emit('puzzleTopControls', { isRush });
         
         if (isRush) {
             if (mode === 'survival') {
@@ -4316,8 +4311,9 @@ async startPuzzleSession(mode = 'rush') {
             this.puzzleTimeRemaining = null;
         }
 
-        let min = isRush ? 400 : (parseInt(document.getElementById('puzMin')?.value) || 600);
-        let max = isRush ? 600 : (parseInt(document.getElementById('puzMax')?.value) || 3000);
+        let puzzleFilters = this.#ui && typeof this.#ui.getPuzzleFilters === 'function' ? this.#ui.getPuzzleFilters() : { min: 600, max: 3000 };
+        let min = isRush ? 400 : puzzleFilters.min;
+        let max = isRush ? 600 : puzzleFilters.max;
 
         this.sessionMinRating = min;
         this.sessionMaxRating = max;
@@ -4430,9 +4426,9 @@ retryPuzzle() {
             if (this.#ui && typeof this.#ui.renderBoard === 'function') this.#ui.renderBoard(true);
             if (this.#ui && typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory();
             
-            const hintBtn = document.getElementById('hintBtn');
+            const hintBtn = this.#ui.getElement('hintBtn');
             if (hintBtn) hintBtn.style.display = 'none';
-            const resetBtn = document.getElementById('resetPuzzleBtn');
+            const resetBtn = this.#ui.getElement('resetPuzzleBtn');
             if (resetBtn) resetBtn.style.display = 'none';
 
             if (this.puzzleSetupTimeout) {
@@ -4762,22 +4758,22 @@ goToNodeId(id, animate = true) {
         }
         return false;
     }
-updateSettingsTime() {
-        const bh = parseInt(document.getElementById('bTimeH').value) || 0;
-        const bm = parseInt(document.getElementById('bTimeM').value) || 0;
-        const bs = parseInt(document.getElementById('bTimeS').value) || 0;
-
-        this.blackStartSeconds = (bh * 3600) + (bm * 60) + bs;
-        if (this.blackStartSeconds <= 0) this.blackStartSeconds = 600;
-        this.blackIncrement = parseInt(document.getElementById('bInc').value) || 0;
-
-        const wh = parseInt(document.getElementById('wTimeH').value) || 0;
-        const wm = parseInt(document.getElementById('wTimeM').value) || 0;
-        const ws = parseInt(document.getElementById('wTimeS').value) || 0;
-
-        this.whiteStartSeconds = (wh * 3600) + (wm * 60) + ws;
-        if (this.whiteStartSeconds <= 0) this.whiteStartSeconds = 600;
-        this.whiteIncrement = parseInt(document.getElementById('wInc').value) || 0;
+updateSettingsTime(settings = null) {
+        if (settings) {
+            this.blackStartSeconds = (settings.bh * 3600) + (settings.bm * 60) + settings.bs;
+            this.blackIncrement = settings.bInc || 0;
+            this.whiteStartSeconds = (settings.wh * 3600) + (settings.wm * 60) + settings.ws;
+            this.whiteIncrement = settings.wInc || 0;
+        } else if (this.#ui && typeof this.#ui.getTimeSettings === 'function') {
+            const s = this.#ui.getTimeSettings();
+            this.blackStartSeconds = (s.bh * 3600) + (s.bm * 60) + s.bs;
+            this.blackIncrement = s.bInc || 0;
+            this.whiteStartSeconds = (s.wh * 3600) + (s.wm * 60) + s.ws;
+            this.whiteIncrement = s.wInc || 0;
+        } else {
+            // Fallback to emit an event requesting settings if UI hasn't pushed them
+            this.#emit('timeSettingsRequested');
+        }
         
         if (this.pgnHeaders && this.pgnHeaders['TimeControl']) delete this.pgnHeaders['TimeControl'];
         this.timeControl = null; 
@@ -4920,21 +4916,10 @@ syncEngineToBoard() {
         let currEngineFen = this.#engine.fen().split(' ');
 
         if (typeof document !== 'undefined') {
-            const turnEl = document.getElementById('editorTurn');
-            if (turnEl) this.turn = turnEl.value;
-
-            const chkWK = document.getElementById('castling-wK');
-            const chkWQ = document.getElementById('castling-wQ');
-            const chkBK = document.getElementById('castling-bK');
-            const chkBQ = document.getElementById('castling-bQ');
-
-            if (chkWK || chkWQ || chkBK || chkBQ) {
-                this.castling = {
-                    wK: chkWK ? chkWK.checked : this.castling.wK,
-                    wQ: chkWQ ? chkWQ.checked : this.castling.wQ,
-                    bK: chkBK ? chkBK.checked : this.castling.bK,
-                    bQ: chkBQ ? chkBQ.checked : this.castling.bQ
-                };
+            let editorState = (this.#ui && typeof this.#ui.getEditorInputs === 'function') ? this.#ui.getEditorInputs() : null;
+            if (editorState) {
+                this.turn = editorState.turn;
+                if (editorState.castling) this.castling = editorState.castling;
             }
         }
 
@@ -4973,8 +4958,7 @@ syncEngineToBoard() {
             }
             
             if (typeof window !== 'undefined' && this.#ui) {
-                const fenBox = document.getElementById('fenInput');
-                if (fenBox) fenBox.value = fen;
+                if (this.#ui && typeof this.#ui.updateEditorInputs === 'function') this.#ui.updateEditorInputs(); else this.#emit('updateFenInput', fen);
                 
                 if (typeof this.#ui.updateHistory === 'function') {
                     if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
@@ -5104,8 +5088,7 @@ loadNewPosition(fen, explicitMode = null) {
         this.currentNode = this.rootNode;
         this.pgnHeaders = { "FEN": qualifiedFen, "SetUp": "1", "Variant": targetMode };
         
-        const fenBox = document.getElementById('fenInput');
-        if (fenBox) fenBox.value = qualifiedFen;
+        if (this.#ui && typeof this.#ui.updateEditorInputs === 'function') this.#ui.updateEditorInputs(); else this.#emit('updateFenInput', qualifiedFen);
         
         if (this.#ui) {
             this.#ui.renderBoard(false);
@@ -5267,8 +5250,7 @@ startAnalysisMode(transferGame = false) {
         }
 
         if (this.#ui) {
-            const modal = document.getElementById('gameOverModal');
-            if (modal) modal.style.display = 'none';
+            if (this.#ui && typeof this.#ui.hideGameOverModal === 'function') this.#ui.hideGameOverModal();
             
             if (typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory(true);
             if (typeof this.#ui.renderBoard === 'function') this.#ui.renderBoard(false);
@@ -5281,7 +5263,7 @@ if (!file) return;
 const reader = new FileReader();
 reader.onload = (e) => {
 const pgnText = e.target.result;
-document.getElementById('editorPgnInput').value = pgnText;
+if (this.#ui && typeof this.#ui.setEditorPGN === 'function') { this.#ui.setEditorPGN(pgnText); } else { this.#emit('editorPgnUpdated', pgnText); }
 this.#ui.switchTab('editor');
 this.#ui.loadPgnAndAnalyze();
 };
@@ -5305,8 +5287,7 @@ newGame(startFen = null) {
         this.#startTimer();
         if (typeof this.#ui !=='undefined') {
             this.#ui.updateClocks();
-            const btn = document.getElementById('pauseBtn');
-            if (btn) btn.innerText ="⏸";
+            if (this.#ui && typeof this.#ui.setPauseUI === 'function') this.#ui.setPauseUI(false);
             
             if (this.#ui.toggleReviewButton) this.#ui.toggleReviewButton(false);
         }
@@ -5320,14 +5301,14 @@ togglePause() {
             if (this.#ui) {
                 this.#ui.updateStatus("Game Paused ⏸️");
                 // Optional: visual cue
-                document.getElementById('chessBoard').style.opacity = '0.7';
+                if (this.#ui && typeof this.#ui.setPauseUI === 'function') this.#ui.setPauseUI(true);
             }
             if (window.sfWorker) window.sfWorker.postMessage('stop');
         } else {
             // RESUME
             if (this.#ui) {
                 this.#ui.updateStatus("Game Resumed ▶️");
-                document.getElementById('chessBoard').style.opacity = '1';
+                if (this.#ui && typeof this.#ui.setPauseUI === 'function') this.#ui.setPauseUI(false);
             }
             // If it was a bot turn, re-trigger
             if (this.mode === 'human_vs_bot' && this.turn === this.botColor) {
@@ -5555,7 +5536,7 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             }
 
             if (typeof document !== 'undefined') {
-                const variantSelect = document.getElementById('analysisVariantSelect');
+                const variantSelect = this.#ui.getElement('analysisVariantSelect');
                 if (variantSelect) variantSelect.value = this.gameMode;
             }
         }
@@ -5758,7 +5739,18 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 this.isEngineMatch = true;
             }
 
-            let tokens = [];
+            let tokenIndices = new Int32Array(Math.max(10000, moveTextRaw.length)); 
+            let tokenCount = 0;
+            const pushToken = (s, e) => {
+                if (tokenCount >= tokenIndices.length) {
+                    let newArr = new Int32Array(tokenIndices.length * 2);
+                    newArr.set(tokenIndices);
+                    tokenIndices = newArr;
+                }
+                tokenIndices[tokenCount++] = s;
+                tokenIndices[tokenCount++] = e;
+            };
+
             let len = moveTextRaw.length;
             let i = 0;
             let code, start;
@@ -5768,7 +5760,7 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 if (code === 123) { // '{'
                     start = i; 
                     while (i < len && moveTextRaw.charCodeAt(i) !== 125) i++;
-                    tokens.push(moveTextRaw.substring(start, i + 1)); 
+                    pushToken(start, i + 1);
                     i++; 
                     continue;
                 }
@@ -5777,40 +5769,36 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                     start = i; 
                     while (i < len) {
                         let c = moveTextRaw.charCodeAt(i);
-                        if (c <= 32 || c === 125 || c === 41 || c === 40) break;
+                        if (c <= 32 || c === 125 || c === 41 || c === 40 || c === 123) break;
                         i++;
                     }
-                    tokens.push(moveTextRaw.substring(start, i)); 
+                    pushToken(start, i);
                     continue;
                 }
                 
                 if (code === 40 || code === 41) { // '(' or ')'
-                    tokens.push(moveTextRaw.charAt(i)); 
+                    pushToken(i, i + 1);
                     i++; 
                     continue;
                 }
                 
                 start = i;
+                let hasDot = false;
+                let lastDot = -1;
                 while (i < len) {
                     let c = moveTextRaw.charCodeAt(i);
-                    if (c <= 32 || c === 125 || c === 41 || c === 40) break;
+                    if (c <= 32 || c === 125 || c === 41 || c === 40 || c === 123 || c === 36) break;
+                    if (c === 46) { hasDot = true; lastDot = i; }
                     i++;
                 }
                 if (i > start) {
-                    let word = moveTextRaw.substring(start, i);
-                    if (word.endsWith('.')) tokens.push(word);
-                    else if (word.includes('...')) {
-                        const dotIndex = word.lastIndexOf('.');
-                        if (dotIndex !== -1) {
-                            tokens.push(word.substring(0, dotIndex + 1));
-                            if (word.substring(dotIndex + 1)) tokens.push(word.substring(dotIndex + 1));
-                        } else tokens.push(word);
+                    if (!hasDot || moveTextRaw.charCodeAt(i - 1) === 46) {
+                        pushToken(start, i);
                     } else {
-                        let dotIndex = word.indexOf('.');
-                        if (dotIndex !== -1 && dotIndex < word.length - 1) {
-                            tokens.push(word.substring(0, dotIndex + 1));
-                            if (word.substring(dotIndex + 1)) tokens.push(word.substring(dotIndex + 1));
-                        } else tokens.push(word);
+                        pushToken(start, lastDot + 1);
+                        if (lastDot + 1 < i) {
+                            pushToken(lastDot + 1, i);
+                        }
                     }
                 } else i++;
             }
@@ -5832,7 +5820,7 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 return result; 
             };
 
-            if (typeof this.#parsePGNTokens === 'function') this.#parsePGNTokens(tokens, 0);
+            if (typeof this.#parsePGNTokens === 'function') this.#parsePGNTokens(moveTextRaw, tokenIndices, tokenCount, 0);
 
             this.makeMove = originalMakeMove;
             
@@ -5939,7 +5927,7 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                             requestAnimationFrame(() => { this.#ui.renderCharts(); });
                             requestAnimationFrame(() => {
                                 requestAnimationFrame(() => {
-                                    const graphTab = document.getElementById('tabContent-Graph');
+                                    const graphTab = this.#ui.getElement('tabContent-Graph');
                                     if (graphTab && graphTab.classList.contains('active') && typeof this.#ui.renderFullGraph === 'function') {
                                         if (this.#ui._graphNodeCache) this.#ui._graphNodeCache = new Map(); 
                                         this.#ui.renderFullGraph();
@@ -5980,7 +5968,7 @@ generatePGN(format = 'both') {
     return pgn;
     }
 exportPGN() {
-        const formatMenu = document.getElementById('pgnFormatSelect');
+        const formatMenu = this.#ui.getElement('pgnFormatSelect');
         const exportFormat = formatMenu ? formatMenu.value : 'both';
         
         let pgnData = "";
@@ -5989,7 +5977,7 @@ exportPGN() {
         // But the UI perfectly pastes the Analysis game's PGN into the editorPgnInput box.
         // We MUST export that box's value instead of the Editor's separate memory!
         if (this.mode === 'editor') {
-            const editorPgnBox = document.getElementById('editorPgnInput');
+            const editorPgnBox = this.#ui.getElement('editorPgnInput');
             if (editorPgnBox && editorPgnBox.value.trim() !== '') {
                 pgnData = editorPgnBox.value;
             } else {
@@ -6568,12 +6556,12 @@ startLocalGame(startFen = null) {
         if (window.sfWorker) window.sfWorker.postMessage('stop');
 
         if (typeof this.#ui !== 'undefined') {
-            const btn = document.querySelector('.engine-toggle-btn');
-            const panel = document.getElementById('engine-stats-container');
-            const evalBar = document.getElementById('enginePanel');
-            const arrowContainer = document.getElementById('tempArrowRoot');
+            const btn = this.#ui.querySelector('.engine-toggle-btn');
+            const panel = this.#ui.getElement('engine-stats-container');
+            const evalBar = this.#ui.getElement('enginePanel');
+            const arrowContainer = this.#ui.getElement('tempArrowRoot');
             if (btn) btn.classList.remove('active');
-            if (panel) panel.style.display = 'none';
+            this.#emit('hideEnginePanelBox');
             if (evalBar) evalBar.classList.remove('visible');
             if (arrowContainer) arrowContainer.innerHTML = '';
         }
@@ -6652,7 +6640,7 @@ startLocalGame(startFen = null) {
             this.#ui.updateHistory(true); 
             this.#ui.renderHeaders();
             
-            const headers = document.querySelectorAll('.player-header');
+            const headers = this.#ui.querySelectorAll('.player-header');
             if (headers[0]) headers[0].querySelector('.clock').id = this.#ui.flipped ? 'timer-white' : 'timer-black';
             if (headers[1]) headers[1].querySelector('.clock').id = this.#ui.flipped ? 'timer-black' : 'timer-white';
             this.#ui.updateClocks();
@@ -6662,12 +6650,7 @@ startLocalGame(startFen = null) {
         }
         if (typeof this.#startTimer === 'function') this.#startTimer();
         
-        const resignBtn = document.getElementById('resignBtn');
-        const drawBtn = document.getElementById('drawBtn');
-        const rematchBtn = document.getElementById('rematchBtn');
-        if (resignBtn) resignBtn.style.display = 'block';
-        if (drawBtn) drawBtn.style.display = 'block';
-        if (rematchBtn) rematchBtn.style.display = 'none';
+        if (this.#ui && typeof this.#ui.updateGameOverControls === 'function') { this.#ui.updateGameOverControls(true); } else { this.#emit('liveGameStarted'); }
         
         console.log(`💾 Forcing base state save post-initialization...`);
         this.#saveState('play');
@@ -6695,12 +6678,12 @@ startBotGame(level, colorPreference, startFen = null) {
         if (window.sfWorker) window.sfWorker.postMessage('stop');
 
         if (typeof this.#ui !== 'undefined') {
-            const btn = document.querySelector('.engine-toggle-btn');
-            const panel = document.getElementById('engine-stats-container');
-            const evalBar = document.getElementById('enginePanel');
-            const arrowContainer = document.getElementById('tempArrowRoot');
+            const btn = this.#ui.querySelector('.engine-toggle-btn');
+            const panel = this.#ui.getElement('engine-stats-container');
+            const evalBar = this.#ui.getElement('enginePanel');
+            const arrowContainer = this.#ui.getElement('tempArrowRoot');
             if (btn) btn.classList.remove('active');
-            if (panel) panel.style.display = 'none';
+            this.#emit('hideEnginePanelBox');
             if (evalBar) evalBar.classList.remove('visible');
             if (arrowContainer) arrowContainer.innerHTML = '';
         }
@@ -6729,9 +6712,10 @@ startBotGame(level, colorPreference, startFen = null) {
         if (this.#ui && this.#ui.togglePgnEditing) this.#ui.togglePgnEditing(false);
         
         const finalLevel = parseInt(level) || 8; 
-        const levelSelect = document.getElementById('stockfishLevel');
-        if (levelSelect) levelSelect.value = finalLevel; 
         this.botLevel = finalLevel;
+        if (this.#ui && typeof this.#ui.setEngineLevel === 'function') {
+            this.#ui.setEngineLevel(finalLevel);
+        }
         if (typeof this.updateEngineLevel === 'function') this.updateEngineLevel(); 
 
         let playerColor = colorPreference;
@@ -6803,7 +6787,7 @@ startBotGame(level, colorPreference, startFen = null) {
             this.#ui.updateHistory(true); 
             this.#ui.renderHeaders();
             
-            const headers = document.querySelectorAll('.player-header');
+            const headers = this.#ui.querySelectorAll('.player-header');
             if (headers[0]) headers[0].querySelector('.clock').id = this.#ui.flipped ? 'timer-white' : 'timer-black';
             if (headers[1]) headers[1].querySelector('.clock').id = this.#ui.flipped ? 'timer-black' : 'timer-white';
             this.#ui.updateClocks();
@@ -6824,12 +6808,7 @@ startBotGame(level, colorPreference, startFen = null) {
         }
         
         if (typeof this.#startTimer === 'function') this.#startTimer();
-        const resignBtn = document.getElementById('resignBtn');
-        const drawBtn = document.getElementById('drawBtn');
-        const rematchBtn = document.getElementById('rematchBtn');
-        if (resignBtn) resignBtn.style.display = 'block';
-        if (drawBtn) drawBtn.style.display = 'block';
-        if (rematchBtn) rematchBtn.style.display = 'none';
+        if (this.#ui && typeof this.#ui.updateGameOverControls === 'function') { this.#ui.updateGameOverControls(true); } else { this.#emit('liveGameStarted'); }
         this.#saveState('play');
     }
 startChess960Game(targetMode = 'local', level = 8, colorPref = 'w') {
@@ -6923,16 +6902,13 @@ updateEngineLevel() {
         if (!window.sfWorker) return;
 
         // 1. Get Level (Default to 8 if missing)
-        const levelSelect = document.getElementById('stockfishLevel');
         let level = this.botLevel;
-        
-        // If called from UI change, update internal state
-        if (levelSelect) {
-            const val = parseInt(levelSelect.value);
-            if (!isNaN(val)) {
-                level = val;
-                this.botLevel = level;
-            }
+        if (arguments.length > 0 && typeof arguments[0] !== 'undefined') {
+            level = parseInt(arguments[0]);
+            if (!isNaN(level)) this.botLevel = level;
+        } else if (this.#ui && typeof this.#ui.getEngineLevel === 'function') {
+            const uiLevel = parseInt(this.#ui.getEngineLevel());
+            if (!isNaN(uiLevel)) { level = uiLevel; this.botLevel = level; }
         }
         if (!level) level = 8;
 
@@ -7002,7 +6978,7 @@ loadAllStudies() {
         }
     }
 createNewStudy() {
-        const nameInput = document.getElementById('newStudyName');
+        const nameInput = this.#ui.getElement('newStudyName');
         const title = nameInput ? nameInput.value.trim() : "";
         if (!title) return;
         
@@ -7027,10 +7003,10 @@ createNewStudy() {
     }
 async saveChapterDetails() {
         const idx = window._editingChapterIdx;
-        const nameInput = document.getElementById('chapterNameInput');
-        const orientInput = document.getElementById('chapterOrientationInput');
-        const modeInput = document.getElementById('chapterAnalysisModeInput');
-        const saveBtn = document.getElementById('saveChapterBtn'); 
+        const nameInput = this.#ui.getElement('chapterNameInput');
+        const orientInput = this.#ui.getElement('chapterOrientationInput');
+        const modeInput = this.#ui.getElement('chapterAnalysisModeInput');
+        const saveBtn = this.#ui.getElement('saveChapterBtn'); 
         
         const newName = nameInput ? nameInput.value.trim() : "";
         const newOrient = orientInput ? orientInput.value : 'w';
@@ -7041,7 +7017,7 @@ async saveChapterDetails() {
         if (idx === -1) {
             // CREATE NEW
             const tab = window._activeChapterTab || 'empty';
-            const dataInput = document.getElementById('chapterDataInput');
+            const dataInput = this.#ui.getElement('chapterDataInput');
             const dataVal = dataInput ? dataInput.value.trim() : "";
             
             let variantTag = this.gameMode !== 'classical' ? `[Variant "${this.gameMode}"]\n` : '';
@@ -7052,7 +7028,7 @@ async saveChapterDetails() {
                 if (saveBtn) {
                     saveBtn.innerText = "FETCHING...";
                     saveBtn.disabled = true;
-                    saveBtn.style.opacity = "0.7";
+                    this.#emit('chapterSaveBtnState', { enabled: false });
                 }
                 
                 try {
@@ -7141,7 +7117,7 @@ async saveChapterDetails() {
                     if (saveBtn) {
                         saveBtn.innerText = "CREATE CHAPTER";
                         saveBtn.disabled = false;
-                        saveBtn.style.opacity = "1";
+                        this.#emit('chapterSaveBtnState', { enabled: true });
                     }
                     return; 
                 }
@@ -7166,7 +7142,7 @@ async saveChapterDetails() {
             if (saveBtn) {
                 saveBtn.innerText = "CREATE CHAPTER";
                 saveBtn.disabled = false;
-                saveBtn.style.opacity = "1";
+                this.#emit('chapterSaveBtnState', { enabled: true });
             }
 
         } else {
@@ -7183,8 +7159,7 @@ async saveChapterDetails() {
             if (this.#ui && this.#ui.renderChapters) this.#ui.renderChapters();
         }
         
-        const modal = document.getElementById('chapterModal');
-        if (modal) modal.style.display = 'none';
+        if (this.#ui && typeof this.#ui.closeChapterModal === 'function') this.#ui.closeChapterModal();
     }
 importStudy(pgnText) {
         const extractedGames = pgnText.split(/(?=\[Event\s+")/g).filter(chapter => chapter.trim().length > 10);
@@ -7366,7 +7341,7 @@ saveCurrentGameToStudy(studyId) {
 
         // 3. Handle creating a NEW study
         if (studyId === 'NEW') {
-            const inputEl = document.getElementById('newStudyInput');
+            const inputEl = this.#ui.getElement('newStudyInput');
             const newTitle = inputEl ? inputEl.value.trim() : "";
             
             if (!newTitle) {
@@ -7428,8 +7403,8 @@ saveCurrentGameToStudy(studyId) {
         }
 
         // 6. Refresh memory and close UI
-        const modal = document.getElementById('addToStudyModal');
-        if (modal) modal.style.display = 'none';
+        const modal = this.#ui.getElement('addToStudyModal');
+        this.#emit('closeStudyModal');
 
         if (this.#ui && typeof this.#ui.showNotification === 'function') {
             this.#ui.showNotification(`Game successfully saved to "${targetStudy.title}"!`, 'Saved to Study', '📁');
@@ -7500,7 +7475,7 @@ deleteStudy(id) {
         }
     }
 deleteSelectedStudies() {
-        const checkboxes = Array.from(document.querySelectorAll('.study-cb:checked'));
+        const checkboxes = Array.from(this.#ui.querySelectorAll('.study-cb:checked'));
         if (checkboxes.length === 0) return;
 
         const idsToDelete = checkboxes.map(cb => cb.dataset.id);
@@ -7537,7 +7512,7 @@ loadStudy(studyId, skipSave = false) {
             this.studyTitle = target.title || "My Study";
             this.chapters = target.chapters || [{ title: "Chapter 1", pgn: "" }];
             
-            const headerTitle = document.getElementById('studyTitleDisplay');
+            const headerTitle = this.#ui.getElement('studyTitleDisplay');
             if (headerTitle) headerTitle.innerText = this.studyTitle;
             
             let chapterToLoad = target.activeChapterIndex !== undefined ? target.activeChapterIndex : 0;
@@ -7580,14 +7555,14 @@ loadChapter(index, skipSave = false, force = false) {
         }
         
         if (this.#ui) {
-            const variantSelect = document.getElementById('analysisVariantSelect');
+            const variantSelect = this.#ui.getElement('analysisVariantSelect');
             if (variantSelect) variantSelect.value = this.gameMode;
 
-            const studyTitleEl = document.getElementById('studyTitleDisplay');
+            const studyTitleEl = this.#ui.getElement('studyTitleDisplay');
             if (studyTitleEl) studyTitleEl.innerText = `${this.studyTitle} • ${currentChapter.title}`;
 
             if (this.mode === 'trainer') {
-                const colorSel = document.getElementById('trainerColorSelect');
+                const colorSel = this.#ui.getElement('trainerColorSelect');
                 const wantFlipped = colorSel ? (colorSel.value === 'b') : false;
                 if (this.#ui.flipped !== wantFlipped) this.#ui.flipBoard();
             } else {
@@ -7618,10 +7593,10 @@ deleteCurrentChapter() {
         const idx = window._editingChapterIdx;
         if (idx < 0) return; 
         
-        const modal = document.getElementById('customConfirmModal');
-        const textEl = document.getElementById('customConfirmMessage');
-        const yesBtn = document.getElementById('customConfirmYes');
-        const noBtn = document.getElementById('customConfirmNo');
+        const modal = this.#ui.getElement('customConfirmModal');
+        const textEl = this.#ui.getElement('customConfirmMessage');
+        const yesBtn = this.#ui.getElement('customConfirmYes');
+        const noBtn = this.#ui.getElement('customConfirmNo');
 
         if (!modal) {
             if (confirm(`Delete chapter "${this.chapters[idx].title}"?`)) {
@@ -7649,8 +7624,7 @@ deleteCurrentChapter() {
             this.loadChapter(0, true); 
             this.saveAllStudies();
             
-            const editorModal = document.getElementById('chapterModal');
-            if (editorModal) editorModal.style.display = 'none';
+            if (this.#ui && typeof this.#ui.closeChapterModal === 'function') this.#ui.closeChapterModal();
             
             if (this.#ui && this.#ui.renderChapters) this.#ui.renderChapters();
         };
@@ -7658,7 +7632,7 @@ deleteCurrentChapter() {
         noBtn.onclick = () => modal.style.display = 'none';
     }
 deleteSelectedChapters() {
-        const checkboxes = Array.from(document.querySelectorAll('.chapter-cb:checked'));
+        const checkboxes = Array.from(this.#ui.querySelectorAll('.chapter-cb:checked'));
         if (checkboxes.length === 0) return;
 
         const indices = checkboxes.map(cb => parseInt(cb.dataset.idx, 10)).sort((a,b) => b - a);
@@ -7716,7 +7690,7 @@ downloadCurrentStudy() {
     }
 downloadSelectedChapters() {
         this.saveActiveChapter(); 
-        const checkboxes = document.querySelectorAll('.chapter-export-cb');
+        const checkboxes = this.#ui.querySelectorAll('.chapter-export-cb');
         let combinedPgn = "";
         let exportedCount = 0;
         
@@ -7759,7 +7733,7 @@ downloadSelectedChapters() {
         this.#emit('notification', { message: `Successfully exported ${exportedCount} chapters!`, title: "Export Complete", icon: "📥" });
     }
 downloadSelectedStudies() {
-        const checkboxes = document.querySelectorAll('.study-cb:checked');
+        const checkboxes = this.#ui.querySelectorAll('.study-cb:checked');
         let combinedPgn = "";
         let count = 0;
 
