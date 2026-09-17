@@ -940,10 +940,12 @@ switchTab(tabName) {
         // A. Restore Flip View state immediately
         if (typeof localStorage !== 'undefined') {
             localStorage.setItem('chess_last_tab', lowerTab);
-            const savedFlip = localStorage.getItem('chess_graph_flip');
-            if (savedFlip && (savedFlip === 'b') !== this.flipped) {
-                this.flipped = (savedFlip === 'b'); 
-            }
+            if (lowerTab === 'graph' && typeof localStorage !== 'undefined') {
+                const savedFlip = localStorage.getItem('chess_graph_flip');
+                if (savedFlip) {
+                    this.flipped = savedFlip === 'b';
+                }
+                }
         }
 
         // B. Capture the exact state BEFORE modifying variables to prevent PGN theft
@@ -1038,29 +1040,26 @@ switchTab(tabName) {
         }
 
         // E. Orient the board correctly for standard tabs
-        if (lowerTab !== 'graph') {
-            const targetTabContext = (lowerTab === 'local' || lowerTab === 'bot' || lowerTab === 'play') ? 'play' : lowerTab;
-            
+            if (lowerTab !== 'graph') {
+            const targetTabContext =
+                lowerTab === 'local' || lowerTab === 'bot' || lowerTab === 'play'
+                ? 'play'
+                : lowerTab;
+
             if (!this._tabFlipStates) this._tabFlipStates = this.getTabFlipStates();
 
             let wantFlipped = false;
             if (targetTabContext === 'trainer') {
                 const colorSel = document.getElementById('trainerColorSelect');
-                wantFlipped = colorSel ? (colorSel.value === 'b') : false;
+                wantFlipped = colorSel ? colorSel.value === 'b' : false;
             } else {
                 wantFlipped = Boolean(this._tabFlipStates[targetTabContext]);
-                
-                if (targetTabContext === 'play' && this.#game && this.#game.mode === 'bot' && (this.#game.myColor === 'b' || this.#game.botColor === 'w')) {
-                    if (this._tabFlipStates['play'] === undefined) {
-                        wantFlipped = true;
-                    }
-                }
-            }
 
-            if (this.flipped !== wantFlipped) {
-                this.flipBoard(); 
+                if (targetTabContext === 'play' &&this.#game && (this.#game.myColor === 'b' || this.#game.botColor === 'w'))
+                    if (this._tabFlipStates['play'] === undefined) wantFlipped = true;
             }
-        }
+            this.flipBoard(wantFlipped);
+            }
 
         // F. Apply Visuals and Headers
         const state = this.#game ? this.#game.getReader() : { mode: lowerTab, isLive: false };
@@ -5832,11 +5831,21 @@ finishEditor() {
         
         this.showNotification("Board updated from Editor.", "Success", "✅");
 }
-flipBoard() {
-    this.flipped = !this.flipped;
-
+flipBoard(targetColor = null) {
+    let nextFlip;
+    if (targetColor === 'b' || targetColor === true) {
+        nextFlip = true;
+    } else if (targetColor === 'w' || targetColor === false) {
+        nextFlip = false;
+    } else {
+        nextFlip = !this.flipped;
+    }
+    if (this.flipped === nextFlip && targetColor !== null) return;
+    this.flipped = nextFlip;
     const currentMode = this.#game ? this.#game.mode : 'analysis';
-    const tabContext = (currentMode === 'local' || currentMode === 'bot' || currentMode === 'play')? 'play': (currentMode || 'analysis');
+    const tabContext = (currentMode === 'local' || currentMode === 'bot' || currentMode === 'play') 
+        ? 'play' 
+        : (currentMode || 'analysis');
 
     if (!this._tabFlipStates) this._tabFlipStates = this.getTabFlipStates();
     this._tabFlipStates[tabContext] = this.flipped;
@@ -5850,17 +5859,6 @@ flipBoard() {
     this.renderHeaders();
     if (this.coordsPosition === 'outside') this.renderExternalCoords();
     if (typeof this.updateEvalBar === 'function') this.updateEvalBar();
-
-    const grid = document.getElementById('previewGrid');
-    if (grid) {
-        if (this.flipped) {
-            grid.style.transform = 'rotate(180deg)';
-            grid.querySelectorAll('.preview-piece').forEach(p => p.style.transform = 'rotate(180deg)');
-        } else {
-            grid.style.transform = 'none';
-            grid.querySelectorAll('.preview-piece').forEach(p => p.style.transform = 'none');
-        }
-    }
 }
 copyFEN() {
         if (!this.#game) return;

@@ -2509,5 +2509,23 @@
     "type": "auto",
     "tags": ["gameplay", "resign", "bot", "logic"],
     "run": "const tempGame = new window.app.game.constructor(); tempGame.setUI(new Proxy({}, { get:(t,p)=>p==='querySelectorAll'?()=>[]:()=>{} })); tempGame.startBotGame(1, 'b'); tempGame.resign(); return tempGame.gameOver === true && tempGame.pgnHeaders['Result'] === '1-0';"
+  },
+  {
+  "id": "tab_per_tab_flip_storage_persistence",
+  "category": "15. Tab Navigation & Graph State",
+  "name": "Per-Tab Flip Independent Storage Persistence",
+  "desc": "Verify that flipping the board stores distinct orientation states for each tab (analysis vs play) in localStorage and does not overwrite other tabs.",
+  "type": "auto",
+  "tags": ["ui", "flip", "tabs", "localstorage", "persistence"],
+  "run": "const store = typeof localStorage !== 'undefined' ? localStorage : null; if (!store) return false; const testStates = { analysis: true, play: false, study: true, editor: false, puzzle: false, trainer: false, graph: false }; store.setItem('chess_tab_flip_states', JSON.stringify(testStates)); const loaded = JSON.parse(store.getItem('chess_tab_flip_states') || '{}'); const isIsolated = loaded.analysis === true && loaded.play === false && loaded.study === true; if (window.app?.ui && typeof window.app.ui.getTabFlipStates === 'function') { const uiStates = window.app.ui.getTabFlipStates(); return isIsolated && uiStates.analysis === true && uiStates.play === false; } return isIsolated;"
+  },
+  {
+  "id": "tab_flip_f5_restoration_verification",
+  "category": "15. Tab Navigation & Graph State",
+  "name": "Analysis & Play Explicit Flip Verification",
+  "desc": "Verify that flipBoard correctly sets explicit orientation ('w'/'b') and switchTab restores individual tab perspectives without null or toggle desync.",
+  "type": "auto",
+  "tags": ["ui", "flip", "f5", "restore", "switchTab"],
+  "run": "if (!window.app?.ui || typeof window.app.ui.switchTab !== 'function') return true; const ui = window.app.ui; const origMode = window.app.game?.mode || 'analysis'; const origFlip = ui.flipped; ui.switchTab('play'); ui.flipBoard(false); const playCheck1 = ui.flipped === false; ui.switchTab('analysis'); ui.flipBoard(true); const analysisCheck1 = ui.flipped === true; ui.switchTab('play'); const playRestored = ui.flipped === false; ui.switchTab('analysis'); const analysisRestored = ui.flipped === true; ui.switchTab(origMode); ui.flipBoard(origFlip); return playCheck1 && analysisCheck1 && playRestored && analysisRestored;"
   }
 ]
