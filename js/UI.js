@@ -37,6 +37,7 @@ constructor() {
         this.draggedPieceGhost = document.getElementById('draggedPieceGhost');
         this.selectedSq = null;
         this.legalMoves = [];
+        this._tabFlipStates = this.getTabFlipStates();
         this.flipped = false;
         this.dragData = null;
         this.editorTool = 'cursor';
@@ -139,6 +140,26 @@ on(eventName, callback) {
             this.#callbacks[eventName](data);
         }
     }
+getTabFlipStates() {
+    try {
+        const stored = localStorage.getItem('chess_tab_flip_states');
+        if (stored) return JSON.parse(stored);
+    } catch(e) {}
+    return { 
+        analysis: false, 
+        play: false, 
+        study: false, 
+        editor: false, 
+        puzzle: false, 
+        trainer: false, 
+        graph: false 
+    };
+}
+saveTabFlipStates(states) {
+    try {
+        localStorage.setItem('chess_tab_flip_states', JSON.stringify(states));
+    } catch(e) {}
+}
 setGame(gameInstance) {
         this.#game = gameInstance;
     }
@@ -940,9 +961,11 @@ switchTab(tabName) {
                 if (typeof localStorage !== 'undefined') localStorage.setItem('chess_graph_source', safeSource);
             }
             
-            if (!this._tabFlipStates) this._tabFlipStates = { play: false, analysis: false, study: false, editor: false, puzzle: false, trainer: false };
-            const currentTabContext = (this.#game && (this.#game.mode === 'local' || this.#game.mode === 'bot' || this.#game.mode === 'play')) ? 'play' : (this.#game ? this.#game.mode : 'analysis');
-            this._tabFlipStates[currentTabContext] = this.flipped;
+            if (!this._tabFlipStates) this._tabFlipStates = this.getTabFlipStates();
+            const oldMode = this.#game ? this.#game.mode : 'analysis';
+            const oldContext = (oldMode === 'local' || oldMode === 'bot' || oldMode === 'play') ? 'play' : (oldMode || 'analysis');
+            this._tabFlipStates[oldContext] = this.flipped;
+            this.saveTabFlipStates(this._tabFlipStates);
         } else {
             if (!this._previousTabBeforeGraph) {
                 let savedSource = typeof localStorage !== 'undefined' ? localStorage.getItem('chess_graph_source') : null;
@@ -1017,15 +1040,26 @@ switchTab(tabName) {
         // E. Orient the board correctly for standard tabs
         if (lowerTab !== 'graph') {
             const targetTabContext = (lowerTab === 'local' || lowerTab === 'bot' || lowerTab === 'play') ? 'play' : lowerTab;
-            let wantFlipped = this.flipped;
             
+            if (!this._tabFlipStates) this._tabFlipStates = this.getTabFlipStates();
+
+            let wantFlipped = false;
             if (targetTabContext === 'trainer') {
                 const colorSel = document.getElementById('trainerColorSelect');
                 wantFlipped = colorSel ? (colorSel.value === 'b') : false;
-            } else if (this._tabFlipStates[targetTabContext] !== undefined) {
-                wantFlipped = this._tabFlipStates[targetTabContext];
+            } else {
+                wantFlipped = Boolean(this._tabFlipStates[targetTabContext]);
+                
+                if (targetTabContext === 'play' && this.#game && this.#game.mode === 'bot' && (this.#game.myColor === 'b' || this.#game.botColor === 'w')) {
+                    if (this._tabFlipStates['play'] === undefined) {
+                        wantFlipped = true;
+                    }
+                }
             }
-            if (this.flipped !== wantFlipped) this.flipBoard(); 
+
+            if (this.flipped !== wantFlipped) {
+                this.flipBoard(); 
+            }
         }
 
         // F. Apply Visuals and Headers
@@ -5799,28 +5833,35 @@ finishEditor() {
         this.showNotification("Board updated from Editor.", "Success", "✅");
 }
 flipBoard() {
-        this.flipped = !this.flipped;
-        if (typeof localStorage !== 'undefined') {
-            localStorage.setItem('chess_graph_flip', this.flipped ? 'b' : 'w');
-        }
-        
-        this.renderBoard(true);
-        this.renderHeaders();
-        if (this.coordsPosition === 'outside') this.renderExternalCoords();
-        
-        if (typeof this.updateEvalBar === 'function') this.updateEvalBar();
-        
-        const grid = document.getElementById('previewGrid');
-        if (grid) {
-            if (this.flipped) {
-                grid.style.transform = 'rotate(180deg)';
-                grid.querySelectorAll('.preview-piece').forEach(p => p.style.transform = 'rotate(180deg)');
-            } else {
-                grid.style.transform = 'none';
-                grid.querySelectorAll('.preview-piece').forEach(p => p.style.transform = 'none');
-            }
+    this.flipped = !this.flipped;
+
+    const currentMode = this.#game ? this.#game.mode : 'analysis';
+    const tabContext = (currentMode === 'local' || currentMode === 'bot' || currentMode === 'play')? 'play': (currentMode || 'analysis');
+
+    if (!this._tabFlipStates) this._tabFlipStates = this.getTabFlipStates();
+    this._tabFlipStates[tabContext] = this.flipped;
+    this.saveTabFlipStates(this._tabFlipStates);
+
+    if (tabContext === 'graph' && typeof localStorage !== 'undefined') {
+        localStorage.setItem('chess_graph_flip', this.flipped ? 'b' : 'w');
+    }
+
+    this.renderBoard(true);
+    this.renderHeaders();
+    if (this.coordsPosition === 'outside') this.renderExternalCoords();
+    if (typeof this.updateEvalBar === 'function') this.updateEvalBar();
+
+    const grid = document.getElementById('previewGrid');
+    if (grid) {
+        if (this.flipped) {
+            grid.style.transform = 'rotate(180deg)';
+            grid.querySelectorAll('.preview-piece').forEach(p => p.style.transform = 'rotate(180deg)');
+        } else {
+            grid.style.transform = 'none';
+            grid.querySelectorAll('.preview-piece').forEach(p => p.style.transform = 'none');
         }
     }
+}
 copyFEN() {
         if (!this.#game) return;
         const currentFen = typeof this.#game.generateFEN === 'function' ? this.#game.generateFEN() : (this.#game.currentNode ? this.#game.currentNode.fen : "");
