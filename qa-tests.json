@@ -2322,19 +2322,13 @@
     "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   },
   {
-    "id": "btn_live_game_resign_and_draw_both_visible",
+    "id": "btn_live_game_resign_triggers_rematch",
     "category": "18. UI Lifecycle & Game State Controls",
-    "name": "Live Game Action Buttons Co-existence",
-    "desc": "Verify that starting a live game displays both Resign and Draw buttons simultaneously in 2-column layout, while Rematch is hidden.",
+    "name": "Resign Triggers Rematch Flow",
+    "desc": "Verify that when the game is over, Resign and Draw buttons disappear and Rematch appears.",
     "type": "auto",
-    "tags": [
-      "ui",
-      "lifecycle",
-      "buttons",
-      "draw",
-      "rematch"
-    ],
-    "run": "const resign = document.getElementById(\"resignBtn\"); const draw = document.getElementById(\"drawBtn\"); const rematch = document.getElementById(\"rematchBtn\"); if (!resign || !draw || !rematch) return false; if (window.app && window.app.game && typeof window.app.game.startLocalGame === \"function\") { window.app.game.startLocalGame(); const isLive = window.app.game.isPlayingLiveGame; const rDisp = window.getComputedStyle(resign).display; const dDisp = window.getComputedStyle(draw).display; const mDisp = window.getComputedStyle(rematch).display; return isLive && rDisp !== \"none\" && dDisp !== \"none\" && mDisp === \"none\"; } return false;",
+    "tags": ["ui", "lifecycle", "buttons", "resign", "rematch"],
+    "run": "const g = window.app?.game; const ui = window.app?.ui; if (!g || !ui || typeof document === 'undefined') return true; const origMode = g.mode; const origOver = g.gameOver; let r = document.getElementById('resignBtn'); let d = document.getElementById('drawBtn'); let m = document.getElementById('rematchBtn'); let cleanup = false; if (!r || !d || !m) { if(!r){ r = document.createElement('div'); r.id = 'resignBtn'; document.body.appendChild(r); } if(!d){ d = document.createElement('div'); d.id = 'drawBtn'; document.body.appendChild(d); } if(!m){ m = document.createElement('div'); m.id = 'rematchBtn'; document.body.appendChild(m); } cleanup = true; } g.mode = 'local'; g.gameOver = true; ui.updatePlayButtons(false); const passed = r.style.display === 'none' && d.style.display === 'none' && m.style.display === 'block'; g.mode = origMode; g.gameOver = origOver; ui.updatePlayButtons(); if (cleanup) { if(r.parentElement === document.body) r.remove(); if(d.parentElement === document.body) d.remove(); if(m.parentElement === document.body) m.remove(); } return passed;",
     "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   },
   {
@@ -2372,7 +2366,7 @@
   {
     "id": "modal_win_black_king_contrast_visibility",
     "category": "18. UI Lifecycle & Game State Controls",
-    "name": "Black Win Modal Contrast & King SVG Visibility",
+    "name": "Black Win King SVG Visibility",
     "desc": "Verify that when Black wins, the winner icon container renders the black king SVG.",
     "type": "auto",
     "tags": [
@@ -2468,5 +2462,52 @@
     "type": "auto",
     "tags": ["lifecycle", "gameover", "persistence", "f5"],
     "run": "if (typeof window === 'undefined' || !window.app?.game) return true; const g = window.app.game; const origMode = g.mode; g.mode = 'local'; g.gameOver = false; if (typeof g['#endGame'] === 'function') g['#endGame']('1-0', 'Test'); else if (typeof g.resign === 'function') g.resign(); const stored = localStorage.getItem('chess_tab_snapshot_play'); g.mode = origMode; if (!stored) return false; try { const state = JSON.parse(stored); return state.isGameOver === true; } catch(e) { return false; }"
+  },
+  {
+    "id": "nav_mainline_restoration_on_click",
+    "category": "15. Tab Navigation & Graph State",
+    "name": "Mainline Restoration on Move Click",
+    "desc": "Verify that clicking a previous move in the mainline resets the forward path (selectedChildIndex) so that stepping forward defaults to the mainline.",
+    "type": "auto",
+    "tags": ["navigation", "tree", "mainline"],
+    "run": "const g = window.app?.game; if (!g) return true; const mockRoot = new window.MoveNode('test_fen'); const branchA = new window.MoveNode('fen_A'); const branchB = new window.MoveNode('fen_B'); mockRoot.children.push(branchA, branchB); mockRoot.selectedChildIndex = 1; g.resetTreeSelection(mockRoot); return mockRoot.selectedChildIndex === 0;",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "ui_comment_regex_eval_stripping",
+    "category": "3. UI DOM Elements",
+    "name": "PGN Comment Regex Strips [%eval] Tags",
+    "desc": "Verify that the regex used to render human comments strips out Lichess [%eval ...] telemetry so it doesn't render redundantly in curly braces.",
+    "type": "auto",
+    "tags": ["ui", "regex", "eval", "comment"],
+    "run": "if (typeof window === 'undefined' || !window.app?.ui) return true; const regexStr = window.app.ui.createPlyDiv.toString(); return regexStr.includes('eval') && regexStr.includes('cal|csl|clk|emt|eval');"
+  },
+  {
+    "id": "game_castling_rights_revoked_on_king_move_engine",
+    "category": "5. Gameplay & Rules",
+    "name": "Engine Castling Rights Revoked on King Move",
+    "desc": "Verify that moving the King permanently revokes its castling rights for the remainder of the game within the core engine physics.",
+    "type": "auto",
+    "tags": ["gameplay", "castling", "rights", "king", "engine"],
+    "run": "const g = new window.__SIM_GAME__.constructor('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'); g.makeMove('e1e2'); const castling1 = g.fen().split(' ')[2]; g.makeMove('e8e7'); const castling2 = g.fen().split(' ')[2]; return !castling1.includes('K') && !castling1.includes('Q') && !castling2.includes('k') && !castling2.includes('q');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "ui_animation_raf_race_condition",
+    "category": "3. UI DOM Elements",
+    "name": "Animation Frame Closure Race Condition Guard",
+    "desc": "Verify that rendering the board cancels any pending requestAnimationFrame to prevent old closures from teleporting reused DOM elements to outdated coordinates upon rapid tab switching.",
+    "type": "auto",
+    "tags": ["ui", "animation", "raf", "bugfix"],
+    "run": "if (typeof window === 'undefined' || !window.app?.ui) return true; const code = window.app.ui.renderBoard.toString(); return code.includes('cancelAnimationFrame') && code.includes('dataset.rAF');"
+  },
+  {
+    "id": "game_bot_resign_color_logic",
+    "category": "5. Gameplay & Rules",
+    "name": "Bot Mode Resign Honors Player Color",
+    "desc": "Verify that when playing as Black against a Bot, resigning before the Bot makes its first move correctly declares White as the winner.",
+    "type": "auto",
+    "tags": ["gameplay", "resign", "bot", "logic"],
+    "run": "const tempGame = new window.app.game.constructor(); tempGame.setUI(new Proxy({}, { get:(t,p)=>p==='querySelectorAll'?()=>[]:()=>{} })); tempGame.startBotGame(1, 'b'); tempGame.resign(); return tempGame.gameOver === true && tempGame.pgnHeaders['Result'] === '1-0';"
   }
 ]

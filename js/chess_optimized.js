@@ -2280,7 +2280,7 @@
     s.alice_b_hi = 0;
     s.frozen_lo = 0;
     s.frozen_hi = 0;
-
+    s.castling_mask = new Int8Array(64).fill(15);
     var tokens = fen.trim().split(/\s+/);
     var boardToken = tokens[0];
 
@@ -2334,28 +2334,37 @@
 
     s.turn = (tokens[1] === 'b') ? BLACK : WHITE;
 
-    if (tokens[2] && tokens[2] !== '-') {
-        for (var i = 0; i < tokens[2].length; i++) {
-            var char = tokens[2][i];
-            if (char === 'K') s.castling |= 1;
-            else if (char === 'Q') s.castling |= 2;
-            else if (char === 'k') s.castling |= 4;
-            else if (char === 'q') s.castling |= 8;
-            else if (char >= 'A' && char <= 'H') {
-                // Chess960 White rooks
-                var file = char.charCodeAt(0) - 65;
-                var kL = s.bb_lo[WHITE * 6 + KING], kH = s.bb_hi[WHITE * 6 + KING];
-                var kFile = (kL || kH) ? (ctz(kL, kH) & 7) : 4;
-                s.castling |= (file > kFile) ? 1 : 2;
-            } else if (char >= 'a' && char <= 'h') {
-                // Chess960 Black rooks
-                var file = char.charCodeAt(0) - 97;
-                var kL = s.bb_lo[BLACK * 6 + KING], kH = s.bb_hi[BLACK * 6 + KING];
-                var kFile = (kL || kH) ? (ctz(kL, kH) & 7) : 4;
-                s.castling |= (file > kFile) ? 4 : 8;
+    var wK_sq = -1, bK_sq = -1;
+        for (var i = 0; i < 64; i++) {
+            if (s.board[i] === ((WHITE << 3) | KING)) wK_sq = i;
+            if (s.board[i] === ((BLACK << 3) | KING)) bK_sq = i;
+        }
+        if (wK_sq !== -1) s.castling_mask[wK_sq] &= ~(1 | 2);
+        if (bK_sq !== -1) s.castling_mask[bK_sq] &= ~(4 | 8);
+
+        if (tokens[2] && tokens[2] !== '-') {
+            for (var i = 0; i < tokens[2].length; i++) {
+                var char = tokens[2][i];
+                if (char === 'K') { s.castling |= 1; s.castling_mask[7] &= ~1; }
+                else if (char === 'Q') { s.castling |= 2; s.castling_mask[0] &= ~2; }
+                else if (char === 'k') { s.castling |= 4; s.castling_mask[63] &= ~4; }
+                else if (char === 'q') { s.castling |= 8; s.castling_mask[56] &= ~8; }
+                else if (char >= 'A' && char <= 'H') {
+                    var file = char.charCodeAt(0) - 65;
+                    var kL = s.bb_lo[WHITE * 6 + KING], kH = s.bb_hi[WHITE * 6 + KING];
+                    var kFile = (kL || kH) ? (ctz(kL, kH) & 7) : 4;
+                    if (file > kFile) { s.castling |= 1; s.castling_mask[file] &= ~1; }
+                    else { s.castling |= 2; s.castling_mask[file] &= ~2; }
+                } else if (char >= 'a' && char <= 'h') {
+                    var file = char.charCodeAt(0) - 97;
+                    var rSq = 56 + file;
+                    var kL = s.bb_lo[BLACK * 6 + KING], kH = s.bb_hi[BLACK * 6 + KING];
+                    var kFile = (kL || kH) ? (ctz(kL, kH) & 7) : 4;
+                    if (file > kFile) { s.castling |= 4; s.castling_mask[rSq] &= ~4; }
+                    else { s.castling |= 8; s.castling_mask[rSq] &= ~8; }
+                }
             }
         }
-    }
 
     s.ep_square = (tokens[3] === '-' || !tokens[3]) ? -1 : str_to_sq(tokens[3]);
     if (s.ep_square !== -1) {

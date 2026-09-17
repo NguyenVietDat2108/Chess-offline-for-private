@@ -4709,7 +4709,7 @@ goToNodeId(id, animate = true) {
             const undoneNode = this.currentNode;
             
             this.currentNode = target;
-            
+            this.resetTreeSelection(this.rootNode);
             let curr = target;
             while (curr.parent) {
                 const idx = curr.parent.children.indexOf(curr);
@@ -6172,7 +6172,10 @@ resign() {
         
         this.clearPremoves();
 
-        const isWhiteResigning = this.turn === 'w';
+        let isWhiteResigning = this.turn === 'w';
+        if (this.mode === 'bot') {
+            isWhiteResigning = (this.myColor === 'w');
+        }
         const resultStr = isWhiteResigning ? "0-1" : "1-0";
         const winnerName = isWhiteResigning ? "Black" : "White";
         

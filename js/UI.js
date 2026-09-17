@@ -2210,14 +2210,23 @@ showGameOver(winner, reason) {
         content.style.animation = 'modalPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards';
         
         if (winner === 'Draw') {
-            title.innerText = "Game Drawn"; title.style.color = "#ccc";
-            icon.innerHTML = this.getPieceHTML({color:'w', type:'K'}); 
-            icon.style.opacity = "0.5";
+            title.innerText = 'Game Drawn';
+            title.style.color = '#ccc';
+            const svg = this.getPieceHTML({color: 'w', type: 'K'}).replace(/<\?xml.*?\?>/g, '').trim();
+            icon.innerHTML = svg;
+            icon.style.opacity = '0.5';
         } else {
-            title.innerText = `${winner} Won!`; title.style.color = "#fff";
-            const colorCode = (winner === 'White') ? 'w' : 'b';
-            icon.innerHTML = this.getPieceHTML({color:colorCode, type:'K'});
-            icon.style.opacity = "1";
+            title.innerText = `${winner} Won!`;
+            title.style.color = '#fff';
+            const colorCode = winner === 'White' ? 'w' : 'b';
+            const svg = this.getPieceHTML({color: colorCode, type: 'K'}).replace(/<\?xml.*?\?>/g, '').trim();
+            icon.innerHTML = svg;
+            icon.style.opacity = '1';
+        }
+            const svgEl = icon.querySelector('svg');
+            if (svgEl) {
+                svgEl.style.width = '85%';
+                svgEl.style.height = '85%';
         }
         
         sub.innerText = reason.replace('won', ''); 
@@ -3183,6 +3192,7 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
         allPieces.forEach(p => {
             p.classList.remove('animating', 'castling-jump', 'manga-tail');
             p.style.transition = 'none';
+            if (p.dataset.rAF) { cancelAnimationFrame(Number(p.dataset.rAF)); delete p.dataset.rAF; }
             if (p.dataset.animTimeout) { clearTimeout(Number(p.dataset.animTimeout)); delete p.dataset.animTimeout; }
             if (p.dataset.tailTimeout) { clearTimeout(Number(p.dataset.tailTimeout)); delete p.dataset.tailTimeout; }
             p.style.removeProperty('--tail-length-scale'); p.style.removeProperty('--move-angle'); p.style.removeProperty('--anim-duration');
@@ -3940,7 +3950,8 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     el.style.transform = startTransform;
                     void el.offsetWidth; 
                     
-                    requestAnimationFrame(() => {
+                    el.dataset.rAF = requestAnimationFrame(() => {
+                        delete el.dataset.rAF;
                         el.style.transition = ''; 
                         el.classList.add('animating');
                         if (isCastlingMove && !isReverseMove) el.classList.add('castling-jump');
@@ -4660,7 +4671,7 @@ renderTreeVertical(node, container) {
 
             line.appendChild(moveSpan); isFirstInLine = false;
 
-            let cleanComment = curr.comment ? curr.comment.replace(/\[%(cal|csl|clk|emt)[^\]]+\]/g, "").trim() : "";
+            let cleanComment = curr.comment ? curr.comment.replace(/\[%(cal|csl|clk|emt|eval)[^\]]+\]/g, "").trim() : "";
             let hasComment = cleanComment.length > 0;
             let siblings = curr.parent.children; let hasVariations = siblings.length > 1;
 
@@ -4787,7 +4798,7 @@ renderTreeVerticalRecursiveSingle(node, container) {
 
             line.appendChild(moveSpan); isFirstInLine = false;
 
-            let cleanComment = curr.comment ? curr.comment.replace(/\[%(cal|csl|clk|emt)[^\]]+\]/g, "").trim() : "";
+            let cleanComment = curr.comment ? curr.comment.replace(/\[%(cal|csl|clk|emt|eval)[^\]]+\]/g, "").trim() : "";
             let hasComment = cleanComment.length > 0; let hasVariations = curr.children.length > 1;
 
             if (hasComment || hasVariations) {
@@ -4900,7 +4911,7 @@ renderVariationLine(node, container) {
 
             container.appendChild(span);
 
-            let cleanComment = curr.comment ? curr.comment.replace(/\[%(cal|csl|clk|emt)[^\]]+\]/g, "").trim() : "";
+            let cleanComment = curr.comment ? curr.comment.replace(/\[%(cal|csl|clk|emt|eval)[^\]]+\]/g, "").trim() : "";
             let hasComment = cleanComment.length > 0; let hasVariations = curr.children.length > 1;
 
             if (hasComment || hasVariations) {
@@ -4980,7 +4991,7 @@ createPlyDiv(node) {
         }
         d.appendChild(mainWrap);
 
-        let cleanComment = node.comment ? node.comment.replace(/\[%(cal|csl|clk|emt)[^\]]+\]/g, "").trim() : "";
+        let cleanComment = node.comment ? node.comment.replace(/\[%(cal|csl|clk|emt|eval)[^\]]+\]/g, "").trim() : "";
         let hasComment = cleanComment.length > 0; let hasVariations = node.children && node.children.length > 1;
 
         if (hasComment || hasVariations) {
