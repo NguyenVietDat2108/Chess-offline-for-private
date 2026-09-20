@@ -3447,6 +3447,38 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
         if (!isInitialLoad && this.gameMode === mode) return;
 
         const oldMode = this.gameMode;
+
+        if (!skipStorage && (this.mode === 'puzzle' || this.mode === 'puzzles' || this.mode === 'study' || this.mode === 'trainer')) {
+            if (typeof localStorage !== 'undefined') localStorage.setItem('chess_last_variant', mode); 
+            
+            if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
+            
+            const savedPgn = typeof localStorage !== 'undefined' ? localStorage.getItem(`chess_analysis_variant_pgn_${mode}`) : null;
+            let startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[mode]) ? VARIANT_STARTING_FENS[mode] : INITIAL_FEN;
+            if (mode === 'chess960' && typeof this.generateChess960FEN === 'function') startFen = this.generateChess960FEN();
+
+            this.tabMemory['analysis'] = {
+                variant: mode,
+                mode: 'analysis',
+                fen: savedPgn ? "" : startFen,
+                pgn: savedPgn || "",
+                headers: { "Variant": mode === 'classical' ? "Standard" : mode },
+                history: [],
+                moveList: []
+            };
+            if (typeof localStorage !== 'undefined') localStorage.setItem('chess_tab_snapshot_analysis', JSON.stringify(this.tabMemory['analysis']));
+
+            if (typeof document !== 'undefined' && this.#ui) {
+                const aSel = this.#ui.getElement('analysisVariantSelect');
+                if (aSel && aSel.value !== mode) aSel.value = mode;
+                const gSel = this.#ui.getElement('graphVariantSelect');
+                if (gSel && gSel.value !== mode) gSel.value = mode;
+                const pSel = this.#ui.getElement('gameVariantSelect');
+                if (pSel && pSel.value !== mode) pSel.value = mode;
+            }
+            return;
+        }
+
         const isSuspended = this.isVariantSuspended(mode);
         const oldIsSuspended = this.isVariantSuspended(oldMode);
         
@@ -3470,43 +3502,6 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             }
         }
         
-        if (this.mode === 'puzzle' || this.mode === 'puzzles' || this.mode === 'study') {
-            this.gameMode = mode; 
-            if (!skipStorage && !isSuspended && typeof localStorage !== 'undefined') {
-                localStorage.setItem('chess_last_variant', mode); 
-            }
-            
-            const savedPgn = typeof localStorage !== 'undefined' ? localStorage.getItem(`chess_analysis_variant_pgn_${mode}`) : null;
-            let startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[mode]) ? VARIANT_STARTING_FENS[mode] : INITIAL_FEN;
-            if (mode === 'chess960' && typeof this.generateChess960FEN === 'function') startFen = this.generateChess960FEN();
-
-            if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
-            
-            this.tabMemory['analysis'] = {
-                variant: mode,
-                mode: 'analysis',
-                fen: savedPgn ? "" : startFen,
-                pgn: savedPgn || "",
-                headers: { "Variant": mode === 'classical' ? "Standard" : mode },
-                history: [],
-                moveList: []
-            };
-            
-            if (typeof localStorage !== 'undefined') {
-                localStorage.setItem('chess_tab_snapshot_analysis', JSON.stringify(this.tabMemory['analysis']));
-            }
-
-            if (typeof document !== 'undefined' && this.#ui) {
-                const aSel = this.#ui.getElement('analysisVariantSelect');
-                if (aSel) aSel.value = mode;
-                const gSel = this.#ui.getElement('graphVariantSelect');
-                if (gSel) gSel.value = mode;
-                const pSel = this.#ui.getElement('gameVariantSelect');
-                if (pSel) pSel.value = mode;
-            }
-            return;
-        }
-
         this.gameMode = mode;
         this._originalPgn = null;
         
@@ -3541,7 +3536,6 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
                     }
                 } else {
                     let startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[mode]) ? VARIANT_STARTING_FENS[mode] : INITIAL_FEN;
-                    
                     if (mode === 'chess960' && typeof this.generateChess960FEN === 'function') {
                         startFen = this.generateChess960FEN();
                     }
@@ -3560,7 +3554,6 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
                 }
             } else if (isSuspended) {
                 let startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[mode]) ? VARIANT_STARTING_FENS[mode] : INITIAL_FEN;
-                
                 this.history = new BigUint64Array(1000);
                 this.moveList = [];
                 this.pgnHeaders = { "Variant": mode };
@@ -3594,7 +3587,6 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             
             this.gameMode = 'classical';
             this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, 'classical');
-            
             this.history = new BigUint64Array(1000);
             this.moveList = [];
             this.pgnHeaders = {};
@@ -3606,7 +3598,6 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             if (typeof this.#ui !== 'undefined' && this.#ui && typeof this.#ui.showNotification === 'function') {
                 this.#ui.showNotification(`${mode} engine crashed. Reverting to Classical.`, 'Variant Error', '⚠️');
             }
-            
             if (typeof document !== 'undefined' && this.#ui) {
                 const select = this.#ui.getElement('analysisVariantSelect');
                 if (select) select.value = 'classical';
@@ -7656,7 +7647,7 @@ loadChapter(index, skipSave = false, force = false) {
         let pgn = currentChapter.pgn;
         if (!pgn || pgn.trim() === '') pgn = '[FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"]\n\n*';
         
-        this.loadPGN(pgn, false, true); 
+        this.loadPGN(pgn, false, false); 
 
         if (!this.pgnHeaders['Event']) this.pgnHeaders['Event'] = `${this.studyTitle} - ${currentChapter.title}`;
         if (!this.pgnHeaders['ChapterName']) this.pgnHeaders['ChapterName'] = currentChapter.title;

@@ -2833,5 +2833,24 @@
     "type": "auto",
     "tags": ["ui", "editor", "dom", "events"],
     "run": "const el = document.getElementById('editorVariantSelect'); if (!el) return true; const attr = el.getAttribute('onchange') || ''; return attr.includes('window.app.game.setGameMode');"
+  },
+  {
+    "id": "study_chapter_variant_parsing",
+    "category": "12. Study System",
+    "name": "Study Chapter Variant Independence",
+    "desc": "Verify that loading a chapter correctly parses its own Variant tag and switches the engine mode, rather than inheriting the previous mode.",
+    "type": "auto",
+    "tags": ["study", "chapter", "variant", "pgn"],
+    "run": "if (!window.app?.game) return true; const g = new window.app.game.constructor(); g.setGameMode('spell'); g.chapters = [{ title: 'Test', pgn: '[Variant \"Standard\"]\\n[FEN \"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\"]\\n\\n1. e4' }]; g.mode = 'study'; g.loadChapter(0, true, true); return g.gameMode === 'classical';",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  },
+  {
+    "id": "tab_study_variant_isolation",
+    "category": "15. Tab Navigation & Graph State",
+    "name": "Study Tab Variant Dropdown Isolation",
+    "desc": "Verify that changing the global Analysis Variant dropdown while inside a Study does not mutate the active Study's engine mode.",
+    "type": "auto",
+    "tags": ["study", "variant", "dropdown", "isolation"],
+    "run": "if (!window.app?.game) return true; const g = new window.app.game.constructor(); g.mode = 'study'; g.setGameMode('classical'); g.setGameMode('spell', false, false); return g.gameMode === 'classical';"
   }
 ]
