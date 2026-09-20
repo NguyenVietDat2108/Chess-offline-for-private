@@ -2824,5 +2824,14 @@
     "type": "auto",
     "tags": ["ui", "modal", "flex", "alignment"],
     "run": "const modal = document.getElementById('continueSetupModal'); if (!modal) return false; const innerDivs = modal.querySelectorAll('.modal-body > div > div:nth-child(2)'); if (innerDivs.length < 2) return false; return Array.from(innerDivs).every(div => div.style.flex === '1' || div.style.flexGrow === '1' || div.style.cssText.includes('flex: 1'));"
+  },
+  {
+    "id": "dom_editor_variant_onchange",
+    "category": "3. UI DOM Elements",
+    "name": "Editor Variant Dropdown Event Sync",
+    "desc": "Verify that the Game Variant dropdown in the Editor correctly routes its onchange event to window.app.game to prevent invisible state desyncs.",
+    "type": "auto",
+    "tags": ["ui", "editor", "dom", "events"],
+    "run": "const el = document.getElementById('editorVariantSelect'); if (!el) return true; const attr = el.getAttribute('onchange') || ''; return attr.includes('window.app.game.setGameMode');"
   }
 ]

@@ -756,7 +756,7 @@
     
 <div id="timer-white" class="clock" style="margin-left: auto; display: none;"></div>
 </div>
-                            <div class="commentary-box" id="commentaryBox" contenteditable="true" spellcheck="false" oninput="if(window.game && window.app.game.currentNode) { window.app.game.currentNode.comment = this.innerText; window.app.ui.updateHistory(); }" onkeydown="event.stopPropagation()" title="Type here to add analysis" style="width: 640px;"></div>
+                            <div class="commentary-box" id="commentaryBox" contenteditable="true" spellcheck="false" oninput="if(window.app.game && window.app.game.currentNode) { window.app.game.currentNode.comment = this.innerText; window.app.ui.updateHistory(); }" onkeydown="event.stopPropagation()" title="Type here to add analysis" style="width: 640px;"></div>
                             <div class="bottom-bar">
                                 <div class="fen-display" id="fenDisplay" onclick="window.app.ui.copyFEN()" title="Copy FEN">rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 </div>
                                 <button class="flip-btn" onclick="window.app.ui.flipBoard()" title="Flip Board">
@@ -902,7 +902,7 @@
                                         <input type="text" id="fenInput" class="text-input" value="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1">
                                         <div style="margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 4px; display: flex; align-items: center; justify-content: space-between;">
                                             <label style="color: #e2e8f0; font-size: 14px; font-weight: bold;">Game Variant</label>
-                                            <select id="editorVariantSelect" style="background: #111; color: #e3e3e3; border: 1px solid #333; padding: 6px 10px; border-radius: 3px; font-size: 13px; cursor: pointer; outline: none; width: 60%;" onchange="if(window.game) { window.app.game.setGameMode(this.value); if(window.ui) window.app.ui.editorReset(); }">
+                                            <select id="editorVariantSelect" style="background: #111; color: #e3e3e3; border: 1px solid #333; padding: 6px 10px; border-radius: 3px; font-size: 13px; cursor: pointer; outline: none; width: 60%;" onchange="if(window.app && window.app.game) { window.app.game.setGameMode(this.value); if(window.app.ui) window.app.ui.editorReset(); }">                                                
                                                 <option value="classical">Standard</option>
                                                 <option value="chess960">Chess960</option>
                                                 <option value="3check">3-Check</option>
@@ -1630,7 +1630,7 @@
         }
 
         // 🚀 Instantly trigger the smart resizer so the chart fits the newly opened tab!
-        if (window.ui && typeof window.app.ui.safeResizeCharts === 'function') {
+        if (window.app.ui && typeof window.app.ui.safeResizeCharts === 'function') {
             window.app.ui.safeResizeCharts();
         }
 
@@ -1644,10 +1644,10 @@
             const formatMenu = document.getElementById('pgnFormatSelect');
             const exportFormat = formatMenu ? formatMenu.value : 'both';
 
-            if (fenTxt && window.game)
+            if (fenTxt && window.app.game)
                 fenTxt.value = window.app.game.generateFEN();
 
-            if (pgnTxt && window.game) {
+            if (pgnTxt && window.app.game) {
                 // Pass the format to the generator
                 const pgnData = window.app.game.generatePGN(exportFormat);
                 pgnTxt.value = pgnData;
@@ -1690,7 +1690,7 @@
 
             setTimeout( () => {
                 const pgnData = urlParams.get('pgn');
-                if (pgnData && window.game) {
+                if (pgnData && window.app.game) {
                     window.app.game.loadPGN(decodeURIComponent(pgnData));
                 }
 
@@ -1773,9 +1773,9 @@
                 }
 
                 setTimeout( () => {
-                    if (window.ui && window.app.ui.evalChart)
+                    if (window.app.ui && window.app.ui.evalChart)
                         window.app.ui.evalChart.resize();
-                    if (window.ui && window.app.ui.timeChart)
+                    if (window.app.ui && window.app.ui.timeChart)
                         window.app.ui.timeChart.resize();
                 }
                 , 50);
