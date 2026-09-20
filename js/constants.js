@@ -17,6 +17,32 @@
 export const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 export const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'];
 export const INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+export const CHESS960_FENS = (function() {
+    const fens = [];
+    const knight_table = [[0,1], [0,2], [0,3], [0,4], [1,2], [1,3], [1,4], [2,3], [2,4], [3,4]];
+    for (let i = 0; i < 960; i++) {
+        let n = i;
+        let b1 = n % 4; n = Math.floor(n / 4);
+        let b2 = n % 4; n = Math.floor(n / 4);
+        let q = n % 6; n = Math.floor(n / 6);
+        let arr = Array(8).fill('');
+        arr[b1 * 2 + 1] = 'B';
+        arr[b2 * 2] = 'B';
+        let empty = () => arr.map((v, idx) => v === '' ? idx : -1).filter(idx => idx !== -1);
+        arr[empty()[q]] = 'Q';
+        let k_pos = knight_table[n];
+        let e = empty();
+        arr[e[k_pos[0]]] = 'N';
+        arr[e[k_pos[1]]] = 'N';
+        e = empty();
+        arr[e[0]] = 'R';
+        arr[e[1]] = 'K';
+        arr[e[2]] = 'R';
+        let backRank = arr.join('');
+        fens.push(`${backRank.toLowerCase()}/pppppppp/8/8/8/8/PPPPPPPP/${backRank} w KQkq - 0 1`);
+    }
+    return fens;
+})();
 export const VARIANT_STARTING_FENS = {
     'classical': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
     'chess960': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',

@@ -272,13 +272,42 @@ class StandaloneChessSim {
     this.turn = this.turn === 'w' ? 'b' : 'w';
     return { success: true, captured };
   }
+
+  setGameMode(mode) {
+    if (!mode) return this.gameMode;
+    this.gameMode = typeof mode === 'string' ? mode.toLowerCase() : mode;
+    return this.gameMode;
+  }
+
+  setgamemode(mode) {
+    return this.setGameMode(mode);
+  }
 }
+
+StandaloneChessSim.prototype.setGameMode = function(mode) {
+  if (!mode) return this.gameMode;
+  this.gameMode = typeof mode === 'string' ? mode.toLowerCase() : mode;
+  return this.gameMode;
+};
+StandaloneChessSim.prototype.setgamemode = StandaloneChessSim.prototype.setGameMode;
 
 if (typeof window !== 'undefined') {
   window.MoveNode = MoveNode;
   window.StandaloneChessSim = StandaloneChessSim;
   if (!window.__SIM_GAME__) {
     window.__SIM_GAME__ = new StandaloneChessSim();
+  }
+  if (!window.setGameMode) {
+    window.setGameMode = function(mode, ...args) {
+      if (window.app?.game?.setGameMode) return window.app.game.setGameMode(mode, ...args);
+      if (window.__SIM_GAME__?.setGameMode) return window.__SIM_GAME__.setGameMode(mode, ...args);
+    };
+  }
+  if (!window.setgamemode) {
+    window.setgamemode = function(mode, ...args) {
+      if (window.app?.game?.setgamemode) return window.app.game.setgamemode(mode, ...args);
+      if (window.__SIM_GAME__?.setgamemode) return window.__SIM_GAME__.setgamemode(mode, ...args);
+    };
   }
 }
 
@@ -312,7 +341,7 @@ class QATrackerV2 {
   }
 
   injectUI() {
-    if (document.getElementById('qaModalContainer')) return;
+    if (typeof document === 'undefined' || document.getElementById('qaModalContainer')) return;
 
     const modal = document.createElement('div');
     modal.id = 'qaModalContainer';
@@ -326,7 +355,7 @@ class QATrackerV2 {
     const toggleBtn = document.createElement('button');
     toggleBtn.id = 'qaToggleBtn';
     toggleBtn.innerHTML = `🧪 QA Test(${this.tests.length})`;
-    toggleBtn.style.cssText = `display: none !important;`;
+    toggleBtn.style.cssText = `display: none;`;
 
     const panel = document.createElement('div');
     panel.id = 'qaPanel';
@@ -479,6 +508,9 @@ class QATrackerV2 {
     filtered.forEach(t => {
       const r = this.results[t.id];
       const row = document.createElement('div');
+      
+      const safeDesc = t.desc.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
       row.style.cssText = `
         background: #161b22;
         border: 1px solid #30363d;
@@ -500,7 +532,7 @@ class QATrackerV2 {
         <div style="flex: 1;">
           <div style="font-size: 13px; font-weight: 600; color: #fff;">${t.name}</div>
           <div style="font-size: 11px; color: #8b949e; margin-top: 2px;">
-            <span style="color: #58a6ff;">[${t.category}]</span> <code>${t.id}</code> — ${t.desc}
+            <span style="color: #58a6ff;">[${t.category}]</span> <code>${t.id}</code> — ${safeDesc}
           </div>
           ${r?.error ? `<div style="font-size: 11px; color: #f85149; margin-top: 4px; font-family: monospace;">${r.error}</div>` : ''}
         </div>

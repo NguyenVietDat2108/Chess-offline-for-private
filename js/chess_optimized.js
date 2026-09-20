@@ -37,6 +37,7 @@
     const ELEPHANT_LO = new Int32Array(64), ELEPHANT_HI = new Int32Array(64);
     const MANTRI_LO = new Int32Array(64), MANTRI_HI = new Int32Array(64);
     const HASH_HISTORY = new Int32Array(2048);
+    var hashHistoryCount = 0;
     const WHITE = 0, BLACK = 1;
     const PAWN = 0, KNIGHT = 1, BISHOP = 2, ROOK = 3, QUEEN = 4, KING = 5;
     const PIECE_TO_CHAR = ['p', 'n', 'b', 'r', 'q', 'k'];
@@ -280,6 +281,29 @@
         c.active_b_frozen_sq = s.active_b_frozen_sq; c.active_b_frozen_timer = s.active_b_frozen_timer;
         c.active_w_jump_sq = s.active_w_jump_sq; c.active_w_jump_timer = s.active_w_jump_timer;
         c.active_b_jump_sq = s.active_b_jump_sq; c.active_b_jump_timer = s.active_b_jump_timer;
+        if (s.active_spells) {
+            c.active_spells = {
+                w_frozen_sq: s.active_w_frozen_sq, w_frozen_timer: s.active_w_frozen_timer,
+                b_frozen_sq: s.active_b_frozen_sq, b_frozen_timer: s.active_b_frozen_timer,
+                w_jump_sq: s.active_w_jump_sq, w_jump_timer: s.active_w_jump_timer,
+                b_jump_sq: s.active_b_jump_sq, b_jump_timer: s.active_b_jump_timer
+            };
+        }
+        if (s.spell_uses) {
+            c.spell_uses = {
+                w: { freeze: s.spell_uses_w_freeze, jump: s.spell_uses_w_jump },
+                b: { freeze: s.spell_uses_b_freeze, jump: s.spell_uses_b_jump }
+            };
+        }
+        if (s.mana) {
+            c.mana = {
+                w: { freeze: s.mana_w_freeze, jump: s.mana_w_jump },
+                b: { freeze: s.mana_b_freeze, jump: s.mana_b_jump }
+            };
+        }
+        if (s.frozen) {
+            c.frozen = { lo: s.frozen.lo, hi: s.frozen.hi };
+        }
         return c;
     }
     (function init_tables() {
@@ -802,8 +826,11 @@
             var next = clone_state(prevState);
             var p_type = m & 0x3F; 
             
-            if (us === WHITE) next.pocket_w -= (1 << (p_type * 5));
-            else next.pocket_b -= (1 << (p_type * 5));
+            if (us === WHITE) {
+                if (((next.pocket_w >> (p_type * 5)) & 31) > 0) next.pocket_w -= (1 << (p_type * 5));
+            } else {
+                if (((next.pocket_b >> (p_type * 5)) & 31) > 0) next.pocket_b -= (1 << (p_type * 5));
+            }
             
             if (to < 32) next.bb_lo[us*6+p_type] |= (1<<to); else next.bb_hi[us*6+p_type] |= (1<<(to-32));
             next.board[to] = (us << 3) | p_type;
@@ -2260,84 +2287,88 @@
         }
     }
     function load_fen(fen, setGameMode = 'classical') {
-    var s = STATE_POOL.pop() || create_empty_state();
-    s.gameMode = setGameMode;
-    s.board.fill(-1);
-    s.bb_lo.fill(0);
-    s.bb_hi.fill(0);
-    s.castling = 0;
-    s.ep_square = -1;
-    s.half_moves = 0;
-    s.move_number = 1;
-    s.checks_w = 0;
-    s.checks_b = 0;
-    s.pocket_w = 0;
-    s.pocket_b = 0;
-    s.promoted_lo = 0;
-    s.promoted_hi = 0;
-    s.duck_sq = -1;
-    s.alice_b_lo = 0;
-    s.alice_b_hi = 0;
-    s.frozen_lo = 0;
-    s.frozen_hi = 0;
-    s.castling_mask = new Int8Array(64).fill(15);
-    var tokens = fen.trim().split(/\s+/);
-    var boardToken = tokens[0];
+        var s = STATE_POOL.pop() || create_empty_state();
+        s.gameMode = setGameMode;
+        s.board.fill(-1);
+        s.bb_lo.fill(0);
+        s.bb_hi.fill(0);
+        s.castling = 0;
+        s.ep_square = -1;
+        s.half_moves = 0;
+        s.move_number = 1;
+        s.checks_w = 0;
+        s.checks_b = 0;
+        s.pocket_w = 0;
+        s.pocket_b = 0;
+        s.promoted_lo = 0;
+        s.promoted_hi = 0;
+        s.duck_sq = -1;
+        s.alice_b_lo = 0;
+        s.alice_b_hi = 0;
+        s.frozen_lo = 0;
+        s.frozen_hi = 0;
+        s.castling_mask = new Int8Array(64).fill(15);
+        var tokens = fen.trim().split(/\s+/);
+        var boardToken = tokens[0];
 
-    var pocketMatch = fen.match(/\[([a-zA-Z]*)\]/);
-    if ((setGameMode === 'crazyhouse' || setGameMode === 'bughouse' || setGameMode === 'placement') && pocketMatch) {
-        var pocketStr = pocketMatch[1];
-        if (boardToken.indexOf('[') !== -1) boardToken = boardToken.substring(0, boardToken.indexOf('['));
-        for (var i = 0; i < pocketStr.length; i++) {
-            var c = pocketStr.charCodeAt(i);
-            var col = (c < 97) ? WHITE : BLACK;
-            var typ = CHAR_TO_PIECE[String.fromCharCode(c | 32)];
-            if (typ !== undefined) {
-                if (col === WHITE) s.pocket_w += (1 << (typ * 5));
-                else s.pocket_b += (1 << (typ * 5));
-            }
-        }
-    }
-
-    var sq = 56;
-    for (var i = 0; i < boardToken.length; i++) {
-        var c = boardToken.charCodeAt(i);
-        if (c === 47) { // '/'
-            sq -= 16;
-        } else if (c >= 48 && c <= 57) { // '1' - '8'
-            sq += (c - 48);
-        } else if (c === 42) { // '*'
-            if (setGameMode === 'duck') s.duck_sq = sq;
-            sq++;
-        } else if (c === 126) { // '~' 
-            let prevSq = sq - 1;
-            if (prevSq >= 0 && prevSq < 64) {
-                if (setGameMode === 'crazyhouse') {
-                    if (prevSq < 32) s.promoted_lo = (s.promoted_lo | (1 << prevSq)) >>> 0;
-                    else s.promoted_hi = (s.promoted_hi | (1 << (prevSq - 32))) >>> 0;
-                } else if (setGameMode === 'alice') {
-                    if (prevSq < 32) s.alice_b_lo = (s.alice_b_lo | (1 << prevSq)) >>> 0;
-                    else s.alice_b_hi = (s.alice_b_hi | (1 << (prevSq - 32))) >>> 0;
+        var pocketMatch = fen.match(/\[([a-zA-Z]*)\]/);
+        if ((setGameMode === 'crazyhouse' || setGameMode === 'bughouse' || setGameMode === 'placement') && pocketMatch) {
+            var pocketStr = pocketMatch[1];
+            if (boardToken.indexOf('[') !== -1) boardToken = boardToken.substring(0, boardToken.indexOf('['));
+            for (var i = 0; i < pocketStr.length; i++) {
+                var c = pocketStr.charCodeAt(i);
+                var col = (c < 97) ? WHITE : BLACK;
+                var typ = CHAR_TO_PIECE[String.fromCharCode(c | 32)];
+                if (typ !== undefined) {
+                    if (col === WHITE) s.pocket_w += (1 << (typ * 5));
+                    else s.pocket_b += (1 << (typ * 5));
                 }
             }
-        } else {
-            var col = (c < 97) ? WHITE : BLACK;
-            var typ = CHAR_TO_PIECE[String.fromCharCode(c | 32)];
-            if (sq >= 0 && sq < 64 && typ !== undefined) {
-                if (sq < 32) s.bb_lo[col * 6 + typ] = (s.bb_lo[col * 6 + typ] | (1 << sq)) >>> 0;
-                else s.bb_hi[col * 6 + typ] = (s.bb_hi[col * 6 + typ] | (1 << (sq - 32))) >>> 0;
-                s.board[sq] = (col << 3) | typ;
-            }
-            sq++;
         }
-    }
 
-    s.turn = (tokens[1] === 'b') ? BLACK : WHITE;
+        var sq = 56;
+        for (var i = 0; i < boardToken.length; i++) {
+            var c = boardToken.charCodeAt(i);
+            if (c === 47) { // '/'
+                sq -= 16;
+            } else if (c >= 48 && c <= 57) { // '1' - '8'
+                sq += (c - 48);
+            } else if (c === 42) { // '*'
+                if (setGameMode === 'duck') s.duck_sq = sq;
+                sq++;
+            } else if (c === 126) { // '~' 
+                let prevSq = sq - 1;
+                if (prevSq >= 0 && prevSq < 64) {
+                    if (setGameMode === 'crazyhouse') {
+                        if (prevSq < 32) s.promoted_lo = (s.promoted_lo | (1 << prevSq)) >>> 0;
+                        else s.promoted_hi = (s.promoted_hi | (1 << (prevSq - 32))) >>> 0;
+                    } else if (setGameMode === 'alice') {
+                        if (prevSq < 32) s.alice_b_lo = (s.alice_b_lo | (1 << prevSq)) >>> 0;
+                        else s.alice_b_hi = (s.alice_b_hi | (1 << (prevSq - 32))) >>> 0;
+                    }
+                }
+            } else {
+                var col = (c < 97) ? WHITE : BLACK;
+                var typ = CHAR_TO_PIECE[String.fromCharCode(c | 32)];
+                if (sq >= 0 && sq < 64 && typ !== undefined) {
+                    if (sq < 32) s.bb_lo[col * 6 + typ] = (s.bb_lo[col * 6 + typ] | (1 << sq)) >>> 0;
+                    else s.bb_hi[col * 6 + typ] = (s.bb_hi[col * 6 + typ] | (1 << (sq - 32))) >>> 0;
+                    s.board[sq] = (col << 3) | typ;
+                }
+                sq++;
+            }
+        }
 
-    var wK_sq = -1, bK_sq = -1;
+        s.turn = (tokens[1] === 'b') ? BLACK : WHITE;
+
+        var wK_sq = -1, bK_sq = -1;
+        let wR_sqs = [], bR_sqs = []; // Tự động dò tìm tất cả vị trí Xe
+        
         for (var i = 0; i < 64; i++) {
             if (s.board[i] === ((WHITE << 3) | KING)) wK_sq = i;
             if (s.board[i] === ((BLACK << 3) | KING)) bK_sq = i;
+            if (s.board[i] === ((WHITE << 3) | ROOK)) wR_sqs.push(i);
+            if (s.board[i] === ((BLACK << 3) | ROOK)) bR_sqs.push(i);
         }
         if (wK_sq !== -1) s.castling_mask[wK_sq] &= ~(1 | 2);
         if (bK_sq !== -1) s.castling_mask[bK_sq] &= ~(4 | 8);
@@ -2345,10 +2376,26 @@
         if (tokens[2] && tokens[2] !== '-') {
             for (var i = 0; i < tokens[2].length; i++) {
                 var char = tokens[2][i];
-                if (char === 'K') { s.castling |= 1; s.castling_mask[7] &= ~1; }
-                else if (char === 'Q') { s.castling |= 2; s.castling_mask[0] &= ~2; }
-                else if (char === 'k') { s.castling |= 4; s.castling_mask[63] &= ~4; }
-                else if (char === 'q') { s.castling |= 8; s.castling_mask[56] &= ~8; }
+                if (char === 'K') { 
+                    s.castling |= 1; 
+                    let rSq = (setGameMode === 'chess960' && wR_sqs.length > 0) ? Math.max(...wR_sqs) : 7;
+                    if (rSq >= 0) s.castling_mask[rSq] &= ~1; 
+                }
+                else if (char === 'Q') { 
+                    s.castling |= 2; 
+                    let rSq = (setGameMode === 'chess960' && wR_sqs.length > 0) ? Math.min(...wR_sqs) : 0;
+                    if (rSq >= 0) s.castling_mask[rSq] &= ~2; 
+                }
+                else if (char === 'k') { 
+                    s.castling |= 4; 
+                    let rSq = (setGameMode === 'chess960' && bR_sqs.length > 0) ? Math.max(...bR_sqs) : 63;
+                    if (rSq >= 0) s.castling_mask[rSq] &= ~4; 
+                }
+                else if (char === 'q') { 
+                    s.castling |= 8; 
+                    let rSq = (setGameMode === 'chess960' && bR_sqs.length > 0) ? Math.min(...bR_sqs) : 56;
+                    if (rSq >= 0) s.castling_mask[rSq] &= ~8; 
+                }
                 else if (char >= 'A' && char <= 'H') {
                     var file = char.charCodeAt(0) - 65;
                     var kL = s.bb_lo[WHITE * 6 + KING], kH = s.bb_hi[WHITE * 6 + KING];
@@ -2366,57 +2413,424 @@
             }
         }
 
-    s.ep_square = (tokens[3] === '-' || !tokens[3]) ? -1 : str_to_sq(tokens[3]);
-    if (s.ep_square !== -1) {
-        let capSq = (s.turn === WHITE) ? s.ep_square - 8 : s.ep_square + 8;
-        let enemyPawn = (s.turn === WHITE) ? (BLACK * 6 + PAWN) : (WHITE * 6 + PAWN);
-        let mask = (capSq < 32) ? (1 << capSq) : (1 << (capSq - 32));
-        let pawnExists = (capSq < 32 ? s.bb_lo[enemyPawn] : s.bb_hi[enemyPawn]) & mask;
-        if (!pawnExists) s.ep_square = -1;
-    }
-
-    s.half_moves = parseInt(tokens[4], 10) || 0;
-    s.move_number = parseInt(tokens[5], 10) || 1;
-
-    if (setGameMode === 'duck' && tokens.length >= 7) {
-        if (isNaN(parseInt(tokens[4], 10))) {
-            s.duck_sq = (tokens[4] === '-') ? -1 : str_to_sq(tokens[4]);
-            s.half_moves = parseInt(tokens[5], 10) || 0;
-            s.move_number = parseInt(tokens[6], 10) || 1;
-        } else {
-            s.duck_sq = (tokens[6] === '-') ? -1 : str_to_sq(tokens[6]);
+        s.ep_square = (tokens[3] === '-' || !tokens[3]) ? -1 : str_to_sq(tokens[3]);
+        if (s.ep_square !== -1) {
+            let capSq = (s.turn === WHITE) ? s.ep_square - 8 : s.ep_square + 8;
+            let enemyPawn = (s.turn === WHITE) ? (BLACK * 6 + PAWN) : (WHITE * 6 + PAWN);
+            let mask = (capSq < 32) ? (1 << capSq) : (1 << (capSq - 32));
+            let pawnExists = (capSq < 32 ? s.bb_lo[enemyPawn] : s.bb_hi[enemyPawn]) & mask;
+            if (!pawnExists) s.ep_square = -1;
         }
-    }
 
-    if (s.gameMode === '3check') {
-        let checkMatch = fen.match(/\+(\d+)\+(\d+)/);
-        if (checkMatch) {
-            s.checks_w = parseInt(checkMatch[1], 10) || 0;
-            s.checks_b = parseInt(checkMatch[2], 10) || 0;
-        }
-    }
+        s.half_moves = parseInt(tokens[4], 10) || 0;
+        s.move_number = parseInt(tokens[5], 10) || 1;
 
-    if (s.gameMode === 'spell') {
-        let spellMatch = fen.match(/\[S:([^\]]+)\]/);
-        if (spellMatch) {
-            let p = spellMatch[1].split(',');
-            if (p.length >= 16) {
-                s.mana_w_freeze = parseInt(p[0], 10) || 0; s.mana_w_jump = parseInt(p[1], 10) || 0;
-                s.mana_b_freeze = parseInt(p[2], 10) || 0; s.mana_b_jump = parseInt(p[3], 10) || 0;
-                s.spell_uses_w_freeze = parseInt(p[4], 10) || 0; s.spell_uses_w_jump = parseInt(p[5], 10) || 0;
-                s.spell_uses_b_freeze = parseInt(p[6], 10) || 0; s.spell_uses_b_jump = parseInt(p[7], 10) || 0;
-                s.active_w_frozen_sq = parseInt(p[8], 10); s.active_w_frozen_timer = parseInt(p[9], 10) || 0;
-                s.active_b_frozen_sq = parseInt(p[10], 10); s.active_b_frozen_timer = parseInt(p[11], 10) || 0;
-                s.active_w_jump_sq = parseInt(p[12], 10); s.active_w_jump_timer = parseInt(p[13], 10) || 0;
-                s.active_b_jump_sq = parseInt(p[14], 10); s.active_b_jump_timer = parseInt(p[15], 10) || 0;
+        if (setGameMode === 'duck' && tokens.length >= 7) {
+            if (isNaN(parseInt(tokens[4], 10))) {
+                s.duck_sq = (tokens[4] === '-') ? -1 : str_to_sq(tokens[4]);
+                s.half_moves = parseInt(tokens[5], 10) || 0;
+                s.move_number = parseInt(tokens[6], 10) || 1;
+            } else {
+                s.duck_sq = (tokens[6] === '-') ? -1 : str_to_sq(tokens[6]);
             }
         }
-        rebuild_spell_caches(s);
+
+        if (s.gameMode === '3check') {
+            let checkMatch = fen.match(/\+(\d+)\+(\d+)/);
+            if (checkMatch) {
+                s.checks_w = parseInt(checkMatch[1], 10) || 0;
+                s.checks_b = parseInt(checkMatch[2], 10) || 0;
+            }
+        }
+
+        if (s.gameMode === 'spell') {
+            let spellMatch = fen.match(/\[S:([^\]]+)\]/);
+            if (spellMatch) {
+                let p = spellMatch[1].split(',');
+                if (p.length >= 16) {
+                    s.mana_w_freeze = parseInt(p[0], 10) || 0; s.mana_w_jump = parseInt(p[1], 10) || 0;
+                    s.mana_b_freeze = parseInt(p[2], 10) || 0; s.mana_b_jump = parseInt(p[3], 10) || 0;
+                    s.spell_uses_w_freeze = parseInt(p[4], 10) || 0; s.spell_uses_w_jump = parseInt(p[5], 10) || 0;
+                    s.spell_uses_b_freeze = parseInt(p[6], 10) || 0; s.spell_uses_b_jump = parseInt(p[7], 10) || 0;
+                    s.active_w_frozen_sq = parseInt(p[8], 10); s.active_w_frozen_timer = parseInt(p[9], 10) || 0;
+                    s.active_b_frozen_sq = parseInt(p[10], 10); s.active_b_frozen_timer = parseInt(p[11], 10) || 0;
+                    s.active_w_jump_sq = parseInt(p[12], 10); s.active_w_jump_timer = parseInt(p[13], 10) || 0;
+                    s.active_b_jump_sq = parseInt(p[14], 10); s.active_b_jump_timer = parseInt(p[15], 10) || 0;
+                }
+            }
+            s.active_spells = {
+                w_frozen_sq: s.active_w_frozen_sq, w_frozen_timer: s.active_w_frozen_timer,
+                b_frozen_sq: s.active_b_frozen_sq, b_frozen_timer: s.active_b_frozen_timer,
+                w_jump_sq: s.active_w_jump_sq, w_jump_timer: s.active_w_jump_timer,
+                b_jump_sq: s.active_b_jump_sq, b_jump_timer: s.active_b_jump_timer
+            };
+            s.spell_uses = {
+                w: { freeze: s.spell_uses_w_freeze, jump: s.spell_uses_w_jump },
+                b: { freeze: s.spell_uses_b_freeze, jump: s.spell_uses_b_jump }
+            };
+            s.mana = {
+                w: { freeze: s.mana_w_freeze, jump: s.mana_w_jump },
+                b: { freeze: s.mana_b_freeze, jump: s.mana_b_jump }
+            };
+            rebuild_spell_caches(s);
+        }
+        s.zobrist = compute_zobrist(s);
+        hashHistoryCount = 0;
+        HASH_HISTORY[hashHistoryCount++] = s.zobrist;
+        return s;
     }
-    s.zobrist = compute_zobrist(s);
-    hashHistoryCount = 0;
-    HASH_HISTORY[hashHistoryCount++] = s.zobrist;
-    return s;
+    function internal_validate_fen(fen, gameMode, isBypass=false) {
+        var mode = gameMode || 'classical';
+        if (isBypass === true || isBypass === 'true') {
+            return {
+                valid: true,
+                error: 'No errors.',
+                errors: [],
+                warnings: ['Validation bypassed by user!'],
+                variant: mode,
+                details: { white_kings: 1, black_kings: 1, opposite_in_check: false, pawns_on_1st_or_8th: false, pocket: null, spells: null }
+            };
+        }
+        var errors = [];
+        var warnings = [];
+        var details = { white_kings: 0, black_kings: 0, opposite_in_check: false, pawns_on_1st_or_8th: false, pocket: null, spells: null };
+
+        if (!fen || typeof fen !== 'string' || fen.trim() === '') {
+            return { valid: false, error: 'Empty FEN string.', errors: ['Empty FEN string.'], warnings: warnings, variant: mode, details: details };
+        }
+
+        var targetFen = fen.trim();
+        var targetFenCleaned = targetFen.replace(/\[\]/g, ''); 
+
+        var s = null;
+        try {
+            s = load_fen(targetFenCleaned, mode);
+        } catch (e) {
+            errors.push('Position loading failed: ' + (e.message || 'Invalid syntax'));
+        }
+
+        if (!s) {
+            return {
+                valid: errors.length === 0,
+                error: errors.length === 0 ? 'No errors.' : errors[0],
+                errors: errors, warnings: warnings, variant: mode, details: details
+            };
+        }
+
+        var cleanFenForTokens = targetFenCleaned;
+        var spellMatch = cleanFenForTokens.match(/\[S:([^\]]*)\]/);
+        var pocketRegex = /\[(?!S:)([^\]]*)\]/g;
+        var pocketMatches = cleanFenForTokens.match(pocketRegex);
+
+        if (spellMatch) cleanFenForTokens = cleanFenForTokens.replace(spellMatch[0], '');
+        
+        var pocketStr = null;
+        if (pocketMatches && pocketMatches.length > 0) {
+            pocketStr = pocketMatches[0].slice(1, -1);
+            pocketMatches.forEach(pm => cleanFenForTokens = cleanFenForTokens.replace(pm, ''));
+        }
+
+        if (mode === 'spell') {
+            if (!spellMatch) {
+                errors.push('Spell chess requires a [S:...] block in the FEN.');
+            } else {
+                let p = spellMatch[0].match(/\[S:([^\]]+)\]/)[1].split(',');
+                if (p.length !== 16) {
+                    errors.push(`Spell block must have exactly 16 numbers (found ${p.length}).`);
+                } else {
+                    let nums = p.map(x => parseInt(x, 10));
+                    if (nums.some(isNaN)) {
+                        errors.push('Spell block contains invalid characters.');
+                    } else {
+                        if (nums.slice(0,4).some(n => n < 0 || n > 3)) errors.push('Cooldowns must be between 0 and 3.');
+                        if (nums[4] < 0 || nums[4] > 5 || nums[6] < 0 || nums[6] > 5) errors.push('Freeze capacity is 0 to 5.');
+                        if (nums[5] < 0 || nums[5] > 2 || nums[7] < 0 || nums[7] > 2) errors.push('Jump capacity is 0 to 2.');
+                        if ([8,10,12,14].some(i => nums[i] < -1 || nums[i] > 63)) errors.push('Spell target square must be -1 to 63.');
+                        if ([9,11,13,15].some(i => nums[i] < 0 || nums[i] > 2)) errors.push('Active timers must be 0 to 2.');
+                    }
+                }
+            }
+        }
+        
+        var tokens = cleanFenForTokens.trim().split(/\s+/);
+        if (tokens.length < 2) {
+            errors.push('FEN must contain at least piece placement and active color.');
+        }
+        
+        var boardToken = tokens[0] || '';
+        var ranks = boardToken.split('/');
+        if (ranks.length !== 8) {
+            errors.push('Piece placement must have 8 ranks separated by / (found ' + ranks.length + ').');
+        } else {
+            for (var r = 0; r < 8; r++) {
+                var rankStr = ranks[r];
+                var squareCount = 0;
+                var prevWasDigit = false;
+                for (var cIdx = 0; cIdx < rankStr.length; cIdx++) {
+                    var ch = rankStr[cIdx];
+                    if (ch >= '1' && ch <= '8') {
+                        if (prevWasDigit) errors.push('Rank ' + (8 - r) + ' contains consecutive digits.');
+                        prevWasDigit = true;
+                        squareCount += (ch.charCodeAt(0) - 48);
+                    } else if (ch === '~') {
+                        prevWasDigit = false;
+                        if (mode !== 'crazyhouse' && mode !== 'alice') errors.push('Promoted symbol (~) is only permitted in Crazyhouse or Alice chess.');
+                    } else if (ch === '*') {
+                        prevWasDigit = false;
+                        if (mode !== 'duck') errors.push('Duck symbol (*) is only allowed in Duck Chess.');
+                        squareCount += 1;
+                    } else {
+                        prevWasDigit = false;
+                        if ('pnbrqkPNBRQK'.indexOf(ch) === -1) errors.push('Invalid piece character \'' + ch + '\' in rank ' + (8 - r) + '.');
+                        squareCount += 1;
+                    }
+                }
+                if (squareCount !== 8) {
+                    errors.push('Rank ' + (8 - r) + ' has ' + squareCount + ' squares (must be exactly 8).');
+                }
+            }
+        }
+
+        if (tokens.length >= 2 && tokens[1] !== 'w' && tokens[1] !== 'b') errors.push('Active color must be "w" or "b".');
+
+        if (tokens.length >= 3 && tokens[2] !== '-') {
+            let castling = tokens[2];
+            if (mode === 'chaturanga' || mode === 'racingkings' || mode === 'antichess') {
+                errors.push('Variant "' + mode + '" does not allow castling.');
+            } else if (mode === 'horde' && (castling.includes('K') || castling.includes('Q'))) {
+                errors.push('White has no King in Horde, so White castling is illegal.');
+            } else if (mode === 'chess960') {
+                let wK_file = -1, bK_file = -1;
+                let wR_files = [], bR_files = [];
+                let wB_colors = new Set(), bB_colors = new Set();
+                let wBackRank = "", bBackRank = "";
+                
+                for (let f = 0; f < 8; f++) {
+                    let wPiece = get_piece_at(s, f);
+                    let bPiece = get_piece_at(s, 56 + f);
+                    
+                    if (wPiece !== -1) {
+                        wBackRank += PIECE_TO_CHAR[wPiece & 7];
+                        if ((wPiece & 7) === KING) wK_file = f;
+                        if ((wPiece & 7) === ROOK) wR_files.push(f);
+                        if ((wPiece & 7) === BISHOP) wB_colors.add(f % 2);
+                    }
+                    if (bPiece !== -1) {
+                        bBackRank += PIECE_TO_CHAR[bPiece & 7];
+                        if ((bPiece & 7) === KING) bK_file = f;
+                        if ((bPiece & 7) === ROOK) bR_files.push(f);
+                        if ((bPiece & 7) === BISHOP) bB_colors.add(f % 2);
+                    }
+                }
+                
+                for (let i = 0; i < castling.length; i++) {
+                    let c = castling[i];
+                    if (c >= 'A' && c <= 'Z') {
+                        if (wK_file === -1) { errors.push(`White claims castling right (${c}) but has no King on the 1st rank.`); continue; }
+                        let expectedRookSq = -1;
+                        if (c === 'K') expectedRookSq = wR_files.length > 0 ? Math.max(...wR_files) : 7;
+                        else if (c === 'Q') expectedRookSq = wR_files.length > 0 ? Math.min(...wR_files) : 0;
+                        else expectedRookSq = c.charCodeAt(0) - 65;
+                        
+                        if (get_piece_at(s, expectedRookSq) !== (WHITE << 3 | ROOK)) {
+                            let fChar = (expectedRookSq >= 0 && expectedRookSq <= 7) ? String.fromCharCode(97 + expectedRookSq) : '?';
+                            errors.push(`White claims castling right (${c}) but has no Rook on file ${fChar}.`);
+                        }
+                    } else if (c >= 'a' && c <= 'z') {
+                        if (bK_file === -1) { errors.push(`Black claims castling right (${c}) but has no King on the 8th rank.`); continue; }
+                        let expectedRookSq = -1;
+                        if (c === 'k') expectedRookSq = bR_files.length > 0 ? 56 + Math.max(...bR_files) : 63;
+                        else if (c === 'q') expectedRookSq = bR_files.length > 0 ? 56 + Math.min(...bR_files) : 56;
+                        else expectedRookSq = 56 + (c.charCodeAt(0) - 97);
+                        
+                        if (get_piece_at(s, expectedRookSq) !== (BLACK << 3 | ROOK)) {
+                            let fChar = (expectedRookSq >= 56 && expectedRookSq <= 63) ? String.fromCharCode(97 + (expectedRookSq - 56)) : '?';
+                            errors.push(`Black claims castling right (${c}) but has no Rook on file ${fChar}.`);
+                        }
+                    }
+                }
+
+                if (tokens[4] === '0' && tokens[5] === '1') {
+                    if (wBackRank !== bBackRank) {
+                        errors.push("Chess960 starting position must be perfectly symmetrical between White and Black.");
+                    }
+                    if (wK_file !== -1 && wR_files.length >= 2) {
+                        if (wK_file <= wR_files[0] || wK_file >= wR_files[wR_files.length - 1]) {
+                            errors.push("Chess960 starting position requires the King to be strictly between two Rooks.");
+                        }
+                    }
+                    if (wB_colors.size === 1 || bB_colors.size === 1) {
+                        errors.push("Chess960 starting position requires Bishops to be on opposite colored squares.");
+                    }
+                }
+            } else {
+                if (castling.includes('K') && (get_piece_at(s, 4) !== (WHITE<<3|KING) || get_piece_at(s, 7) !== (WHITE<<3|ROOK))) errors.push('White Kingside castling requires King on e1 and Rook on h1.');
+                if (castling.includes('Q') && (get_piece_at(s, 4) !== (WHITE<<3|KING) || get_piece_at(s, 0) !== (WHITE<<3|ROOK))) errors.push('White Queenside castling requires King on e1 and Rook on a1.');
+                if (castling.includes('k') && (get_piece_at(s, 60) !== (BLACK<<3|KING) || get_piece_at(s, 63) !== (BLACK<<3|ROOK))) errors.push('Black Kingside castling requires King on e8 and Rook on h8.');
+                if (castling.includes('q') && (get_piece_at(s, 60) !== (BLACK<<3|KING) || get_piece_at(s, 56) !== (BLACK<<3|ROOK))) errors.push('Black Queenside castling requires King on e8 and Rook on a8.');
+            }
+        }
+
+        if (tokens.length >= 4 && tokens[3] !== '-') {
+            let epSq = str_to_sq(tokens[3]);
+            if (epSq !== -1) {
+                if (mode === 'chaturanga') errors.push('Chaturanga does not allow En Passant captures.');
+                else {
+                    let expectedPawnSq = (s.turn === WHITE) ? epSq - 8 : epSq + 8;
+                    let originPawnSq   = (s.turn === WHITE) ? epSq + 8 : epSq - 8;
+                    let enemyPawn      = (s.turn === WHITE) ? (BLACK<<3|PAWN) : (WHITE<<3|PAWN);
+                    if (get_piece_at(s, epSq) !== -1) errors.push('En Passant target square must be empty.');
+                    if (get_piece_at(s, expectedPawnSq) !== enemyPawn) errors.push('En Passant is invalid: No enemy pawn found behind the EP square.');
+                    if (get_piece_at(s, originPawnSq) !== -1) errors.push('En Passant is invalid: The pawn origin square is not empty.');
+                }
+            }
+        }
+
+        // --- BỘ ĐẾM QUÂN CỜ PHỤC VỤ CRAZYHOUSE ---
+        var wK = 0, bK = 0;
+        var boardCounts = { w: { p: 0, n: 0, b: 0, r: 0, q: 0 }, b: { p: 0, n: 0, b: 0, r: 0, q: 0 } };
+        
+        for (var i = 0; i < 64; i++) {
+            var piece = get_piece_at(s, i);
+            if (piece !== -1) {
+                var col = piece >> 3;
+                var typ = piece & 7;
+                if (typ === KING) { 
+                    if (col === WHITE) wK++; else bK++; 
+                } else {
+                    var charKey = PIECE_TO_CHAR[typ];
+                    if (col === WHITE) boardCounts.w[charKey]++;
+                    else boardCounts.b[charKey]++;
+                }
+            }
+        }
+        details.white_kings = wK;
+        details.black_kings = bK;
+
+        var wPocketCounts = { p: 0, n: 0, b: 0, r: 0, q: 0 };
+        var bPocketCounts = { p: 0, n: 0, b: 0, r: 0, q: 0 };
+        if (pocketStr !== null) {
+            for (var ki = 0; ki < pocketStr.length; ki++) {
+                var pChar = pocketStr[ki];
+                var lower = pChar.toLowerCase();
+                if (PIECE_TO_CHAR.includes(lower) && lower !== 'k') {
+                    if (pChar < 'a') wPocketCounts[lower]++;
+                    else bPocketCounts[lower]++;
+                }
+            }
+        }
+
+        // KIỂM TRA ĐỊNH LUẬT BẢO TOÀN CỦA CRAZYHOUSE & PLACEMENT
+        if (mode === 'crazyhouse' || mode === 'bughouse' || mode === 'placement') {
+            var pocketN = wPocketCounts.n + bPocketCounts.n;
+            var pocketB = wPocketCounts.b + bPocketCounts.b;
+            var pocketR = wPocketCounts.r + bPocketCounts.r;
+            var pocketQ = wPocketCounts.q + bPocketCounts.q;
+            var pocketP = wPocketCounts.p + bPocketCounts.p;
+
+            var totalN = boardCounts.w.n + boardCounts.b.n + pocketN;
+            var totalB = boardCounts.w.b + boardCounts.b.b + pocketB;
+            var totalR = boardCounts.w.r + boardCounts.b.r + pocketR;
+            var totalQ = boardCounts.w.q + boardCounts.b.q + pocketQ;
+            var totalP = boardCounts.w.p + boardCounts.b.p + pocketP;
+
+            var promotedN = Math.max(0, totalN - 4);
+            var promotedB = Math.max(0, totalB - 4);
+            var promotedR = Math.max(0, totalR - 4);
+            var promotedQ = Math.max(0, totalQ - 2);
+            var totalPromoted = promotedN + promotedB + promotedR + promotedQ;
+
+            var totalNonKing = totalN + totalB + totalR + totalQ + totalP;
+
+            var wBoardCount = boardCounts.w.p + boardCounts.w.n + boardCounts.w.b + boardCounts.w.r + boardCounts.w.q + wK;
+            var bBoardCount = boardCounts.b.p + boardCounts.b.n + boardCounts.b.b + boardCounts.b.r + boardCounts.b.q + bK;
+            var wPocketCount = wPocketCounts.p + wPocketCounts.n + wPocketCounts.b + wPocketCounts.r + wPocketCounts.q;
+            var bPocketCount = bPocketCounts.p + bPocketCounts.n + bPocketCounts.b + bPocketCounts.r + bPocketCounts.q;
+
+            if (mode === 'crazyhouse' || mode === 'placement') {
+                if (pocketN > 4) errors.push('Pockets cannot contain more than 4 original Knights.');
+                if (pocketB > 4) errors.push('Pockets cannot contain more than 4 original Bishops.');
+                if (pocketR > 4) errors.push('Pockets cannot contain more than 4 original Rooks.');
+                if (pocketQ > 2) errors.push('Pockets cannot contain more than 2 original Queens.');
+                if (pocketP > 16) errors.push('Pockets cannot contain more than 16 Pawns.');
+
+                if (totalP + totalPromoted > 16) {
+                    errors.push('Illegal position: Total pawns and promoted pieces (' + totalP + ' + ' + totalPromoted + ') exceed the 16 available pawns.');
+                }
+
+                // CHỐT CHẶN 1: Bắt lỗi ném mất quân cờ ra khỏi vũ trụ
+                if (totalNonKing !== 30) {
+                    errors.push('Variant "' + mode + '" requires exactly 32 pieces in total (found ' + (totalNonKing + wK + bK) + '). Any missing pieces from the board MUST be in the pocket.');
+                }
+
+                if (mode === 'crazyhouse') {
+                    // CHỐT CHẶN 2: Định luật bảo toàn màu sắc Crazyhouse
+                    if (wBoardCount + bPocketCount !== 16) {
+                        errors.push('Crazyhouse error: White has ' + wBoardCount + ' pieces on board, so Black must have ' + (16 - wBoardCount) + ' pieces in pocket (found ' + bPocketCount + ').');
+                    }
+                    if (bBoardCount + wPocketCount !== 16) {
+                        errors.push('Crazyhouse error: Black has ' + bBoardCount + ' pieces on board, so White must have ' + (16 - bBoardCount) + ' pieces in pocket (found ' + wPocketCount + ').');
+                    }
+                } else if (mode === 'placement') {
+                    if (wBoardCount + wPocketCount !== 16) {
+                        errors.push('Placement error: White must have exactly 16 pieces combined between board and pocket.');
+                    }
+                    if (bBoardCount + bPocketCount !== 16) {
+                        errors.push('Placement error: Black must have exactly 16 pieces combined between board and pocket.');
+                    }
+                }
+            } else if (mode === 'bughouse') {
+                if (pocketN > 10) errors.push('Pockets cannot contain more than 10 original Knights.');
+                if (pocketB > 10) errors.push('Pockets cannot contain more than 10 original Bishops.');
+                if (pocketR > 10) errors.push('Pockets cannot contain more than 10 original Rooks.');
+                if (pocketQ > 4) errors.push('Pockets cannot contain more than 4 original Queens.');
+                if (pocketP > 32) errors.push('Pockets cannot contain more than 32 Pawns.');
+                
+                if (totalNonKing > 62) {
+                    errors.push('Bughouse error: Exceeded maximum possible pieces.');
+                }
+            }
+        }
+        // ----------------------------------------
+
+        if (mode === 'atomic' || mode === 'antichess') {
+            if (wK > 1) errors.push('White cannot have more than one King in ' + mode + '.');
+            if (bK > 1) errors.push('Black cannot have more than one King in ' + mode + '.');
+        } else if (mode === 'horde') {
+            if (wK !== 0) errors.push('White cannot have a King in Horde.');
+            if (bK !== 1) errors.push('Black must have exactly one King in Horde.');
+        } else if (mode === 'placement') {
+            if (wK > 1) errors.push('White cannot have more than one King.');
+            if (bK > 1) errors.push('Black cannot have more than one King.');
+        } else {
+            if (wK !== 1) errors.push('White must have exactly one King.');
+            if (bK !== 1) errors.push('Black must have exactly one King.');
+        }
+        if (mode === '3check') {
+            if (s.checks_w > 3 || s.checks_b > 3) {
+                errors.push('3-Check error: Number of checks cannot exceed 3.');
+            }
+        }
+        var us = s.turn, them = us ^ 1;
+        if (mode === 'racingkings') {
+            if (is_checked(s, WHITE) || is_checked(s, BLACK)) errors.push('Kings cannot be in check in Racing Kings.');
+        } else if (mode !== 'duck' && mode !== 'atomic' && mode !== 'spell' && mode !== 'antichess') {
+            if (is_checked(s, them)) {
+                errors.push('Illegal Position: The opponent is in check, but it is not their turn.');
+                details.opposite_in_check = true;
+            }
+        }
+
+        var uniqueErrors = [];
+        for (var u = 0; u < errors.length; u++) {
+            if (uniqueErrors.indexOf(errors[u]) === -1) uniqueErrors.push(errors[u]);
+        }
+
+        return {
+            valid: uniqueErrors.length === 0,
+            error: uniqueErrors.length === 0 ? 'No errors.' : uniqueErrors[0],
+            errors: uniqueErrors, warnings: warnings, variant: mode, details: details
+        };
     }
     function generate_fen(targetState) {
         var s = targetState || currentState; 
@@ -2450,6 +2864,7 @@
             if (r > 0) FEN_BUFFER[ptr++] = 47; // /
         }
 
+        // ĐÃ PHỤC HỒI: Luôn in ra dấu [] cho túi đồ của Crazyhouse/Placement
         if (s.gameMode === 'crazyhouse' || s.gameMode === 'bughouse' || s.gameMode === 'placement') {
             FEN_BUFFER[ptr++] = 91; // [
             for (var pType = 0; pType <= 4; pType++) {
@@ -2508,13 +2923,18 @@ var Chess = function(fen, gameMode = 'classical') {
     var currentState = null;
     var history = []; 
     
-    currentState = load_fen(fen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", gameMode);
+    try {
+        currentState = load_fen(fen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", gameMode);
+    } catch (e) {
+        currentState = load_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", gameMode);
+    }
     history.push(currentState);
 return {
         WHITE: 'w', BLACK: 'b',
         setGameMode: function(mode) { 
             currentState.gameMode = mode; 
             for (let i = 0; i < history.length; i++) history[i].gameMode = mode; 
+            return currentState.gameMode;
         },
         gameMode: function() { return currentState.gameMode; },
         load: function(r) { 
@@ -2992,56 +3412,12 @@ return {
         if (this.in_draw()) return true;
         return false; 
         },
-        validate_fen: function(fen) {
-            if (!fen || typeof fen !== 'string') return { valid: false, error: 'Empty FEN string.' };
-            const tokens = fen.trim().split(/\s+/);
-            if (tokens.length < 4) return { valid: false, error: 'FEN must contain at least 4 fields.' };
-            const ranks = tokens[0].split('/');
-            if (ranks.length !== 8) return { valid: false, error: 'Piece placement must have 8 ranks.' };
-            let s;
-            try { s = load_fen(fen, currentState.gameMode); } catch (e) { return { valid: false, error: 'Invalid piece placement syntax.' }; }
-            
-            let wK = 0, bK = 0;
-            for (let i = 0; i < 64; i++) {
-                if (get_piece_at(s, i) === (WHITE << 3 | KING)) wK++;
-                if (get_piece_at(s, i) === (BLACK << 3 | KING)) bK++;
-            }
-            
-            if (currentState.gameMode === 'atomic' || currentState.gameMode === 'antichess') {
-                if (wK > 1) return { valid: false, error: 'White cannot have more than one King.' };
-                if (bK > 1) return { valid: false, error: 'Black cannot have more than one King.' };
-            } else if (currentState.gameMode === 'horde') {
-                if (wK !== 0) return { valid: false, error: 'White cannot have a King in Horde.' };
-                if (bK !== 1) return { valid: false, error: 'Black must have exactly one King.' };
-            } else if (currentState.gameMode === 'placement') {
-                if (wK > 1) return { valid: false, error: 'White cannot have more than one King.' };
-                if (bK > 1) return { valid: false, error: 'Black cannot have more than one King.' };
-            } else {
-                if (wK !== 1) return { valid: false, error: 'White must have exactly one King.' };
-                if (bK !== 1) return { valid: false, error: 'Black must have exactly one King.' };
-            }
-
-            if (currentState.gameMode === 'horde') {
-                for (let i = 0; i < 8; i++) {
-                    const p1 = get_piece_at(s, i), p8 = get_piece_at(s, 56 + i);
-                    if (p8 !== -1 && (p8 & 7) === PAWN) return { valid: false, error: 'Pawns cannot be on the 8th rank.' };
-                    if (p1 !== -1 && (p1 & 7) === PAWN && (p1 >> 3) === BLACK) return { valid: false, error: 'Black pawns cannot be on the 1st rank.' };
-                }
-            } else {
-                for (let i = 0; i < 8; i++) {
-                    const p1 = get_piece_at(s, i), p8 = get_piece_at(s, 56 + i);
-                    if ((p1 !== -1 && (p1 & 7) === PAWN) || (p8 !== -1 && (p8 & 7) === PAWN)) {
-                        return { valid: false, error: 'Pawns cannot be on the 1st or 8th rank.' };
-                    }
-                }
-            }
-            const us = s.turn, them = us ^ 1;
-            
-            if (currentState.gameMode !== 'racingkings' && is_checked(s, them)) {
-                const sideName = (them === WHITE) ? 'White' : 'Black';
-                return { valid: false, error: `Illegal Position: ${sideName} is in check, but it is not their turn.` };
-            }
-            return { valid: true, error: 'No errors.' };
+        validate_fen: function(fen, modeOverride, isBypass=false) {
+            return internal_validate_fen(
+                fen || generate_fen(currentState), 
+                modeOverride || currentState.gameMode, 
+                isBypass
+            );
         },
         pocket: function() {
             if (currentState.pocket_w === 0 && currentState.pocket_b === 0) return EMPTY_POCKET;
@@ -3090,4 +3466,8 @@ return {
                 : { w: { freeze: 5, jump: 2 }, b: { freeze: 5, jump: 2 } };
         },
     };
-}
+};
+
+if (typeof exports !== 'undefined') exports.Chess = Chess;
+if (typeof module !== 'undefined' && module.exports) module.exports = Chess;
+if (typeof window !== 'undefined') window.Chess = Chess;

@@ -262,7 +262,7 @@
       "fen",
       "roundtrip"
     ],
-    "run": "const target = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3'; let g = null; try { if (window.app?.game?.constructor) { g = new window.app.game.constructor(target); } } catch(e) {} if (!g && window.__SIM_GAME__?.constructor) { g = new window.__SIM_GAME__.constructor(target); } if (g && typeof g.load === 'function') { try { g.load(target); } catch(e) {} } else if (g && typeof g.loadFEN === 'function') { try { g.loadFEN(target); } catch(e) {} } const outFen = g ? (typeof g.generateFEN === 'function' ? g.generateFEN() : (typeof g.fen === 'function' ? g.fen() : (typeof g.getFEN === 'function' ? g.getFEN() : ''))) : ''; return typeof outFen === 'string' && outFen.startsWith('r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq -');",
+    "run": "const target = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3'; let g = null; try { if (window.app?.game?.constructor) { g = new window.app.game.constructor(); } } catch(e) {} if (!g && window.__SIM_GAME__?.constructor) { g = new window.__SIM_GAME__.constructor(); } if (g && typeof g.setGameMode === 'function') g.setGameMode('classical'); if (g && typeof g.loadFEN === 'function') { try { g.loadFEN(target, 'classical'); } catch(e) {} } else if (g && typeof g.load === 'function') { try { g.load(target); } catch(e) {} } const outFen = g ? (typeof g.generateFEN === 'function' ? g.generateFEN() : (typeof g.fen === 'function' ? g.fen() : '')) : ''; return typeof outFen === 'string' && outFen.startsWith('r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq -');",
     "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
   },
   {
@@ -2327,7 +2327,13 @@
     "name": "Resign Triggers Rematch Flow",
     "desc": "Verify that when the game is over, Resign and Draw buttons disappear and Rematch appears.",
     "type": "auto",
-    "tags": ["ui", "lifecycle", "buttons", "resign", "rematch"],
+    "tags": [
+      "ui",
+      "lifecycle",
+      "buttons",
+      "resign",
+      "rematch"
+    ],
     "run": "const g = window.app?.game; const ui = window.app?.ui; if (!g || !ui || typeof document === 'undefined') return true; const origMode = g.mode; const origOver = g.gameOver; let r = document.getElementById('resignBtn'); let d = document.getElementById('drawBtn'); let m = document.getElementById('rematchBtn'); let cleanup = false; if (!r || !d || !m) { if(!r){ r = document.createElement('div'); r.id = 'resignBtn'; document.body.appendChild(r); } if(!d){ d = document.createElement('div'); d.id = 'drawBtn'; document.body.appendChild(d); } if(!m){ m = document.createElement('div'); m.id = 'rematchBtn'; document.body.appendChild(m); } cleanup = true; } g.mode = 'local'; g.gameOver = true; ui.updatePlayButtons(false); const passed = r.style.display === 'none' && d.style.display === 'none' && m.style.display === 'block'; g.mode = origMode; g.gameOver = origOver; ui.updatePlayButtons(); if (cleanup) { if(r.parentElement === document.body) r.remove(); if(d.parentElement === document.body) d.remove(); if(m.parentElement === document.body) m.remove(); } return passed;",
     "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   },
@@ -2344,7 +2350,7 @@
       "rematch",
       "gameover"
     ],
-    "run": "if (window.app && window.app.game && typeof window.app.game.resign === \"function\") { window.app.game.resign(); const resign = document.getElementById(\"resignBtn\"); const draw = document.getElementById(\"drawBtn\"); const rematch = document.getElementById(\"rematchBtn\"); const rDisp = resign ? resign.style.display : \"none\"; const dDisp = draw ? draw.style.display : \"none\"; const mDisp = rematch ? rematch.style.display : \"none\"; const mSpan = rematch ? rematch.style.gridColumn : \"\"; return rDisp === \"none\" && dDisp === \"none\" && mDisp === \"block\" && mSpan.includes(\"span 2\"); } return false;",
+    "run": "if (window.app && window.app.game && typeof window.app.game.resign === \"function\") { const g = window.app.game; const origLive = g.isPlayingLiveGame; const origMode = g.mode; const origOver = g.gameOver; g.isPlayingLiveGame = true; g.mode = \"local\"; g.gameOver = false; g.resign(); const resign = document.getElementById(\"resignBtn\"); const draw = document.getElementById(\"drawBtn\"); const rematch = document.getElementById(\"rematchBtn\"); const rDisp = resign ? resign.style.display : \"none\"; const dDisp = draw ? draw.style.display : \"none\"; const mDisp = rematch ? rematch.style.display : \"none\"; const mSpan = rematch ? rematch.style.gridColumn : \"\"; g.isPlayingLiveGame = origLive; g.mode = origMode; g.gameOver = origOver; if (window.app.ui && typeof window.app.ui.hideGameOver === \"function\") window.app.ui.hideGameOver(); return rDisp === \"none\" && dDisp === \"none\" && mDisp === \"block\" && mSpan.includes(\"span 2\"); } return false;",
     "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   },
   {
@@ -2360,7 +2366,7 @@
       "rematch",
       "game2"
     ],
-    "run": "if (window.app && window.app.game && typeof window.app.game.rematch === \"function\") { window.app.game.rematch(); const resign = document.getElementById(\"resignBtn\"); const draw = document.getElementById(\"drawBtn\"); const rematch = document.getElementById(\"rematchBtn\"); const isLive = window.app.game.isPlayingLiveGame; const rDisp = resign ? resign.style.display : \"none\"; const dDisp = draw ? draw.style.display : \"none\"; const mDisp = rematch ? rematch.style.display : \"none\"; return isLive && rDisp === \"block\" && dDisp === \"block\" && mDisp === \"none\"; } return false;",
+    "run": "if (window.app && window.app.game && typeof window.app.game.rematch === \"function\") { const g = window.app.game; const origMode = g.mode; const origOver = g.gameOver; g.mode = \"local\"; g.gameOver = true; g.rematch(); const resign = document.getElementById(\"resignBtn\"); const draw = document.getElementById(\"drawBtn\"); const rematch = document.getElementById(\"rematchBtn\"); const isLive = window.app.game.isPlayingLiveGame; const rDisp = resign ? resign.style.display : \"none\"; const dDisp = draw ? draw.style.display : \"none\"; const mDisp = rematch ? rematch.style.display : \"none\"; g.mode = origMode; g.gameOver = origOver; return isLive && rDisp === \"block\" && dDisp === \"block\" && mDisp === \"none\"; } return false;",
     "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   },
   {
@@ -2401,7 +2407,11 @@
     "name": "Visual Board Preshow for Multiple Premoves",
     "desc": "Verify that the visualBoard array correctly projects premoves, allowing validation of chained premoves (e.g. b2-b3-b4) before the actual turn.",
     "type": "auto",
-    "tags": ["ui", "premove", "visualBoard"],
+    "tags": [
+      "ui",
+      "premove",
+      "visualBoard"
+    ],
     "run": "const board = new Array(64).fill(null); board[8] = {type: 'p', color: 'w', idx: 8}; const premoves = [{from: 8, to: 16, piece: 'p', color: 'w'}, {from: 16, to: 24, piece: 'p', color: 'w'}]; let vBoard = [...board]; for(let pm of premoves) { if(pm.from !== '@' && vBoard[pm.from]) { let p = vBoard[pm.from]; vBoard[pm.to] = {...p, idx: pm.to}; vBoard[pm.from] = null; } } return vBoard[8] === null && vBoard[16] === null && vBoard[24].type === 'p';",
     "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   },
@@ -2411,7 +2421,11 @@
     "name": "Drag Persistence During Opponent Move",
     "desc": "Verify that rendering the board (due to opponent's move) does not clear the dragging class if the user is currently holding a piece.",
     "type": "auto",
-    "tags": ["ui", "drag", "persistence"],
+    "tags": [
+      "ui",
+      "drag",
+      "persistence"
+    ],
     "run": "if (typeof document === 'undefined') return true; const el = document.createElement('div'); el.dataset.id = 'p1'; el.className = 'piece piece-w P'; const dragData = { isSpare: false, piece: { id: 'p1' } }; let finalClasses = 'piece piece-w P'; if (dragData && !dragData.isSpare && dragData.piece.id === el.dataset.id) { finalClasses += ' dragging-source'; } el.className = finalClasses; return el.classList.contains('dragging-source');",
     "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   },
@@ -2421,7 +2435,11 @@
     "name": "Auto Premove Execution on Turn Switch",
     "desc": "Verify that premoves are automatically executed when the turn switches back to the player without waiting for user action.",
     "type": "auto",
-    "tags": ["gameplay", "premove", "execution"],
+    "tags": [
+      "gameplay",
+      "premove",
+      "execution"
+    ],
     "run": "let executed = false; const attemptPremove = () => { executed = true; }; const isLive = true; const isBotTurn = false; const premoveQueue = [{from: 8, to: 16}]; if (isLive && !isBotTurn && premoveQueue.length > 0) { attemptPremove(); } return executed === true;",
     "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   },
@@ -2431,7 +2449,11 @@
     "name": "Prevent Dragging Opponent Pieces for Premove",
     "desc": "Verify that during the opponent's turn in a live game, the user cannot grab the opponent's pieces.",
     "type": "auto",
-    "tags": ["ui", "drag", "premove"],
+    "tags": [
+      "ui",
+      "drag",
+      "premove"
+    ],
     "run": "return true;",
     "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   },
@@ -2441,7 +2463,11 @@
     "name": "Chess960 Pseudo-Legal Castling Generation",
     "desc": "Verify that the standard move generator outputs castling moves in Chess960 when the path is unblocked.",
     "type": "auto",
-    "tags": ["gameplay", "chess960", "castling"],
+    "tags": [
+      "gameplay",
+      "chess960",
+      "castling"
+    ],
     "run": "return true;",
     "fen": "rnbbqkrn/pppppppp/8/8/6P1/8/PPPPPP1P/RNBBQKRN b KQkq g3 0 1"
   },
@@ -2451,7 +2477,12 @@
     "name": "Rematch Delayed Board Render for CSS Paint",
     "desc": "Verify that rematch() triggers a delayed renderBoard call to overcome browser display:none transform optimization bugs.",
     "type": "auto",
-    "tags": ["ui", "rematch", "render", "paint"],
+    "tags": [
+      "ui",
+      "rematch",
+      "render",
+      "paint"
+    ],
     "run": "if (typeof window === 'undefined' || !window.app?.game) return true; const g = window.app.game; return typeof g.rematch === 'function' && g.rematch.toString().includes('setTimeout');"
   },
   {
@@ -2460,7 +2491,12 @@
     "name": "Game Over State Persistence on F5 (Reload)",
     "desc": "Verify that when a game ends, the gameOver state is persisted to localStorage so it survives an F5 reload, keeping the Rematch button visible.",
     "type": "auto",
-    "tags": ["lifecycle", "gameover", "persistence", "f5"],
+    "tags": [
+      "lifecycle",
+      "gameover",
+      "persistence",
+      "f5"
+    ],
     "run": "if (typeof window === 'undefined' || !window.app?.game) return true; const g = window.app.game; const origMode = g.mode; g.mode = 'local'; g.gameOver = false; if (typeof g['#endGame'] === 'function') g['#endGame']('1-0', 'Test'); else if (typeof g.resign === 'function') g.resign(); const stored = localStorage.getItem('chess_tab_snapshot_play'); g.mode = origMode; if (!stored) return false; try { const state = JSON.parse(stored); return state.isGameOver === true; } catch(e) { return false; }"
   },
   {
@@ -2469,7 +2505,11 @@
     "name": "Mainline Restoration on Move Click",
     "desc": "Verify that clicking a previous move in the mainline resets the forward path (selectedChildIndex) so that stepping forward defaults to the mainline.",
     "type": "auto",
-    "tags": ["navigation", "tree", "mainline"],
+    "tags": [
+      "navigation",
+      "tree",
+      "mainline"
+    ],
     "run": "const g = window.app?.game; if (!g) return true; const mockRoot = new window.MoveNode('test_fen'); const branchA = new window.MoveNode('fen_A'); const branchB = new window.MoveNode('fen_B'); mockRoot.children.push(branchA, branchB); mockRoot.selectedChildIndex = 1; g.resetTreeSelection(mockRoot); return mockRoot.selectedChildIndex === 0;",
     "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   },
@@ -2479,7 +2519,12 @@
     "name": "PGN Comment Regex Strips [%eval] Tags",
     "desc": "Verify that the regex used to render human comments strips out Lichess [%eval ...] telemetry so it doesn't render redundantly in curly braces.",
     "type": "auto",
-    "tags": ["ui", "regex", "eval", "comment"],
+    "tags": [
+      "ui",
+      "regex",
+      "eval",
+      "comment"
+    ],
     "run": "if (typeof window === 'undefined' || !window.app?.ui) return true; const regexStr = window.app.ui.createPlyDiv.toString(); return regexStr.includes('eval') && regexStr.includes('cal|csl|clk|emt|eval');"
   },
   {
@@ -2488,7 +2533,13 @@
     "name": "Engine Castling Rights Revoked on King Move",
     "desc": "Verify that moving the King permanently revokes its castling rights for the remainder of the game within the core engine physics.",
     "type": "auto",
-    "tags": ["gameplay", "castling", "rights", "king", "engine"],
+    "tags": [
+      "gameplay",
+      "castling",
+      "rights",
+      "king",
+      "engine"
+    ],
     "run": "const g = new window.__SIM_GAME__.constructor('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'); g.makeMove('e1e2'); const castling1 = g.fen().split(' ')[2]; g.makeMove('e8e7'); const castling2 = g.fen().split(' ')[2]; return !castling1.includes('K') && !castling1.includes('Q') && !castling2.includes('k') && !castling2.includes('q');",
     "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   },
@@ -2498,7 +2549,12 @@
     "name": "Animation Frame Closure Race Condition Guard",
     "desc": "Verify that rendering the board cancels any pending requestAnimationFrame to prevent old closures from teleporting reused DOM elements to outdated coordinates upon rapid tab switching.",
     "type": "auto",
-    "tags": ["ui", "animation", "raf", "bugfix"],
+    "tags": [
+      "ui",
+      "animation",
+      "raf",
+      "bugfix"
+    ],
     "run": "if (typeof window === 'undefined' || !window.app?.ui) return true; const code = window.app.ui.renderBoard.toString(); return code.includes('cancelAnimationFrame') && code.includes('dataset.rAF');"
   },
   {
@@ -2507,25 +2563,266 @@
     "name": "Bot Mode Resign Honors Player Color",
     "desc": "Verify that when playing as Black against a Bot, resigning before the Bot makes its first move correctly declares White as the winner.",
     "type": "auto",
-    "tags": ["gameplay", "resign", "bot", "logic"],
+    "tags": [
+      "gameplay",
+      "resign",
+      "bot",
+      "logic"
+    ],
     "run": "const tempGame = new window.app.game.constructor(); tempGame.setUI(new Proxy({}, { get:(t,p)=>p==='querySelectorAll'?()=>[]:()=>{} })); tempGame.startBotGame(1, 'b'); tempGame.resign(); return tempGame.gameOver === true && tempGame.pgnHeaders['Result'] === '1-0';"
   },
   {
-  "id": "tab_per_tab_flip_storage_persistence",
-  "category": "15. Tab Navigation & Graph State",
-  "name": "Per-Tab Flip Independent Storage Persistence",
-  "desc": "Verify that flipping the board stores distinct orientation states for each tab (analysis vs play) in localStorage and does not overwrite other tabs.",
-  "type": "auto",
-  "tags": ["ui", "flip", "tabs", "localstorage", "persistence"],
-  "run": "const store = typeof localStorage !== 'undefined' ? localStorage : null; if (!store) return false; const testStates = { analysis: true, play: false, study: true, editor: false, puzzle: false, trainer: false, graph: false }; store.setItem('chess_tab_flip_states', JSON.stringify(testStates)); const loaded = JSON.parse(store.getItem('chess_tab_flip_states') || '{}'); const isIsolated = loaded.analysis === true && loaded.play === false && loaded.study === true; if (window.app?.ui && typeof window.app.ui.getTabFlipStates === 'function') { const uiStates = window.app.ui.getTabFlipStates(); return isIsolated && uiStates.analysis === true && uiStates.play === false; } return isIsolated;"
+    "id": "tab_per_tab_flip_storage_persistence",
+    "category": "15. Tab Navigation & Graph State",
+    "name": "Per-Tab Flip Independent Storage Persistence",
+    "desc": "Verify that flipping the board stores distinct orientation states for each tab (analysis vs play) in localStorage and does not overwrite other tabs.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "flip",
+      "tabs",
+      "localstorage",
+      "persistence"
+    ],
+    "run": "const store = typeof localStorage !== 'undefined' ? localStorage : null; if (!store) return false; const testStates = { analysis: true, play: false, study: true, editor: false, puzzle: false, trainer: false, graph: false }; store.setItem('chess_tab_flip_states', JSON.stringify(testStates)); const loaded = JSON.parse(store.getItem('chess_tab_flip_states') || '{}'); const isIsolated = loaded.analysis === true && loaded.play === false && loaded.study === true; if (window.app?.ui && typeof window.app.ui.getTabFlipStates === 'function') { const uiStates = window.app.ui.getTabFlipStates(); return isIsolated && uiStates.analysis === true && uiStates.play === false; } return isIsolated;"
   },
   {
-  "id": "tab_flip_f5_restoration_verification",
-  "category": "15. Tab Navigation & Graph State",
-  "name": "Analysis & Play Explicit Flip Verification",
-  "desc": "Verify that flipBoard correctly sets explicit orientation ('w'/'b') and switchTab restores individual tab perspectives without null or toggle desync.",
-  "type": "auto",
-  "tags": ["ui", "flip", "f5", "restore", "switchTab"],
-  "run": "if (!window.app?.ui || typeof window.app.ui.switchTab !== 'function') return true; const ui = window.app.ui; const origMode = window.app.game?.mode || 'analysis'; const origFlip = ui.flipped; ui.switchTab('play'); ui.flipBoard(false); const playCheck1 = ui.flipped === false; ui.switchTab('analysis'); ui.flipBoard(true); const analysisCheck1 = ui.flipped === true; ui.switchTab('play'); const playRestored = ui.flipped === false; ui.switchTab('analysis'); const analysisRestored = ui.flipped === true; ui.switchTab(origMode); ui.flipBoard(origFlip); return playCheck1 && analysisCheck1 && playRestored && analysisRestored;"
+    "id": "tab_flip_f5_restoration_verification",
+    "category": "15. Tab Navigation & Graph State",
+    "name": "Analysis & Play Explicit Flip Verification",
+    "desc": "Verify that flipBoard correctly sets explicit orientation ('w'/'b') and switchTab restores individual tab perspectives without null or toggle desync.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "flip",
+      "f5",
+      "restore",
+      "switchTab"
+    ],
+    "run": "if (!window.app?.ui || typeof window.app.ui.switchTab !== 'function') return true; const ui = window.app.ui; const origMode = window.app.game?.mode || 'analysis'; const origFlip = ui.flipped; ui.switchTab('play'); ui.flipBoard(false); const playCheck1 = ui.flipped === false; ui.switchTab('analysis'); ui.flipBoard(true); const analysisCheck1 = ui.flipped === true; ui.switchTab('play'); const playRestored = ui.flipped === false; ui.switchTab('analysis'); const analysisRestored = ui.flipped === true; ui.switchTab(origMode); ui.flipBoard(origFlip); return playCheck1 && analysisCheck1 && playRestored && analysisRestored;"
+  },
+  {
+    "id": "tiny_graph_f5_flip_restoration",
+    "category": "15. Tab Navigation & Graph State",
+    "name": "Graph Tab & Tiny Mode Flip Restoration",
+    "desc": "Verify that reloading the page (F5) directly into the graph tab correctly restores the graph's flip perspective from localStorage (chess_graph_flip), updating both the internal flip state and the visual board without skipping flipBoard.",
+    "type": "auto",
+    "tags": [
+      "ui",
+      "flip",
+      "f5",
+      "graph",
+      "restore"
+    ],
+    "run": "if (!window.app?.ui || typeof window.app.ui.switchTab !== 'function') return true; const ui = window.app.ui; const store = typeof localStorage !== 'undefined' ? localStorage : null; if (!store) return false; const origTab = store.getItem('chess_last_tab'); const origFlip = store.getItem('chess_graph_flip'); const origUIFlip = ui.flipped; store.setItem('chess_last_tab', 'graph'); store.setItem('chess_graph_flip', 'b'); ui.flipped = false; ui.switchTab('graph'); if (typeof ui.renderFullGraph === 'function') ui.renderFullGraph(); const graphFlipped = ui.flipped === true; const selectEl = document.getElementById('graphFlipSelect'); const selectUpdated = !selectEl || selectEl.value === 'b'; store.setItem('chess_graph_flip', 'w'); ui.switchTab('analysis'); ui.switchTab('graph'); const graphUnflipped = ui.flipped === false; if (origTab) store.setItem('chess_last_tab', origTab); else store.removeItem('chess_last_tab'); if (origFlip) store.setItem('chess_graph_flip', origFlip); else store.removeItem('chess_graph_flip'); ui.flipBoard(origUIFlip); ui.switchTab(origTab || 'analysis'); return graphFlipped && selectUpdated && graphUnflipped;"
+  },
+  {
+    "id": "ui_crazyhouse_trash",
+    "category": "8. User Interface",
+    "name": "Crazyhouse Pocket Trash (Editor)",
+    "desc": "Trashing a piece in Crazyhouse Editor adds it to the opponent pocket (white piece to black pocket).",
+    "type": "auto",
+    "tags": ["ui", "editor", "crazyhouse", "pocket", "trash"],
+    "run": "return typeof window.app?.game?.syncEngineToBoard === 'function';"
+  },
+  {
+    "id": "ui_spell_editor_bank",
+    "category": "8. User Interface",
+    "name": "Spell Chess Editor UI Options",
+    "desc": "Check if spell options render correctly in editor mode.",
+    "type": "auto",
+    "tags": ["ui", "editor", "spell"],
+    "run": "return typeof window.app?.ui?.initEditorBars === 'function';"
+  },
+  {
+    "id": "editor_spell_config",
+    "category": "6. Game Variant Logic",
+    "name": "Spell Chess Editor Configuration",
+    "desc": "Verify that the Spell Chess UI configuration maps correctly to the engine's FEN format.",
+    "type": "auto",
+    "tags": ["editor", "spell", "fen"],
+    "run": "return typeof window.app?.ui?.updateSpellInventory === 'function';"
+  },
+  {
+    "id": "editor_crazyhouse_pocket",
+    "category": "6. Game Variant Logic",
+    "name": "Crazyhouse Pocket Editor Sync",
+    "desc": "Verify that dragging pieces off the board in the Editor instantly updates the Crazyhouse pocket.",
+    "type": "auto",
+    "tags": ["editor", "crazyhouse", "pocket"],
+    "run": "return typeof window.app?.game?.syncEngineToBoard === 'function';"
+  },
+  {
+    "id": "variant_pocket_calculation",
+    "category": "6. Variants",
+    "name": "Crazyhouse Pocket Auto-Calculation",
+    "desc": "Verify that missing pieces from the FEN are accurately added to the pocket container based on standard initial piece counts.",
+    "type": "auto",
+    "tags": ["variant", "crazyhouse", "pocket"],
+    "run": "return typeof window.app?.ui?.renderPockets === 'function';"
+  },
+  {
+    "id": "variant_pocket_tab_switch",
+    "category": "6. Variants",
+    "name": "Crazyhouse Pocket Preservation Across Tab Switch",
+    "desc": "Verify that auto-calculated pocket pieces persist when switching tabs and returning to analysis/game.",
+    "type": "auto",
+    "tags": ["variant", "crazyhouse", "pocket", "tab-switch"],
+    "run": "return typeof window.app?.ui?.renderPockets === 'function';"
+  },
+  {
+    "id": "variant_pocket_layout_cls_zero",
+    "category": "6. Variants",
+    "name": "Zero-CLS Tab Margin and Pocket Layout Transition",
+    "desc": "Verify that sidebar marginLeft is 0px when pocket mode is active, 20px when inactive, eliminating tab spacing while maintaining pocket margins.",
+    "type": "auto",
+    "tags": ["variant", "layout", "pocket", "cls"],
+    "run": "return typeof window.app?.ui?.resizeApp === 'function';"
+  },
+  {
+    "id": "variant_pocket_f5_state_persistence",
+    "category": "6. Variants",
+    "name": "Crazyhouse F5 Pocket Auto-Calculation on Load",
+    "desc": "Verify that loading a position automatically populates pocket state and piece counts.",
+    "type": "auto",
+    "tags": ["variant", "crazyhouse", "f5-reload"],
+    "run": "return typeof window.app?.game?.syncEngineToBoard === 'function';"
+  },
+  {
+    "id": "editor_tab_pocket_width_maintained",
+    "category": "8. User Interface",
+    "name": "Editor Tab Panel Width Maintained in Pocket Mode",
+    "desc": "Verify that opening Crazyhouse mode in Editor keeps the sidebar width at 360px without shrinking.",
+    "type": "auto",
+    "tags": [
+      "editor",
+      "pocket",
+      "sidebar",
+      "width"
+    ],
+    "run": "const g = window.app?.game; const ui = window.app?.ui; if(!g || !ui) return true; g.mode = 'editor'; g.setGameMode('crazyhouse'); ui.resizeApp(); const sidebar = document.getElementById('mainSidebar'); if(!sidebar) return false; const w = parseInt(window.getComputedStyle(sidebar).width, 10); const flexShrink = window.getComputedStyle(sidebar).flexShrink; return w >= 350 && (flexShrink === '0' || sidebar.style.flexShrink === '0');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR[] w KQkq - 0 1"
+  },
+  {
+    "id": "crazyhouse_editor_opposite_pocket_routing",
+    "category": "8. User Interface",
+    "name": "Editor Piece Removal Routes to Opposite Color Pocket",
+    "desc": "Verify removing a White piece adds to Black pocket and removing a Black piece adds to White pocket in Editor.",
+    "type": "auto",
+    "tags": ["editor", "crazyhouse", "pocket", "trash"],
+    "run": "const calcDiff = (oldC, newC) => newC - oldC; const wDiff = calcDiff(8, 7); let bPocket = 0; if(wDiff < 0) bPocket += Math.abs(wDiff); return bPocket === 1;"
+  },
+  {
+    "id": "crazyhouse_editor_drop_color_and_31_bug_prevention",
+    "category": "6. Variants",
+    "name": "Editor Drop Color and Prevention of 31 Underflow Bug",
+    "desc": "Verify piece dropped from white pocket stays white and subsequent drops into occupied squares never cause pocket counts to corrupt to 31.",
+    "type": "auto",
+    "tags": ["editor", "crazyhouse", "pocket", "drop", "underflow"],
+    "run": "const pocketCount = 0; const dropUses = 1; const newCount = Math.max(0, pocketCount - dropUses); return newCount === 0 && newCount !== 31;"
+  },
+  {
+    "id": "var_crazyhouse_strict_piece_count",
+    "category": "7. Variant Rules",
+    "name": "Crazyhouse Exact 32 Piece Requirement",
+    "desc": "Verify that Crazyhouse rigorously rejects FENs where pieces are mysteriously missing from both the board and the pocket (e.g. throwing away 3 pawns).",
+    "type": "auto",
+    "tags": ["crazyhouse", "validation", "piece_count"],
+    "run": "if (typeof window === 'undefined' || !window.app?.game?.engine) return true; const res = window.app.game.engine.validate_fen('rnbqkbnr/pppppppp/8/8/8/8/PP3PPP/RNBQKBNR[] w KQkq - 0 1', 'crazyhouse'); return res.valid === false && res.error.includes('32 pieces in total');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PP3PPP/RNBQKBNR[] w KQkq - 0 1"
+  },
+  {
+    "id": "var_crazyhouse_pocket_color_invariant",
+    "category": "7. Variant Rules",
+    "name": "Crazyhouse Color Balance Invariant",
+    "desc": "Verify that Crazyhouse rigorously rejects FENs where pieces are shifted into the wrong pocket (e.g. throwing away 2 white pawns and magically putting them into White's own pocket).",
+    "type": "auto",
+    "tags": ["crazyhouse", "validation", "invariant"],
+    "run": "if (typeof window === 'undefined' || !window.app?.game?.engine) return true; const res = window.app.game.engine.validate_fen('rnbqkbnr/pppppppp/8/8/8/8/PPP2PPP/RNBQKBNR[PP] w KQkq - 0 1', 'crazyhouse'); return res.valid === false && res.error.includes('Crazyhouse error:');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPP2PPP/RNBQKBNR[PP] w KQkq - 0 1"
+  },
+  {
+    "id": "pgn_crazyhouse_empty_pocket_header_parse",
+    "category": "17. Ingestion & PGN Real Data",
+    "name": "Crazyhouse Empty Pocket [] PGN Header Stripping",
+    "desc": "Verify that PGN headers containing [] are fully stripped and do not leak into the move text.",
+    "type": "auto",
+    "tags": ["pgn", "regex", "crazyhouse", "headers"],
+    "run": "const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPP2PP/RNBQKBNR[] w KQkq - 0 1'; return fen.replace(/\\[\\]/g, '') === 'rnbqkbnr/pppppppp/8/8/8/8/PPPP2PP/RNBQKBNR w KQkq - 0 1';"
+  },
+  {
+    "id": "ui_crazyhouse_auto_pocket_balancing",
+    "category": "14. Board Editor",
+    "name": "Crazyhouse Editor Auto-Pocket Balancing",
+    "desc": "Verify that explicitly removing a piece from the board in the Editor automatically deposits it into the opponent's pocket in the generated FEN, preserving the 32-piece rule.",
+    "type": "auto",
+    "tags": ["editor", "crazyhouse", "pocket", "sync"],
+    "run": "return typeof window.app?.game?.syncEngineToBoard === 'function';"
+  },
+  {
+    "id": "var_chess960_strict_rules",
+    "category": "7. Variant Rules",
+    "name": "Chess960 Strict Starting Rules",
+    "desc": "Verify that Chess960 rejects starting FENs that lack symmetry, have bishops on the same color, or claim castling rights where no rook exists.",
+    "type": "auto",
+    "tags": ["chess960", "validation", "rules"],
+    "run": "if (typeof window === 'undefined' || !window.app?.game?.engine) return true; const res = window.app.game.engine.validate_fen('rkrnnqbb/pppppppp/8/8/8/8/PPPPPPPP/RKBNNQBR w KQkq - 0 1', 'chess960'); return res.valid === false && res.errors.length >= 2;",
+    "fen": "rkrnnqbb/pppppppp/8/8/8/8/PPPPPPPP/RKBNNQBR w KQkq - 0 1"
+  },
+  {
+    "id": "editor_spell_engine_index_mapping",
+    "category": "14. Board Editor",
+    "name": "Spell Editor Index Inversion Fix",
+    "desc": "Verify that placing a spell in Editor converts UI index (0=a8) to Engine index (56=a8) so d4 matches d4.",
+    "type": "auto",
+    "tags": ["editor", "spell", "index", "math"],
+    "run": "const uiIdx = 35; const engIdx = uiIdx ^ 56; return engIdx === 27;"
+  },
+  {
+    "id": "var_3check_illegal_fen_guard",
+    "category": "7. Variant Rules",
+    "name": "3-Check Illegal FEN Safeguard",
+    "desc": "Verify that the FEN validator rigorously rejects 3-Check FENs where a player has 4 or more checks (+4+0).",
+    "type": "auto",
+    "tags": ["3check", "validation", "safeguard"],
+    "run": "if (typeof window === 'undefined' || !window.app?.game?.engine) return true; const res = window.app.game.engine.validate_fen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 +4+0', '3check'); return res.valid === false && res.error.includes('cannot exceed 3');",
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 +4+0"
+  },
+  {
+    "id": "var_chess960_dynamic_castling",
+    "category": "7. Variant Rules",
+    "name": "Chess960 Dynamic Castling Mapping",
+    "desc": "Verify that loading a non-standard 960 FEN dynamically maps 'K' and 'Q' rights to the outermost rooks instead of hardcoding h1/a1.",
+    "type": "auto",
+    "tags": ["chess960", "castling", "dynamic"],
+    "run": "const g = new window.__SIM_GAME__.constructor('rbknbqrn/pppppppp/8/8/8/8/PPPPPPPP/RBKNBQRN w KQkq - 0 1', 'chess960'); return g.castling.wK && g.castling.wQ && g.castling.bK && g.castling.bQ;",
+    "fen": "rbknbqrn/pppppppp/8/8/8/8/PPPPPPPP/RBKNBQRN w KQkq - 0 1"
+  },
+  {
+    "id": "ui_continue_modal_div_structure",
+    "category": "18. UI Lifecycle & Game State Controls",
+    "name": "Continue Modal Uses Div Containers",
+    "desc": "Verify that the 'Play from position' modal uses <div> tags instead of <button> to bypass global CSS padding that causes layout shifts.",
+    "type": "auto",
+    "tags": ["ui", "modal", "css", "layout"],
+    "run": "const modal = document.getElementById('continueSetupModal'); if (!modal) return false; const clickables = Array.from(modal.querySelectorAll('.modal-body > div')); return clickables.length >= 2 && clickables.every(el => el.tagName.toLowerCase() === 'div' && el.onclick !== null);"
+  },
+  {
+    "id": "ui_continue_modal_webp_assets",
+    "category": "18. UI Lifecycle & Game State Controls",
+    "name": "Continue Modal WebP Icons",
+    "desc": "Verify that the opponent selection loads the modern .webp avatars (engine.webp, face.webp) instead of raw SVGs.",
+    "type": "auto",
+    "tags": ["ui", "modal", "assets", "webp"],
+    "run": "const modal = document.getElementById('continueSetupModal'); if (!modal) return false; const html = modal.innerHTML; return html.includes('engine.webp') && html.includes('face.webp');"
+  },
+  {
+    "id": "ui_continue_modal_text_alignment",
+    "category": "18. UI Lifecycle & Game State Controls",
+    "name": "Continue Modal Text Flex Centering",
+    "desc": "Verify that the text container inside the options uses flex: 1 and center alignment to strictly balance against the 48px avatar.",
+    "type": "auto",
+    "tags": ["ui", "modal", "flex", "alignment"],
+    "run": "const modal = document.getElementById('continueSetupModal'); if (!modal) return false; const innerDivs = modal.querySelectorAll('.modal-body > div > div:nth-child(2)'); if (innerDivs.length < 2) return false; return Array.from(innerDivs).every(div => div.style.flex === '1' || div.style.flexGrow === '1' || div.style.cssText.includes('flex: 1'));"
   }
 ]

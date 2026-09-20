@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://gnu.org>.
  */
-import {INITIAL_FEN,FILES, RANKS, ICON_BOOK_SVG, SETTINGS_ICON_IMG, VARIANT_STARTING_FENS, nnueMap,ISO_TO_COUNTRY_NAME,NAG_MAP } from './constants.js';
+import {INITIAL_FEN,FILES, RANKS, ICON_BOOK_SVG, SETTINGS_ICON_IMG, VARIANT_STARTING_FENS, nnueMap,ISO_TO_COUNTRY_NAME,NAG_MAP, CHESS960_FENS } from './constants.js';
 import { MoveNode } from './MoveNode.js';
 export const EV_UPDATE_BOARD = 1;
 export const EV_ANIMATE = 2;
@@ -44,7 +44,6 @@ export class ChessGame {
         this.#timerInterval = null;
         this.#_isBooting = true;
         this.gameMode = (typeof localStorage !== 'undefined' ? localStorage.getItem('chess_last_variant') : 'classical') || 'classical';
-        
         this.mode = 'analysis'; 
         
         if (this.#engine && typeof this.#engine.setGameMode === 'function') {
@@ -70,25 +69,6 @@ export class ChessGame {
         this.currentStudyId = 'default';
         this.allStudies = [];
 
-        this.loadAllStudies();
-
-        if (this.allStudies && this.allStudies.length > 0) {
-            let activeStudy = this.allStudies.find(s => s.id === (this.currentStudyId || 'default')) || this.allStudies[0];
-            if (activeStudy && activeStudy.chapters && activeStudy.chapters.length > 0) {
-                this.currentStudyId = activeStudy.id;
-                this.studyTitle = activeStudy.title || "My Lichess Study";
-                this.chapters = activeStudy.chapters; 
-                this.activeChapterIndex = activeStudy.activeChapterIndex || 0;
-            }
-        }
-
-        setTimeout(() => {
-            this.#_isBooting = false; 
-            if (this.#ui && typeof this.#ui.renderChapters === 'function') {
-                this.#ui.renderChapters();
-            }
-        }, 150);
-
         this._internalMode = 'analysis'; 
         this.gameOver = false;
         this.isPaused = false;
@@ -105,7 +85,26 @@ export class ChessGame {
         this.premoveQueue = [];
         this.premoveMode = 'multi';
         this.lastMoveTime = Date.now();
+        
         this.loadFEN(startingFen);
+
+        setTimeout(() => {
+            this.loadAllStudies();
+            if (this.allStudies && this.allStudies.length > 0) {
+                let activeStudy = this.allStudies.find(s => s.id === (this.currentStudyId || 'default')) || this.allStudies[0];
+                if (activeStudy && activeStudy.chapters && activeStudy.chapters.length > 0) {
+                    this.currentStudyId = activeStudy.id;
+                    this.studyTitle = activeStudy.title || "My Lichess Study";
+                    this.chapters = activeStudy.chapters; 
+                    this.activeChapterIndex = activeStudy.activeChapterIndex || 0;
+                }
+            }
+
+            this.#_isBooting = false; 
+            if (this.#ui && typeof this.#ui.renderChapters === 'function') {
+                this.#ui.renderChapters();
+            }
+        }, 50); 
     }
 on(eventName, callback) {
         this.#callbacks[eventName] = callback;
@@ -3151,9 +3150,9 @@ saveState(stateName, immediate = false) {
 restoreState(stateName) { return this.#restoreState(stateName); }
 squareToIndex(sq) { return this.#squareToIndex(sq); }
 indexToSquare(idx) { return this.#indexToSquare(idx); }
-validateFen(fen) {
+validateFen(fen, modeOverride) {
         if (!this.#engine) return { valid: false, error: 'Engine not loaded' };
-        return this.#engine.validate_fen(fen);
+        return this.#engine.validate_fen(fen, modeOverride);
     }
 switchMode(targetMode) {
         this.#changeMode(targetMode);
@@ -3212,7 +3211,7 @@ switchToAnalysis() {
             }
         }
     }
-editBoard(idx, piece) {
+editBoard(idx, piece, preventSync = false) {
         if (this.mode !== 'editor') return;
         
         let finalPiece = null;
@@ -3225,19 +3224,79 @@ editBoard(idx, piece) {
 
         this.#board[idx] = finalPiece;
         
-        if (typeof this.syncEngineToBoard === 'function') this.syncEngineToBoard();
-        if (typeof this.generateFEN === 'function') {
-            const newFen = this.generateFEN();
-            if (this.currentNode) this.currentNode.fen = newFen;
-            
+        if (!preventSync) {
+            if (typeof this.syncEngineToBoard === 'function') this.syncEngineToBoard();
+            if (typeof this.generateFEN === 'function') {
+                const newFen = this.generateFEN();
+                if (this.currentNode) this.currentNode.fen = newFen;
+                
             // Just update the FEN header natively
+                if (!this.pgnHeaders) this.pgnHeaders = {};
+                this.pgnHeaders['FEN'] = newFen;
+                this.pgnHeaders['SetUp'] = '1';
+
+                if (this.#ui && typeof this.#ui.setFenInput === 'function') this.#ui.setFenInput(newFen);
+                if (typeof localStorage !== 'undefined') localStorage.setItem('chess_state_editor_fen', newFen);
+            }
+        }
+    }
+editSpell(tool, idx) {
+        if (this.mode !== 'editor' || this.gameMode !== 'spell') return false;
+        
+        let currFen = this.generateFEN();
+        let spellMatch = currFen.match(/\[S:([^\]]+)\]/);
+        let p = spellMatch ? spellMatch[1].split(',') : "0,0,0,0,5,2,5,2,-1,0,-1,0,-1,0,-1,0".split(',');
+        
+        let changed = false;
+        let engIdx = idx ^ 56; 
+
+        if (tool === 'trash') {
+            [8, 10, 12, 14].forEach((sqIdx, i) => {
+                if (parseInt(p[sqIdx], 10) === engIdx) {
+                    p[sqIdx] = "-1";
+                    p[sqIdx+1] = "0";
+                    let useIdx = [4, 6, 5, 7][i]; 
+                    p[useIdx] = Math.min(9, parseInt(p[useIdx], 10) + 1).toString(); // Hoàn lại 1 bùa
+                    changed = true;
+                }
+            });
+            if (!changed) return false;
+        } else {
+            let updateS = (sqIdx, tmIdx, useIdx) => {
+                if (parseInt(p[sqIdx], 10) === engIdx) {
+                    p[sqIdx] = "-1"; 
+                    p[sqIdx+1] = "0";
+                    p[useIdx] = Math.min(9, parseInt(p[useIdx], 10) + 1).toString(); // Rút bùa -> Cấp lại 1
+                } else {
+                    p[sqIdx] = engIdx.toString();
+                    p[sqIdx+1] = "2"; 
+                    p[useIdx] = Math.max(0, parseInt(p[useIdx], 10) - 1).toString(); // Cắm bùa -> Trừ đi 1
+                }
+                changed = true;
+            };
+
+            if (tool === 'w_freeze') updateS(8, 9, 4);
+            else if (tool === 'b_freeze') updateS(10, 11, 6);
+            else if (tool === 'w_jump') updateS(12, 13, 5);
+            else if (tool === 'b_jump') updateS(14, 15, 7);
+        }
+
+        if (changed) {
+            let newSpellBlock = `[S:${p.join(',')}]`;
+            let newFen = spellMatch ? currFen.replace(/\[S:[^\]]+\]/, newSpellBlock) : currFen + " " + newSpellBlock;
+            
+            this.loadFEN(newFen, 'spell', true);
+            if (this.currentNode) this.currentNode.fen = newFen;
             if (!this.pgnHeaders) this.pgnHeaders = {};
             this.pgnHeaders['FEN'] = newFen;
-            this.pgnHeaders['SetUp'] = '1';
-
+            
             if (this.#ui && typeof this.#ui.setFenInput === 'function') this.#ui.setFenInput(newFen);
-            if (typeof localStorage !== 'undefined') localStorage.setItem('chess_state_editor_fen', newFen);
+            if (typeof this.syncEngineToBoard === 'function') this.syncEngineToBoard();
+            
+            if (this.#ui && typeof this.#ui.syncEditorHTMLWithGame === 'function') this.#ui.syncEditorHTMLWithGame(true);
+            return true;
         }
+        return false;
     }
 toggleArrow(from, to, color) { 
         if (!this.currentNode) return; 
@@ -3395,7 +3454,7 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
             const confirmReset = confirm(`You are leaving a Suspended Variant (${oldMode.toUpperCase()}).\nBecause it runs in isolated memory, your current board will be permanently lost.\n\nContinue?`);
             
             if (!confirmReset) {
-                if (typeof document !== 'undefined') {
+                if (typeof document !== 'undefined' && this.#ui) {
                     const select = this.#ui.getElement('analysisVariantSelect');
                     if (select) select.value = oldMode;
                     const gSelect = this.#ui.getElement('graphVariantSelect');
@@ -3437,7 +3496,7 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
                 localStorage.setItem('chess_tab_snapshot_analysis', JSON.stringify(this.tabMemory['analysis']));
             }
 
-            if (typeof document !== 'undefined') {
+            if (typeof document !== 'undefined' && this.#ui) {
                 const aSel = this.#ui.getElement('analysisVariantSelect');
                 if (aSel) aSel.value = mode;
                 const gSel = this.#ui.getElement('graphVariantSelect');
@@ -3521,7 +3580,7 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
                 }
             }
 
-            if (typeof document !== 'undefined') {
+            if (typeof document !== 'undefined' && this.#ui) {
                 const aSel = this.#ui.getElement('analysisVariantSelect');
                 if (aSel) aSel.value = mode;
                 const gSel = this.#ui.getElement('graphVariantSelect');
@@ -3548,7 +3607,7 @@ setGameMode(mode, isInitialLoad = false, skipStorage = false) {
                 this.#ui.showNotification(`${mode} engine crashed. Reverting to Classical.`, 'Variant Error', '⚠️');
             }
             
-            if (typeof document !== 'undefined') {
+            if (typeof document !== 'undefined' && this.#ui) {
                 const select = this.#ui.getElement('analysisVariantSelect');
                 if (select) select.value = 'classical';
                 const gSelect = this.#ui.getElement('graphVariantSelect');
@@ -4923,13 +4982,10 @@ syncEngineToBoard() {
             let empty = 0;
             for (let c = 0; c < 8; c++) {
                 let p = this.#board[r * 8 + c];
-                if (!p) { empty++; } else {
+                if (!p) empty++;
+                else {
                     if (empty > 0) { pieceFen += empty; empty = 0; }
-                    if (p.type === 'duck') {
-                        pieceFen += '*';
-                    } else {
-                        pieceFen += (p.color === 'w' ? p.type.toUpperCase() : p.type.toLowerCase());
-                    }
+                    pieceFen += p.type === 'duck' ? '*' : (p.color === 'w' ? p.type.toUpperCase() : p.type.toLowerCase());
                 }
             }
             if (empty > 0) pieceFen += empty;
@@ -4937,6 +4993,41 @@ syncEngineToBoard() {
         }
 
         let currEngineFen = this.#engine.fen().split(' ');
+        let oldBoardFen = currEngineFen[0].split('[')[0];
+        let oldPocketStr = currEngineFen[0].match(/\[(.*?)\]/);
+        oldPocketStr = oldPocketStr ? oldPocketStr[1] : "";
+
+        let wPocket = { p:0, n:0, b:0, r:0, q:0 };
+        let bPocket = { p:0, n:0, b:0, r:0, q:0 };
+        for (let char of oldPocketStr) {
+            let lower = char.toLowerCase();
+            if (char < 'a') wPocket[lower]++;
+            else bPocket[lower]++;
+        }
+
+        let countBoard = (fenStr) => {
+            let counts = { w: {p:0,n:0,b:0,r:0,q:0,k:0}, b: {p:0,n:0,b:0,r:0,q:0,k:0} };
+            for (let char of fenStr) {
+                if (char === '/' || /\d/.test(char) || char === '~' || char === '*') continue;
+                let color = char < 'a' ? 'w' : 'b';
+                counts[color][char.toLowerCase()]++;
+            }
+            return counts;
+        };
+
+        let oldBoardCounts = countBoard(oldBoardFen);
+        let newBoardCounts = countBoard(pieceFen);
+
+        for (let type of ['p','n','b','r','q']) {
+            let wDiff = newBoardCounts.w[type] - oldBoardCounts.w[type];
+            let bDiff = newBoardCounts.b[type] - oldBoardCounts.b[type];
+
+            if (wDiff > 0) wPocket[type] = Math.max(0, wPocket[type] - wDiff);
+            if (wDiff < 0) bPocket[type] += Math.abs(wDiff);
+
+            if (bDiff > 0) bPocket[type] = Math.max(0, bPocket[type] - bDiff);
+            if (bDiff < 0) wPocket[type] += Math.abs(bDiff);
+        }
 
         if (typeof document !== 'undefined') {
             let editorState = (this.#ui && typeof this.#ui.getEditorInputs === 'function') ? this.#ui.getEditorInputs() : null;
@@ -4956,41 +5047,33 @@ syncEngineToBoard() {
         let fen = pieceFen;
         
         if (this.gameMode === 'crazyhouse' || this.gameMode === 'bughouse' || this.gameMode === 'placement') {
-            const pocketMatch = currEngineFen[0].match(/\[.*?\]/);
-            if (pocketMatch) fen += pocketMatch[0];
+            let newPocketStr = "";
+            for (let type of ['q','r','b','n','p']) {
+                if (wPocket[type] > 0) newPocketStr += type.toUpperCase().repeat(wPocket[type]);
+                if (bPocket[type] > 0) newPocketStr += type.repeat(bPocket[type]);
+            }
+            fen += "[" + newPocketStr + "]";
         }
 
         fen += " " + (this.turn || 'w') + " " + castlingStr;
         fen += ` ${currEngineFen[3] || '-'} ${currEngineFen[4] || '0'} ${currEngineFen[5] || '1'}`; 
-
-        for (let i = 6; i < currEngineFen.length; i++) {
-            fen += ` ${currEngineFen[i]}`;
-        }
+        for (let i = 6; i < currEngineFen.length; i++) fen += ` ${currEngineFen[i]}`;
 
         if (fen === this.#engine.fen()) return;
 
         try {
             this.#engine.load(fen);
-
-            if (this.currentNode) {
-                this.currentNode.fen = fen;
-                this.currentNode.children = []; 
-            } else {
-                this.rootNode = new MoveNode(fen, null);
-                this.currentNode = this.rootNode;
-            }
+            if (this.currentNode) { this.currentNode.fen = fen; this.currentNode.children = []; } 
+            else { this.rootNode = new MoveNode(fen, null); this.currentNode = this.rootNode; }
             
             if (typeof window !== 'undefined' && this.#ui) {
                 if (this.#ui && typeof this.#ui.updateEditorInputs === 'function') this.#ui.updateEditorInputs(); else this.#emit('updateFenInput', fen);
-                
                 if (typeof this.#ui.updateHistory === 'function') {
                     if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
                     this.#ui.updateHistory(true);
                 }
             }
-        } catch (e) {
-            console.error("Sync Engine Failed:", e);
-        }
+        } catch (e) { console.error("Sync Engine Failed:", e); }
     }
 loadFEN(fen, gameMode = null, isLoadMode = false) {
         if (!fen) return false;
@@ -5089,17 +5172,20 @@ loadFEN(fen, gameMode = null, isLoadMode = false) {
         return true;
     }
 loadNewPosition(fen, explicitMode = null) {
-        if (!fen) return;
+        if (!fen) return false;
         let targetMode = explicitMode || this.gameMode || 'classical';
-        if (typeof this.#engine.setGameMode === 'function') this.#engine.setGameMode(targetMode);
-        this.gameMode = targetMode;
 
-        const validation = this.#engine.validate_fen(fen);
+        const validation = this.#engine.validate_fen(fen, targetMode);
+        
         if (!validation.valid) {
             if (this.#ui) this.#ui.showNotification("Invalid FEN for " + targetMode + ": " + validation.error, "Error", "⚠️");
             this.#emit('soundTriggered', { type: 'error' });
-            return; 
+            return false;
         }
+
+        if (typeof this.#engine.setGameMode === 'function') this.#engine.setGameMode(targetMode);
+        this.gameMode = targetMode;
+        this._originalPgn = null;
 
         this.rootNode = new MoveNode(fen, null);
         this.currentNode = this.rootNode;
@@ -5127,6 +5213,8 @@ loadNewPosition(fen, explicitMode = null) {
             this.gameOver = false;
             if (typeof this.#saveState === 'function') this.#saveState('analysis');
         }
+
+        return true;
     }
 generateFEN() {
 return this.#engine.fen();
@@ -5558,7 +5646,7 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 this.setGameMode(detectedMode, false, true);
             }
 
-            if (typeof document !== 'undefined') {
+            if (typeof document !== 'undefined' && this.#ui) {
                 const variantSelect = this.#ui.getElement('analysisVariantSelect');
                 if (variantSelect) variantSelect.value = this.gameMode;
             }
@@ -5664,7 +5752,7 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             }
 
             let moveTextRaw = pgn
-                .replace(/\[(?!\s*%)\s*[A-Za-z0-9_]+[^\]]*\]/g, '')
+                .replace(/\[(?!\s*\%)\s*[A-Za-z0-9_]+\s+"[^"]*"\s*\]/g, '')
                 .replace(/^(from|site|date|event|link|url):\s*\S+/gim, '')
                 .replace(/https?:\/\/\S+/gi, '')
                 .trim();
@@ -6539,30 +6627,20 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
     return result;
 }
 generateChess960FEN() {
-        let pieces = Array(8).fill('');
+        let spId = null;
+        if (this.#ui && typeof this.#ui.getChess960SP === 'function') {
+            spId = this.#ui.getChess960SP();
+        }
         
-        // 1. Bishops (Must be on opposite colors)
-        let darkIdx = (Math.floor(Math.random() * 4) * 2) + 1; // 1, 3, 5, 7
-        let lightIdx = (Math.floor(Math.random() * 4) * 2);    // 0, 2, 4, 6
-        pieces[darkIdx] = 'b';
-        pieces[lightIdx] = 'b';
-        
-        let empty = () => pieces.map((p, i) => p === '' ? i : -1).filter(i => i !== -1);
-        
-        // 2. Queen and Knights
-        pieces[empty()[Math.floor(Math.random() * empty().length)]] = 'q';
-        pieces[empty()[Math.floor(Math.random() * empty().length)]] = 'n';
-        pieces[empty()[Math.floor(Math.random() * empty().length)]] = 'n';
-        
-        // 3. Rooks and King (Must fall strictly in R-K-R order)
-        let finalEmpty = empty();
-        pieces[finalEmpty[0]] = 'r';
-        pieces[finalEmpty[1]] = 'k';
-        pieces[finalEmpty[2]] = 'r';
-        
-        const backRank = pieces.join('');
-        // Returns the formatted FEN string. Standard KQkq is accepted by most engines.
-        return `${backRank.toLowerCase()}/pppppppp/8/8/8/8/PPPPPPPP/${backRank.toUpperCase()} w KQkq - 0 1`;
+        if (spId === null || isNaN(spId) || spId < 0 || spId > 959) {
+            spId = Math.floor(Math.random() * 960);
+            if (typeof document !== 'undefined') {
+                document.querySelectorAll('.sp-input').forEach(inp => {
+                    inp.value = spId;
+                });
+            }
+        }
+        return CHESS960_FENS[spId];
     }
 startLocalGame(startFen = null) {
         console.group(`🚀 [START LOCAL GAME] Initializing...`);

@@ -131,6 +131,8 @@ constructor() {
         if (typeof this.resizeApp === 'function') {
             this.resizeApp();
         }
+        this.injectChess960Controls();  
+        this.injectVariantRuleButtons();
     }
 on(eventName, callback) {
         this.#callbacks[eventName] = callback;
@@ -288,15 +290,15 @@ setGame(gameInstance) {
                 
                 const newFen = e.target.value.trim();
                 const currentMode = document.getElementById('editorVariantSelect')?.value || this.#game.gameMode;
+                const validation = this.#game.validateFen(newFen, currentMode);
                 
-                const validation = this.#game.validateFen(newFen);
                 if (validation.valid) {
                     this.#game.loadFEN(newFen, currentMode);
                     if (this.#game.rootNode) {
                         this.#game.rootNode.fen = newFen;
                         this.#game.currentNode = this.#game.rootNode;
                     }
-                    this.syncEditorHTMLWithGame(); // Re-syncs the Castling/Turn checkboxes
+                    this.syncEditorHTMLWithGame(true);
                     this.renderBoard(false);
                 }
             });
@@ -312,7 +314,11 @@ setGame(gameInstance) {
                     const analysisSelect = document.getElementById('analysisVariantSelect');
                     if (analysisSelect) analysisSelect.value = newMode;
                     
-                    const startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[newMode]) ? VARIANT_STARTING_FENS[newMode] : INITIAL_FEN;
+                    let startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[newMode]) ? VARIANT_STARTING_FENS[newMode] : INITIAL_FEN;
+                    
+                    if (newMode === 'chess960' && typeof this.#game.generateChess960FEN === 'function') {
+                        startFen = this.#game.generateChess960FEN();
+                    }
                     
                     this.#game.loadFEN(startFen, newMode, true);
                     this.#game.rootNode = new MoveNode(startFen, null);
@@ -773,6 +779,86 @@ injectVariantRuleButtons() {
                 select.parentNode.style.alignItems = 'center';
             }
         });
+    }
+    injectChess960Controls() {
+        const boxes = document.querySelectorAll('.chess960-box, .chess960-box-editor');        
+        boxes.forEach(box => {
+            const spInput = box.querySelector('.sp-input');
+            const rndBtn = box.querySelector('.rnd-btn');
+            
+            // Tự động quét để tìm thẻ select bên dưới/bên trên
+            let select = null;
+            let targetEl = box.nextElementSibling;
+            while (targetEl) {
+                if (targetEl.tagName === 'SELECT') { select = targetEl; break; }
+                select = targetEl.querySelector('select');
+                if (select) break;
+                targetEl = targetEl.nextElementSibling;
+            }
+            if (!select) {
+                targetEl = box.previousElementSibling;
+                while (targetEl) {
+                    if (targetEl.tagName === 'SELECT') { select = targetEl; break; }
+                    select = targetEl.querySelector('select');
+                    if (select) break;
+                    targetEl = targetEl.previousElementSibling;
+                }
+            }
+
+            if (!select || !spInput || !rndBtn) return;
+
+            const updateVisibility = () => {
+                if (select.value === 'chess960') box.classList.add('active');
+                else box.classList.remove('active');
+            };
+
+            select.addEventListener('change', updateVisibility);
+            updateVisibility();
+
+            const applyNewSP = () => {
+                if (!this.#game) return;
+                const newFen = this.#game.generateChess960FEN();
+                
+                if (this.#game.mode === 'editor') {
+                    if (typeof this.editorReset === 'function') this.editorReset();
+                } else {
+                    this.#game.loadNewPosition(newFen, 'chess960');
+                }
+            };
+
+            // Random
+            rndBtn.onclick = (e) => {
+                e.preventDefault(); 
+                document.querySelectorAll('.sp-input').forEach(inp => inp.value = ''); 
+                applyNewSP();
+            };
+            
+            // Gõ phím tới đâu FEN thay đổi tới đó
+            spInput.oninput = () => {
+                if (spInput.value !== '') {
+                    let val = parseInt(spInput.value, 10);
+                    if (val < 0) spInput.value = '0';
+                    if (val > 959) spInput.value = '959';
+                    
+                    document.querySelectorAll('.sp-input').forEach(inp => {
+                        if (inp !== spInput) inp.value = spInput.value;
+                    });
+                } else {
+                    document.querySelectorAll('.sp-input').forEach(inp => {
+                        if (inp !== spInput) inp.value = '';
+                    });
+                }
+                applyNewSP();
+            };
+        });
+    }
+
+    getChess960SP() {
+        const activeBox = document.querySelector('.chess960-box.active, .chess960-box-editor.active');        if (activeBox) {
+            const input = activeBox.querySelector('.sp-input');
+            if (input && input.value !== '') return parseInt(input.value);
+        }
+        return null;
     }
 initThemeButtons() {
         // 1. Find all preset theme buttons in the HTML
@@ -1418,12 +1504,12 @@ resizeApp() {
         
         if (isPocketMode) {
             if (pocketContainer) pocketContainer.style.display = 'flex';
-            if (boardRow) boardRow.style.cssText = 'display: flex; flex-shrink: 0; gap: 40px;';
-            if (mainSidebar) mainSidebar.style.marginLeft = '60px';
-            if (boardContainerRow) boardContainerRow.style.gap = '80px';
+            if (boardRow) boardRow.style.cssText = 'display: flex; flex-shrink: 0; gap: 0px;';
+            if (mainSidebar) mainSidebar.style.marginLeft = '0px';
+            if (boardContainerRow) boardContainerRow.style.gap = '8px';
         } else {
             if (pocketContainer) pocketContainer.style.display = 'none';
-            if (boardRow) boardRow.style.cssText = 'display: flex; flex-shrink: 0;';
+            if (boardRow) boardRow.style.cssText = 'display: flex; flex-shrink: 0; gap: 20px;';
             if (enginePanel) enginePanel.style.marginLeft = '0px';
             if (mainSidebar) mainSidebar.style.marginLeft = '20px';
             if (boardContainerRow) boardContainerRow.style.gap = '8px';
@@ -1531,17 +1617,28 @@ resizeApp() {
 
         if (leftW > 0) targetWidth += leftW + 40;   
         if (isDuckMode) targetWidth += 40;
-
+     
         let evalW = 0;
         if (enginePanel && enginePanel.style.display !== 'none') {
-            let dynamicSpacing = isPocketMode ? 80 : 8; 
+            let dynamicSpacing = 8;
             evalW = getW(enginePanel) > 0 ? getW(enginePanel) + dynamicSpacing : (30 + dynamicSpacing); 
             targetWidth += evalW;
         }
+
+        let pocketW = 0;
+        let dynamicGap = 0;
+
+        if (isPocketMode && pocketContainer && pocketContainer.style.display !== 'none') {
+            pocketW = getW(pocketContainer) > 0 ? getW(pocketContainer) + 10 : 75; 
+            targetWidth += pocketW;
+            dynamicGap = 0;
+        } else {
+            dynamicGap = 20;
+        }
         
         targetWidth += boardW;                      
-        if (rightW > 0) targetWidth += rightW + 40; 
-        targetWidth += 40; 
+        if (rightW > 0) targetWidth += rightW + dynamicGap;
+        targetWidth += 40;
         
         scaler.style.width = targetWidth + 'px';
         scaler.style.height = targetHeight + 'px';
@@ -1566,7 +1663,7 @@ resizeApp() {
                 bottomPanel.style.display = 'flex';
                 bottomPanel.style.position = 'absolute';
                 bottomPanel.style.top = (safeSidebarHeight + 50) + 'px'; 
-                bottomPanel.style.left = '80px'; 
+                bottomPanel.style.left = '0px'; 
                 bottomPanel.style.width = exactWidth + 'px'; 
                 bottomPanel.style.zIndex = '10';
                 bottomPanel.style.margin = '0'; 
@@ -2387,7 +2484,6 @@ initEditorBars() {
             let rawSVG = this.getPieceHTML({ color, type });
             if (!rawSVG) return '';
             let trimmed = rawSVG.trim();
-            
             let pulseClass = (type === 'duck' || type === '*') ? " piece-heartbeat" : "";
             const lockStyle = 'width:28px; height:28px; object-fit:contain; pointer-events:none; display:block; margin:auto;';
             
@@ -2401,32 +2497,54 @@ initEditorBars() {
         };
 
         const topBar = document.getElementById('editorBarTop');
-        let blackPieces = ['P','N','B','R','Q','K'];
-
-        if (topBar) {
-            topBar.innerHTML = `<div class="tool-group">
-                ${blackPieces.map(p => `
-                    <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event," ontouchstart="window.app.ui.startSpareDrag(event,'b','${p}')">
-                        ${getSafeImgHtml('b', p)}
-                    </div>`).join('')}
-            </div><div class="tool-btn trash-btn" onclick="window.app.ui.setEditorTool('trash', this)">${trashIcon}</div>`;
-        }
-
         const bottomBar = document.getElementById('editorBarBottom');
+        
+        let blackPieces = ['P','N','B','R','Q','K'];
         let whitePieces = ['P','N','B','R','Q','K'];
+        
+        let extraTop = '';
         let extraBot = '';
 
         if (this.#game && this.#game.gameMode === 'duck') {
             extraBot = `
-            <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event," ontouchstart="window.app.ui.startSpareDrag(event,'none','duck')">
+            <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'none','duck')" ontouchstart="window.app.ui.startSpareDrag(event,'none','duck')">
                 ${getSafeImgHtml('none', 'duck')}
             </div>`;
+        } else if (this.#game && this.#game.gameMode === 'spell') {
+            const fzImg = `<img src="./assets/tabs-icon/freeze.3455552f.png" style="width:26px;height:26px;object-fit:cover;border-radius:4px;pointer-events:none; border:1px solid #555;">`;
+            const jpImg = `<img src="./assets/tabs-icon/jump.8e9138a2.png" style="width:26px;height:26px;object-fit:cover;border-radius:4px;pointer-events:none; border:1px solid #555;">`;
+            
+            extraTop = `
+            <div class="tool-btn" onclick="window.app.ui.setEditorTool('b_freeze', this)" title="Place Black Freeze">
+                ${fzImg}
+            </div>
+            <div class="tool-btn" onclick="window.app.ui.setEditorTool('b_jump', this)" title="Place Black Jump">
+                ${jpImg}
+            </div>`;
+            
+            extraBot = `
+            <div class="tool-btn" onclick="window.app.ui.setEditorTool('w_freeze', this)" title="Place White Freeze">
+                ${fzImg}
+            </div>
+            <div class="tool-btn" onclick="window.app.ui.setEditorTool('w_jump', this)" title="Place White Jump">
+                ${jpImg}
+            </div>`;
+        }
+
+        if (topBar) {
+            topBar.innerHTML = `<div class="tool-group">
+                ${blackPieces.map(p => `
+                    <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'b','${p}')" ontouchstart="window.app.ui.startSpareDrag(event,'b','${p}')">
+                        ${getSafeImgHtml('b', p)}
+                    </div>`).join('')}
+                ${extraTop}
+            </div><div class="tool-btn trash-btn" onclick="window.app.ui.setEditorTool('trash', this)">${trashIcon}</div>`;
         }
 
         if (bottomBar) {
             bottomBar.innerHTML = `<div class="tool-group">
                 ${whitePieces.map(p => `
-                    <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event," ontouchstart="window.app.ui.startSpareDrag(event,'w','${p}')">
+                    <div class="tool-btn" onmousedown="window.app.ui.startSpareDrag(event,'w','${p}')" ontouchstart="window.app.ui.startSpareDrag(event,'w','${p}')">
                         ${getSafeImgHtml('w', p)}
                     </div>`).join('')}
                 ${extraBot}
@@ -2809,10 +2927,11 @@ finishDrag(e) {
                 let r = Math.floor(dropIdx / 8);
                 if (newPiece.type === 'P' && (r === 0 || r === 7)) newPiece.type = 'Q';
                 
-                this.#game.editBoard(dropIdx, newPiece);
                 if (!this.dragData.isSpare && this.dragData.fromIdx !== dropIdx) {
-                    this.#game.editBoard(this.dragData.fromIdx, null);
+                    this.#game.editBoard(this.dragData.fromIdx, null, true);
                 }
+                
+                this.#game.editBoard(dropIdx, newPiece);
                 moveMade = true;
             } else {
                 if (!this.dragData.isSpare) {
@@ -2877,13 +2996,13 @@ getSquareFromCoords(x, y) {
         if (this.flipped) { c = 7 - c; r = 7 - r; }
         return r * 8 + c;
     }
-syncEditorHTMLWithGame() {
+syncEditorHTMLWithGame(skipFenInput = false) {
         if (!this.#game) return;
         const curFen = typeof this.#game.generateFEN === 'function' ? this.#game.generateFEN() : (this.#game.currentNode ? this.#game.currentNode.fen : "");
         if (!curFen) return;
         
         const fenInput = document.getElementById('fenInput');
-        if (fenInput) fenInput.value = curFen;
+        if (fenInput && !skipFenInput) fenInput.value = curFen;
 
         const parts = curFen.split(' ');
         if (parts.length >= 4) {
@@ -2911,6 +3030,41 @@ syncEditorHTMLWithGame() {
                 epInput.value = ep !== '-' ? ep : '-';
             }
         }
+        const spellBox = document.querySelector('.spell-box-editor');
+        if (this.#game.gameMode === 'spell') {
+            if (spellBox) spellBox.style.display = 'flex';
+            const spellMatch = curFen.match(/\[S:([^\]]+)\]/);
+            if (spellMatch) {
+                let p = spellMatch[1].split(',');
+                if (document.getElementById('spell-w-fz-input')) document.getElementById('spell-w-fz-input').value = p[4];
+                if (document.getElementById('spell-w-jp-input')) document.getElementById('spell-w-jp-input').value = p[5];
+                if (document.getElementById('spell-b-fz-input')) document.getElementById('spell-b-fz-input').value = p[6];
+                if (document.getElementById('spell-b-jp-input')) document.getElementById('spell-b-jp-input').value = p[7];
+            }
+        } else {
+            if (spellBox) spellBox.style.display = 'none';
+        }
+    }
+updateSpellInventory() {
+        if (!this.#game || this.#game.gameMode !== 'spell' || this.#game.mode !== 'editor') return;
+        let currFen = typeof this.#game.generateFEN === 'function' ? this.#game.generateFEN() : "";
+        let spellMatch = currFen.match(/\[S:([^\]]+)\]/);
+        let p = spellMatch ? spellMatch[1].split(',') : "0,0,0,0,5,2,5,2,-1,0,-1,0,-1,0,-1,0".split(',');
+        
+        p[4] = parseInt(document.getElementById('spell-w-fz-input').value || 0, 10).toString();
+        p[5] = parseInt(document.getElementById('spell-w-jp-input').value || 0, 10).toString();
+        p[6] = parseInt(document.getElementById('spell-b-fz-input').value || 0, 10).toString();
+        p[7] = parseInt(document.getElementById('spell-b-jp-input').value || 0, 10).toString();
+        
+        let newSpellBlock = `[S:${p.join(',')}]`;
+        let newFen = spellMatch ? currFen.replace(/\[S:[^\]]+\]/, newSpellBlock) : currFen + " " + newSpellBlock;
+        
+        this.#game.loadFEN(newFen, 'spell', true);
+        if (this.#game.currentNode) this.#game.currentNode.fen = newFen;
+        if (this.#game.pgnHeaders) this.#game.pgnHeaders['FEN'] = newFen;
+        
+        const fenInput = document.getElementById('fenInput');
+        if (fenInput) fenInput.value = newFen;
     }
 updateLessonUI() {
         if (!this.#game || this.#game.mode !== 'lesson') return;
@@ -3700,7 +3854,18 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                 sq.onmousedown = (e) => {
                     e.preventDefault(); e.stopPropagation();
                     if (this.editorTool === 'trash') {
-                        if (state.board[logical_i]) { this.#game.editBoard(logical_i, null); this.renderBoard(false); }
+                        if (state.board[logical_i]) { 
+                            this.#game.editBoard(logical_i, null); 
+                            this.renderBoard(false); 
+                        } else if (state.gameMode === 'spell' && typeof this.#game.editSpell === 'function') {
+                            this.#game.editSpell('trash', logical_i);
+                            this.renderBoard(false);
+                        }
+                    } else if (this.editorTool && (this.editorTool.includes('_freeze') || this.editorTool.includes('_jump'))) {
+                        if (typeof this.#game.editSpell === 'function') {
+                            this.#game.editSpell(this.editorTool, logical_i);
+                            this.renderBoard(false);
+                        }
                     } else if (this.editorTool && this.editorTool !== 'cursor') {
                         const color = this.editorTool.charAt(0);
                         const type = this.editorTool.charAt(1).toLowerCase();
@@ -5791,6 +5956,7 @@ editorReset() {
 }
 finishEditor() {
         if (!this.#game) return;
+        
         const startFen = typeof this.#game.generateFEN === 'function' ? this.#game.generateFEN() : this.#game.engine.fen();
         const validation = this.#game.engine.validate_fen(startFen);
         
@@ -5802,35 +5968,9 @@ finishEditor() {
         if (this.#game.stopEngine) this.#game.stopEngine();
         if (window.sfWorker) window.sfWorker.postMessage('stop');
 
-        this.switchTab('play');
-
-        this.#game.loadFEN(startFen);
-        this.#game.rootNode = new MoveNode(startFen, null);
-        this.#game.currentNode = this.#game.rootNode;
-        this.#game.moveList = [];
-        this.#game.history = [startFen];
-        this.#game.pgnHeaders = { "FEN": startFen, "SetUp": "1" };
-        this.#game.gameOver = true; 
-        
-        this.displayMetadata({}); 
-        this.playerInfo = {
-            w: { name: "White", meta: "", country: null, title: null },
-            b: { name: "Black", meta: "", country: null, title: null }
-        };
-        
-        this.renderHeaders();
-        this.updateHistory();
-        this.renderBoard(false);
-        if (typeof this.updateClocks === 'function') this.updateClocks();
-        
-        if (this.#game && window.engineAnalysing) {
-            if (typeof this.#game.updateStockfish === 'function') {
-                this.#game.updateStockfish();
-            }
-        }
-        
-        this.showNotification("Board updated from Editor.", "Success", "✅");
-}
+        const modal = document.getElementById('continueSetupModal');
+        if (modal) modal.style.display = 'flex';
+    }
 flipBoard(targetColor = null) {
     let nextFlip;
     if (targetColor === 'b' || targetColor === true) {
@@ -6969,20 +7109,36 @@ renderPockets(pocket) {
                         
                         const onMove = (moveEvent) => { updateGhostPosition(moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX, moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY); };
                         const onUp = (upEvent) => {
-                            document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp);
-                            document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onUp);
-                            this.draggedPieceGhost.style.display = 'none'; this.draggedPieceGhost.classList.remove('piece', 'animating');
-                            el.classList.remove('dragging-source'); document.body.classList.remove('grabbing');
-                            let cx = upEvent.changedTouches ? upEvent.changedTouches[0].clientX : upEvent.clientX; let cy = upEvent.changedTouches ? upEvent.changedTouches[0].clientY : upEvent.clientY;
-                            const rect = this.boardEl.getBoundingClientRect();
-                            if (cx >= rect.left && cx <= rect.right && cy >= rect.top && cy <= rect.bottom) {
-                                const file = Math.floor((cx - rect.left) / (rect.width / 8)); const rank = 7 - Math.floor((cy - rect.top) / (rect.height / 8));
-                                const sq = String.fromCharCode(97 + (this.flipped ? 7 - file : file)) + (this.flipped ? 8 - rank : rank + 1);
-                                if (typeof this.executeMove === 'function') this.executeMove({ from: '@', to: sq, drop: pChar }, true);
-                                else if (this.#game && typeof this.#game.makeMove === 'function') { this.#game.makeMove({ from: '@', to: sq, drop: pChar }); if (typeof this.renderBoard === 'function') this.renderBoard(true); }
+                        document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp);
+                        document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onUp);
+                        this.draggedPieceGhost.style.display = 'none'; this.draggedPieceGhost.classList.remove('piece', 'animating');
+                        el.classList.remove('dragging-source'); document.body.classList.remove('grabbing');
+                        
+                        let cx = upEvent.changedTouches ? upEvent.changedTouches[0].clientX : upEvent.clientX; 
+                        let cy = upEvent.changedTouches ? upEvent.changedTouches[0].clientY : upEvent.clientY;
+                        const rect = this.boardEl.getBoundingClientRect();
+                        
+                        if (cx >= rect.left && cx <= rect.right && cy >= rect.top && cy <= rect.bottom) {
+                            let dropIdx = this.getSquareFromCoords(cx, cy);
+                            if (dropIdx !== -1) {
+                                const state = this.#game ? this.#game.getReader() : null;
+                                
+                                if (state && state.mode === 'editor') {
+                                    this.#game.editBoard(dropIdx, { color: color, type: pChar });
+                                    this.renderBoard(false);
+                                } else {
+                                    const sq = this.#game.indexToSquare(dropIdx);
+                                    if (typeof this.executeMove === 'function') {
+                                        this.executeMove({ from: '@', to: sq, drop: pChar }, true);
+                                    } else if (this.#game && typeof this.#game.makeMove === 'function') { 
+                                        this.#game.makeMove({ from: '@', to: sq, drop: pChar }); 
+                                        if (typeof this.renderBoard === 'function') this.renderBoard(true); 
+                                    }
+                                }
                             }
-                            this.dragData = null;
-                        };
+                        }
+                        this.dragData = null;
+                    };
                         document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp); document.addEventListener('touchmove', onMove, {passive: false}); document.addEventListener('touchend', onUp);
                     };
                     el.addEventListener('mousedown', (e) => { if (e.button !== 0) return; e.preventDefault(); handleDragStart(e); });
@@ -7082,11 +7238,15 @@ confirmBotStart() {
         const variantSelect = document.getElementById('gameVariantSelect');
         const variant = variantSelect ? variantSelect.value : 'standard';
 
+        const fenInput = document.getElementById('fenInput');
+        const isFromEditor = this.#game && this.#game.mode === 'editor';
+        const startFen = (isFromEditor && fenInput) ? fenInput.value : null;
+
         if (this.#game) {
             if (variant === 'chess960' && typeof this.#game.startChess960Game === 'function') {
                 this.#game.startChess960Game('bot', level, side);
             } else if (typeof this.#game.startBotGame === 'function') {
-                this.#game.startBotGame(level, side);
+                this.#game.startBotGame(level, side, startFen);
             }
             if (typeof this.switchTab === 'function') this.switchTab('play'); 
             if (typeof this.toggleSideMenu === 'function') this.toggleSideMenu(false);

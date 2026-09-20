@@ -626,3 +626,84 @@ input[type=range] { flex-grow: 1; accent-color: #629924; }
 .g-children {
     display: flex; flex-direction: column; gap: 25px; position: relative;
 }
+/* --- Chess960 UI Controls --- */
+.chess960-box, .chess960-box-editor {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: 4px;
+    width: 100%;
+    box-sizing: border-box;
+}
+.chess960-box.active, .chess960-box-editor.active {
+    display: flex;
+}
+.chess960-box {
+    background: #111;
+}
+.chess960-box-editor {
+    background: rgba(0,0,0,0.2);
+    padding: 10px;
+}
+.chess960-label {
+    color: #e2e8f0;
+    font-size: 14px;
+    font-weight: bold;
+}
+.chess960-controls {
+    display: flex;
+    align-items: center;
+    width: 60%;
+    justify-content: flex-end;
+}
+.chess960-sp-input {
+    background: #111;
+    color: #e3e3e3;
+    border: 1px solid #333;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 13px;
+    outline: none;
+    width: 60px;
+    flex: 0 0 60px;
+    text-align: center;
+    height: 30px;
+    box-sizing: border-box;
+    -moz-appearance: textfield;
+}
+.chess960-sp-input::-webkit-outer-spin-button,
+.chess960-sp-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.chess960-rnd-btn, .chess960-rnd-btn-editor {
+    padding: 0;
+    flex: 0 0 30px;
+    font-size: 16px;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    margin: 0;
+    cursor: pointer;
+}
+.chess960-rnd-btn {
+    width: 30px;
+    height: 30px;
+    display: flex;
+}
+.sidebar .chess960-controls .chess960-rnd-btn-editor {
+    margin-left: 10px;
+    display: flex;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px; 
+    font-size: 16px;
+    padding: 0;
+    min-height: 0;
+}
+.sidebar .chess960-controls input.chess960-sp-input {
+    width: 60px;
+    flex: 0 0 60px;
+    height: 24px;
+    padding: 4px 8px;
+}
