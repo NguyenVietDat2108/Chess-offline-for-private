@@ -2851,6 +2851,6 @@
     "desc": "Verify that changing the global Analysis Variant dropdown while inside a Study does not mutate the active Study's engine mode.",
     "type": "auto",
     "tags": ["study", "variant", "dropdown", "isolation"],
-    "run": "if (!window.app?.game) return true; const g = new window.app.game.constructor(); g.mode = 'study'; g.setGameMode('classical'); g.setGameMode('spell', false, false); return g.gameMode === 'classical';"
+    "run": "if (!window.app?.game) return true; const g = new window.app.game.constructor(); g.mode = 'analysis'; g.setGameMode('classical'); g.mode = 'study'; g.setGameMode('spell', false, false); return g.gameMode === 'classical';"
   }
 ]
