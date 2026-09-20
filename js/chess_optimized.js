@@ -2686,7 +2686,6 @@
             }
         }
 
-        // --- BỘ ĐẾM QUÂN CỜ PHỤC VỤ CRAZYHOUSE ---
         var wK = 0, bK = 0;
         var boardCounts = { w: { p: 0, n: 0, b: 0, r: 0, q: 0 }, b: { p: 0, n: 0, b: 0, r: 0, q: 0 } };
         
@@ -2720,7 +2719,6 @@
             }
         }
 
-        // KIỂM TRA ĐỊNH LUẬT BẢO TOÀN CỦA CRAZYHOUSE & PLACEMENT
         if (mode === 'crazyhouse' || mode === 'bughouse' || mode === 'placement') {
             var pocketN = wPocketCounts.n + bPocketCounts.n;
             var pocketB = wPocketCounts.b + bPocketCounts.b;
@@ -2758,13 +2756,11 @@
                     errors.push('Illegal position: Total pawns and promoted pieces (' + totalP + ' + ' + totalPromoted + ') exceed the 16 available pawns.');
                 }
 
-                // CHỐT CHẶN 1: Bắt lỗi ném mất quân cờ ra khỏi vũ trụ
                 if (totalNonKing !== 30) {
                     errors.push('Variant "' + mode + '" requires exactly 32 pieces in total (found ' + (totalNonKing + wK + bK) + '). Any missing pieces from the board MUST be in the pocket.');
                 }
 
                 if (mode === 'crazyhouse') {
-                    // CHỐT CHẶN 2: Định luật bảo toàn màu sắc Crazyhouse
                     if (wBoardCount + bPocketCount !== 16) {
                         errors.push('Crazyhouse error: White has ' + wBoardCount + ' pieces on board, so Black must have ' + (16 - wBoardCount) + ' pieces in pocket (found ' + bPocketCount + ').');
                     }
@@ -2791,7 +2787,6 @@
                 }
             }
         }
-        // ----------------------------------------
 
         if (mode === 'atomic' || mode === 'antichess') {
             if (wK > 1) errors.push('White cannot have more than one King in ' + mode + '.');
@@ -2864,7 +2859,6 @@
             if (r > 0) FEN_BUFFER[ptr++] = 47; // /
         }
 
-        // ĐÃ PHỤC HỒI: Luôn in ra dấu [] cho túi đồ của Crazyhouse/Placement
         if (s.gameMode === 'crazyhouse' || s.gameMode === 'bughouse' || s.gameMode === 'placement') {
             FEN_BUFFER[ptr++] = 91; // [
             for (var pType = 0; pType <= 4; pType++) {
