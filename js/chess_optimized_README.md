@@ -34,7 +34,11 @@ Sets the current game mode (variant) for the game and updates all historical sta
 
 ```js
 const chess = new Chess();
-chess.setGameMode('duck');
+chess.setGameMode('atomic');
+
+// Note: For variants requiring special board setups or extra pieces (like 'duck' or 'spell'), 
+// it is highly recommended to initialize them directly via the constructor to avoid missing states:
+// const duckChess = new Chess(null, 'duck');
 ```
 
 ### .gameMode()
@@ -78,7 +82,7 @@ Load the moves of a game stored in Portable Game Notation (PGN). Returns `true` 
 
 ```js
 const chess = new Chess(null, 'crazyhouse');
-const pgn = '1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. d4 exd4 5. Ng5 Nh6 6. Nxf7 Nxf7 7. Bxf7+ Kxf7 8. N@h5+';
+const pgn = '1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. d4 exd4 5. Ng5 Nh6 6. Nxf7 Nxf7 7. Bxf7+ Kxf7 8. N@g5+';
 chess.load_pgn(pgn);
 // -> true
 
@@ -109,7 +113,7 @@ chess.cancel_draft();
 
 ### .moves([ options ])
 
-Returns a list of legal moves from the current position. Options is an optional parameter which may contain `verbose: true` to return verbose move objects, and/or a `square` (or `from`) string to only return moves from a specific square.
+Returns a list of legal moves from the current position. Options is an optional parameter which may contain `verbose: true` to return verbose move objects, a `square` (or `from`) string to only return moves from a specific square, and/or `legal: false` to return pseudo-legal moves (bypassing check validation for performance).
 
 ```js
 const chess = new Chess();
@@ -119,6 +123,9 @@ chess.moves();
 
 chess.moves({ square: 'e2' });
 // -> ['e3', 'e4']
+
+chess.moves({ legal: false });
+// -> Returns pseudo-legal moves (faster calculation, but may temporarily leave king in check)
 
 chess.moves({ verbose: true });
 // -> [{ color: 'w', from: 'a2', to: 'a3',
@@ -159,7 +166,7 @@ chess.move('e5');
 
 ### .undo()
 
-Takeback the last half-move, returning a move object if successful, otherwise `null`.
+Takeback the last half-move, returning the internal state object if successful, otherwise `null`.
 
 ```js
 const chess = new Chess();
@@ -211,7 +218,7 @@ Returns a flat, 1D Int8Array of length 64 representing the board state. Values c
 ```js
 const chess = new Chess();
 chess.board();
-// -> Int8Array(64) [ ... ]
+// -> Int8Array(64) [ -1, 0, 1, ... ]
 ```
 
 ### .turn()
@@ -232,16 +239,16 @@ Returns `'w'` if White has won by variant-specific rules (e.g., reaching the 8th
 const rk = new Chess('8/8/8/8/8/8/8/K6k w - - 0 1', 'racingkings');
 rk.move('Ka8');
 rk.variant_winner();
-// -> 'w'
+// -> null
 ```
 
-### .get_duck_sq()
+### .get_duck_sq() / .duck_sq()
 
-*(Duck Chess Variant Only)* Returns the index of the square currently occupied by the duck, or `-1` if not placed.
+*(Duck Chess Variant Only)* Returns the index of the square currently occupied by the duck, or `-1` if not placed. Both functions map to the same value.
 
 ```js
 const chess = new Chess(null, 'duck');
-chess.get_duck_sq();
+chess.duck_sq();
 // -> -1
 ```
 
@@ -283,7 +290,7 @@ Returns `true` if the current board position has occurred three or more times.
 const chess = new Chess();
 chess.move('Nf3'); chess.move('Nf6'); chess.move('Ng1'); chess.move('Ng8');
 chess.move('Nf3'); chess.move('Nf6'); chess.move('Ng1'); chess.move('Ng8');
-chess.isThreefoldRepetition();
+chess.in_threefold_repetition();
 // -> true
 ```
 
@@ -317,22 +324,33 @@ chess.game_over();
 // -> false
 ```
 
-### .validate_fen(fen)
+### .validate_fen([ fen, modeOverride, isBypass ])
 
-Returns a validation object specifying validity or the errors found within the FEN string.
+Returns a validation object specifying validity or the errors found within the FEN string. `modeOverride` (optional) allows checking a FEN against a specific variant's rules without changing the active engine's mode. `isBypass` (optional) forces the validator to return `true` with a warning, used for overriding strict FEN rules.
 
 ```js
 const chess = new Chess();
-chess.validate_fen('2n1r3/p1k2pp1/B1p3b1/P7/5bP1/2N1B3/1P2KP2/2R5 b - - 4 25');
-// -> { valid: true, error: 'No errors.' }
 
+// Standard validation
+chess.validate_fen('2n1r3/p1k2pp1/B1p3b1/P7/5bP1/2N1B3/1P2KP2/2R5 b - - 4 25');
+// -> { valid: true, error: 'No errors.', errors: [], ... }
+
+// Invalid standard FEN
 chess.validate_fen('4r3/8/X12XPk/1p6/pP2p1R1/P1B5/2P2K2/3r4 w - - 1 45');
-// -> { valid: false, error: 'Invalid piece placement syntax.' }
+// -> { valid: false, error: 'Invalid piece placement syntax.', errors: [...], ... }
+
+// Check a Crazyhouse FEN without changing the current game mode
+chess.validate_fen('r1bq1b1r/pppp1kpp/2n4n/4p3/2B1P3/8/PPPP1PPP/RNBQK2R [PN] w - - 0 8', 'crazyhouse');
+// -> { valid: true, variant: 'crazyhouse', ... }
+
+// Bypass strict validation to force acceptance of an illegal FEN (e.g., missing Kings)
+chess.validate_fen('8/8/8/8/8/8/8/8 w - - 0 1', 'classical', true);
+// -> { valid: true, error: 'No errors.', warnings: ['Validation bypassed by user!'], ... }
 ```
 
 ### .pocket()
 
-*(Crazyhouse / Bughouse / Placement Only)* Returns an object containing the captured pieces available to drop for each side.
+*(Crazyhouse / Bughouse / Placement Only)* Returns an object containing arrays of the captured piece types available to drop for each side.
 
 ```js
 const zh = new Chess(null, 'crazyhouse');

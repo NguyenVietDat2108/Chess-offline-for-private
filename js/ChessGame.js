@@ -635,7 +635,6 @@ getReader() {
         this.#engine.load = (fen) => {
             if (typeof fen === 'string' && fen.includes('*')) {
                 this.#duck_sq = this.#getDuckSqFromFen(fen);
-                fen = this.#stripDuckFromFen(fen);
             }
             return origLoad(fen);
         };
@@ -1434,308 +1433,308 @@ return move.san;
     return -1;
 }
 #flatCloneState(stateName) {
-        const memSlot = (stateName === 'local' || stateName === 'bot' || stateName === 'play') ? 'play' : stateName;
-        
-        let pgnToPersist = "";
-        if (this.rootNode && this.rootNode.children && this.rootNode.children.length > 0) {
-            pgnToPersist = typeof this.generatePGN === 'function' ? this.generatePGN() : (this._originalPgn || "");
-        } else {
-            pgnToPersist = this._originalPgn || (typeof this.generatePGN === 'function' ? this.generatePGN() : "");
-        }
-        if (this.gameMode && this.gameMode !== 'classical' && this.pgnHeaders) {
-            this.pgnHeaders['Variant'] = this.gameMode;
-        }
-
-        return {
-            variant: this.gameMode || 'classical',
-            mode: this.mode || stateName,
-            fen: this.currentNode ? this.currentNode.fen : (typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'),
-            pgn: pgnToPersist,
-            headers: this.pgnHeaders ? { ...this.pgnHeaders } : {},
-            history: this.history ? Array.from(this.history, val => val.toString()) : [],
-            moveList: this.moveList ? [...this.moveList] : [],
-            activeNodeId: this.currentNode ? this.currentNode.id : null,
-            isGameOver: this.gameOver,
-            isPaused: this.isPaused,
-
-            wTime: this.whiteTime,
-            bTime: this.blackTime,
-            botColor: this.botColor,
-            myColor: this.myColor,
-            botLevel: this.botLevel,
-            puzzleCursor: this.puzzleCursor,
-            puzzleSolution: this.puzzleSolution ? [...this.puzzleSolution] : [],
-            puzzleScore: this.puzzleScore,
-            puzzleStrikes: this.puzzleStrikes,
-            currentPuzzle: this.currentPuzzle || null,
-            initialPuzzleFEN: this.initialPuzzleFEN || null,
-            puzzleActive: this.puzzleActive || false,
-            puzzleMode: this.puzzleMode || 'rush',
-            puzzleSolved: this.puzzleSolved || false,
-            puzzleQueue: this.puzzleQueue ? [...this.puzzleQueue] : [],
-            puzzleIndex: this.puzzleIndex || 0,
-            sessionMinRating: this.sessionMinRating || 600,
-            sessionMaxRating: this.sessionMaxRating || 3000,
-            targetRushRating: this.targetRushRating || 400,
-
-            currentSessionId: this.currentSessionId || null,
-            activeChapterIndex: this.activeChapterIndex,
-            currentStudyId: this.currentStudyId
-        };
-    }
-
-
-#saveState(stateName, immediate = false) {
-    if (!stateName) return;
-    if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
-    const memSlot = (stateName === 'local' || stateName === 'bot' || stateName === 'play') ? 'play' : stateName;
-    
-    const stateSnapshot = this.#flatCloneState(stateName);
-    this.tabMemory[memSlot] = stateSnapshot;
-
-    const writeToStorage = () => {
-        try {
-            localStorage.setItem(`chess_tab_snapshot_${memSlot}`, JSON.stringify(stateSnapshot));
-            if (stateSnapshot.pgn) {
-                localStorage.setItem(`chess_${memSlot}_variant_pgn_${stateSnapshot.variant}`, stateSnapshot.pgn);
-            }
-        } catch(e) {
-            console.error("Error writing to LocalStorage:", e);
-        }
-    };
-
-    if (immediate) {
-        clearTimeout(this._saveStateDebounce);
-        writeToStorage();
-    } else {
-        clearTimeout(this._saveStateDebounce);
-        this._saveStateDebounce = setTimeout(writeToStorage, 300);
-    }
-}
-#restoreState(stateName) {
-        if (!stateName) return false;
-        if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
-        
-        const memSlot = (stateName === 'local' || stateName === 'bot' || stateName === 'play') ? 'play' : stateName;
-        
-        let targetVariant = 'classical';
-        if (typeof localStorage !== 'undefined') {
-            targetVariant = localStorage.getItem('chess_last_variant') || this.gameMode || 'classical';
-        } else {
-            targetVariant = this.gameMode || 'classical';
-        }
-
-        let state = null;
-        if (this.tabMemory[memSlot]) {
-            state = { ...this.tabMemory[memSlot] };
-        } else {
-            try {
-                const stored = localStorage.getItem(`chess_tab_snapshot_${memSlot}`);
-                if (stored) {
-                    state = JSON.parse(stored);
-                    this.tabMemory[memSlot] = state;
-                }
-            } catch (e) {
-                console.error(`Error when parsing into Memory Tab ${memSlot}`, e);
-            }
-        }
-
-        if (memSlot === 'analysis') {
-            const variantPgn = typeof localStorage !== 'undefined' ? localStorage.getItem(`chess_analysis_variant_pgn_${targetVariant}`) : null;
-            if (!state) {
-                state = { variant: targetVariant, mode: 'analysis', pgn: variantPgn || "" };
+            const memSlot = (stateName === 'local' || stateName === 'bot' || stateName === 'play') ? 'play' : stateName;
+            
+            let pgnToPersist = "";
+            if (this.rootNode && this.rootNode.children && this.rootNode.children.length > 0) {
+                pgnToPersist = typeof this.generatePGN === 'function' ? this.generatePGN() : (this._originalPgn || "");
             } else {
-                state.variant = targetVariant;
-                if (variantPgn && variantPgn.trim() !== "" && variantPgn.trim() !== "*") {
-                    state.pgn = variantPgn;
-                } else if (state.variant !== targetVariant) {
-                    state.pgn = "";
-                    state.fen = "";
-                    state.activeNodeId = null;
-                }
+                pgnToPersist = this._originalPgn || (typeof this.generatePGN === 'function' ? this.generatePGN() : "");
             }
-        } else {
-            if ((!state || !state.pgn) && typeof localStorage !== 'undefined') {
-                const variantPgn = localStorage.getItem(`chess_${memSlot}_variant_pgn_${targetVariant}`);
-                if (variantPgn) {
-                    if (!state) state = { variant: targetVariant, mode: memSlot };
-                    state.pgn = variantPgn;
-                }
-            }
-        }
-        
-        this.mode = (memSlot === 'play') ? (state?.mode || 'local') : memSlot;
-
-        if (state) {
-            this.gameMode = state.variant || targetVariant || 'classical';
-            this.gameOver = state.isGameOver || false;
-            this._originalPgn = null;
-            if (typeof localStorage !== 'undefined') {
-                localStorage.setItem('chess_last_variant', this.gameMode);
-            }
-            
-            this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, this.gameMode);
-            if (this.#engine && typeof this.#engine.setGameMode === 'function') {
-                this.#engine.setGameMode(this.gameMode);
-            }
-            
-            this.history = new BigUint64Array(1000);
-            this.moveList = [];
-            this.pgnHeaders = state.headers ? { ...state.headers } : {};
-            if (this.gameMode !== 'classical') {
+            if (this.gameMode && this.gameMode !== 'classical' && this.pgnHeaders) {
                 this.pgnHeaders['Variant'] = this.gameMode;
             }
 
-            if (state.pgn && state.pgn.trim() !== "" && state.pgn.trim() !== "*") {
-                if (typeof this.loadPGN === 'function') {
-                    this.loadPGN(state.pgn, false, true);
-                    this._originalPgn = state.pgn;
-                    const res = this.pgnHeaders['Result'];
-                    if (res === '1-0' || res === '0-1' || res === '1/2-1/2') {
-                        this.gameOver = true;
+            return {
+                variant: this.gameMode || 'classical',
+                mode: this.mode || stateName,
+                fen: this.currentNode ? this.currentNode.fen : (typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'),
+                pgn: pgnToPersist,
+                headers: this.pgnHeaders ? { ...this.pgnHeaders } : {},
+                history: this.history ? Array.from(this.history, val => val.toString()) : [],
+                moveList: this.moveList ? [...this.moveList] : [],
+                activeNodeId: this.currentNode ? this.currentNode.id : null,
+                isGameOver: this.gameOver,
+                isPaused: this.isPaused,
+
+                wTime: this.whiteTime,
+                bTime: this.blackTime,
+                botColor: this.botColor,
+                myColor: this.myColor,
+                botLevel: this.botLevel,
+                puzzleCursor: this.puzzleCursor,
+                puzzleSolution: this.puzzleSolution ? [...this.puzzleSolution] : [],
+                puzzleScore: this.puzzleScore,
+                puzzleStrikes: this.puzzleStrikes,
+                currentPuzzle: this.currentPuzzle || null,
+                initialPuzzleFEN: this.initialPuzzleFEN || null,
+                puzzleActive: this.puzzleActive || false,
+                puzzleMode: this.puzzleMode || 'rush',
+                puzzleSolved: this.puzzleSolved || false,
+                puzzleQueue: this.puzzleQueue ? [...this.puzzleQueue] : [],
+                puzzleIndex: this.puzzleIndex || 0,
+                sessionMinRating: this.sessionMinRating || 600,
+                sessionMaxRating: this.sessionMaxRating || 3000,
+                targetRushRating: this.targetRushRating || 400,
+
+                currentSessionId: this.currentSessionId || null,
+                activeChapterIndex: this.activeChapterIndex,
+                currentStudyId: this.currentStudyId
+            };
+        }
+
+
+    #saveState(stateName, immediate = false) {
+        if (!stateName) return;
+        if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
+        const memSlot = (stateName === 'local' || stateName === 'bot' || stateName === 'play') ? 'play' : stateName;
+        
+        const stateSnapshot = this.#flatCloneState(stateName);
+        this.tabMemory[memSlot] = stateSnapshot;
+
+        const writeToStorage = () => {
+            try {
+                localStorage.setItem(`chess_tab_snapshot_${memSlot}`, JSON.stringify(stateSnapshot));
+                if (stateSnapshot.pgn) {
+                    localStorage.setItem(`chess_${memSlot}_variant_pgn_${stateSnapshot.variant}`, stateSnapshot.pgn);
+                }
+            } catch(e) {
+                console.error("Error writing to LocalStorage:", e);
+            }
+        };
+
+        if (immediate) {
+            clearTimeout(this._saveStateDebounce);
+            writeToStorage();
+        } else {
+            clearTimeout(this._saveStateDebounce);
+            this._saveStateDebounce = setTimeout(writeToStorage, 300);
+        }
+    }
+    #restoreState(stateName) {
+            if (!stateName) return false;
+            if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
+            
+            const memSlot = (stateName === 'local' || stateName === 'bot' || stateName === 'play') ? 'play' : stateName;
+            
+            let targetVariant = 'classical';
+            if (typeof localStorage !== 'undefined') {
+                targetVariant = localStorage.getItem('chess_last_variant') || this.gameMode || 'classical';
+            } else {
+                targetVariant = this.gameMode || 'classical';
+            }
+
+            let state = null;
+            if (this.tabMemory[memSlot]) {
+                state = { ...this.tabMemory[memSlot] };
+            } else {
+                try {
+                    const stored = localStorage.getItem(`chess_tab_snapshot_${memSlot}`);
+                    if (stored) {
+                        state = JSON.parse(stored);
+                        this.tabMemory[memSlot] = state;
+                    }
+                } catch (e) {
+                    console.error(`Error when parsing into Memory Tab ${memSlot}`, e);
+                }
+            }
+
+            if (memSlot === 'analysis') {
+                const variantPgn = typeof localStorage !== 'undefined' ? localStorage.getItem(`chess_analysis_variant_pgn_${targetVariant}`) : null;
+                if (!state) {
+                    state = { variant: targetVariant, mode: 'analysis', pgn: variantPgn || "" };
+                } else {
+                    state.variant = targetVariant;
+                    if (variantPgn && variantPgn.trim() !== "" && variantPgn.trim() !== "*") {
+                        state.pgn = variantPgn;
+                    } else if (state.variant !== targetVariant) {
+                        state.pgn = "";
+                        state.fen = "";
+                        state.activeNodeId = null;
                     }
                 }
-            } else if (state.fen) {
-                if (typeof this.loadNewPosition === 'function') this.loadNewPosition(state.fen);
-                else if (typeof this.loadFEN === 'function') this.loadFEN(state.fen, this.gameMode, true);
-                
-                this.rootNode = new MoveNode(state.fen, null);
-                this.#rebuildNodeMap(this.rootNode);
-                this.currentNode = this.rootNode;
             } else {
-                let startFen = typeof this.#getStartingFen === 'function' 
-                    ? this.#getStartingFen(this.gameMode) 
-                    : (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode] ? VARIANT_STARTING_FENS[this.gameMode] : INITIAL_FEN);
-                
-                if (this.gameMode === 'chess960' && typeof this.generateChess960FEN === 'function') {
-                    startFen = this.generateChess960FEN();
+                if ((!state || !state.pgn) && typeof localStorage !== 'undefined') {
+                    const variantPgn = localStorage.getItem(`chess_${memSlot}_variant_pgn_${targetVariant}`);
+                    if (variantPgn) {
+                        if (!state) state = { variant: targetVariant, mode: memSlot };
+                        state.pgn = variantPgn;
+                    }
                 }
-
-                if (typeof this.loadFEN === 'function') this.loadFEN(startFen, this.gameMode, true);
-                this.rootNode = new MoveNode(startFen, null);
-                this.#rebuildNodeMap(this.rootNode);
-                this.currentNode = this.rootNode;
             }
+            
+            this.mode = (memSlot === 'play') ? (state?.mode || 'local') : memSlot;
 
-            if (state.headers) this.pgnHeaders = { ...state.headers };
-            if (state.history) {
-                this.history = new BigUint64Array(state.history.length);
-                for (let i = 0; i < state.history.length; i++) {
-                    this.history[i] = BigInt(state.history[i]);
+            if (state) {
+                this.gameMode = state.variant || targetVariant || 'classical';
+                this.gameOver = state.isGameOver || false;
+                this._originalPgn = null;
+                if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem('chess_last_variant', this.gameMode);
                 }
-            } else {
+                
+                this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)(undefined, this.gameMode);
+                if (this.#engine && typeof this.#engine.setGameMode === 'function') {
+                    this.#engine.setGameMode(this.gameMode);
+                }
+                
                 this.history = new BigUint64Array(1000);
-            }
-            
-            if (state.moveList) this.moveList = [...state.moveList];
-            
-            this.whiteTime = state.wTime !== undefined ? state.wTime : 600;
-            this.blackTime = state.bTime !== undefined ? state.bTime : 600;
-            this.botColor = state.botColor;
-            this.myColor = state.myColor;
-            this.botLevel = state.botLevel;
-            this.puzzleCursor = state.puzzleCursor || 0;
-            this.puzzleSolution = state.puzzleSolution ? [...state.puzzleSolution] : [];
-            this.puzzleScore = state.puzzleScore || 0;
-            this.puzzleStrikes = state.puzzleStrikes || 0;
-            this.currentPuzzle = state.currentPuzzle || null;
-            this.initialPuzzleFEN = state.initialPuzzleFEN || null;
-            this.puzzleActive = state.puzzleActive || false;
-            this.puzzleMode = state.puzzleMode || 'rush';
-            this.puzzleSolved = state.puzzleSolved || false;
-            this.puzzleQueue = state.puzzleQueue ? [...state.puzzleQueue] : [];
-            this.puzzleIndex = state.puzzleIndex || 0;
-            this.sessionMinRating = state.sessionMinRating || 600;
-            this.sessionMaxRating = state.sessionMaxRating || 3000;
-            this.targetRushRating = state.targetRushRating || 400;
-
-            if (state.activeChapterIndex !== undefined) this.activeChapterIndex = state.activeChapterIndex;
-            if (state.currentStudyId !== undefined) this.currentStudyId = state.currentStudyId;
-            
-            if (state.activeNodeId && typeof this.goToNodeId === 'function') {
-                let success = this.goToNodeId(state.activeNodeId, false);
-                if (!success && state.fen) {
-                    let target = null;
-                    const searchFen = (node) => {
-                        if (node.fen === state.fen) { target = node; return; }
-                        for (let c of node.children) searchFen(c);
-                    };
-                    if (this.rootNode) searchFen(this.rootNode);
-                    if (target) this.goToNodeId(target.id, false);
+                this.moveList = [];
+                this.pgnHeaders = state.headers ? { ...state.headers } : {};
+                if (this.gameMode !== 'classical') {
+                    this.pgnHeaders['Variant'] = this.gameMode;
                 }
+
+                if (state.pgn && state.pgn.trim() !== "" && state.pgn.trim() !== "*") {
+                    if (typeof this.loadPGN === 'function') {
+                        this.loadPGN(state.pgn, false, true);
+                        this._originalPgn = state.pgn;
+                        const res = this.pgnHeaders['Result'];
+                        if (res === '1-0' || res === '0-1' || res === '1/2-1/2') {
+                            this.gameOver = true;
+                        }
+                    }
+                } else if (state.fen) {
+                    if (typeof this.loadNewPosition === 'function') this.loadNewPosition(state.fen);
+                    else if (typeof this.loadFEN === 'function') this.loadFEN(state.fen, this.gameMode, true);
+                    
+                    this.rootNode = new MoveNode(state.fen, null);
+                    this.#rebuildNodeMap(this.rootNode);
+                    this.currentNode = this.rootNode;
+                } else {
+                    let startFen = typeof this.#getStartingFen === 'function' 
+                        ? this.#getStartingFen(this.gameMode) 
+                        : (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode] ? VARIANT_STARTING_FENS[this.gameMode] : INITIAL_FEN);
+                    
+                    if (this.gameMode === 'chess960' && typeof this.generateChess960FEN === 'function') {
+                        startFen = this.generateChess960FEN();
+                    }
+
+                    if (typeof this.loadFEN === 'function') this.loadFEN(startFen, this.gameMode, true);
+                    this.rootNode = new MoveNode(startFen, null);
+                    this.#rebuildNodeMap(this.rootNode);
+                    this.currentNode = this.rootNode;
+                }
+
+                if (state.headers) this.pgnHeaders = { ...state.headers };
+                if (state.history) {
+                    this.history = new BigUint64Array(state.history.length);
+                    for (let i = 0; i < state.history.length; i++) {
+                        this.history[i] = BigInt(state.history[i]);
+                    }
+                } else {
+                    this.history = new BigUint64Array(1000);
+                }
+                
+                if (state.moveList) this.moveList = [...state.moveList];
+                
+                this.whiteTime = state.wTime !== undefined ? state.wTime : 600;
+                this.blackTime = state.bTime !== undefined ? state.bTime : 600;
+                this.botColor = state.botColor;
+                this.myColor = state.myColor;
+                this.botLevel = state.botLevel;
+                this.puzzleCursor = state.puzzleCursor || 0;
+                this.puzzleSolution = state.puzzleSolution ? [...state.puzzleSolution] : [];
+                this.puzzleScore = state.puzzleScore || 0;
+                this.puzzleStrikes = state.puzzleStrikes || 0;
+                this.currentPuzzle = state.currentPuzzle || null;
+                this.initialPuzzleFEN = state.initialPuzzleFEN || null;
+                this.puzzleActive = state.puzzleActive || false;
+                this.puzzleMode = state.puzzleMode || 'rush';
+                this.puzzleSolved = state.puzzleSolved || false;
+                this.puzzleQueue = state.puzzleQueue ? [...state.puzzleQueue] : [];
+                this.puzzleIndex = state.puzzleIndex || 0;
+                this.sessionMinRating = state.sessionMinRating || 600;
+                this.sessionMaxRating = state.sessionMaxRating || 3000;
+                this.targetRushRating = state.targetRushRating || 400;
+
+                if (state.activeChapterIndex !== undefined) this.activeChapterIndex = state.activeChapterIndex;
+                if (state.currentStudyId !== undefined) this.currentStudyId = state.currentStudyId;
+                
+                if (state.activeNodeId && typeof this.goToNodeId === 'function') {
+                    let success = this.goToNodeId(state.activeNodeId, false);
+                    if (!success && state.fen) {
+                        let target = null;
+                        const searchFen = (node) => {
+                            if (node.fen === state.fen) { target = node; return; }
+                            for (let c of node.children) searchFen(c);
+                        };
+                        if (this.rootNode) searchFen(this.rootNode);
+                        if (target) this.goToNodeId(target.id, false);
+                    }
+                }
+
+                if (this.currentNode && typeof this.loadFEN === 'function') {
+                    this.loadFEN(this.currentNode.fen, this.gameMode, true);
+                }
+                this.gameOver = state.isGameOver || this.gameOver || false;
+                this.isPaused = state.isPaused || false;
+                if (typeof this.#checkAndSwitchEngine === 'function') {
+                    this.#checkAndSwitchEngine();
+                }
+
+                this.#emit('variantChanged', this.gameMode);
+                if ((this.mode === 'local' || this.mode === 'bot') && !this.gameOver) {
+                    if (!this.isPaused && typeof this.#startTimer === 'function') this.#startTimer();
+                    if (this.mode === 'bot' && this.turn === this.botColor && !this.isPaused) {
+                        setTimeout(() => {
+                            if (typeof window.sfWorker !== 'undefined' && window.sfWorker) {
+                                window.sfWorker.postMessage('isready');
+                            }
+                            if (typeof this.#triggerBotMove === 'function') this.#triggerBotMove();
+                        }, 500);
+                    }
+                }
+                if (this.#ui) {
+                    this.#ui._lastMetadataCache = null;
+                    this.#ui._lastHeadersCache = null;
+                    if (typeof this.#ui.displayMetadata === 'function') {
+                        this.#ui.displayMetadata(this.pgnHeaders);
+                    }
+                    if (typeof this.#ui.renderHeaders === 'function') {
+                        this.#ui.renderHeaders();
+                    }
+                }
+
+                return true;
             }
 
-            if (this.currentNode && typeof this.loadFEN === 'function') {
-                this.loadFEN(this.currentNode.fen, this.gameMode, true);
+            let startFen = typeof this.#getStartingFen === 'function' 
+                ? this.#getStartingFen(this.gameMode) 
+                : (typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+                
+            this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
+            if (this.#engine && typeof this.#engine.setGameMode === 'function') {
+                this.#engine.setGameMode(this.gameMode);
             }
-            this.gameOver = state.isGameOver || this.gameOver || false;
-            this.isPaused = state.isPaused || false;
-            if (typeof this.#checkAndSwitchEngine === 'function') {
-                this.#checkAndSwitchEngine();
+            this.rootNode = new MoveNode(startFen, null);
+            this.#rebuildNodeMap(this.rootNode);
+            this.currentNode = this.rootNode;
+            this.history = new BigUint64Array(1000);
+            this.moveList = [];
+            this.pgnHeaders = {};
+            
+            if (typeof this.loadFEN === 'function') {
+                this.loadFEN(startFen, this.gameMode, true);
             }
 
             this.#emit('variantChanged', this.gameMode);
-            if ((this.mode === 'local' || this.mode === 'bot') && !this.gameOver) {
-                if (!this.isPaused && typeof this.#startTimer === 'function') this.#startTimer();
-                if (this.mode === 'bot' && this.turn === this.botColor && !this.isPaused) {
-                    setTimeout(() => {
-                        if (typeof window.sfWorker !== 'undefined' && window.sfWorker) {
-                            window.sfWorker.postMessage('isready');
-                        }
-                        if (typeof this.#triggerBotMove === 'function') this.#triggerBotMove();
-                    }, 500);
+
+            return false;
+        }
+    #prepareNewGameSetup() {
+            // Core Guard: If a new game initialization is triggered while we are still 
+            // lingering on an active analysis or study tab, force-save its state right now!
+            if (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'puzzle') {
+                if (typeof this.#saveState === 'function') {
+                    this.#saveState(this.mode);
+                }
+                if (this.mode === 'study' && typeof this.saveActiveChapter === 'function') {
+                    this.saveActiveChapter();
                 }
             }
-            if (this.#ui) {
-                this.#ui._lastMetadataCache = null;
-                this.#ui._lastHeadersCache = null;
-                if (typeof this.#ui.displayMetadata === 'function') {
-                    this.#ui.displayMetadata(this.pgnHeaders);
-                }
-                if (typeof this.#ui.renderHeaders === 'function') {
-                    this.#ui.renderHeaders();
-                }
-            }
-
-            return true;
         }
-
-        let startFen = typeof this.#getStartingFen === 'function' 
-            ? this.#getStartingFen(this.gameMode) 
-            : (typeof INITIAL_FEN !== 'undefined' ? INITIAL_FEN : 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
-            
-        this.#engine = new (typeof Chess === 'function' ? Chess : window.Chess)();
-        if (this.#engine && typeof this.#engine.setGameMode === 'function') {
-            this.#engine.setGameMode(this.gameMode);
-        }
-        this.rootNode = new MoveNode(startFen, null);
-        this.#rebuildNodeMap(this.rootNode);
-        this.currentNode = this.rootNode;
-        this.history = new BigUint64Array(1000);
-        this.moveList = [];
-        this.pgnHeaders = {};
-        
-        if (typeof this.loadFEN === 'function') {
-            this.loadFEN(startFen, this.gameMode, true);
-        }
-
-        this.#emit('variantChanged', this.gameMode);
-
-        return false;
-    }
-#prepareNewGameSetup() {
-        // Core Guard: If a new game initialization is triggered while we are still 
-        // lingering on an active analysis or study tab, force-save its state right now!
-        if (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'puzzle') {
-            if (typeof this.#saveState === 'function') {
-                this.#saveState(this.mode);
-            }
-            if (this.mode === 'study' && typeof this.saveActiveChapter === 'function') {
-                this.saveActiveChapter();
-            }
-        }
-    }
-#parsePGNTokens(pgnStr, tokenIndices, tokenCount, index = 0) {
+    #parsePGNTokens(pgnStr, tokenIndices, tokenCount, index = 0) {
         const tlRegex = /tl\s*=\s*(-?\d+(\.\d+)?)/i;
         const lichessEvalRegex = /\[%eval\s+([#]?[+-]?[\d\.]+)\]/i; 
         const lichessClkRegex = /\[%clk\s+([0-9:\.]+)\]/i; 
@@ -1866,7 +1865,6 @@ return move.san;
                     this.currentNode.comment = (humanPart && humanPart !== '-' && humanPart !== ',-') ? humanPart : (nonLichess || null);
                 }
 
-                // A. Parse Lichess Eval (Carlsen vs Barbo)
                 let evMatch = rawComment.match(lichessEvalRegex);
                 if (evMatch) {
                     const rawVal = evMatch[1];
@@ -1891,7 +1889,6 @@ return move.san;
                     }
                 }
 
-                // B. Parse CCC Eval (Lc0 vs Torch)
                 if (this.currentNode.evalScore === undefined) {
                     let engMatch = rawComment.match(/([+-])?(M)?(\d+(\.\d+)?)\/(\d+)/i);
                     if (engMatch) {
@@ -1924,7 +1921,6 @@ return move.san;
                     }
                 }
 
-                // C. Parse Clocks & Telemetry
                 const clkMatch = rawComment.match(lichessClkRegex);
                 const tlMatch = rawComment.match(tlRegex);
                 const npsMatch = rawComment.match(/nps=(\d+)/i);
@@ -1971,7 +1967,6 @@ return move.san;
                     }
                 }
                 
-                // D. Parse Shapes
                 let calMatch = rawComment.match(lichessCalRegex);
                 if (calMatch) {
                     this.currentNode.arrows = [];
@@ -2011,6 +2006,7 @@ return move.san;
             }
 
             if (firstChar === 42 && len === 1) continue; 
+            if ((firstChar === 84 || firstChar === 116) && len === 1) continue;
             if (firstChar === 49 && len === 3 && pgnStr.charCodeAt(tStart+1) === 45 && pgnStr.charCodeAt(tStart+2) === 48) continue; 
             if (firstChar === 48 && len === 3 && pgnStr.charCodeAt(tStart+1) === 45 && pgnStr.charCodeAt(tStart+2) === 49) continue; 
             if (len === 7 && pgnStr.substring(tStart, tEnd) === '1/2-1/2') continue;
@@ -2027,7 +2023,13 @@ return move.san;
             let moveText = token;
             let attachedNag = "";
             
-            if ((lastChar >= 48 && lastChar <= 57) || (lastChar >= 65 && lastChar <= 90) || (lastChar >= 97 && lastChar <= 122) || lastChar === 35 || lastChar === 43) {
+            const uciFullRegex = /^([a-h][1-8][a-h][1-8][qrbn]?(?:@[a-h][1-8])?[\+#]*)(.*)$/i;
+            let matchUci = token.match(uciFullRegex);
+            
+            if (matchUci && matchUci[1]) {
+                moveText = matchUci[1];
+                attachedNag = matchUci[2];
+            } else if ((lastChar >= 48 && lastChar <= 57) || (lastChar >= 65 && lastChar <= 90) || (lastChar >= 97 && lastChar <= 122) || lastChar === 35 || lastChar === 43) {
                 if (token.endsWith('+-') || token.endsWith('-+') || token.endsWith('=+') || token.endsWith('+=')) {
                     let fallbackMatch = token.match(/^([a-zA-Z0-9\+#\-@=]+?)([!?[\]±∓∞⩲⩱]|\+\-|\-\+|\+\/-|-\/\+)+$/);
                     if (fallbackMatch) {
@@ -2036,7 +2038,7 @@ return move.san;
                     }
                 }
             } else {
-                const sanRegex = /^([KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?(?:@[a-h][1-8])?[\+#]?|[a-h][1-8](?:=[QRBN])?[\+#]?|O-O-O(?:@[a-h][1-8])?[\+#]?|O-O(?:@[a-h][1-8])?[\+#]?)(.*)$/;
+                const sanRegex = /^([KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?(?:@[a-h][1-8])?[\+#]*|[a-h][1-8](?:=[QRBN])?[\+#]*|[KQRBNP]?@[a-h][1-8][\+#]*|O-O-O(?:@[a-h][1-8])?[\+#]*|O-O(?:@[a-h][1-8])?[\+#]*)(.*)$/;
                 let match = token.match(sanRegex);
                 if (match && match[1]) { 
                     moveText = match[1]; 
@@ -2050,325 +2052,308 @@ return move.san;
                 }
             }
 
-            let engineInput = moveText; 
+            let engineInput = moveText.replace(/[\+#]+$/, '');
 
             let duckSqFromSan = -1;
-                    if (this.gameMode === 'duck' && typeof moveText === 'string' && moveText.includes('@')) {
-                        const duckMatch = moveText.match(/@([a-h][1-8])/);
-                        if (duckMatch && duckMatch[1]) {
-                            duckSqFromSan = this.#squareToIndex(duckMatch[1]);
-                        }
-                    }
-
-                    if (typeof engineInput === 'string' && engineInput.includes('_')) {
-                        const restoredStr = engineInput.replace(/([A-Za-z]+@[a-h][1-8])_([A-Za-z0-9+#=O\-]+)/, "$1 $2");
-                        engineInput = restoredStr;
-                        moveText = restoredStr; 
-                    }
-
-                    if (this.gameMode === 'duck' && typeof engineInput === 'string' && engineInput.includes('@')) {
-                        engineInput = engineInput.replace(/@[a-h][1-8]/, '');
-                    }
-
-                    const uciMatch = (typeof engineInput === 'string') ? engineInput.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i) : null;
-                    if (uciMatch) engineInput = { from: uciMatch[1], to: uciMatch[2], promotion: uciMatch[3] ? uciMatch[3].toLowerCase() : undefined };
-
-                    let moveObj = null;
-                    const originalError = console.error;
-                    console.error = () => {}; 
-                    
-                    try {
-                        moveObj = this.#engine.move(engineInput, { sloppy: true });
-                    } catch(e) {
-                        moveObj = null;
-                    }
-                    console.error = originalError;
-
-                    if (!moveObj) {
-                        if (moveText.includes(':') || moveText.includes('/') || moveText.length > 8) {
-                            continue;
-                        }
-                    }
-                    
-                    let isIllegal = !moveObj;
-                    if (isIllegal) {
-                        moveObj = { san: moveText, from: -1, to: -1, flags: '', color: this.#engine.turn(), piece: '' };
-                    }
-
-                    let finalSanToSave = moveObj.san;
-                    if (moveText.includes('+') && !finalSanToSave.includes('+') && !finalSanToSave.includes('#')) {
-                        finalSanToSave += '+';
-                    } else if (moveText.includes('#') && !finalSanToSave.includes('#')) {
-                        finalSanToSave += '#';
-                    } else if (!isIllegal && this.#engine.in_check() && !finalSanToSave.includes('+') && !finalSanToSave.includes('#')) {
-                        finalSanToSave += '+';
-                    }
-
-                    if (!isIllegal && typeof moveText === 'string') {
-                        let spaceIdx = moveText.indexOf(' ');
-                        if (spaceIdx !== -1) {
-                            let prefix = moveText.substring(0, spaceIdx);
-                            if (prefix.includes('@') && (prefix.startsWith('F') || prefix.startsWith('J'))) {
-                                if (!finalSanToSave.startsWith(prefix)) {
-                                    finalSanToSave = `${prefix} ${finalSanToSave}`; 
-                                }
-                            }
-                        }
-                    }
-
-                    const newNode = new MoveNode(this.#engine.fen(), finalSanToSave);
-                    newNode.lastMove = {
-                        from: isIllegal ? -1 : this.#squareToIndex(moveObj.from),
-                        to: isIllegal ? -1 : this.#squareToIndex(moveObj.to),
-                        flags: moveObj.flags, 
-                        piece: moveObj.piece, 
-                        color: moveObj.color
-                    };
-                    
-                    if (duckSqFromSan !== -1) {
-                        this.#duck_sq = duckSqFromSan;
-                        newNode.duck_sq = duckSqFromSan;
-                        newNode.fen = this.#injectDuckIntoFen(newNode.fen, duckSqFromSan);
-                        newNode.lastMove.duck_sq = duckSqFromSan;
-                        if (!finalSanToSave.includes('@')) {
-                            finalSanToSave += `@${this.#indexToSquare(duckSqFromSan)}`;
-                            newNode.san = finalSanToSave;
-                        }
-                    }
-                    
-                    if (attachedNag) {
-                        const separatedNags = attachedNag.match(/!!|\?\?|!\?|\?!|[!?]|[\+\-]{2}|[=±∓∞⩲⩱]|\+\/-|-\/\+/g);
-                        if (separatedNags) newNode.nag = separatedNags.join(',');
-                        else newNode.nag = attachedNag;
-                    }
-                    if (isIllegal) newNode.isIllegal = true;
-
-                    newNode.parent = this.currentNode;
-                    this.currentNode.children.push(newNode);
-
-                    if (this.currentNode.children.length > 1 && this.isLoadingPGN) {
-                        this.currentNode.children.sort((a, b) => {
-                            if (a.isPV === b.isPV) return 0;
-                            return a.isPV ? 1 : -1; 
-                        });
-                    }
-                    this.currentNode = newNode;
-                    if (this.currentNode.parent && this.currentNode.parent.hasClock) {
-                        this.currentNode.clock = { w: this.currentWTime, b: this.currentBTime };
-                        this.currentNode.hasClock = true;
-                    }
-        }
-        return idx;
-    }
-#addPVToNode(node, pvString) {
-        if (!pvString || !node) return;
-
-        let savedNode = this.currentNode;
-        let savedFen = this.#engine.fen();
-
-        let pvMovesToPlay = [];
-        let pvi = 0; let pvlen = pvString.length;
-        while (pvi < pvlen) {
-            while(pvi < pvlen && pvString.charCodeAt(pvi) <= 32) pvi++;
-            if (pvi >= pvlen) break;
-            let st = pvi;
-            while(pvi < pvlen && pvString.charCodeAt(pvi) > 32) pvi++;
-            pvMovesToPlay.push(pvString.substring(st, pvi));
-        }
-        if (pvMovesToPlay.length === 0) return;
-
-        let startNode = node.parent || node;
-        let loadFen = (node.parent && node.parent.fen) ? node.parent.fen : node.fen;
-
-        if (node.parent) {
-            try {
-                this.#engine.load(node.fen);
-                let firstMoveText = pvMovesToPlay[0].replace(/[?!+#]+$/, '');
-                let uM = firstMoveText.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
-                let testInput = uM 
-                    ? { from: uM[1], to: uM[2], promotion: uM[3] ? uM[3].toLowerCase() : undefined }
-                    : firstMoveText;
-                
-                let testMove = null;
-                const origErr = console.error; console.error = () => {};
-                try { testMove = this.#engine.move(testInput, { sloppy: true }); } catch(e) {}
-                console.error = origErr;
-
-                if (testMove) {
-                    startNode = node;
-                    loadFen = node.fen;
-                } else {
-                    startNode = node.parent;
-                    loadFen = node.parent.fen;
+            if (this.gameMode === 'duck' && typeof moveText === 'string' && moveText.includes('@')) {
+                const duckMatch = moveText.match(/@([a-h][1-8])/);
+                if (duckMatch && duckMatch[1]) {
+                    duckSqFromSan = this.#squareToIndex(duckMatch[1]);
                 }
-            } catch(e) {
-                startNode = node.parent;
-                loadFen = node.parent.fen;
             }
-        }
 
-        if (pvMovesToPlay.length === 0) return;
-
-        this.currentNode = startNode;
-        try { 
-            this.#engine.load(loadFen); 
-        } catch(e) { 
-            this.currentNode = savedNode;
-            return; 
-        }
-
-        for (let i = 0; i < pvMovesToPlay.length; i++) {
-            let moveText = pvMovesToPlay[i].replace(/[?!+#]+$/, '');
-            if (!moveText) continue;
-
-            let uM = moveText.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
-            let eInput = uM 
-                ? { from: uM[1], to: uM[2], promotion: uM[3] ? uM[3].toLowerCase() : undefined }
-                : moveText;
+            const uciMatch = (typeof engineInput === 'string') ? engineInput.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i) : null;
+            if (uciMatch) engineInput = { from: uciMatch[1], to: uciMatch[2], promotion: uciMatch[3] ? uciMatch[3].toLowerCase() : undefined };
 
             let moveObj = null;
-            const origErr = console.error; console.error = () => {};
-            try { moveObj = this.#engine.move(eInput, { sloppy: true }); } catch(e) {}
-            if (!moveObj) {
-                try { moveObj = this.#engine.move(moveText, { sloppy: true }); } catch(e) {}
+            const originalError = console.error;
+            console.error = () => {}; 
+            
+            try {
+                moveObj = this.#engine.move(engineInput, { sloppy: true });
+            } catch(e) {
+                moveObj = null;
             }
-            console.error = origErr;
+            console.error = originalError;
 
-            if (!moveObj) break;
+            if (!moveObj) {
+                if (moveText.includes(':') || moveText.includes('/') || moveText.length > 8) {
+                    continue;
+                }
+            }
+            
+            let isIllegal = !moveObj;
+            if (isIllegal) {
+                moveObj = { san: moveText, from: -1, to: -1, flags: '', color: this.#engine.turn(), piece: '' };
+            }
 
-            let moveData = {
-                from: typeof this.#squareToIndex === 'function' ? this.#squareToIndex(moveObj.from) : -1,
-                to: typeof this.#squareToIndex === 'function' ? this.#squareToIndex(moveObj.to) : -1,
+            let finalSanToSave = moveObj.san;
+
+            if (!isIllegal && typeof moveText === 'string') {
+                let spaceIdx = moveText.indexOf(' ');
+                if (spaceIdx !== -1) {
+                    let prefix = moveText.substring(0, spaceIdx);
+                    if (prefix.includes('@') && (prefix.startsWith('F') || prefix.startsWith('J'))) {
+                        if (!finalSanToSave.startsWith(prefix)) {
+                            finalSanToSave = `${prefix} ${finalSanToSave}`; 
+                        }
+                    }
+                }
+            }
+
+            const newNode = new MoveNode(this.#engine.fen(), finalSanToSave);
+            newNode.lastMove = {
+                from: isIllegal ? -1 : this.#squareToIndex(moveObj.from),
+                to: isIllegal ? -1 : this.#squareToIndex(moveObj.to),
                 flags: moveObj.flags, 
                 piece: moveObj.piece, 
                 color: moveObj.color
             };
-
-            this.#addMoveToTree(this.#engine.fen(), moveObj.san, moveData.to, moveData);
-        }
-
-        this.currentNode = savedNode;
-        try { this.#engine.load(savedFen); } catch(e) {}  
-    }
-#addMoveToTree(fen, moveSan, toSq, moveData) {
-        let isPVMove = !!this._isParsingPV;
-        let existingChild = this.currentNode.children.find(child => 
-            child.moveSan === moveSan && !!child.isPV === isPVMove
-        );
-
-        if (existingChild) {
-            this.currentNode = existingChild;
-            if (!isPVMove && !this.isLoadingPGN) {
-                const idx = this.currentNode.parent.children.indexOf(this.currentNode);
-                if (idx !== -1) this.currentNode.parent.selectedChildIndex = idx;
-            }
-        } else {
-            // Disable Sublines in Live Play
-            if (this.mode === 'bot' || this.mode === 'local' || this.mode === 'play') {
-                this.currentNode.children = [];
-            }
-
-            let newNode = new MoveNode(fen, moveSan, this.currentNode, "", 0, toSq);
-            newNode.lastMove = moveData;
-            newNode.isPV = isPVMove;
             
-            if (!this.nodeMap) this.nodeMap = new Map();
-            let str = this.currentNode.id + "_" + moveSan + "_" + (isPVMove ? "pv" : "m");
-            let hash = 0; 
-            for (let i = 0; i < str.length; i++) hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
-            newNode.id = 'n_' + Math.abs(hash).toString(36);
-            this.nodeMap.set(newNode.id, newNode);
+            if (duckSqFromSan !== -1) {
+                this.#duck_sq = duckSqFromSan;
+                newNode.duck_sq = duckSqFromSan;
+                newNode.fen = this.#injectDuckIntoFen(newNode.fen, duckSqFromSan);
+                newNode.lastMove.duck_sq = duckSqFromSan;
+                if (!finalSanToSave.includes('@')) {
+                    finalSanToSave += `@${this.#indexToSquare(duckSqFromSan)}`;
+                    newNode.san = finalSanToSave;
+                }
+            }
+            
+            if (attachedNag) {
+                const separatedNags = attachedNag.match(/!!|\?\?|!\?|\?!|[!?]|[\+\-]{2}|[=±∓∞⩲⩱]|\+\/-|-\/\+/g);
+                if (separatedNags) newNode.nag = separatedNags.join(',');
+                else newNode.nag = attachedNag;
+            }
+            if (isIllegal) newNode.isIllegal = true;
 
+            newNode.parent = this.currentNode;
             this.currentNode.children.push(newNode);
-            const newIdx = this.currentNode.children.indexOf(newNode);
-            if (this.currentNode.children.length === 1) this.currentNode.selectedChildIndex = 0;
-            else if (!isPVMove && !this.isLoadingPGN) this.currentNode.selectedChildIndex = newIdx;
 
+            if (this.currentNode.children.length > 1 && this.isLoadingPGN) {
+                this.currentNode.children.sort((a, b) => {
+                    if (a.isPV === b.isPV) return 0;
+                    return a.isPV ? 1 : -1; 
+                });
+            }
             this.currentNode = newNode;
+            if (this.currentNode.parent && this.currentNode.parent.hasClock) {
+                this.currentNode.clock = { w: this.currentWTime, b: this.currentBTime };
+                this.currentNode.hasClock = true;
+            }
         }
+        return idx;
+    }
+    #addPVToNode(node, pvString) {
+            if (!pvString || !node) return;
 
-        if (this.isLoadingPGN || isPVMove) return;
+            let savedNode = this.currentNode;
+            let savedFen = this.#engine.fen();
 
-        if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
+            let pvMovesToPlay = [];
+            let pvi = 0; let pvlen = pvString.length;
+            while (pvi < pvlen) {
+                while(pvi < pvlen && pvString.charCodeAt(pvi) <= 32) pvi++;
+                if (pvi >= pvlen) break;
+                let st = pvi;
+                while(pvi < pvlen && pvString.charCodeAt(pvi) > 32) pvi++;
+                pvMovesToPlay.push(pvString.substring(st, pvi));
+            }
+            if (pvMovesToPlay.length === 0) return;
 
-        // TAB AUTOSAVE LOGIC
-        if (this.mode === 'analysis') {
-            this.#saveState('analysis');
-        } else if (this.mode === 'study') {
-            if (typeof this.saveActiveChapter === 'function') this.saveActiveChapter();
-        } else if (this.mode === 'local' || this.mode === 'bot') {
-            this.#saveState('play');
-        } else if (this.mode === 'puzzle') {
-            this.#saveState('puzzle');
-        }
-        
-        try {
-            if (this.#ui && typeof this.#ui.updateHistory === 'function') {
-                if (this._historyRenderTimeout) clearTimeout(this._historyRenderTimeout);
-                this._historyRenderTimeout = setTimeout(() => {
-                    if (typeof requestAnimationFrame === 'function') {
-                        requestAnimationFrame(() => { if (this.#ui && this.#ui.updateHistory) this.#ui.updateHistory(); });
-                    } else if (this.#ui && this.#ui.updateHistory) {
-                        this.#ui.updateHistory();
+            let startNode = node.parent || node;
+            let loadFen = (node.parent && node.parent.fen) ? node.parent.fen : node.fen;
+
+            if (node.parent) {
+                try {
+                    this.#engine.load(node.fen);
+                    let firstMoveText = pvMovesToPlay[0].replace(/[?!+#]+$/, '');
+                    let uM = firstMoveText.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
+                    let testInput = uM 
+                        ? { from: uM[1], to: uM[2], promotion: uM[3] ? uM[3].toLowerCase() : undefined }
+                        : firstMoveText;
+                    
+                    let testMove = null;
+                    const origErr = console.error; console.error = () => {};
+                    try { testMove = this.#engine.move(testInput, { sloppy: true }); } catch(e) {}
+                    console.error = origErr;
+
+                    if (testMove) {
+                        startNode = node;
+                        loadFen = node.fen;
+                    } else {
+                        startNode = node.parent;
+                        loadFen = node.parent.fen;
                     }
-                }, 200); 
+                } catch(e) {
+                    startNode = node.parent;
+                    loadFen = node.parent.fen;
+                }
             }
-        } catch (e) {}
-    }
-#processEngineComment(node, rawComment) {
-        if (rawComment.toLowerCase().includes('book')) {
-            node.isBook = true;
-        }
-        
-        // 1. Extract Depth & Flip Eval if necessary
-        const scoreRegex = /([+-]?(?:M\d+|\d+\.\d+|\d+))\/(\d+)/;
-        const scoreMatch = rawComment.match(scoreRegex);
 
-        if (scoreMatch) {
-            node.depth = parseInt(scoreMatch[2], 10);
-        }
-        
-        // 2. Build the PV Variation Tree
-        const pvMatch = rawComment.match(/pv\s*=\s*\\*["']?([^"}\\]+)/i);
-        if (pvMatch && pvMatch[1]) {
-            this._isParsingPV = true;
-            if (typeof this.#addPVToNode === 'function') {
-                this.#addPVToNode(node, pvMatch[1].trim());
+            if (pvMovesToPlay.length === 0) return;
+
+            this.currentNode = startNode;
+            try { 
+                this.#engine.load(loadFen); 
+            } catch(e) { 
+                this.currentNode = savedNode;
+                return; 
             }
-            this._isParsingPV = false;
-        }
-    }
-#endGame(resultStr, statusMsg) {
-        if (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'editor') return; 
 
-        const finishedLiveGame = (this.mode === 'local' || this.mode === 'bot');
-        this.gameOver = true;
-        this.isPaused = false; 
-        
-        if (this.#timerInterval) {
-            clearInterval(this.#timerInterval);
-            this.#timerInterval = null;
-        }
+            for (let i = 0; i < pvMovesToPlay.length; i++) {
+                let moveText = pvMovesToPlay[i].replace(/[?!+#]+$/, '');
+                if (!moveText) continue;
 
-        this.pgnHeaders['Result'] = resultStr;
-        let winner = "Draw";
-        if (resultStr === "1-0") winner = "White";
-        else if (resultStr === "0-1") winner = "Black";
-        
-        let reason = statusMsg;
-        if (statusMsg.includes(' wins ')) reason = statusMsg.split(' wins ')[1]; 
-        else if (statusMsg.startsWith('Draw ')) reason = statusMsg.substring(5);
-        this.#emit('gameOver', { winner, reason, statusMsg });
-        
-        this.clearPremoves();
+                let uM = moveText.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
+                let eInput = uM 
+                    ? { from: uM[1], to: uM[2], promotion: uM[3] ? uM[3].toLowerCase() : undefined }
+                    : moveText;
 
-        if (this.#ui && typeof this.#ui.renderBoard === 'function') {
-            this.#ui.renderBoard(false);
+                let moveObj = null;
+                const origErr = console.error; console.error = () => {};
+                try { moveObj = this.#engine.move(eInput, { sloppy: true }); } catch(e) {}
+                if (!moveObj) {
+                    try { moveObj = this.#engine.move(moveText, { sloppy: true }); } catch(e) {}
+                }
+                console.error = origErr;
+
+                if (!moveObj) break;
+
+                let moveData = {
+                    from: typeof this.#squareToIndex === 'function' ? this.#squareToIndex(moveObj.from) : -1,
+                    to: typeof this.#squareToIndex === 'function' ? this.#squareToIndex(moveObj.to) : -1,
+                    flags: moveObj.flags, 
+                    piece: moveObj.piece, 
+                    color: moveObj.color
+                };
+
+                this.#addMoveToTree(this.#engine.fen(), moveObj.san, moveData.to, moveData);
+            }
+
+            this.currentNode = savedNode;
+            try { this.#engine.load(savedFen); } catch(e) {}  
         }
-        if (typeof this.#saveState === 'function') {
-            this.#saveState('play', true); 
+    #addMoveToTree(fen, moveSan, toSq, moveData) {
+            let isPVMove = !!this._isParsingPV;
+            let existingChild = this.currentNode.children.find(child => 
+                child.moveSan === moveSan && !!child.isPV === isPVMove
+            );
+
+            if (existingChild) {
+                this.currentNode = existingChild;
+                if (!isPVMove && !this.isLoadingPGN) {
+                    const idx = this.currentNode.parent.children.indexOf(this.currentNode);
+                    if (idx !== -1) this.currentNode.parent.selectedChildIndex = idx;
+                }
+            } else {
+                // Disable Sublines in Live Play
+                if (this.mode === 'bot' || this.mode === 'local' || this.mode === 'play') {
+                    this.currentNode.children = [];
+                }
+
+                let newNode = new MoveNode(fen, moveSan, this.currentNode, "", 0, toSq);
+                newNode.lastMove = moveData;
+                newNode.isPV = isPVMove;
+                
+                if (!this.nodeMap) this.nodeMap = new Map();
+                let str = this.currentNode.id + "_" + moveSan + "_" + (isPVMove ? "pv" : "m");
+                let hash = 0; 
+                for (let i = 0; i < str.length; i++) hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
+                newNode.id = 'n_' + Math.abs(hash).toString(36);
+                this.nodeMap.set(newNode.id, newNode);
+
+                this.currentNode.children.push(newNode);
+                const newIdx = this.currentNode.children.indexOf(newNode);
+                if (this.currentNode.children.length === 1) this.currentNode.selectedChildIndex = 0;
+                else if (!isPVMove && !this.isLoadingPGN) this.currentNode.selectedChildIndex = newIdx;
+
+                this.currentNode = newNode;
+            }
+
+            if (this.isLoadingPGN || isPVMove) return;
+
+            if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
+
+            // TAB AUTOSAVE LOGIC
+            if (this.mode === 'analysis') {
+                this.#saveState('analysis');
+            } else if (this.mode === 'study') {
+                if (typeof this.saveActiveChapter === 'function') this.saveActiveChapter();
+            } else if (this.mode === 'local' || this.mode === 'bot') {
+                this.#saveState('play');
+            } else if (this.mode === 'puzzle') {
+                this.#saveState('puzzle');
+            }
+            
+            try {
+                if (this.#ui && typeof this.#ui.updateHistory === 'function') {
+                    if (this._historyRenderTimeout) clearTimeout(this._historyRenderTimeout);
+                    this._historyRenderTimeout = setTimeout(() => {
+                        if (typeof requestAnimationFrame === 'function') {
+                            requestAnimationFrame(() => { if (this.#ui && this.#ui.updateHistory) this.#ui.updateHistory(); });
+                        } else if (this.#ui && this.#ui.updateHistory) {
+                            this.#ui.updateHistory();
+                        }
+                    }, 200); 
+                }
+            } catch (e) {}
         }
-    }
+    #processEngineComment(node, rawComment) {
+            if (rawComment.toLowerCase().includes('book')) {
+                node.isBook = true;
+            }
+            
+            // 1. Extract Depth & Flip Eval if necessary
+            const scoreRegex = /([+-]?(?:M\d+|\d+\.\d+|\d+))\/(\d+)/;
+            const scoreMatch = rawComment.match(scoreRegex);
+
+            if (scoreMatch) {
+                node.depth = parseInt(scoreMatch[2], 10);
+            }
+            
+            // 2. Build the PV Variation Tree
+            const pvMatch = rawComment.match(/pv\s*=\s*\\*["']?([^"}\\]+)/i);
+            if (pvMatch && pvMatch[1]) {
+                this._isParsingPV = true;
+                if (typeof this.#addPVToNode === 'function') {
+                    this.#addPVToNode(node, pvMatch[1].trim());
+                }
+                this._isParsingPV = false;
+            }
+        }
+    #endGame(resultStr, statusMsg) {
+            if (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'editor') return; 
+
+            const finishedLiveGame = (this.mode === 'local' || this.mode === 'bot');
+            this.gameOver = true;
+            this.isPaused = false; 
+            
+            if (this.#timerInterval) {
+                clearInterval(this.#timerInterval);
+                this.#timerInterval = null;
+            }
+
+            this.pgnHeaders['Result'] = resultStr;
+            let winner = "Draw";
+            if (resultStr === "1-0") winner = "White";
+            else if (resultStr === "0-1") winner = "Black";
+            
+            let reason = statusMsg;
+            if (statusMsg.includes(' wins ')) reason = statusMsg.split(' wins ')[1]; 
+            else if (statusMsg.startsWith('Draw ')) reason = statusMsg.substring(5);
+            this.#emit('gameOver', { winner, reason, statusMsg });
+            
+            this.clearPremoves();
+
+            if (this.#ui && typeof this.#ui.renderBoard === 'function') {
+                this.#ui.renderBoard(false);
+            }
+            if (typeof this.#saveState === 'function') {
+                this.#saveState('play', true); 
+            }
+        }
 #stopTimer() {
         if (this.#timerInterval) {
             clearInterval(this.#timerInterval);
@@ -3090,58 +3075,58 @@ return move.san;
         });
     }
 #normalizeVariantToken(token, isFFA) {
-        let moveData = {
-            raw: token,
-            cleaned: token,
-            spell: null,
-            duck: null,
-            drop: null
-        };
+    let moveData = {
+        raw: token,
+        cleaned: token,
+        spell: null,
+        duck: null,
+        drop: null
+    };
 
-        // 1. Handle Setup Chess / Placement Drops
-        const dropMatch = token.match(/^([RNBQK])?@\d+_[ry]([RNBQKP])([a-k][0-9]+)/);
-        if (dropMatch) {
-            let dropSq = dropMatch[3];
-            if (isFFA) dropSq = this.#translate4PCtoStandard(dropSq);
-            moveData.drop = { piece: dropMatch[2], square: dropSq };
-            moveData.cleaned = `${dropMatch[2]}@${dropSq}`;
-            return moveData;
-        }
-
-        // 2. Extract Spell Actions
-        const spellMatch = token.match(/(freeze|jump)@([a-k][0-9]+)/);
-        if (spellMatch) {
-            let spellSq = spellMatch[2];
-            if (isFFA) spellSq = this.#translate4PCtoStandard(spellSq);
-            moveData.spell = { type: spellMatch[1], square: spellSq };
-            token = token.replace(/(freeze|jump)@([a-k][0-9]+)&?/, '');
-        }
-
-        // 3. Extract Duck Placements
-        const duckMatch = token.match(/&Θ(?:[a-k][0-9]+-)?([a-k][0-9]+)/);
-        if (duckMatch) {
-            let duckSq = duckMatch[1];
-            if (isFFA) duckSq = this.#translate4PCtoStandard(duckSq);
-            moveData.duck = { square: duckSq };
-            token = token.replace(/&Θ.*/, '');
-        }
-
-        // 4. Translate 4PC coordinates to Standard 8x8 Strict UCI
-        if (isFFA) {
-            token = this.#translate4PCtoStandard(token);
-            
-            // Convert full LAN to UCI (e.g., Bf8-b4+ -> f8b4)
-            const lanMatch = token.match(/^([A-Z]?)([a-h][1-8])([-x])([A-Z]?)([a-h][1-8])(=[A-Za-z])?([+#]?)$/);
-            if (lanMatch) {
-                token = lanMatch[2] + lanMatch[5] + (lanMatch[6] ? lanMatch[6].replace('=', '').toLowerCase() : '');
-            } else if (/^[a-h][1-8]-[a-h][1-8]/.test(token)) {
-                token = token.replace('-', ''); // Fallback conversion for simple hyphens
-            }
-        }
-
-        moveData.cleaned = token;
+    // 1. Handle Setup Chess / Placement Drops
+    const dropMatch = token.match(/^([RNBQK])?@\d+_[ry]([RNBQKP])([a-k][0-9]+)/);
+    if (dropMatch) {
+        let dropSq = dropMatch[3];
+        if (isFFA) dropSq = this.#translate4PCtoStandard(dropSq);
+        moveData.drop = { piece: dropMatch[2], square: dropSq };
+        moveData.cleaned = `${dropMatch[2]}@${dropSq}`;
         return moveData;
     }
+
+    // 2. Extract Spell Actions
+    const spellMatch = token.match(/(freeze|jump)@([a-k][0-9]+)/);
+    if (spellMatch) {
+        let spellSq = spellMatch[2];
+        if (isFFA) spellSq = this.#translate4PCtoStandard(spellSq);
+        moveData.spell = { type: spellMatch[1], square: spellSq };
+        token = token.replace(/(freeze|jump)@([a-k][0-9]+)&?/, '');
+    }
+
+    // 3. Extract Duck Placements
+    const duckMatch = token.match(/&Θ(?:[a-k][0-9]+)?-?([a-k][0-9]+)/);
+    if (duckMatch) {
+        let duckSq = duckMatch[1];
+        if (isFFA) duckSq = this.#translate4PCtoStandard(duckSq);
+        moveData.duck = { square: duckSq };
+        token = token.replace(/&Θ.*/, '');
+    }
+
+    // 4. Translate 4PC coordinates to Standard 8x8 Strict UCI
+    if (isFFA) {
+        token = this.#translate4PCtoStandard(token);
+        
+        // Convert full LAN to UCI (e.g., Bc1-g5+# -> c1g5)
+        const lanMatch = token.match(/^([A-Z]?)([a-h][1-8])([-x])([A-Z]?)([a-h][1-8])(=[A-Za-z])?([+#]*)$/);
+        if (lanMatch) {
+            token = lanMatch[2] + lanMatch[5] + (lanMatch[6] ? lanMatch[6].replace('=', '').toLowerCase() : '');
+        } else if (/^[a-h][1-8]-[a-h][1-8]/.test(token)) {
+            token = token.replace('-', ''); // Fallback conversion for simple hyphens
+        }
+    }
+
+    moveData.cleaned = token;
+    return moveData;
+}
     
 //Public API calling
 saveState(stateName, immediate = false) {
@@ -5631,15 +5616,43 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 const rules = ruleVariantMatch[1].toLowerCase();
                 if (rules.includes('chess960')) detectedMode = 'chess960';
                 if (rules.includes('spell')) detectedMode = 'spell';
+                if (rules.includes('duck')) detectedMode = 'duck';
+                if (rules.includes('3-check') || rules.includes('3check')) detectedMode = '3check';
+                if (rules.includes('antichess')) detectedMode = 'antichess';
+                if (rules.includes('atomic')) detectedMode = 'atomic';
+                if (rules.includes('crazyhouse')) detectedMode = 'crazyhouse';
+                if (rules.includes('bughouse')) detectedMode = 'bughouse';
+                if (rules.includes('horde')) detectedMode = 'horde';
+                if (rules.includes('kingofthehill')) detectedMode = 'kingofthehill';
+                if (rules.includes('racingkings')) detectedMode = 'racingkings';
+
+                let match960 = ruleVariantMatch[1].match(/Chess960=(\d+)/i);
+                if (match960) {
+                    detectedMode = 'chess960';
+                    if (!this.pgnHeaders['FEN']) {
+                        let spId = parseInt(match960[1]) - 10001;
+                        if (typeof CHESS960_FENS !== 'undefined' && CHESS960_FENS[spId]) {
+                            this.pgnHeaders['FEN'] = CHESS960_FENS[spId];
+                        }
+                    }
+                }
             }
             
             if (this.gameMode !== detectedMode) {
-                this.setGameMode(detectedMode, false, true);
-            }
-
-            if (typeof document !== 'undefined' && this.#ui) {
-                const variantSelect = this.#ui.getElement('analysisVariantSelect');
-                if (variantSelect) variantSelect.value = this.gameMode;
+                // Đã chèn logic lưu cái cũ trước khi thay đổi Mode
+                this.saveVariantState(this.gameMode);
+                this.gameMode = detectedMode;
+                if (this.#engine && typeof this.#engine.setGameMode === 'function') {
+                    this.#engine.setGameMode(detectedMode);
+                }
+                // Ép UI Dropdown đồng bộ theo PGN
+                if (typeof document !== 'undefined' && this.#ui) {
+                    const selects = ['analysisVariantSelect', 'graphVariantSelect', 'editorVariantSelect', 'gameVariantSelect'];
+                    selects.forEach(id => {
+                        const el = this.#ui.getElement(id);
+                        if (el) el.value = detectedMode;
+                    });
+                }
             }
         }
 
@@ -5761,11 +5774,12 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             }
 
             if (isFFA || (this.gameMode !== 'classical' && this.gameMode !== 'chess960')) {
+                moveTextRaw = moveTextRaw.replace(/(\d+\.)([^\s])/g, "$1 $2");
                 let tokensArray = moveTextRaw.split(/\s+/);
                 let newTokensArray = [];
 
                 for (let t of tokensArray) {
-                    if (t.includes('.') || t === '..' || t.match(/^(1-0|0-1|1\/2-1\/2|\*)$/)) {
+                    if (t.includes('.') || t === '..' || t.match(/^(1-0|0-1|1\/2-1\/2|\*|T)$/i)) {
                         newTokensArray.push(t); 
                         continue;
                     }
@@ -5783,7 +5797,6 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                     newTokensArray.push(moveStr);
                 }
                 moveTextRaw = newTokensArray.join(' ');
-                moveTextRaw = moveTextRaw.replace(/([A-Za-z]+@[a-h][1-8])\s+([A-Za-z0-9+#=O\-]+)/g, "$1_$2");
             }
 
             let initialTime = null;

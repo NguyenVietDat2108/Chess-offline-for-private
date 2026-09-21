@@ -1881,7 +1881,7 @@
         var is960Castle = false;
         var tVal = get_piece_at(state, to);
         if (tVal !== -1 && (tVal>>3) === us) {
-            if (piece === KING && (tVal&7) === ROOK) is960Castle = true;
+            if (piece === KING && (tVal&7) === ROOK && (from >> 3) === (to >> 3)) is960Castle = true;
             else return null; 
         }
 
@@ -1937,8 +1937,25 @@
                      else if (us === BLACK && !(state.castling & 8)) is960Drop = false;
                      else flags = BITS.QSIDE_CASTLE;
                 }
+                
+                // Fix: Nếu Vịt đang cản đường nhập thành -> Phá nước cờ
+                if (state.gameMode === 'duck' && state.duck_sq !== -1) {
+                    let rSq = -1;
+                    if (flags === BITS.KSIDE_CASTLE) rSq = (us === WHITE) ? 7 : 63;
+                    else if (flags === BITS.QSIDE_CASTLE) rSq = (us === WHITE) ? 0 : 56;
+                    
+                    if (rSq !== -1) {
+                        let minS = Math.min(from, rSq);
+                        let maxS = Math.max(from, rSq);
+                        if (state.duck_sq > minS && state.duck_sq < maxS) return null;
+                    }
+                }
             }
             if (flags === BITS.NORMAL && captured) flags = BITS.CAPTURE;
+            
+            if (state.gameMode === 'duck' && flags === BITS.NORMAL && state.duck_sq === to) {
+                return null;
+            }
         } else if (captured) flags = BITS.CAPTURE;
         
         var m = from | (to << 6) | (flags << 12) | (promoInt << 19);
@@ -2123,8 +2140,22 @@
         var pType = pVal !== -1 ? (pVal & 7) : 0;
         var us = state.turn;
         
-        if (flags & BITS.KSIDE_CASTLE) return "O-O"; 
-        if (flags & BITS.QSIDE_CASTLE) return "O-O-O";
+        if (flags & BITS.KSIDE_CASTLE) {
+            let res = "O-O";
+            if (state.gameMode === 'duck') {
+                let duckSqStr = SQ_STR[(m >>> 22) & 0x3F];
+                if (duckSqStr) res += "@" + duckSqStr;
+            }
+            return res;
+        }
+        if (flags & BITS.QSIDE_CASTLE) {
+            let res = "O-O-O";
+            if (state.gameMode === 'duck') {
+                let duckSqStr = SQ_STR[(m >>> 22) & 0x3F];
+                if (duckSqStr) res += "@" + duckSqStr;
+            }
+            return res;
+        }
         
         var pChar = PIECE_TO_CHAR[pType];
         var s = (pType !== PAWN && pChar) ? pChar.toUpperCase() : "";
@@ -2197,7 +2228,18 @@
             let duckSqStr = SQ_STR[(m >>> 22) & 0x3F];
             if (duckSqStr) s += "@" + duckSqStr;
         }
+        var nextState = apply_move(state, m);
+        var isCheck = is_checked(nextState, nextState.turn);
+        var isVariantWin = check_variant_win(nextState) !== null;
         
+        if (isVariantWin) {
+            s += "#";
+        } else if (isCheck) {
+            let hasMove = (typeof has_legal_moves === 'function') 
+                ? has_legal_moves(nextState) 
+                : (generate_moves(nextState, { legal: true }).length > 0);
+            s += hasMove ? "+" : "#";
+        }
         return s;
     }
     function parse_nag(san) {
@@ -3148,23 +3190,23 @@ return {
                     nag = parsed.nag;
                     clean_san = parsed.clean;
                 }
-                known_san = clean_san;
+                known_san = null; // BẮT BUỘC null để engine tự chuẩn hoá Qd1d4 thành Qxd4 và dọn sạch dấu
                 
                 if (baseState.gameMode === 'duck') {
-                    if (clean_san.includes(',')) {
+                    if (clean_san && clean_san.includes(',')) {
                         let parts = clean_san.split(',');
                         clean_san = parts[0];
                         let d_str = parts[1].replace(/[^a-h1-8]/g, '');
                         explicit_duck = str_to_sq(d_str.length >= 2 ? d_str.substring(d_str.length - 2) : d_str); 
-                    } else if (clean_san.includes('@')) {
+                    } else if (clean_san && clean_san.includes('@')) {
                         let parts = clean_san.split('@');
                         clean_san = parts[0];
                         explicit_duck = str_to_sq(parts[1].replace(/[^a-h1-8]/g, ''));
-                    } else {
+                    } else if (clean_san) {
                         let fsMatch = clean_san.match(/^([a-h][1-8][a-h][1-8][qrbn]?)([a-h][1-8])$/);
                         if (fsMatch) { clean_san = fsMatch[1]; explicit_duck = str_to_sq(fsMatch[2]); }
                     }
-                } else if ((baseState.gameMode === 'crazyhouse' || baseState.gameMode === 'bughouse' || baseState.gameMode === 'placement') && clean_san.includes('@')) {
+                } else if ((baseState.gameMode === 'crazyhouse' || baseState.gameMode === 'bughouse' || baseState.gameMode === 'placement') && clean_san && clean_san.includes('@')) {
                     let parts = clean_san.split('@');
                     let pTypeStr = parts[0].toLowerCase();
                     let pType = CHAR_TO_PIECE[pTypeStr.charAt(pTypeStr.length - 1)]; 
@@ -3206,12 +3248,8 @@ return {
                     
                     if (baseState.gameMode === 'duck' && input.duck_sq !== undefined) {
                         explicit_duck = (typeof input.duck_sq === 'number') ? input.duck_sq : str_to_sq(input.duck_sq);
-                        if (m !== null && explicit_duck !== -1) {
-                            m = (m & 0x3FFFFF) | (explicit_duck << 22);
-                        }
                     }
                 }
-                known_san = input.san || null;
             }
 
             if (m === null) { 
@@ -3219,14 +3257,29 @@ return {
                 return null; 
             }
             
+            // --- KHỐI LỆNH GẮN VỊT CHỐNG LỖI ---
             if (baseState.gameMode === 'duck') {
-                if (((m >>> 22) & 0x3F) === 0 && explicit_duck === -1) {
+                if (explicit_duck !== -1) {
+                    let nextTemp = apply_standard_move(baseState, m);
+                    // Nếu ô vịt đã bị chiếm (Lỗi PGN), tự động lấy ô trống đầu tiên làm Fallback
+                    if (nextTemp.board[explicit_duck] !== -1 && explicit_duck !== baseState.duck_sq) {
+                        explicit_duck = -1;
+                        for (let sq = 0; sq < 64; sq++) {
+                            if (nextTemp.board[sq] === -1 && sq !== baseState.duck_sq) {
+                                explicit_duck = sq;
+                                break;
+                            }
+                        }
+                    }
+                    m = (m & 0x3FFFFF) | (explicit_duck << 22);
+                } else if (((m >>> 22) & 0x3F) === 0) {
                     let duckToUse = baseState.duck_sq !== -1 ? baseState.duck_sq : 0; 
                     m = (m & 0x3FFFFF) | (duckToUse << 22);
                 }
             }
+            // ------------------------------------
             
-            var ret = to_obj(baseState, m, nag, clean_san || known_san);
+            var ret = to_obj(baseState, m, nag, null); // known_san = null để kích hoạt get_san
             
             if (isSpellMove) {
                 ret.isSpell = true;
@@ -3265,20 +3318,6 @@ return {
             } else if (currentState.spell_uses) {
                 nextState.spell_uses = currentState.spell_uses;
             }
-            if (!known_san) {
-                var isVariantWin = check_variant_win(nextState) !== null;
-                var isCheck = is_checked(nextState, nextState.turn);
-
-                if (isVariantWin) {
-                    ret.san += "#";
-                } else if (isCheck) {
-                    let hasMove = (typeof has_legal_moves === 'function') 
-                        ? has_legal_moves(nextState) 
-                        : (generate_moves(nextState, { legal: true }).length > 0);
-                    ret.san += hasMove ? "+" : "#";
-                }
-            }
-            
             if (nag) { ret.san += nag; ret.nag = nag; }
             history.push(nextState);
             currentState = nextState;

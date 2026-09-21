@@ -2618,7 +2618,7 @@
   },
   {
     "id": "ui_crazyhouse_trash",
-    "category": "8. User Interface",
+    "category": "14. Board Editor",
     "name": "Crazyhouse Pocket Trash (Editor)",
     "desc": "Trashing a piece in Crazyhouse Editor adds it to the opponent pocket (white piece to black pocket).",
     "type": "auto",
@@ -2627,7 +2627,7 @@
   },
   {
     "id": "ui_spell_editor_bank",
-    "category": "8. User Interface",
+    "category": "14. Board Editor",
     "name": "Spell Chess Editor UI Options",
     "desc": "Check if spell options render correctly in editor mode.",
     "type": "auto",
@@ -2636,7 +2636,7 @@
   },
   {
     "id": "editor_spell_config",
-    "category": "6. Game Variant Logic",
+    "category": "7. Variant Rules",
     "name": "Spell Chess Editor Configuration",
     "desc": "Verify that the Spell Chess UI configuration maps correctly to the engine's FEN format.",
     "type": "auto",
@@ -2645,7 +2645,7 @@
   },
   {
     "id": "editor_crazyhouse_pocket",
-    "category": "6. Game Variant Logic",
+    "category": "7. Variant Rules",
     "name": "Crazyhouse Pocket Editor Sync",
     "desc": "Verify that dragging pieces off the board in the Editor instantly updates the Crazyhouse pocket.",
     "type": "auto",
@@ -2654,7 +2654,7 @@
   },
   {
     "id": "variant_pocket_calculation",
-    "category": "6. Variants",
+    "category": "7. Variant Rules",
     "name": "Crazyhouse Pocket Auto-Calculation",
     "desc": "Verify that missing pieces from the FEN are accurately added to the pocket container based on standard initial piece counts.",
     "type": "auto",
@@ -2663,7 +2663,7 @@
   },
   {
     "id": "variant_pocket_tab_switch",
-    "category": "6. Variants",
+    "category": "7. Variant Rules",
     "name": "Crazyhouse Pocket Preservation Across Tab Switch",
     "desc": "Verify that auto-calculated pocket pieces persist when switching tabs and returning to analysis/game.",
     "type": "auto",
@@ -2672,7 +2672,7 @@
   },
   {
     "id": "variant_pocket_layout_cls_zero",
-    "category": "6. Variants",
+    "category": "7. Variant Rules",
     "name": "Zero-CLS Tab Margin and Pocket Layout Transition",
     "desc": "Verify that sidebar marginLeft is 0px when pocket mode is active, 20px when inactive, eliminating tab spacing while maintaining pocket margins.",
     "type": "auto",
@@ -2681,7 +2681,7 @@
   },
   {
     "id": "variant_pocket_f5_state_persistence",
-    "category": "6. Variants",
+    "category": "7. Variant Rules",
     "name": "Crazyhouse F5 Pocket Auto-Calculation on Load",
     "desc": "Verify that loading a position automatically populates pocket state and piece counts.",
     "type": "auto",
@@ -2690,7 +2690,7 @@
   },
   {
     "id": "editor_tab_pocket_width_maintained",
-    "category": "8. User Interface",
+    "category": "14. Board Editor",
     "name": "Editor Tab Panel Width Maintained in Pocket Mode",
     "desc": "Verify that opening Crazyhouse mode in Editor keeps the sidebar width at 360px without shrinking.",
     "type": "auto",
@@ -2705,7 +2705,7 @@
   },
   {
     "id": "crazyhouse_editor_opposite_pocket_routing",
-    "category": "8. User Interface",
+    "category": "14. Board Editor",
     "name": "Editor Piece Removal Routes to Opposite Color Pocket",
     "desc": "Verify removing a White piece adds to Black pocket and removing a Black piece adds to White pocket in Editor.",
     "type": "auto",
@@ -2714,7 +2714,7 @@
   },
   {
     "id": "crazyhouse_editor_drop_color_and_31_bug_prevention",
-    "category": "6. Variants",
+    "category": "7. Variant Rules",
     "name": "Editor Drop Color and Prevention of 31 Underflow Bug",
     "desc": "Verify piece dropped from white pocket stays white and subsequent drops into occupied squares never cause pocket counts to corrupt to 31.",
     "type": "auto",
@@ -2852,5 +2852,42 @@
     "type": "auto",
     "tags": ["study", "variant", "dropdown", "isolation"],
     "run": "if (!window.app?.game) return true; const g = new window.app.game.constructor(); g.mode = 'analysis'; g.setGameMode('classical'); g.mode = 'study'; g.setGameMode('spell', false, false); return g.gameMode === 'classical';"
+  },
+  {
+    "id": "pgn_duck_ffa_parser_sync",
+    "category": "17. Ingestion & PGN Real Data",
+    "name": "Duck Chess 14x14 FFA PGN Parsing",
+    "desc": "Verify that 14x14 coords (e.g. h5-h7&Θ-h9) are parsed accurately into standard e2e4@e6 without missing moves or leaving raw formats like c7c5@e2.",
+    "type": "auto",
+    "tags": ["pgn", "duck", "ffa", "parser"],
+    "run": "let g = null; try { g = new window.app.game.constructor(); } catch(e) { g = new window.__SIM_GAME__.constructor(); } g.pgnHeaders = { Variant: 'FFA', RuleVariants: 'DuckChess' }; g.gameMode = 'duck'; g.loadPGN('1. h5-h7&Θ-h9 .. f10-f8&Θh9-h5'); return g.rootNode.children[0].moveSan === 'e4@e6';"
+  },
+  {
+    "id": "pgn_chess960_id_resolution",
+    "category": "17. Ingestion & PGN Real Data",
+    "name": "Chess.com 960 ID FEN Resolution",
+    "desc": "Verify that Chess.com's RuleVariants tag (e.g. Chess960=10017) correctly fetches the exact Fischer Random FEN from the database.",
+    "type": "auto",
+    "tags": ["pgn", "chess960", "fen", "id"],
+    "run": "let g = null; try { g = new window.app.game.constructor(); } catch(e) { g = new window.__SIM_GAME__.constructor(); } g.pgnHeaders = { RuleVariants: 'Chess960=10017' }; g.gameMode = 'chess960'; g.loadPGN('1. c4 c5'); return g.gameMode === 'chess960' && g.rootNode.fen.startsWith('rbknbqrn/pppppppp');"
+  },
+  {
+    "id": "eng_uci_to_san_mate_calc",
+    "category": "4. Engine Interop",
+    "name": "Raw UCI to SAN Checkmate Resolution",
+    "desc": "Verify that raw UCI moves (e.g. b4e1) passed to the engine are correctly translated to SAN with proper capture and checkmate symbols (e.g. Bxe1#).",
+    "type": "auto",
+    "tags": ["engine", "san", "checkmate", "uci"],
+    "run": "let g = null; try { g = new window.app.game.engine.constructor('r1b1kbnr/pppp1ppp/8/4p3/1nB4N/5N2/PPPP1PPP/R1BQK2R b KQkq - 0 4', 'spell'); } catch(e) { return false; } let res = g.move('Jp@d2_b4e1'); return res && res.san === 'Jp@d2 Bxe1#';"
+  },
+  {
+    "id": "pgn_unconventional_check_mate_parser",
+    "category": "17. Ingestion & PGN Real Data",
+    "name": "Unconventional Check (++) and Mate (##) Normalization",
+    "desc": "Verify that PGNs containing unconventional mate/check symbols like ++ or ## are successfully normalized (to + and #) and loaded without breaking the parser.",
+    "type": "auto",
+    "tags": ["pgn", "parser", "san", "mate"],
+    "run": "let g = null; try { g = new window.app.game.constructor(); } catch(e) { g = new window.__SIM_GAME__.constructor(); } g.gameMode = 'classical'; g.loadPGN('1. e4 e5 2. Nf3 Nc6 3. Bc4 Nd4 4. Nxe5 Qg5 5. Nxf7 Qxg2 6. Rf1 Qxe4++ 7. Be2 Nf3##'); return g.currentNode.moveSan.includes('#') && !g.currentNode.moveSan.includes('##');"
   }
+
 ]

@@ -2566,6 +2566,8 @@ resolveCastlingIntent(fromIdx, toIdx) {
         const p = state.board[fromIdx];
         const t = state.board[toIdx];
         if (p && p.type.toLowerCase() === 'k' && t && t.type.toLowerCase() === 'r' && p.color === t.color) {
+            if (Math.floor(fromIdx / 8) !== Math.floor(toIdx / 8)) return null; 
+            
             const fromFile = fromIdx % 8;
             const toFile = toIdx % 8;
             return this.legalMoves.find(m => {
@@ -2887,12 +2889,23 @@ finishDrag(e) {
         }
 
         if (window.app && window.app.trainer && window.app.trainer.isActive) {
-            if (dropIdx !== -1 && !this.dragData.isSpare) {
-                const intercepted = window.app.trainer.handleUserMoveAttempt(this.dragData.fromIdx, dropIdx);
-                if (intercepted) {
-                    this.cleanupDrag(false);
-                    return;
+            let intercepted = false;
+            if (this.dragData && this.dragData.isDuck && this.duckPlacementMoves) {
+                if (dropIdx !== -1 && this.pendingDuckMove) {
+                    let duckMove = {
+                        from: this.pendingDuckMove.from, to: this.pendingDuckMove.to,
+                        promotion: this.pendingDuckMove.promotion, duck_sq: dropIdx, _duckBypass: true
+                    };
+                    intercepted = window.app.trainer.handleUserMoveAttempt(this.pendingDuckMove.from, this.pendingDuckMove.to, duckMove);
                 }
+            } 
+            else if (dropIdx !== -1 && !this.dragData.isSpare) {
+                intercepted = window.app.trainer.handleUserMoveAttempt(this.dragData.fromIdx, dropIdx);
+            }
+
+            if (intercepted) {
+                this.cleanupDrag(false);
+                return;
             }
         }
 
@@ -3771,7 +3784,10 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     e.preventDefault();
                     e.stopPropagation();
                     this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(el => el.classList.remove('spell-target-hover'));
-                    
+                    if (window.app && window.app.trainer && window.app.trainer.isActive) {
+                        const intercepted = window.app.trainer.handleUserMoveAttempt('@', logical_i, { isSpell: true, spellType: this.activeSpell, target: logical_i });
+                        if (intercepted) return;
+                    }
                     if (typeof this.castSpell === 'function') {
                         this.castSpell(this.activeSpell, logical_i);
                     }
@@ -4032,7 +4048,10 @@ renderBoard(animate = false, showMangaTail = true, overrideMove = null) {
                     e.stopPropagation();
                     
                     this.squaresLayer.querySelectorAll('.spell-target-hover').forEach(s => s.classList.remove('spell-target-hover'));
-                    
+                    if (window.app && window.app.trainer && window.app.trainer.isActive) {
+                        const intercepted = window.app.trainer.handleUserMoveAttempt('@', p.idx, { isSpell: true, spellType: this.activeSpell, target: p.idx });
+                        if (intercepted) return;
+                    }
                     if (typeof this.castSpell === 'function') {
                         this.castSpell(this.activeSpell, p.idx);
                     }
@@ -7123,6 +7142,11 @@ renderPockets(pocket) {
                             if (dropIdx !== -1) {
                                 const state = this.#game ? this.#game.getReader() : null;
                                 
+                                if (window.app && window.app.trainer && window.app.trainer.isActive) {
+                                    const intercepted = window.app.trainer.handleUserMoveAttempt('@', dropIdx, { drop: pChar });
+                                    if (intercepted) { this.dragData = null; return; }
+                                }
+
                                 if (state && state.mode === 'editor') {
                                     this.#game.editBoard(dropIdx, { color: color, type: pChar });
                                     this.renderBoard(false);

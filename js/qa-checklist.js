@@ -334,6 +334,19 @@ class QATrackerV2 {
       const resp = await fetch('qa-tests.json');
       if (resp.ok) {
         this.tests = await resp.json();
+        
+        this.tests.sort((a, b) => {
+          const numA = parseInt(a.category.match(/\d+/)?.[0] || '999', 10);
+          const numB = parseInt(b.category.match(/\d+/)?.[0] || '999', 10);
+          
+          if (numA !== numB) return numA - numB;
+          
+          return a.name.localeCompare(b.name);
+        });
+        
+        this.tests.forEach((t, index) => {
+          t.globalIndex = index + 1;
+        });
       }
     } catch (e) {
       console.warn("[QA-Suite-v2] Could not load qa-tests.json via fetch, using fallback", e);
@@ -530,7 +543,9 @@ class QATrackerV2 {
 
       row.innerHTML = `
         <div style="flex: 1;">
-          <div style="font-size: 13px; font-weight: 600; color: #fff;">${t.name}</div>
+          <div style="font-size: 13px; font-weight: 600; color: #fff;">
+            <span style="color: #8b949e; margin-right: 6px;">#${t.globalIndex}</span>${t.name}
+          </div>
           <div style="font-size: 11px; color: #8b949e; margin-top: 2px;">
             <span style="color: #58a6ff;">[${t.category}]</span> <code>${t.id}</code> — ${safeDesc}
           </div>
