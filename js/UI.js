@@ -1641,7 +1641,7 @@ resizeApp() {
         targetWidth += 40;
         
         scaler.style.width = targetWidth + 'px';
-        scaler.style.height = targetHeight + 'px';
+        scaler.style.height = (isStudy ? targetHeight + 450 : targetHeight) + 'px';
         scaler.style.position = 'absolute';
         scaler.style.left = '0';
         scaler.style.top = '0';
@@ -1703,7 +1703,9 @@ resizeApp() {
         const calculatedHeight = totalContentHeight + offsetY + 50;
         document.body.style.minHeight = Math.max(window.innerHeight, calculatedHeight) + 'px'; 
         document.body.style.overflowY = 'auto';
+        document.documentElement.style.overflowY = 'auto';
         document.body.style.overflowX = 'hidden';
+        document.documentElement.style.overflowX = 'hidden';
         const fullScreenModals = [
             'botMenuModal', 'continueSetupModal', 'gameOverModal', 
             'notificationModal', 'chapterModal', 'quickImportModal', 
@@ -9440,9 +9442,9 @@ castSpell(spellType, targetSq) {
                         clearTimeout(this._keyboardDebounce);
                         this._keyboardDebounce = setTimeout(() => {
                             if (this.#game.currentNode.id !== targetNode.id) {
-                                this.#game.goToNodeId(targetNode.id, false);
+                                this.#game.goToNodeId(targetNode.id, true);
                             }
-                            this._isKeyboardNavigating = false;
+                            this._isKeyboardNavigating = true;
                             if (window.engineAnalysing && typeof this.#game.updateStockfish === 'function') {
                                 this.#game.updateStockfish();
                             }
@@ -9453,12 +9455,12 @@ castSpell(spellType, targetSq) {
                             this.#game.goToNodeId(targetNode.id, false);
                         }
                         this.renderFullGraph(false, targetNode);
-                        this._isKeyboardNavigating = false;
+                        this._isKeyboardNavigating = true;
                     }
                 } else {
                     clearTimeout(this._keyboardDebounce);
                     if (this.#game.currentNode.id !== targetNode.id) {
-                        this.#game.goToNodeId(targetNode.id, true);
+                        this.#game.goToNodeId(targetNode.id, false);
                     }
                     this._isKeyboardNavigating = false;
                     if (window.engineAnalysing && typeof this.#game.updateStockfish === 'function') {
