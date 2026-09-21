@@ -5979,6 +5979,10 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                         this.currentNode = this.rootNode;
                         this.#engine.load(this.rootNode.fen);
                         this.turn = this.#engine.turn();
+                        if (this.gameMode === 'duck') {
+                            this.#duck_sq = this.rootNode.duck_sq !== undefined ? this.rootNode.duck_sq : this.#getDuckSqFromFen(this.rootNode.fen);
+                        }
+
                         if (typeof this.reconcileBoardIds === 'function') this.reconcileBoardIds(this.rootNode.fen, null);
                         else this.#reconcileBoardIds(this.rootNode.fen, null);
                         
