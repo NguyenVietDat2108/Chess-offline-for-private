@@ -3135,6 +3135,11 @@ saveState(stateName, immediate = false) {
 restoreState(stateName) { return this.#restoreState(stateName); }
 squareToIndex(sq) { return this.#squareToIndex(sq); }
 indexToSquare(idx) { return this.#indexToSquare(idx); }
+get(sq) {
+        const idx = typeof sq === 'string' ? this.#squareToIndex(sq) : sq;
+        if (idx >= 0 && idx < 64) return this.#board[idx];
+        return null;
+    }
 validateFen(fen, modeOverride) {
         if (!this.#engine) return { valid: false, error: 'Engine not loaded' };
         return this.#engine.validate_fen(fen, modeOverride);

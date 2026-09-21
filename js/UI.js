@@ -9452,7 +9452,7 @@ castSpell(spellType, targetSq) {
                     } else {
                         clearTimeout(this._keyboardDebounce);
                         if (this.#game.currentNode.id !== targetNode.id) {
-                            this.#game.goToNodeId(targetNode.id, false);
+                            this.#game.goToNodeId(targetNode.id, true);
                         }
                         this.renderFullGraph(false, targetNode);
                         this._isKeyboardNavigating = true;
@@ -9460,9 +9460,9 @@ castSpell(spellType, targetSq) {
                 } else {
                     clearTimeout(this._keyboardDebounce);
                     if (this.#game.currentNode.id !== targetNode.id) {
-                        this.#game.goToNodeId(targetNode.id, false);
+                        this.#game.goToNodeId(targetNode.id, true);
                     }
-                    this._isKeyboardNavigating = false;
+                    this._isKeyboardNavigating = true;
                     if (window.engineAnalysing && typeof this.#game.updateStockfish === 'function') {
                         this.#game.updateStockfish();
                     }
