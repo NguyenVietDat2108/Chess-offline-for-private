@@ -81,7 +81,22 @@
             active_w_frozen_sq: -1, active_w_frozen_timer: 0,
             active_b_frozen_sq: -1, active_b_frozen_timer: 0,
             active_w_jump_sq: -1, active_w_jump_timer: 0,
-            active_b_jump_sq: -1, active_b_jump_timer: 0
+            active_b_jump_sq: -1, active_b_jump_timer: 0,
+            frozen: { lo: 0, hi: 0 },
+            active_spells: {
+                w_frozen_sq: -1, w_frozen_timer: 0,
+                b_frozen_sq: -1, b_frozen_timer: 0,
+                w_jump_sq: -1, w_jump_timer: 0,
+                b_jump_sq: -1, b_jump_timer: 0
+            },
+            spell_uses: {
+                w: { freeze: 5, jump: 2 },
+                b: { freeze: 5, jump: 2 }
+            },
+            mana: {
+                w: { freeze: 0, jump: 0 },
+                b: { freeze: 0, jump: 0 }
+            }
         };
     }
     for (let i = 0; i < 256; i++) {
@@ -261,7 +276,7 @@
     function clone_state(s) {
         var c = STATE_POOL.pop() || create_empty_state();
         c.board.set(s.board);
-        c.castling_mask = s.castling_mask;
+        c.castling_mask.set(s.castling_mask);
         c.bb_lo.set(s.bb_lo);
         c.bb_hi.set(s.bb_hi);
         c.turn = s.turn; c.castling = s.castling; c.ep_square = s.ep_square;
@@ -281,29 +296,30 @@
         c.active_b_frozen_sq = s.active_b_frozen_sq; c.active_b_frozen_timer = s.active_b_frozen_timer;
         c.active_w_jump_sq = s.active_w_jump_sq; c.active_w_jump_timer = s.active_w_jump_timer;
         c.active_b_jump_sq = s.active_b_jump_sq; c.active_b_jump_timer = s.active_b_jump_timer;
-        if (s.active_spells) {
-            c.active_spells = {
-                w_frozen_sq: s.active_w_frozen_sq, w_frozen_timer: s.active_w_frozen_timer,
-                b_frozen_sq: s.active_b_frozen_sq, b_frozen_timer: s.active_b_frozen_timer,
-                w_jump_sq: s.active_w_jump_sq, w_jump_timer: s.active_w_jump_timer,
-                b_jump_sq: s.active_b_jump_sq, b_jump_timer: s.active_b_jump_timer
-            };
-        }
-        if (s.spell_uses) {
-            c.spell_uses = {
-                w: { freeze: s.spell_uses_w_freeze, jump: s.spell_uses_w_jump },
-                b: { freeze: s.spell_uses_b_freeze, jump: s.spell_uses_b_jump }
-            };
-        }
-        if (s.mana) {
-            c.mana = {
-                w: { freeze: s.mana_w_freeze, jump: s.mana_w_jump },
-                b: { freeze: s.mana_b_freeze, jump: s.mana_b_jump }
-            };
-        }
-        if (s.frozen) {
-            c.frozen = { lo: s.frozen.lo, hi: s.frozen.hi };
-        }
+
+        // Copy giá trị trực tiếp không sinh rác
+        c.frozen.lo = s.frozen_lo;
+        c.frozen.hi = s.frozen_hi;
+
+        c.active_spells.w_frozen_sq = s.active_w_frozen_sq;
+        c.active_spells.w_frozen_timer = s.active_w_frozen_timer;
+        c.active_spells.b_frozen_sq = s.active_b_frozen_sq;
+        c.active_spells.b_frozen_timer = s.active_b_frozen_timer;
+        c.active_spells.w_jump_sq = s.active_w_jump_sq;
+        c.active_spells.w_jump_timer = s.active_w_jump_timer;
+        c.active_spells.b_jump_sq = s.active_b_jump_sq;
+        c.active_spells.b_jump_timer = s.active_b_jump_timer;
+
+        c.spell_uses.w.freeze = s.spell_uses_w_freeze;
+        c.spell_uses.w.jump = s.spell_uses_w_jump;
+        c.spell_uses.b.freeze = s.spell_uses_b_freeze;
+        c.spell_uses.b.jump = s.spell_uses_b_jump;
+
+        c.mana.w.freeze = s.mana_w_freeze;
+        c.mana.w.jump = s.mana_w_jump;
+        c.mana.b.freeze = s.mana_b_freeze;
+        c.mana.b.jump = s.mana_b_jump;
+
         return c;
     }
     (function init_tables() {
@@ -427,9 +443,9 @@
             bMaskL = isB ? state.alice_b_lo : ~state.alice_b_lo;
             bMaskH = isB ? state.alice_b_hi : ~state.alice_b_hi;
         }
-        if (state.gameMode === 'spell' && state.frozen) {
-            bMaskL &= ~state.frozen.lo;
-            bMaskH &= ~state.frozen.hi;
+        if (state.gameMode === 'spell' && (state.frozen_lo !== 0 || state.frozen_hi !== 0)) {
+            bMaskL &= ~state.frozen_lo;
+            bMaskH &= ~state.frozen_hi;
         }
         if (sq < 32) {
             if ((PAWN_LO[by_color^1][sq] & (bb_lo[by_color*6+PAWN] & bMaskL))) return true;
@@ -448,9 +464,9 @@
             if (state.duck_sq < 32) occL |= (1 << state.duck_sq);
             else occH |= (1 << (state.duck_sq - 32));
         }
-        if (state.gameMode === 'spell' && state.active_spells) {
-            let jW = state.active_spells.w_jump_timer > 0 ? state.active_spells.w_jump_sq : -1;
-            let jB = state.active_spells.b_jump_timer > 0 ? state.active_spells.b_jump_sq : -1;
+        if (state.gameMode === 'spell') {
+            let jW = state.active_w_jump_timer > 0 ? state.active_w_jump_sq : -1;
+            let jB = state.active_b_jump_timer > 0 ? state.active_b_jump_sq : -1;
             if (jW !== -1) { if (jW < 32) occL &= ~(1 << jW); else occH &= ~(1 << (jW - 32)); }
             if (jB !== -1) { if (jB < 32) occL &= ~(1 << jB); else occH &= ~(1 << (jB - 32)); }
         }
@@ -489,7 +505,7 @@
         } else {
             sliders = (bb_lo[by_color*6+QUEEN]|bb_lo[by_color*6+ROOK]|bb_lo[by_color*6+BISHOP]) >>> 0;
             slidersH = (bb_hi[by_color*6+QUEEN]|bb_hi[by_color*6+ROOK]|bb_hi[by_color*6+BISHOP]) >>> 0;
-            if (state.gameMode === 'alice') {
+            if (state.gameMode === 'alice' || state.gameMode === 'spell') {
                 sliders = (sliders & bMaskL) >>> 0; 
                 slidersH = (slidersH & bMaskH) >>> 0;
             }
@@ -808,10 +824,44 @@
     }
 
     if (next.gameMode === 'spell') {
-        if (next.active_w_frozen_timer > 0) next.active_w_frozen_timer--;
-        if (next.active_b_frozen_timer > 0) next.active_b_frozen_timer--;
-        if (next.active_w_jump_timer > 0) next.active_w_jump_timer--;
-        if (next.active_b_jump_timer > 0) next.active_b_jump_timer--;
+        if (next.active_w_frozen_timer > 0) {
+            next.active_w_frozen_timer--;
+            if (next.active_w_frozen_timer === 0) next.active_w_frozen_sq = -1;
+        }
+        if (next.active_b_frozen_timer > 0) {
+            next.active_b_frozen_timer--;
+            if (next.active_b_frozen_timer === 0) next.active_b_frozen_sq = -1;
+        }
+        if (next.active_w_jump_timer > 0) {
+            next.active_w_jump_timer--;
+            if (next.active_w_jump_timer === 0) next.active_w_jump_sq = -1;
+        }
+        if (next.active_b_jump_timer > 0) {
+            next.active_b_jump_timer--;
+            if (next.active_b_jump_timer === 0) next.active_b_jump_sq = -1;
+        }
+
+        // Đếm ngược hồi chiêu Mana (tối đa 6 half-moves = 3 turns)
+        if (next.mana_w_freeze > 0) next.mana_w_freeze--;
+        if (next.mana_w_jump > 0) next.mana_w_jump--;
+        if (next.mana_b_freeze > 0) next.mana_b_freeze--;
+        if (next.mana_b_jump > 0) next.mana_b_jump--;
+
+        // Đồng bộ dữ liệu
+        next.active_spells.w_frozen_sq = next.active_w_frozen_sq;
+        next.active_spells.w_frozen_timer = next.active_w_frozen_timer;
+        next.active_spells.b_frozen_sq = next.active_b_frozen_sq;
+        next.active_spells.b_frozen_timer = next.active_b_frozen_timer;
+        next.active_spells.w_jump_sq = next.active_w_jump_sq;
+        next.active_spells.w_jump_timer = next.active_w_jump_timer;
+        next.active_spells.b_jump_sq = next.active_b_jump_sq;
+        next.active_spells.b_jump_timer = next.active_b_jump_timer;
+
+        next.mana.w.freeze = next.mana_w_freeze;
+        next.mana.w.jump = next.mana_w_jump;
+        next.mana.b.freeze = next.mana_b_freeze;
+        next.mana.b.jump = next.mana_b_jump;
+
         rebuild_spell_caches(next);
     }
 
@@ -987,40 +1037,63 @@
     function apply_spell(state, spellType, targetSq) {
         let next = clone_state(state);
         let us = next.turn;
-        let colorPrefix = us === WHITE ? 'w_' : 'b_';
 
-        if (!next.active_spells || next.active_spells.w_frozen_timer === undefined) {
-            next.active_spells = { w_frozen_sq:-1, w_frozen_timer:0, b_frozen_sq:-1, b_frozen_timer:0, w_jump_sq:-1, w_jump_timer:0, b_jump_sq:-1, b_jump_timer:0 };
-        }
-
-        // Apply safely to the specific color's independent memory bank
         if (spellType === 'freeze') {
-            next.active_spells[`${colorPrefix}frozen_sq`] = targetSq;
-            next.active_spells[`${colorPrefix}frozen_timer`] = 2; // Lasts 1 full turn cycle
+            if (us === WHITE) {
+                next.active_w_frozen_sq = targetSq;
+                next.active_w_frozen_timer = 2;
+                next.mana_w_freeze = 6;
+                next.spell_uses_w_freeze = Math.max(0, next.spell_uses_w_freeze - 1);
+            } else {
+                next.active_b_frozen_sq = targetSq;
+                next.active_b_frozen_timer = 2;
+                next.mana_b_freeze = 6;
+                next.spell_uses_b_freeze = Math.max(0, next.spell_uses_b_freeze - 1);
+            }
         } else if (spellType === 'jump') {
-            next.active_spells[`${colorPrefix}jump_sq`] = targetSq;
-            next.active_spells[`${colorPrefix}jump_timer`] = 2;
+            if (us === WHITE) {
+                next.active_w_jump_sq = targetSq;
+                next.active_w_jump_timer = 2;
+                next.mana_w_jump = 6;
+                next.spell_uses_w_jump = Math.max(0, next.spell_uses_w_jump - 1);
+            } else {
+                next.active_b_jump_sq = targetSq;
+                next.active_b_jump_timer = 2;
+                next.mana_b_jump = 6;
+                next.spell_uses_b_jump = Math.max(0, next.spell_uses_b_jump - 1);
+            }
         }
+
+        next.active_spells.w_frozen_sq = next.active_w_frozen_sq;
+        next.active_spells.w_frozen_timer = next.active_w_frozen_timer;
+        next.active_spells.b_frozen_sq = next.active_b_frozen_sq;
+        next.active_spells.b_frozen_timer = next.active_b_frozen_timer;
+        next.active_spells.w_jump_sq = next.active_w_jump_sq;
+        next.active_spells.w_jump_timer = next.active_w_jump_timer;
+        next.active_spells.b_jump_sq = next.active_b_jump_sq;
+        next.active_spells.b_jump_timer = next.active_b_jump_timer;
+
+        next.spell_uses.w.freeze = next.spell_uses_w_freeze;
+        next.spell_uses.w.jump = next.spell_uses_w_jump;
+        next.spell_uses.b.freeze = next.spell_uses_b_freeze;
+        next.spell_uses.b.jump = next.spell_uses_b_jump;
+
+        next.mana.w.freeze = next.mana_w_freeze;
+        next.mana.w.jump = next.mana_w_jump;
+        next.mana.b.freeze = next.mana_b_freeze;
+        next.mana.b.jump = next.mana_b_jump;
 
         rebuild_spell_caches(next);
-
-        let myColor = us === WHITE ? 'w' : 'b';
-        if (!next.mana) next.mana = { w: {freeze: 0, jump: 0}, b: {freeze: 0, jump: 0} };
-        next.mana[myColor][spellType] = 6; 
-        if (next.spell_uses && next.spell_uses[myColor]) {
-            next.spell_uses[myColor][spellType] = Math.max(0, next.spell_uses[myColor][spellType] - 1);
-        }
-
         return next;
     }
+
     function rebuild_spell_caches(s) {
-        if (s.gameMode !== 'spell' || !s.active_spells) return;
+        if (s.gameMode !== 'spell') return;
         
         let fL = 0, fH = 0;
-        let isLegacyFreeze = false;
 
         const addFreeze = (sq) => {
-            if (sq === -1 || isNaN(sq)) return;
+            if (sq === -1 || isNaN(sq) || sq < 0 || sq > 63) return;
             let r = sq >> 3, c = sq & 7;
             for (let dr = -1; dr <= 1; dr++) {
                 for (let dc = -1; dc <= 1; dc++) {
@@ -1033,22 +1106,13 @@
             }
         };
 
-        // Check White's Timer
-        if (s.active_spells.w_frozen_timer > 0) {
-            if (s.active_spells.w_frozen_sq === -1) isLegacyFreeze = true;
-            else addFreeze(s.active_spells.w_frozen_sq);
-        }
-        // Check Black's Timer
-        if (s.active_spells.b_frozen_timer > 0) {
-            if (s.active_spells.b_frozen_sq === -1) isLegacyFreeze = true;
-            else addFreeze(s.active_spells.b_frozen_sq);
-        }
-        if (isLegacyFreeze && s.frozen && (s.frozen.lo !== 0 || s.frozen.hi !== 0)) {
-            return; 
-        }
-        
-        // Apply the new melted/updated bitboards
-        s.frozen = { lo: fL, hi: fH };
+        if (s.active_w_frozen_timer > 0) addFreeze(s.active_w_frozen_sq);
+        if (s.active_b_frozen_timer > 0) addFreeze(s.active_b_frozen_sq);
+
+        s.frozen_lo = fL >>> 0;
+        s.frozen_hi = fH >>> 0;
+        s.frozen.lo = s.frozen_lo;
+        s.frozen.hi = s.frozen_hi;
     }
     function serialize_moves(f, attL, attH, enemyL, enemyH) {
         while (attL || attH) {
@@ -1110,13 +1174,26 @@
                 occUsH |= mask;
             }
         }
+        if (state.gameMode === 'spell') {
+            let jW = state.active_w_jump_timer > 0 ? state.active_w_jump_sq : -1;
+            let jB = state.active_b_jump_timer > 0 ? state.active_b_jump_sq : -1;
+            if (jW !== -1) { if (jW < 32) occAllL &= ~(1 << jW); else occAllH &= ~(1 << (jW - 32)); }
+            if (jB !== -1) { if (jB < 32) occAllL &= ~(1 << jB); else occAllH &= ~(1 << (jB - 32)); }
+        }
 
+        let fzL = state.frozen_lo, fzH = state.frozen_hi;
+        if (state.gameMode === 'spell' && (fzL !== 0 || fzH !== 0)) {
+            if (filterSq !== -1) {
+                let isFrz = (filterSq < 32) ? (fzL & (1 << filterSq)) : (fzH & (1 << (filterSq - 32)));
+                if (isFrz) return [];
+            }
+        }
         let pieceFilterType = filterSq !== -1 ? (state.board[filterSq] & 7) : -1;
 
         if (pieceFilterType === -1 || pieceFilterType === PAWN) {
             let pL = (filterSq !== -1) ? ((filterSq < 32) ? (1 << filterSq) : 0) : bb_lo[uBase+PAWN];
             let pH = (filterSq !== -1) ? ((filterSq >= 32) ? (1 << (filterSq - 32)) : 0) : bb_hi[uBase+PAWN];
-
+            if (state.gameMode === 'spell' && (fzL || fzH)) { pL &= ~fzL; pH &= ~fzH; }
             let emptyL = ~occAllL, emptyH = ~occAllH;
             let sL = (us === WHITE) ? ((pL << 8) & emptyL) : (((pL >>> 8) | (pH << 24)) & emptyL);
             let sH = (us === WHITE) ? (((pH << 8) | (pL >>> 24)) & emptyH) : ((pH >>> 8) & emptyH);
@@ -1169,6 +1246,7 @@
         if (pieceFilterType === -1 || pieceFilterType === KNIGHT) {
             let nL = (filterSq !== -1) ? ((filterSq < 32) ? (1 << filterSq) : 0) : bb_lo[uBase+KNIGHT];
             let nH = (filterSq !== -1) ? ((filterSq >= 32) ? (1 << (filterSq - 32)) : 0) : bb_hi[uBase+KNIGHT];
+            if (state.gameMode === 'spell' && (fzL || fzH)) { nL &= ~fzL; nH &= ~fzH; }
             while (nL || nH) {
                 let f = ctz(nL, nH);
                 if (f < 32) nL &= ~(1 << f); else nH &= ~(1 << (f - 32));
@@ -1180,6 +1258,7 @@
         if (pieceFilterType === -1 || pieceFilterType === BISHOP) {
             let bL = (filterSq !== -1) ? ((filterSq < 32) ? (1 << filterSq) : 0) : bb_lo[uBase+BISHOP];
             let bH = (filterSq !== -1) ? ((filterSq >= 32) ? (1 << (filterSq - 32)) : 0) : bb_hi[uBase+BISHOP];
+            if (state.gameMode === 'spell' && (fzL || fzH)) { bL &= ~fzL; bH &= ~fzH; }
             while (bL || bH) {
                 let f = ctz(bL, bH);
                 if (f < 32) bL &= ~(1 << f); else bH &= ~(1 << (f - 32));
@@ -1192,6 +1271,7 @@
         if (pieceFilterType === -1 || pieceFilterType === ROOK) {
             let rL = (filterSq !== -1) ? ((filterSq < 32) ? (1 << filterSq) : 0) : bb_lo[uBase+ROOK];
             let rH = (filterSq !== -1) ? ((filterSq >= 32) ? (1 << (filterSq - 32)) : 0) : bb_hi[uBase+ROOK];
+            if (state.gameMode === 'spell' && (fzL || fzH)) { rL &= ~fzL; rH &= ~fzH; }
             while (rL || rH) {
                 let f = ctz(rL, rH);
                 if (f < 32) rL &= ~(1 << f); else rH &= ~(1 << (f - 32));
@@ -1204,6 +1284,7 @@
         if (pieceFilterType === -1 || pieceFilterType === QUEEN) {
             let qL = (filterSq !== -1) ? ((filterSq < 32) ? (1 << filterSq) : 0) : bb_lo[uBase+QUEEN];
             let qH = (filterSq !== -1) ? ((filterSq >= 32) ? (1 << (filterSq - 32)) : 0) : bb_hi[uBase+QUEEN];
+            if (state.gameMode === 'spell' && (fzL || fzH)) { qL &= ~fzL; qH &= ~fzH; }
             while (qL || qH) {
                 let f = ctz(qL, qH);
                 if (f < 32) qL &= ~(1 << f); else qH &= ~(1 << (f - 32));
@@ -1216,6 +1297,7 @@
         if (pieceFilterType === -1 || pieceFilterType === KING) {
             let kgL = (filterSq !== -1) ? ((filterSq < 32) ? (1 << filterSq) : 0) : bb_lo[uBase+KING];
             let kgH = (filterSq !== -1) ? ((filterSq >= 32) ? (1 << (filterSq - 32)) : 0) : bb_hi[uBase+KING];
+            if (state.gameMode === 'spell' && (fzL || fzH)) { kgL &= ~fzL; kgH &= ~fzH; }
             if (kgL || kgH) {
                 let f = ctz(kgL, kgH);
                 serialize_moves(f, KING_LO[f] & ~occUsL, KING_HI[f] & ~occUsH, occThemL, occThemH);
@@ -1861,6 +1943,34 @@
         if (pVal === -1 || (pVal>>3) !== us) return null;
         var piece = pVal & 7;
 
+        if (state.gameMode === 'spell' && (state.frozen_lo !== 0 || state.frozen_hi !== 0)) {
+            let isFrz = (from < 32) ? (state.frozen_lo & (1 << from)) : (state.frozen_hi & (1 << (from - 32)));
+            if (isFrz) return null;
+        }
+
+        if (piece === BISHOP || piece === ROOK || piece === QUEEN) {
+            let idx = from * 64 + to;
+            if (!ALIGNED[idx]) return null;
+            let r1 = from >> 3, c1 = from & 7, r2 = to >> 3, c2 = to & 7;
+            let isDiag = Math.abs(r1 - r2) === Math.abs(c1 - c2);
+            if (piece === ROOK && isDiag) return null;
+            if (piece === BISHOP && !isDiag) return null;
+
+            let occL = 0, occH = 0;
+            for (let i = 0; i < 12; i++) { occL |= state.bb_lo[i]; occH |= state.bb_hi[i]; }
+            if (state.gameMode === 'duck' && state.duck_sq !== -1) {
+                if (state.duck_sq < 32) occL |= (1 << state.duck_sq);
+                else occH |= (1 << (state.duck_sq - 32));
+            }
+            if (state.gameMode === 'spell') {
+                let jW = state.active_w_jump_timer > 0 ? state.active_w_jump_sq : -1;
+                let jB = state.active_b_jump_timer > 0 ? state.active_b_jump_sq : -1;
+                if (jW !== -1) { if (jW < 32) occL &= ~(1 << jW); else occH &= ~(1 << (jW - 32)); }
+                if (jB !== -1) { if (jB < 32) occL &= ~(1 << jB); else occH &= ~(1 << (jB - 32)); }
+            }
+            if (((BETWEEN_LO[idx] & occL) | (BETWEEN_HI[idx] & occH)) !== 0) return null;
+        }
+
         if (state.gameMode === 'duck' && state.duck_sq !== -1) {
             if (to === state.duck_sq) return null; 
             if (piece !== KNIGHT && piece !== KING && piece !== PAWN) {
@@ -2056,6 +2166,12 @@
         } else {
             let occL = 0, occH = 0;
             for (let i = 0; i < 12; i++) { occL |= bb_lo[i]; occH |= bb_hi[i]; }
+            if (state.gameMode === 'spell') {
+                let jW = state.active_w_jump_timer > 0 ? state.active_w_jump_sq : -1;
+                let jB = state.active_b_jump_timer > 0 ? state.active_b_jump_sq : -1;
+                if (jW !== -1) { if (jW < 32) occL &= ~(1 << jW); else occH &= ~(1 << (jW - 32)); }
+                if (jB !== -1) { if (jB < 32) occL &= ~(1 << jB); else occH &= ~(1 << (jB - 32)); }
+            }
             let att = get_slider_attacks(type, to, occL, occH);
             candL = att.lo & bb_lo[us * 6 + type];
             candH = att.hi & bb_hi[us * 6 + type];
@@ -2500,20 +2616,25 @@
                     s.active_b_jump_sq = parseInt(p[14], 10); s.active_b_jump_timer = parseInt(p[15], 10) || 0;
                 }
             }
-            s.active_spells = {
-                w_frozen_sq: s.active_w_frozen_sq, w_frozen_timer: s.active_w_frozen_timer,
-                b_frozen_sq: s.active_b_frozen_sq, b_frozen_timer: s.active_b_frozen_timer,
-                w_jump_sq: s.active_w_jump_sq, w_jump_timer: s.active_w_jump_timer,
-                b_jump_sq: s.active_b_jump_sq, b_jump_timer: s.active_b_jump_timer
-            };
-            s.spell_uses = {
-                w: { freeze: s.spell_uses_w_freeze, jump: s.spell_uses_w_jump },
-                b: { freeze: s.spell_uses_b_freeze, jump: s.spell_uses_b_jump }
-            };
-            s.mana = {
-                w: { freeze: s.mana_w_freeze, jump: s.mana_w_jump },
-                b: { freeze: s.mana_b_freeze, jump: s.mana_b_jump }
-            };
+            s.active_spells.w_frozen_sq = s.active_w_frozen_sq;
+            s.active_spells.w_frozen_timer = s.active_w_frozen_timer;
+            s.active_spells.b_frozen_sq = s.active_b_frozen_sq;
+            s.active_spells.b_frozen_timer = s.active_b_frozen_timer;
+            s.active_spells.w_jump_sq = s.active_w_jump_sq;
+            s.active_spells.w_jump_timer = s.active_w_jump_timer;
+            s.active_spells.b_jump_sq = s.active_b_jump_sq;
+            s.active_spells.b_jump_timer = s.active_b_jump_timer;
+
+            s.spell_uses.w.freeze = s.spell_uses_w_freeze;
+            s.spell_uses.w.jump = s.spell_uses_w_jump;
+            s.spell_uses.b.freeze = s.spell_uses_b_freeze;
+            s.spell_uses.b.jump = s.spell_uses_b_jump;
+
+            s.mana.w.freeze = s.mana_w_freeze;
+            s.mana.w.jump = s.mana_w_jump;
+            s.mana.b.freeze = s.mana_b_freeze;
+            s.mana.b.jump = s.mana_b_jump;
+
             rebuild_spell_caches(s);
         }
         s.zobrist = compute_zobrist(s);
@@ -3107,9 +3228,6 @@ return {
                 let algStr = typeof tVal === 'string' && isNaN(tVal) ? tVal : sq_str(sq);
                 
                 var nextState = apply_spell(currentState, sType, sq);
-                let oldUses = currentState.spell_uses || { w: {freeze:5, jump:2}, b: {freeze:5, jump:2} };
-                nextState.spell_uses = { w: { ...oldUses.w }, b: { ...oldUses.b } };
-                nextState.spell_uses[activeColor][sType] = Math.max(0, nextState.spell_uses[activeColor][sType] - 1);
                 
                 currentState = nextState;
                 history.push(currentState);
@@ -3311,13 +3429,6 @@ return {
 
             var nextState = apply_move(baseState, m);
 
-            if (isSpellMove) {
-                let oldUses = currentState.spell_uses || { w: {freeze:5, jump:2}, b: {freeze:5, jump:2} };
-                nextState.spell_uses = { w: { ...oldUses.w }, b: { ...oldUses.b } };
-                nextState.spell_uses[activeColor][o.spellType] = Math.max(0, nextState.spell_uses[activeColor][o.spellType] - 1);
-            } else if (currentState.spell_uses) {
-                nextState.spell_uses = currentState.spell_uses;
-            }
             if (nag) { ret.san += nag; ret.nag = nag; }
             history.push(nextState);
             currentState = nextState;
@@ -3476,27 +3587,38 @@ return {
         duck_sq: function() { 
             return currentState.duck_sq !== undefined ? currentState.duck_sq : -1; 
         },
-        frozen: function() { 
-            return currentState.frozen ? { lo: currentState.frozen.lo, hi: currentState.frozen.hi } : { lo: 0, hi: 0 }; 
+        frozen: function() {
+            return { lo: currentState.frozen_lo, hi: currentState.frozen_hi }; 
         },
         mana: function() {
             let getCharge = (cd) => 3 - Math.ceil(cd / 2);
-            return currentState.mana ? {
-                w: { freeze: getCharge(currentState.mana.w.freeze), jump: getCharge(currentState.mana.w.jump) },
-                b: { freeze: getCharge(currentState.mana.b.freeze), jump: getCharge(currentState.mana.b.jump) }
-            } : { w: {freeze: 3, jump: 3}, b: {freeze: 3, jump: 3} };
+            return {
+                w: { 
+                    freeze: getCharge(currentState.mana_w_freeze), 
+                    jump: getCharge(currentState.mana_w_jump) 
+                },
+                b: { 
+                    freeze: getCharge(currentState.mana_b_freeze), 
+                    jump: getCharge(currentState.mana_b_jump) 
+                }
+            };
         },
         jump_sq: function() { 
-            if (currentState.active_spells) {
-                if (currentState.active_spells.w_jump_timer > 0) return currentState.active_spells.w_jump_sq;
-                if (currentState.active_spells.b_jump_timer > 0) return currentState.active_spells.b_jump_sq;
-            }
+            if (currentState.active_w_jump_timer > 0) return currentState.active_w_jump_sq;
+            if (currentState.active_b_jump_timer > 0) return currentState.active_b_jump_sq;
             return -1; 
         },
         spell_uses: function() {
-            return currentState.spell_uses 
-                ? { w: { ...currentState.spell_uses.w }, b: { ...currentState.spell_uses.b } } 
-                : { w: { freeze: 5, jump: 2 }, b: { freeze: 5, jump: 2 } };
+            return {
+                w: { 
+                    freeze: currentState.spell_uses_w_freeze, 
+                    jump: currentState.spell_uses_w_jump 
+                },
+                b: { 
+                    freeze: currentState.spell_uses_b_freeze, 
+                    jump: currentState.spell_uses_b_jump 
+                }
+            };
         },
     };
 };
