@@ -263,7 +263,7 @@ getReader() {
         return VARIANT_STARTING_FENS[mode];
     }
     return INITIAL_FEN;
-}
+    }
 #getPly(node) {
         let ply = 0;
         let curr = node;
@@ -520,7 +520,7 @@ getReader() {
             console.log(`[UCI] Not supported by engine: ${name}`);
         }
     }
-    #getDuckSqFromFen(fen) {
+#getDuckSqFromFen(fen) {
         if (!fen || typeof fen !== 'string' || !fen.includes('*')) return -1;
         const boardPart = fen.split(' ')[0];
         const ranks = boardPart.split('/');
@@ -540,7 +540,7 @@ getReader() {
         }
         return -1;
     }
-    #stripDuckFromFen(fen) {
+#stripDuckFromFen(fen) {
         if (!fen || typeof fen !== 'string' || !fen.includes('*')) return fen;
         const parts = fen.split(' ');
         const ranks = parts[0].split('/');
@@ -577,7 +577,7 @@ getReader() {
         parts[0] = cleanedRanks.join('/');
         return parts.join(' ');
     }
-    #injectDuckIntoFen(fen, duckSq) {
+#injectDuckIntoFen(fen, duckSq) {
         if (!fen || typeof fen !== 'string' || duckSq === undefined || duckSq === null || duckSq < 0 || duckSq > 63) {
             return fen;
         }
@@ -626,7 +626,7 @@ getReader() {
         parts[0] = ranks.join('/');
         return parts.join(' ');
     }
-    #initEngineHooks() {
+#initEngineHooks() {
         if (!this.#engine) return;
         if (this.#engine._duckHooked) return;
         this.#engine._duckHooked = true;
@@ -1481,10 +1481,8 @@ return move.san;
                 activeChapterIndex: this.activeChapterIndex,
                 currentStudyId: this.currentStudyId
             };
-        }
-
-
-    #saveState(stateName, immediate = false) {
+    }
+#saveState(stateName, immediate = false) {
         if (!stateName) return;
         if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
         const memSlot = (stateName === 'local' || stateName === 'bot' || stateName === 'play') ? 'play' : stateName;
@@ -1511,7 +1509,7 @@ return move.san;
             this._saveStateDebounce = setTimeout(writeToStorage, 300);
         }
     }
-    #restoreState(stateName) {
+#restoreState(stateName) {
             if (!stateName) return false;
             if (!this.tabMemory) this.tabMemory = { analysis: null, play: null, puzzle: null };
             
@@ -1721,8 +1719,8 @@ return move.san;
             this.#emit('variantChanged', this.gameMode);
 
             return false;
-        }
-    #prepareNewGameSetup() {
+    }
+#prepareNewGameSetup() {
             // Core Guard: If a new game initialization is triggered while we are still 
             // lingering on an active analysis or study tab, force-save its state right now!
             if (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'puzzle') {
@@ -1733,8 +1731,30 @@ return move.san;
                     this.saveActiveChapter();
                 }
             }
+    }
+#getVariantSafePosKey(fen) {
+        if (!fen) return "";
+        let p1 = fen.indexOf(' ');
+        if (p1 === -1) return fen;
+        let p2 = fen.indexOf(' ', p1 + 1);
+        if (p2 === -1) return fen;
+        let p3 = fen.indexOf(' ', p2 + 1);
+        if (p3 === -1) return fen;
+        let p4 = fen.indexOf(' ', p3 + 1);
+        if (p4 === -1) return fen;
+
+        let p5 = fen.indexOf(' ', p4 + 1);
+        let p6 = p5 !== -1 ? fen.indexOf(' ', p5 + 1) : -1;
+
+        let basePart = fen.substring(0, p4) + " 0 1";
+
+        if (p6 !== -1) {
+            return basePart + fen.substring(p6);
         }
-    #parsePGNTokens(pgnStr, tokenIndices, tokenCount, index = 0) {
+        return basePart;
+    }
+#parsePGNTokens(pgnStr, tokenIndices, tokenCount, index = 0) {
+        let pendingSpellToken = null;
         const tlRegex = /tl\s*=\s*(-?\d+(\.\d+)?)/i;
         const lichessEvalRegex = /\[%eval\s+([#]?[+-]?[\d\.]+)\]/i; 
         const lichessClkRegex = /\[%clk\s+([0-9:\.]+)\]/i; 
@@ -2022,7 +2042,27 @@ return move.san;
 
             let moveText = token;
             let attachedNag = "";
-            
+
+            // =========================================================================
+            // 🛡️ 1. LOOKAHEAD DÀNH RIÊNG CHO SPELL CHESS
+            // =========================================================================
+            if (this.gameMode === 'spell') {
+                if (/^(?:Fz|Jp|freeze|jump)@[a-h][1-8]$/i.test(moveText) && idx < tokenCount) {
+                    let nextStart = tokenIndices[idx];
+                    let nextFirstChar = pgnStr.charCodeAt(nextStart);
+
+                    // Không nuốt Comment {...}, Branch (...), hoặc NAG $
+                    if (nextFirstChar !== 123 && nextFirstChar !== 40 && nextFirstChar !== 41 && nextFirstChar !== 36) {
+                        let nextToken = pgnStr.substring(nextStart, tokenIndices[idx + 1]);
+                        if (!/^(?:1-0|0-1|1\/2-1\/2|\*|T|\d+\.|\.\.)$/i.test(nextToken) && !/^(?:Fz|Jp|freeze|jump)@/i.test(nextToken)) {
+                            let pfx = moveText.replace(/^freeze@/i, 'Fz@').replace(/^jump@/i, 'Jp@');
+                            moveText = `${pfx}_${nextToken}`;
+                            idx += 2; // Bỏ qua token nước cờ vì đã gộp
+                        }
+                    }
+                }
+            }
+
             const uciFullRegex = /^([a-h][1-8][a-h][1-8][qrbn]?(?:@[a-h][1-8])?[\+#]*)(.*)$/i;
             let matchUci = token.match(uciFullRegex);
             
@@ -2101,7 +2141,23 @@ return move.san;
                 }
             }
 
-            const newNode = new MoveNode(this.#engine.fen(), finalSanToSave);
+            let preFen = this.currentNode ? this.currentNode.fen : (this.rootNode ? this.rootNode.fen : "");
+
+            let cacheKey = preFen + "|" + finalSanToSave;
+            let nextFen = this._fenCache ? this._fenCache.get(cacheKey) : null;
+
+            if (!nextFen) {
+                nextFen = this.#engine.fen();
+                if (this._fenCache) {
+                    this._fenCache.set(cacheKey, nextFen);
+                    if (moveObj.from && moveObj.to) {
+                        let uciK = preFen + "|" + moveObj.from + moveObj.to + (moveObj.promotion || '');
+                        this._fenCache.set(uciK, nextFen);
+                    }
+                }
+            }
+
+            const newNode = new MoveNode(nextFen, finalSanToSave);
             newNode.lastMove = {
                 from: isIllegal ? -1 : this.#squareToIndex(moveObj.from),
                 to: isIllegal ? -1 : this.#squareToIndex(moveObj.to),
@@ -2137,6 +2193,8 @@ return move.san;
                     return a.isPV ? 1 : -1; 
                 });
             }
+            this.currentNode.selectedChildIndex = 0;
+
             this.currentNode = newNode;
             if (this.currentNode.parent && this.currentNode.parent.hasClock) {
                 this.currentNode.clock = { w: this.currentWTime, b: this.currentBTime };
@@ -2145,67 +2203,102 @@ return move.san;
         }
         return idx;
     }
-    #addPVToNode(node, pvString) {
-            if (!pvString || !node) return;
+#addPVToNode(node, pvString) {
+        if (!pvString || !node) return;
 
-            let savedNode = this.currentNode;
-            let savedFen = this.#engine.fen();
+        let savedNode = this.currentNode;
+        let savedFen = this.#engine.fen();
 
-            let pvMovesToPlay = [];
-            let pvi = 0; let pvlen = pvString.length;
-            while (pvi < pvlen) {
-                while(pvi < pvlen && pvString.charCodeAt(pvi) <= 32) pvi++;
-                if (pvi >= pvlen) break;
-                let st = pvi;
-                while(pvi < pvlen && pvString.charCodeAt(pvi) > 32) pvi++;
-                pvMovesToPlay.push(pvString.substring(st, pvi));
+        let pvMovesToPlay = [];
+        let pvi = 0; 
+        let pvlen = pvString.length;
+        while (pvi < pvlen) {
+            while (pvi < pvlen && pvString.charCodeAt(pvi) <= 32) pvi++;
+            if (pvi >= pvlen) break;
+            let st = pvi;
+            while (pvi < pvlen && pvString.charCodeAt(pvi) > 32) pvi++;
+            pvMovesToPlay.push(pvString.substring(st, pvi));
+        }
+        if (pvMovesToPlay.length === 0) return;
+
+        let firstMoveText = pvMovesToPlay[0].replace(/[?!+#]+$/, '');
+
+        // 1. Kiểm tra xem pv[0] có trùng nước cờ vừa đi của node hiện tại không
+        let isRootMove = false;
+        if (node.lastMove && node.lastMove.from !== -1 && node.parent) {
+            let lastUci = this.#indexToSquare(node.lastMove.from) + this.#indexToSquare(node.lastMove.to);
+            if (firstMoveText.toLowerCase().startsWith(lastUci.toLowerCase()) || firstMoveText === node.moveSan) {
+                isRootMove = true;
             }
-            if (pvMovesToPlay.length === 0) return;
+        }
 
-            let startNode = node.parent || node;
-            let loadFen = (node.parent && node.parent.fen) ? node.parent.fen : node.fen;
+        this._isParsingPV = true;
+        let startIndex = 0;
 
-            if (node.parent) {
-                try {
-                    this.#engine.load(node.fen);
-                    let firstMoveText = pvMovesToPlay[0].replace(/[?!+#]+$/, '');
-                    let uM = firstMoveText.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
-                    let testInput = uM 
-                        ? { from: uM[1], to: uM[2], promotion: uM[3] ? uM[3].toLowerCase() : undefined }
-                        : firstMoveText;
-                    
-                    let testMove = null;
-                    const origErr = console.error; console.error = () => {};
-                    try { testMove = this.#engine.move(testInput, { sloppy: true }); } catch(e) {}
-                    console.error = origErr;
+        // 🛡️ LIÊN KẾT CHUẨN: Lùi về parent để nhánh PV rẽ từ thế cờ gốc
+        let startNode = node.parent || node;
+        let loadFen = (node.parent && node.parent.fen) ? node.parent.fen : node.fen;
+        this.currentNode = startNode;
 
-                    if (testMove) {
-                        startNode = node;
-                        loadFen = node.fen;
-                    } else {
-                        startNode = node.parent;
-                        loadFen = node.parent.fen;
-                    }
-                } catch(e) {
-                    startNode = node.parent;
-                    loadFen = node.parent.fen;
-                }
+        if (isRootMove) {
+            // Nước pv[0]: Dùng luôn node.fen có sẵn, gắn cờ isPV = true
+            let existingPV0 = this.currentNode.children.find(c => c.moveSan === node.moveSan && c.isPV);
+            if (!existingPV0) {
+                let toIdx = node.lastMove ? node.lastMove.to : -1;
+                let pvNode0 = new MoveNode(node.fen, node.moveSan, this.currentNode, "", 0, toIdx);
+                pvNode0.lastMove = node.lastMove;
+                pvNode0.isPV = true; // 🎯 Khóa cờ PV
+                this.currentNode.children.push(pvNode0);
+                this.currentNode = pvNode0;
+            } else {
+                this.currentNode = existingPV0;
             }
 
-            if (pvMovesToPlay.length === 0) return;
-
-            this.currentNode = startNode;
-            try { 
-                this.#engine.load(loadFen); 
-            } catch(e) { 
+            try {
+                this.#engine.load(node.fen);
+            } catch(e) {
+                this._isParsingPV = false;
                 this.currentNode = savedNode;
-                return; 
+                return;
             }
+            startIndex = 1; // Bắt đầu duyệt từ pv[1]
+        } else {
+            try {
+                this.#engine.load(loadFen);
+            } catch(e) {
+                this._isParsingPV = false;
+                this.currentNode = savedNode;
+                return;
+            }
+            startIndex = 0;
+        }
 
-            for (let i = 0; i < pvMovesToPlay.length; i++) {
-                let moveText = pvMovesToPlay[i].replace(/[?!+#]+$/, '');
-                if (!moveText) continue;
+        // Bảng đệm chuyển vị nước đi (chỉ tồn tại trong suốt phiên loadPGN)
+        if (!this._transitionCache) this._transitionCache = new Map();
 
+        // 2. DUYỆT CÁC NƯỚC PV TIẾP THEO BẰNG TRANSITION CACHE
+        for (let i = startIndex; i < pvMovesToPlay.length; i++) {
+            let moveText = pvMovesToPlay[i].replace(/[?!+#]+$/, '');
+            if (!moveText) continue;
+
+            let preFen = this.currentNode.fen;
+            let transKey = preFen + "|" + moveText;
+            let cached = this._transitionCache.get(transKey);
+
+            let nextFen = null;
+            let moveData = null;
+            let moveSan = null;
+
+            if (cached) {
+                // ⚡ HIT CACHE: Bỏ qua engine.move() và engine.fen() hoàn toàn!
+                nextFen = cached.nextFen;
+                moveData = cached.moveData;
+                moveSan = cached.moveSan;
+                
+                // Đồng bộ bàn cờ nội bộ cho nước kế tiếp mà không cần validate lại
+                try { this.#engine.load(nextFen); } catch(e) {}
+            } else {
+                // ⚙️ MISS CACHE: Tính toán 1 lần duy nhất rồi lưu lại
                 let uM = moveText.match(/^([a-h][1-8])([a-h][1-8])([qrbn])?$/i);
                 let eInput = uM 
                     ? { from: uM[1], to: uM[2], promotion: uM[3] ? uM[3].toLowerCase() : undefined }
@@ -2221,21 +2314,47 @@ return move.san;
 
                 if (!moveObj) break;
 
-                let moveData = {
-                    from: typeof this.#squareToIndex === 'function' ? this.#squareToIndex(moveObj.from) : -1,
-                    to: typeof this.#squareToIndex === 'function' ? this.#squareToIndex(moveObj.to) : -1,
-                    flags: moveObj.flags, 
-                    piece: moveObj.piece, 
-                    color: moveObj.color
-                };
+                nextFen = this._fenCache ? this._fenCache.get(preFen + "|" + moveObj.san) : null;
+                if (!nextFen) {
+                    nextFen = this.#engine.fen();
+                    if (this._fenCache) this._fenCache.set(preFen + "|" + moveObj.san, nextFen);
+                }
 
-                this.#addMoveToTree(this.#engine.fen(), moveObj.san, moveData.to, moveData);
+                let fromIdx = typeof this.#squareToIndex === 'function' ? this.#squareToIndex(moveObj.from) : -1;
+                let toIdx = typeof this.#squareToIndex === 'function' ? this.#squareToIndex(moveObj.to) : -1;
+                moveData = {
+                    from: fromIdx, to: toIdx,
+                    flags: moveObj.flags, piece: moveObj.piece, color: moveObj.color
+                };
+                moveSan = moveObj.san;
+
+                // Ghi nhớ nước đi vào Transition Cache để các nhánh PV sau dùng lại tức thì
+                this._transitionCache.set(transKey, { nextFen, moveData, moveSan });
+                if (uM) this._transitionCache.set(preFen + "|" + moveSan, { nextFen, moveData, moveSan });
             }
 
-            this.currentNode = savedNode;
-            try { this.#engine.load(savedFen); } catch(e) {}  
+            // Kiểm tra xem node con đã có trong nhánh hiện tại chưa
+            let existingChild = this.currentNode.children.find(c => c.moveSan === moveSan && c.isPV);
+
+            if (existingChild) {
+                this.currentNode = existingChild;
+            } else {
+                // 🎯 CẤP PHÁT NODE ĐỘC LẬP:
+                // Node có cha duy nhất là this.currentNode -> Liên kết tuyệt đối vững chắc!
+                let newNode = new MoveNode(nextFen, moveSan, this.currentNode, "", 0, moveData.to);
+                newNode.lastMove = moveData;
+                newNode.isPV = true; // Luôn luôn gắn cờ PV
+
+                this.currentNode.children.push(newNode);
+                this.currentNode = newNode;
+            }
         }
-    #addMoveToTree(fen, moveSan, toSq, moveData) {
+
+        this._isParsingPV = false;
+        this.currentNode = savedNode;
+        try { this.#engine.load(savedFen); } catch(e) {}  
+    }
+#addMoveToTree(fen, moveSan, toSq, moveData) {
             let isPVMove = !!this._isParsingPV;
             let existingChild = this.currentNode.children.find(child => 
                 child.moveSan === moveSan && !!child.isPV === isPVMove
@@ -2299,8 +2418,8 @@ return move.san;
                     }, 200); 
                 }
             } catch (e) {}
-        }
-    #processEngineComment(node, rawComment) {
+    }
+#processEngineComment(node, rawComment) {
             if (rawComment.toLowerCase().includes('book')) {
                 node.isBook = true;
             }
@@ -2322,8 +2441,8 @@ return move.san;
                 }
                 this._isParsingPV = false;
             }
-        }
-    #endGame(resultStr, statusMsg) {
+    }
+#endGame(resultStr, statusMsg) {
             if (this.mode === 'analysis' || this.mode === 'study' || this.mode === 'editor') return; 
 
             const finishedLiveGame = (this.mode === 'local' || this.mode === 'bot');
@@ -2353,7 +2472,7 @@ return move.san;
             if (typeof this.#saveState === 'function') {
                 this.#saveState('play', true); 
             }
-        }
+    }
 #stopTimer() {
         if (this.#timerInterval) {
             clearInterval(this.#timerInterval);
@@ -3407,7 +3526,6 @@ getLegalMoves(squareIdx) {
         }
         return mapped; 
     }
-
 consumePremove() {
         if (this.premoveQueue.length > 0) this.premoveQueue.shift();
     }
@@ -4472,7 +4590,7 @@ endPuzzleRun(reason) {
     }
 showSolution() {
 this.#playPuzzleSolution();
-}
+    }
 retryPuzzle() {
         if (this.initialPuzzleFEN) {
             this.puzzleCursor = 0;
@@ -4520,15 +4638,15 @@ retryPuzzle() {
     }
 getUID() {
 return `p-${this.#pieceIdCounter++}`;
-}
+    }
 setPremoveMode(val) {
 this.premoveMode = val;
 this.clearPremoves();
-}
+    }
 resetEngineDefault() {
         this.initEngine(null, null);
         this.#ui.showNotification("Restored Default Latest Stockfish", "System", "🔄");
-}
+    }
 stepBack(animate = true) {
         if (!this.currentNode || !this.currentNode.parent) return false;
         
@@ -4586,13 +4704,22 @@ stepBack(animate = true) {
         return true;
     }
 stepForward(animate = true) {
-        if (!this.currentNode || this.currentNode.children.length === 0) return false;
+        if (!this.currentNode || !this.currentNode.children || this.currentNode.children.length === 0) return false;
         
-        const childIdx = (typeof this.currentNode.selectedChildIndex === 'number' && this.currentNode.children[this.currentNode.selectedChildIndex])
-            ? this.currentNode.selectedChildIndex
-            : 0;
-        const nextNode = this.currentNode.children[childIdx] || this.currentNode.children[0];
+        let nextNode = null;
         
+        if (this.currentNode.isPV) {
+            let pvChild = this.currentNode.children.find(c => c.isPV);
+            nextNode = pvChild || this.currentNode.children[0];
+        } else {
+            const childIdx = (typeof this.currentNode.selectedChildIndex === 'number' && this.currentNode.children[this.currentNode.selectedChildIndex])
+                ? this.currentNode.selectedChildIndex
+                : 0;
+            nextNode = this.currentNode.children[childIdx] || this.currentNode.children[0];
+        }
+        
+        if (!nextNode) return false;
+
         this.currentNode = nextNode;
         
         let curr = nextNode;
@@ -4749,7 +4876,7 @@ goToNodeId(id, animate = true) {
             const undoneNode = this.currentNode;
             
             this.currentNode = target;
-            this.resetTreeSelection(this.rootNode);
+
             let curr = target;
             while (curr.parent) {
                 const idx = curr.parent.children.indexOf(curr);
@@ -5199,7 +5326,7 @@ loadNewPosition(fen, explicitMode = null) {
     }
 generateFEN() {
 return this.#engine.fen();
-}
+    }
 getCurrentOpening() {
         if (typeof OPENING_BOOK_ECO === 'undefined') return null;
         let tempNode = this.currentNode;
@@ -5261,7 +5388,7 @@ if (this.#ui) {
     this.#ui.updateHistory();
     this.#ui.renderArrows();
 }
-}
+    }
 resetGame(clear = false, startFen = null) {
         if (clear) {
             this.#board = Array(64).fill(null);
@@ -5361,7 +5488,7 @@ this.#ui.loadPgnAndAnalyze();
 };
 reader.readAsText(file);
 input.value ='';
-}
+    }
 newGame(startFen = null) {
         if (!startFen) {
             startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode]) ? VARIANT_STARTING_FENS[this.gameMode] : INITIAL_FEN;
@@ -5452,7 +5579,7 @@ deleteNode(nodeId) {
     else if (this.mode === 'analysis') this.#saveState('analysis');
     
     return true;
-}
+    }
 promoteVariation(nodeId) {
         const node = this.#findNodeById(this.rootNode, nodeId);
         if (!node || !node.parent) return false;
@@ -5497,7 +5624,7 @@ return;
 node.selectedChildIndex = 0;
 for (let c of node.children)
 this.resetTreeSelection(c);
-}
+    }
 parseArrowsAndCircles(node, comment) {
         if (!comment) return;
 
@@ -5611,7 +5738,7 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                     'atomic': 'atomic', 'horde': 'horde', 'kingofthehill': 'kingofthehill', 
                     'koth': 'kingofthehill', 'racingkings': 'racingkings', 'crazyhouse': 'crazyhouse',
                     'bughouse': 'bughouse', 'duck': 'duck', 'duckchess': 'duck', 'chaturanga': 'chaturanga',
-                    'placement': 'placement', 'alice': 'alice', 'alicechess': 'alice',
+                    'alice': 'alice', 'alicechess': 'alice',
                     'spell': 'spell', 'spellchess': 'spell' 
                 };
                 if (modeMap[rawVariant]) detectedMode = modeMap[rawVariant];
@@ -5620,16 +5747,15 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             if (ruleVariantMatch && ruleVariantMatch[1]) {
                 const rules = ruleVariantMatch[1].toLowerCase();
                 if (rules.includes('chess960')) detectedMode = 'chess960';
-                if (rules.includes('spell')) detectedMode = 'spell';
-                if (rules.includes('duck')) detectedMode = 'duck';
-                if (rules.includes('3-check') || rules.includes('3check')) detectedMode = '3check';
-                if (rules.includes('antichess')) detectedMode = 'antichess';
-                if (rules.includes('atomic')) detectedMode = 'atomic';
-                if (rules.includes('crazyhouse')) detectedMode = 'crazyhouse';
-                if (rules.includes('bughouse')) detectedMode = 'bughouse';
-                if (rules.includes('horde')) detectedMode = 'horde';
-                if (rules.includes('kingofthehill')) detectedMode = 'kingofthehill';
-                if (rules.includes('racingkings')) detectedMode = 'racingkings';
+                else if (rules.includes('spell')) detectedMode = 'spell';
+                else if (rules.includes('duck')) detectedMode = 'duck';
+                else if (rules.includes('3-check') || rules.includes('3check')) detectedMode = '3check';
+                else if (rules.includes('antichess')) detectedMode = 'antichess';
+                else if (rules.includes('atomic')) detectedMode = 'atomic';
+                else if (rules.includes('crazyhouse')) detectedMode = 'crazyhouse';
+                else if (rules.includes('horde')) detectedMode = 'horde';
+                else if (rules.includes('kingofthehill')) detectedMode = 'kingofthehill';
+                else if (rules.includes('racingkings')) detectedMode = 'racingkings';
 
                 let match960 = ruleVariantMatch[1].match(/Chess960=(\d+)/i);
                 if (match960) {
@@ -5643,14 +5769,17 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 }
             }
             
+            // Chốt chặn F5: Cập nhật ngay biến thể vào localStorage
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('chess_last_variant', detectedMode);
+            }
+
             if (this.gameMode !== detectedMode) {
-                // Đã chèn logic lưu cái cũ trước khi thay đổi Mode
                 this.saveVariantState(this.gameMode);
                 this.gameMode = detectedMode;
                 if (this.#engine && typeof this.#engine.setGameMode === 'function') {
                     this.#engine.setGameMode(detectedMode);
                 }
-                // Ép UI Dropdown đồng bộ theo PGN
                 if (typeof document !== 'undefined' && this.#ui) {
                     const selects = ['analysisVariantSelect', 'graphVariantSelect', 'editorVariantSelect', 'gameVariantSelect'];
                     selects.forEach(id => {
@@ -5766,42 +5895,58 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                 .replace(/https?:\/\/\S+/gi, '')
                 .trim();
 
-            if (!isFFA) {
-                const sampleText = moveTextRaw.slice(0, 2000).replace(/\{[^}]*\}/g, '');
-                const has14x14Files = /\b[KQRBN]?[i-n]([1-9]|1[0-4])\b/.test(sampleText);
-                const has14x14Ranks = /\b[KQRBN]?[a-n](9|10|11|12|13|14)\b/.test(sampleText);
-                const hasChessComDuck = /&Θ/.test(sampleText);
-                const hasSpellDrop = /(freeze|jump)@/.test(sampleText);
-                
-                if (has14x14Files || has14x14Ranks || hasChessComDuck || hasSpellDrop) {
-                    isFFA = true;
+            const siteHeader = (this.pgnHeaders['Site'] || "").toLowerCase();
+            const eventHeader = (this.pgnHeaders['Event'] || "").toLowerCase();
+            const isComputerMatch = siteHeader.includes('computer-chess') || 
+                                    eventHeader.includes('ccc') || 
+                                    eventHeader.includes('tcec') ||
+                                    this.gameMode === 'classical';
+            if (!isComputerMatch) {
+                isFFA = Boolean(
+                    this.pgnHeaders['Variant'] === 'FFA' || 
+                    this.pgnHeaders['StartFen4'] || 
+                    siteHeader.includes('4-player-chess')
+                );
+
+                if (!isFFA) {
+                    const textWithoutComments = moveTextRaw.replace(/\{[\s\S]*?\}/g, '');
+                    const sampleText = textWithoutComments.slice(0, 1000);
+                    const has14x14Files = /\b[KQRBN]?[i-n]([1-9]|1[0-4])\b/.test(sampleText);
+                    const has14x14Ranks = /\b[KQRBN]?[a-n](9|10|11|12|13|14)\b/.test(sampleText);
+                    const hasChessComDuck = /&Θ/.test(sampleText);
+                    const hasSpellDrop = /(?:freeze|jump)@[a-k][0-9]+/i.test(sampleText);
+                    
+                    if (has14x14Files || has14x14Ranks || hasChessComDuck || hasSpellDrop) {
+                        isFFA = true;
+                    }
                 }
             }
 
-            if (isFFA || (this.gameMode !== 'classical' && this.gameMode !== 'chess960')) {
+            if (isFFA || (this.gameMode === 'spell' && moveTextRaw.includes('&'))) {
                 moveTextRaw = moveTextRaw.replace(/(\d+\.)([^\s])/g, "$1 $2");
-                let tokensArray = moveTextRaw.split(/\s+/);
-                let newTokensArray = [];
 
-                for (let t of tokensArray) {
-                    if (t.includes('.') || t === '..' || t.match(/^(1-0|0-1|1\/2-1\/2|\*|T)$/i)) {
-                        newTokensArray.push(t); 
-                        continue;
-                    }
-
-                    let moveData = this.#normalizeVariantToken(t, isFFA);
-                    let moveStr = moveData.cleaned;
-
-                    if (moveData.spell) {
-                        const spellPrefix = moveData.spell.type === 'freeze' ? 'Fz' : 'Jp';
-                        moveStr = `${spellPrefix}@${moveData.spell.square}_${moveData.cleaned}`;
-                    } else if (moveData.duck) {
-                        moveStr = `${moveData.cleaned}@${moveData.duck.square}`;
-                    }
-
-                    newTokensArray.push(moveStr);
+                if (this.gameMode === 'spell') {
+                    moveTextRaw = moveTextRaw.replace(/\bfreeze@/gi, 'Fz@').replace(/\bjump@/gi, 'Jp@');
+                    moveTextRaw = moveTextRaw.replace(/((?:Fz|Jp)@[a-k0-9]+)&/gi, '$1_');
                 }
-                moveTextRaw = newTokensArray.join(' ');
+
+                if (isFFA) {
+                    moveTextRaw = moveTextRaw.replace(/(\{[\s\S]*?\})|([^\s{}]+)/g, (match, comment, token) => {
+                        if (comment) return comment; // Giữ nguyên 100% comment không đụng đến
+                        if (!token || token.includes('.') || token === '..' || /^(1-0|0-1|1\/2-1\/2|\*|T)$/i.test(token)) {
+                            return token;
+                        }
+                        let moveData = this.#normalizeVariantToken(token, true);
+                        let moveStr = moveData.cleaned;
+                        if (moveData.spell) {
+                            const pfx = moveData.spell.type === 'freeze' ? 'Fz' : 'Jp';
+                            moveStr = `${pfx}@${moveData.spell.square}_${moveData.cleaned}`;
+                        } else if (moveData.duck) {
+                            moveStr = `${moveData.cleaned}@${moveData.duck.square}`;
+                        }
+                        return moveStr;
+                    });
+                }
             }
 
             let initialTime = null;
@@ -5823,6 +5968,9 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
             
             this.currentWTime = this.currentBTime = initialTime;
 
+            this._fenCache = new Map();
+            this._pvTransMap = new Map();
+
             let startFen = this.pgnHeaders['FEN'];
             if (!startFen) {
                 startFen = (typeof VARIANT_STARTING_FENS !== 'undefined' && VARIANT_STARTING_FENS[this.gameMode]) 
@@ -5832,6 +5980,8 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
                     startFen = this.generateChess960FEN();
                 }
             }
+
+            this._fenCache.set(startFen, startFen);
 
             this.rootNode = new MoveNode(startFen, null);
             if (initialTime !== null) {
@@ -5947,6 +6097,8 @@ loadPGN(pgn, isFromEditor = false, isInternalLoad = false) {
         } catch (e) {
             console.error("PGN Parsing Error:", e);
         } finally {
+            this._fenCache = null;
+            this._transitionCache = null;
             this.isLoadingPGN = false;
             this.#rebuildNodeMap(this.rootNode);
             this.clearPremoves();
@@ -6154,7 +6306,7 @@ addPremove(move) {
 clearPremoves() {
 this.premoveQueue = [];
 if (this.#ui) this.#ui.renderBoard(false);
-}
+    }
 attemptPremove() {
         if (this.premoveQueue.length === 0 || this.gameOver) return;
         if (!this.isPlayingLiveGame && !this.isPuzzle) return;
@@ -6308,14 +6460,14 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
 
         if (this.#engine && this.#engine.game_over()) return null;
 
-        // When loadPGN fires "Fz@f7", we buffer it and wait for the piece move to arrive!
     if (typeof move === 'string') {
-        if (this.gameMode === 'spell' && move.includes('@') && move.match(/^[FJ]z?p?@/)) {
-            const isFreeze = move.startsWith('Fz');
+        move = move.replace(/^((?:Fz|Jp|freeze|jump)@[a-h1-8]+)[\s_]+(.+)$/i, "$1_$2");
+
+        if (this.gameMode === 'spell' && /^S?(?:Fz|Jp|freeze|jump)@[a-h][1-8]$/i.test(move.trim())) {
+            const isFreeze = /^(?:S?freeze|Fz)/i.test(move);
             const targetStr = move.split('@')[1];
             const targetSq = (8 - parseInt(targetStr[1])) * 8 + (targetStr.charCodeAt(0) - 97);
                 
-                // Save it and abort. Don't process a turn yet!
             this._pendingReloadSpell = { 
                 isSpell: true, 
                 spellType: isFreeze ? 'freeze' : 'jump', 
@@ -6638,7 +6790,7 @@ makeMove(move, promo, batchMode, pgnText, muteEngine = false, isAutoReply = fals
         }
     fireSound(); 
     return result;
-}
+    }
 generateChess960FEN() {
         let spId = null;
         if (this.#ui && typeof this.#ui.getChess960SP === 'function') {

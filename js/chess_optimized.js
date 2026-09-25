@@ -3079,6 +3079,8 @@ var Chess = function(fen, gameMode = 'classical') {
     var hashHistoryCount = 0;
     var currentState = null;
     var history = []; 
+    var moveHistoryBuffer = new Int32Array(2048);
+    var moveHistoryCount = 0;
     
     try {
         currentState = load_fen(fen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", gameMode);
@@ -3099,7 +3101,7 @@ return {
             STATE_POOL.push(history.pop());
         }
         history.length = 0;
-
+        moveHistoryCount = 0;
         let s = load_fen(r, currentState.gameMode);
         if (!s) return false;
 
@@ -3112,7 +3114,7 @@ return {
                 STATE_POOL.push(history.pop());
             }
             history.length = 0;
-
+            moveHistoryCount = 0;
             currentState = load_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", currentState.gameMode); 
             if (currentState.gameMode === 'duck') currentState.duck_sq = -1;
             history.push(currentState);
@@ -3121,7 +3123,7 @@ return {
             HASH_HISTORY[hashHistoryCount++] = currentState.zobrist;
         },
         load_pgn: function(pgn) {
-            currentState = load_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", currentState.gameMode); history=[currentState];
+            currentState = load_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", currentState.gameMode); history=[currentState];moveHistoryCount = 0;
             var len = pgn.length, i = 0;
             while (i < len) {
                 var c = pgn.charCodeAt(i);
@@ -3145,6 +3147,7 @@ return {
                 
                 var m = tr(currentState, word);
                 if (m) { 
+                    moveHistoryBuffer[moveHistoryCount++] = m;
                     var nextState = apply_move(currentState, m);
                     history.push(nextState);
                     currentState = nextState;
@@ -3433,6 +3436,14 @@ return {
             history.push(nextState);
             currentState = nextState;
             HASH_HISTORY[hashHistoryCount++] = nextState.zobrist;
+            if (m !== null) {
+                if (moveHistoryCount >= moveHistoryBuffer.length) {
+                    var newBuf = new Int32Array(moveHistoryBuffer.length * 2);
+                    newBuf.set(moveHistoryBuffer);
+                    moveHistoryBuffer = newBuf;
+                }
+                moveHistoryBuffer[moveHistoryCount++] = m;
+            }
             return ret;
         },
         undo: function() {
@@ -3442,9 +3453,37 @@ return {
                 
                 currentState = history[history.length - 1];
                 if (hashHistoryCount > 1) hashHistoryCount--;
+                if (moveHistoryCount > 0) moveHistoryCount--;
                 return undone;
             }
             return null;
+        },
+        history: function(options) {
+            var isVerbose = Boolean(options && options.verbose);
+            var result = [];
+            var tempState = history[0]; 
+            
+            for (var i = 0; i < moveHistoryCount; i++) {
+                var m = moveHistoryBuffer[i];
+                var san = get_san(tempState, m);
+                
+                if (isVerbose) {
+                    result.push(to_obj(tempState, m, undefined, san));
+                } else {
+                    result.push(san);
+                }
+                
+                var nextState = apply_move(tempState, m);
+                if (tempState !== history[0] && STATE_POOL.length < 5000) {
+                    STATE_POOL.push(tempState);
+                }
+                tempState = nextState;
+            }
+            if (tempState !== history[0] && STATE_POOL.length < 5000) {
+                STATE_POOL.push(tempState);
+            }
+            
+            return result;
         },
         get: function(sq) { 
             var idx = str_to_sq(sq); if (idx === -1) return null;
