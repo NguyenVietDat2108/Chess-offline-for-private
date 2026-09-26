@@ -1,7 +1,7 @@
 # --- CHESS SERVER v6.4 (High-Performance Native Edition) ---
 # Features: COOP/COEP Headers, Stream Copying, Smart Routing, Array Puzzle Fetcher
 
-$port = 3000
+$port = 4000
 $root = $PSScriptRoot 
 
 # --- 1. CLEAN START ---

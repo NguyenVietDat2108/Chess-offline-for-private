@@ -4647,18 +4647,93 @@ resetEngineDefault() {
         this.initEngine(null, null);
         this.#ui.showNotification("Restored Default Latest Stockfish", "System", "🔄");
     }
+stepForward(animate = true) {
+        if (!this.currentNode || !this.currentNode.children || this.currentNode.children.length === 0) return false;
+        
+        const childIdx = (typeof this.currentNode.selectedChildIndex === 'number' && this.currentNode.children[this.currentNode.selectedChildIndex])
+            ? this.currentNode.selectedChildIndex
+            : 0;
+            
+        const nextNode = this.currentNode.children[childIdx] || this.currentNode.children[0];
+        if (!nextNode) return false;
+
+        this.currentNode = nextNode;
+        
+        let curr = nextNode;
+        while (curr.parent) {
+            const idx = curr.parent.children.indexOf(curr);
+            if (idx !== -1) curr.parent.selectedChildIndex = idx;
+            curr = curr.parent;
+        }
+        
+        if (nextNode.moveSan) {
+            try {
+                this.#engine.move(nextNode.moveSan, { sloppy: true });
+            } catch (e) {
+                this.#engine.load(nextNode.fen);
+            }
+        } else {
+            this.#engine.load(nextNode.fen);
+        }
+
+        if (this.gameMode === 'duck') {
+            this.#duck_sq = nextNode.duck_sq !== undefined ? nextNode.duck_sq : this.#getDuckSqFromFen(nextNode.fen);
+        }
+        this.turn = this.#engine.turn();
+        
+        if (typeof this.#reconcileBoardIds === 'function') {
+            this.#reconcileBoardIds(nextNode.fen, nextNode.lastMove);
+        }
+
+        if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
+        
+        this.#emit('boardUpdated', { animate: animate, overrideMove: nextNode.lastMove, skipEngine: true });
+        
+        if (this.mode === 'puzzle') {
+            let depth = 0;
+            let n = this.currentNode;
+            while (n && n.parent) { depth++; n = n.parent; }
+            this.puzzleCursor = depth;
+        }
+        
+        if (nextNode.lastMove) this.triggerMoveSound(nextNode.lastMove);
+
+        if (this.#ui) {
+            if (typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory(true);
+            if (typeof this.#ui.renderArrows === 'function') this.#ui.renderArrows();
+            if (typeof this.#ui.updateClocks === 'function') this.#ui.updateClocks();
+        }
+
+        if (window.engineAnalysing && !this.isPlayingLiveGame && typeof this.updateStockfish === 'function') this.updateStockfish();
+        return true;
+    }
 stepBack(animate = true) {
         if (!this.currentNode || !this.currentNode.parent) return false;
         
         const undoneNode = this.currentNode;
         const parentNode = this.currentNode.parent;
-        const branchIdx = parentNode.children.indexOf(undoneNode);
-        if (branchIdx !== -1) {
-            parentNode.selectedChildIndex = branchIdx;
+
+        const isMainline = (node) => {
+            let curr = node;
+            while (curr && curr.parent) {
+                if (curr.parent.children[0] !== curr) return false;
+                curr = curr.parent;
+            }
+            return true;
+        };
+
+        if (isMainline(parentNode)) {
+            parentNode.selectedChildIndex = 0;
+        } else {
+            const branchIdx = parentNode.children.indexOf(undoneNode);
+            if (branchIdx !== -1) parentNode.selectedChildIndex = branchIdx;
         }
+        
         this.currentNode = parentNode;
         
-        this.#engine.load(this.currentNode.fen);
+        const undoRes = this.#engine.undo();
+        if (!undoRes) this.#engine.load(this.currentNode.fen);
+
         if (this.gameMode === 'duck') {
             this.#duck_sq = this.currentNode.duck_sq !== undefined ? this.currentNode.duck_sq : this.#getDuckSqFromFen(this.currentNode.fen);
         }
@@ -4678,24 +4753,22 @@ stepBack(animate = true) {
             };
         }
 
+        if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
+
         this.#emit('boardUpdated', { animate: animate, overrideMove: this._transientOverrideMove, skipEngine: true });
         this._transientOverrideMove = null;
         
         if (this.mode === 'puzzle') {
             let depth = 0;
             let n = this.currentNode;
-            while (n && n.parent) {
-                depth++;
-                n = n.parent;
-            }
+            while (n && n.parent) { depth++; n = n.parent; }
             this.puzzleCursor = depth;
         }
         
-        if (undoneNode.lastMove) {
-            this.triggerMoveSound(undoneNode.lastMove);
-        }
+        if (undoneNode.lastMove) this.triggerMoveSound(undoneNode.lastMove);
+
         if (this.#ui) {
-            if (typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory();
+            if (typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory(true);
             if (typeof this.#ui.renderArrows === 'function') this.#ui.renderArrows();
             if (typeof this.#ui.updateClocks === 'function') this.#ui.updateClocks();
         }
@@ -4703,64 +4776,183 @@ stepBack(animate = true) {
         if (window.engineAnalysing && !this.isPlayingLiveGame && typeof this.updateStockfish === 'function') this.updateStockfish();
         return true;
     }
-stepForward(animate = true) {
-        if (!this.currentNode || !this.currentNode.children || this.currentNode.children.length === 0) return false;
-        
-        let nextNode = null;
-        
-        if (this.currentNode.isPV) {
-            let pvChild = this.currentNode.children.find(c => c.isPV);
-            nextNode = pvChild || this.currentNode.children[0];
+goToNodeId(id, animate = true) {
+        if (!id) return false;
+
+        let target = null;
+        if (typeof id === 'object' && id !== null && id.fen !== undefined) {
+            target = id;
         } else {
-            const childIdx = (typeof this.currentNode.selectedChildIndex === 'number' && this.currentNode.children[this.currentNode.selectedChildIndex])
-                ? this.currentNode.selectedChildIndex
-                : 0;
-            nextNode = this.currentNode.children[childIdx] || this.currentNode.children[0];
+            const idStr = String(id);
+            target = (this.nodeMap && this.nodeMap.get(idStr)) || null;
+            if (!target) {
+                const search = (node) => {
+                    if (node.id === idStr || String(node.id) === idStr) { target = node; return; }
+                    if (node.children) {
+                        for (let c of node.children) { if (target) return; search(c); }
+                    }
+                };
+                if (this.rootNode) search(this.rootNode);
+            }
         }
         
-        if (!nextNode) return false;
+        if (!target) return false;
 
-        this.currentNode = nextNode;
-        
-        let curr = nextNode;
+        const isMainline = (node) => {
+            let curr = node;
+            while (curr && curr.parent) {
+                if (curr.parent.children[0] !== curr) return false;
+                curr = curr.parent;
+            }
+            return true;
+        };
+
+        const clearSubtreeBranches = (node) => {
+            if (!node) return;
+            node.selectedChildIndex = 0;
+            if (node.children) {
+                for (let c of node.children) clearSubtreeBranches(c);
+            }
+        };
+
+        let curr = target;
         while (curr.parent) {
             const idx = curr.parent.children.indexOf(curr);
             if (idx !== -1) curr.parent.selectedChildIndex = idx;
             curr = curr.parent;
         }
+
+        if (isMainline(target)) {
+            clearSubtreeBranches(target);
+        } else if (target.children && target.children.length > 0) {
+            target.selectedChildIndex = 0;
+        }
+
+        if (this.currentNode && this.currentNode.id === target.id) {
+            if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
+            if (this.#ui) {
+                if (typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory(true);
+                if (typeof this.#ui.renderBoard === 'function') this.#ui.renderBoard(false);
+            }
+            return true;
+        }
+
+        const isStepBack = (this.currentNode && this.currentNode.parent && this.currentNode.parent.id === target.id);
+        const isStepForward = (this.currentNode && this.currentNode.children && this.currentNode.children.some(c => c.id === target.id));
+        const undoneNode = this.currentNode;
         
-        this.#engine.load(nextNode.fen);
+        let ancestorsCurr = [];
+        let temp = this.currentNode;
+        while(temp) { ancestorsCurr.push(temp); temp = temp.parent; }
+
+        let ancestorsTarget = [];
+        temp = target;
+        while(temp) { ancestorsTarget.unshift(temp); temp = temp.parent; }
+
+        let lca = null;
+        let lcaIndexTarget = -1;
+        for (let i = 0; i < ancestorsTarget.length; i++) {
+            if (ancestorsCurr.includes(ancestorsTarget[i])) {
+                lca = ancestorsTarget[i];
+                lcaIndexTarget = i;
+            } else { break; }
+        }
+
+        let currWalk = this.currentNode;
+        while (currWalk !== lca && currWalk !== null) {
+            this.#engine.undo();
+            currWalk = currWalk.parent;
+        }
+
+        let engineDesync = false;
+        for (let i = lcaIndexTarget + 1; i < ancestorsTarget.length; i++) {
+            let n = ancestorsTarget[i];
+            if (n.moveSan) {
+                const res = this.#engine.move(n.moveSan, { sloppy: true });
+                if (!res) {
+                    engineDesync = true;
+                    break;
+                }
+            }
+        }
+
+        if (engineDesync) this.#engine.load(target.fen);
+
+        this.currentNode = target;
+        
+        let currentEngineFen = this.#engine.fen().split(' ')[0];
+        let targetFenClean = this.currentNode.fen.split(' ')[0];
+        if (currentEngineFen !== targetFenClean) {
+            this.#engine.load(this.currentNode.fen);
+        }
+        
         if (this.gameMode === 'duck') {
-            this.#duck_sq = nextNode.duck_sq !== undefined ? nextNode.duck_sq : this.#getDuckSqFromFen(nextNode.fen);
+            this.#duck_sq = this.currentNode.duck_sq !== undefined ? this.currentNode.duck_sq : this.#getDuckSqFromFen(this.currentNode.fen);
         }
         this.turn = this.#engine.turn();
-        
-        if (typeof this.#reconcileBoardIds === 'function') {
-            this.#reconcileBoardIds(nextNode.fen, nextNode.lastMove);
-        }
-        
-        this.#emit('boardUpdated', { animate: animate, overrideMove: nextNode.lastMove, skipEngine: true });
         
         if (this.mode === 'puzzle') {
             let depth = 0;
             let n = this.currentNode;
-            while (n && n.parent) {
-                depth++;
-                n = n.parent;
-            }
+            while (n && n.parent) { depth++; n = n.parent; }
             this.puzzleCursor = depth;
         }
         
-        if (nextNode.lastMove) {
-            this.triggerMoveSound(nextNode.lastMove);
+        if (isStepBack && typeof this.#reconcileBoardIdsReverse === 'function') {
+            this.#reconcileBoardIdsReverse(this.currentNode.fen, undoneNode.lastMove);
+        } else if (isStepForward && typeof this.#reconcileBoardIds === 'function') {
+            this.#reconcileBoardIds(this.currentNode.fen, target.lastMove);
+        } else if (typeof this.#reconcileBoardIds === 'function') {
+            this.#reconcileBoardIds(this.currentNode.fen, null);
         }
+        
+        if (isStepBack && undoneNode.lastMove && undoneNode.lastMove.from !== '@') {
+            this._transientOverrideMove = {
+                from: undoneNode.lastMove.to,
+                to: undoneNode.lastMove.from,
+                color: undoneNode.lastMove.color,
+                flags: undoneNode.lastMove.flags,
+                isReverse: true
+            };
+        } else if (isStepForward && target.lastMove) {
+            this._transientOverrideMove = target.lastMove;
+        } else if (target.lastMove) {
+            this._transientOverrideMove = target.lastMove;
+        }
+
+        if (typeof this.#syncMoveHistory === 'function') this.#syncMoveHistory();
+
+        const shouldAnimate = animate && (isStepBack || isStepForward);
+        this.#emit('boardUpdated', { 
+            animate: shouldAnimate, 
+            overrideMove: this._transientOverrideMove,
+            skipEngine: true 
+        });
+        this._transientOverrideMove = null;
+        
+        const moveForSound = isStepBack 
+            ? (undoneNode?.lastMove || this.currentNode.lastMove) 
+            : (this.currentNode.lastMove || undoneNode?.lastMove);
+
+        if (moveForSound) {
+            this.triggerMoveSound(moveForSound);
+        } else {
+            const now = performance.now();
+            if (!this._lastSoundTime || (now - this._lastSoundTime >= 45)) {
+                this._lastSoundTime = now;
+                this.#emit('soundTriggered', { type: 'move-self' });
+            }
+        }
+
         if (this.#ui) {
-            if (typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory();
+            if (typeof this.#ui.updateHistory === 'function') this.#ui.updateHistory(true);
             if (typeof this.#ui.renderArrows === 'function') this.#ui.renderArrows();
             if (typeof this.#ui.updateClocks === 'function') this.#ui.updateClocks();
         }
 
-        if (window.engineAnalysing && !this.isPlayingLiveGame && typeof this.updateStockfish === 'function') this.updateStockfish();
+        if (window.engineAnalysing && !this.isPlayingLiveGame && typeof this.updateStockfish === 'function') {
+            this.updateStockfish();
+        }
         return true;
     }
 goToStart(animate = true) {
@@ -4854,99 +5046,6 @@ goToEnd(animate = true) {
             this.updateStockfish();
         }
         return true;
-    }
-goToNodeId(id, animate = true) {
-        let target = (this.nodeMap && this.nodeMap.get(id)) || null;
-        if (!target) {
-            const search = (node) => {
-                if (node.id === id) { target = node; return; }
-                for (let c of node.children) {
-                    if (target) return;
-                    search(c);
-                }
-            };
-            if (this.rootNode) search(this.rootNode);
-        }
-        
-        if (target) {
-            if (this.currentNode && this.currentNode.id === target.id) return false;
-
-            const isStepBack = (this.currentNode && this.currentNode.parent && this.currentNode.parent.id === target.id);
-            const isStepForward = (this.currentNode && this.currentNode.children && this.currentNode.children.some(c => c.id === target.id));
-            const undoneNode = this.currentNode;
-            
-            this.currentNode = target;
-
-            let curr = target;
-            while (curr.parent) {
-                const idx = curr.parent.children.indexOf(curr);
-                if (idx !== -1) curr.parent.selectedChildIndex = idx;
-                curr = curr.parent;
-            }
-            
-            this.#engine.load(this.currentNode.fen);
-            if (this.gameMode === 'duck') {
-                this.#duck_sq = this.currentNode.duck_sq !== undefined ? this.currentNode.duck_sq : this.#getDuckSqFromFen(this.currentNode.fen);
-            }
-            this.turn = this.#engine.turn();
-            
-            if (this.mode === 'puzzle') {
-                let depth = 0;
-                let n = this.currentNode;
-                while (n && n.parent) {
-                    depth++;
-                    n = n.parent;
-                }
-                this.puzzleCursor = depth;
-            }
-            
-            if (isStepBack && typeof this.#reconcileBoardIdsReverse === 'function') {
-                this.#reconcileBoardIdsReverse(this.currentNode.fen, undoneNode.lastMove);
-            } else if (isStepForward && typeof this.#reconcileBoardIds === 'function') {
-                this.#reconcileBoardIds(this.currentNode.fen, target.lastMove);
-            } else if (typeof this.#reconcileBoardIds === 'function') {
-                this.#reconcileBoardIds(this.currentNode.fen, null);
-            }
-            
-            if (isStepBack && undoneNode.lastMove && undoneNode.lastMove.from !== '@') {
-                this._transientOverrideMove = {
-                    from: undoneNode.lastMove.to,
-                    to: undoneNode.lastMove.from,
-                    color: undoneNode.lastMove.color,
-                    flags: undoneNode.lastMove.flags,
-                    isReverse: true
-                };
-            } else if (isStepForward && target.lastMove) {
-                this._transientOverrideMove = target.lastMove;
-            }
-
-            const shouldAnimate = animate && (isStepBack || isStepForward);
-            this.#emit('boardUpdated', { 
-                animate: shouldAnimate, 
-                overrideMove: this._transientOverrideMove,
-                skipEngine: true 
-            });
-            this._transientOverrideMove = null;
-            
-            const moveForSound = isStepBack 
-                ? (undoneNode?.lastMove || this.currentNode.lastMove) 
-                : (this.currentNode.lastMove || undoneNode?.lastMove);
-
-            if (moveForSound) {
-                this.triggerMoveSound(moveForSound);
-            } else {
-                const now = performance.now();
-                if (!this._lastSoundTime || (now - this._lastSoundTime >= 45)) {
-                    this._lastSoundTime = now;
-                    this.#emit('soundTriggered', { type: 'move-self' });
-                }
-            }
-            if (window.engineAnalysing && !this.isPlayingLiveGame && typeof this.updateStockfish === 'function') {
-                this.updateStockfish();
-            }
-            return true;
-        }
-        return false;
     }
 updateSettingsTime(settings = null) {
         if (settings) {

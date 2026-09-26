@@ -9444,7 +9444,7 @@ castSpell(spellType, targetSq) {
                             if (this.#game.currentNode.id !== targetNode.id) {
                                 this.#game.goToNodeId(targetNode.id, true);
                             }
-                            this._isKeyboardNavigating = true;
+                            this._isKeyboardNavigating = false;
                             if (window.engineAnalysing && typeof this.#game.updateStockfish === 'function') {
                                 this.#game.updateStockfish();
                             }
@@ -9455,18 +9455,28 @@ castSpell(spellType, targetSq) {
                             this.#game.goToNodeId(targetNode.id, true);
                         }
                         this.renderFullGraph(false, targetNode);
-                        this._isKeyboardNavigating = true;
+                        this._isKeyboardNavigating = false;
+                        if (window.engineAnalysing && typeof this.#game.updateStockfish === 'function') {
+                            this.#game.updateStockfish();
+                        }
                     }
                 } else {
                     clearTimeout(this._keyboardDebounce);
                     if (this.#game.currentNode.id !== targetNode.id) {
                         this.#game.goToNodeId(targetNode.id, true);
                     }
-                    this._isKeyboardNavigating = true;
+                    this._isKeyboardNavigating = false;
                     if (window.engineAnalysing && typeof this.#game.updateStockfish === 'function') {
                         this.#game.updateStockfish();
                     }
                 }
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'Space' && this.blindfoldMode && this.isPeeking) {
+                this.isPeeking = false;
+                if (typeof this.renderBoard === 'function') this.renderBoard(false);
             }
         });
     }
